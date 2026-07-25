@@ -2,12 +2,13 @@ import type { Drawing,DrawingPoint } from "./drawings.ts";
 import { distanceToRect,distanceToSegment,extendRay,moveHandle,rectangleHit,type PixelPoint } from "./drawing-geometry.ts";
 export type InteractionState="idle"|"hovering"|"placing-first-anchor"|"placing-next-anchor"|"dragging-new-drawing"|"dragging-handle"|"dragging-object";
 export type MagnetMode="off"|"weak"|"strong";
-export type ProjectedDrawing={drawing:Drawing;points:PixelPoint[];textBounds?:{x:number;y:number;width:number;height:number}};
+export type ProjectedDrawing={drawing:Drawing;points:PixelPoint[];textBounds?:{x:number;y:number;width:number;height:number};visibleSegments?:[PixelPoint,PixelPoint][]};
 export type DrawingHit={id:string;kind:"handle"|"label"|"line"|"interior";handleIndex?:number};
 const lineHit=(p:PixelPoint,a:PixelPoint,b:PixelPoint,t:number)=>distanceToSegment(p,a,b)<=t;
 export function hitTestDrawing(item:ProjectedDrawing,p:PixelPoint,tolerance=9,plotWidth=Infinity):Omit<DrawingHit,"id">|null{
  const {drawing:d,points:q}=item;
  for(let i=q.length-1;i>=0;i--)if(Math.hypot(p.x-q[i].x,p.y-q[i].y)<=tolerance+4)return {kind:"handle",handleIndex:i};
+ if(item.visibleSegments){return item.visibleSegments.some(([a,b])=>lineHit(p,a,b,tolerance))?{kind:"line"}:null;}
  if(d.type==="text"&&item.textBounds&&distanceToRect(p,{x:item.textBounds.x,y:item.textBounds.y},{x:item.textBounds.x+item.textBounds.width,y:item.textBounds.y+item.textBounds.height})<=tolerance)return {kind:"label"};
  if(d.type==="horizontalLine")return Math.abs(p.y-q[0].y)<=tolerance?{kind:"line"}:null;
  if(d.type==="verticalLine")return Math.abs(p.x-q[0].x)<=tolerance?{kind:"line"}:null;

@@ -15,6 +15,13 @@ export type ViewSettings = {
   provisionalStages: boolean;
   completedPatternFills: boolean;
   showLevelTouches: boolean;
+  globalLineExtensionOverride: LineExtension | "individual";
+  fadeExtendedPortions: boolean;
+  manualTrendLineExtension: LineExtension;
+  manualRayExtension: LineExtension;
+  manualHorizontalLineExtension: Exclude<LineExtension,"none">;
+  manualChannelExtension: LineExtension;
+  manualFibonacciExtension: LineExtension;
   srLineExtension: LineExtension;
   fibLineExtension: LineExtension;
   pivotTrendlineExtension: LineExtension;
@@ -99,6 +106,13 @@ export const DEFAULT_VIEW: ViewSettings = {
   provisionalStages: true,
   completedPatternFills: true,
   showLevelTouches: false,
+  globalLineExtensionOverride: "individual",
+  fadeExtendedPortions: true,
+  manualTrendLineExtension: "none",
+  manualRayExtension: "right",
+  manualHorizontalLineExtension: "both",
+  manualChannelExtension: "none",
+  manualFibonacciExtension: "none",
   srLineExtension: "both",
   fibLineExtension: "both",
   pivotTrendlineExtension: "right",
@@ -211,6 +225,13 @@ export function sanitiseTerminalSettings(
       provisionalStages: boolean(viewInput.provisionalStages, DEFAULT_VIEW.provisionalStages),
       completedPatternFills: boolean(viewInput.completedPatternFills, DEFAULT_VIEW.completedPatternFills),
       showLevelTouches: boolean(viewInput.showLevelTouches, DEFAULT_VIEW.showLevelTouches),
+      globalLineExtensionOverride: ["individual","none","left","right","both"].includes(String(viewInput.globalLineExtensionOverride)) ? viewInput.globalLineExtensionOverride as ViewSettings["globalLineExtensionOverride"] : DEFAULT_VIEW.globalLineExtensionOverride,
+      fadeExtendedPortions: boolean(viewInput.fadeExtendedPortions, DEFAULT_VIEW.fadeExtendedPortions),
+      manualTrendLineExtension: extension(viewInput.manualTrendLineExtension, DEFAULT_VIEW.manualTrendLineExtension),
+      manualRayExtension: extension(viewInput.manualRayExtension, DEFAULT_VIEW.manualRayExtension),
+      manualHorizontalLineExtension: (["left","right","both"].includes(String(viewInput.manualHorizontalLineExtension)) ? viewInput.manualHorizontalLineExtension : DEFAULT_VIEW.manualHorizontalLineExtension) as ViewSettings["manualHorizontalLineExtension"],
+      manualChannelExtension: extension(viewInput.manualChannelExtension, DEFAULT_VIEW.manualChannelExtension),
+      manualFibonacciExtension: extension(viewInput.manualFibonacciExtension, DEFAULT_VIEW.manualFibonacciExtension),
       srLineExtension: extension(viewInput.srLineExtension, DEFAULT_VIEW.srLineExtension),
       fibLineExtension: extension(viewInput.fibLineExtension, DEFAULT_VIEW.fibLineExtension),
       pivotTrendlineExtension: extension(viewInput.pivotTrendlineExtension, DEFAULT_VIEW.pivotTrendlineExtension),
