@@ -4,7 +4,7 @@ export type ChartAppearanceSettings = {
   preset: AppearancePreset;
   chart: { background: string; grid: string; axisText: string; priceScaleBorder: string; timeScaleBorder: string; crosshair: string; livePrice: string };
   candles: { bull: string; bear: string; bullWick: string; bearWick: string; bullVolume: string; bearVolume: string };
-  indicators: { vwap: string; trendMa: string; regression: string; bullTrendline: string; bearTrendline: string };
+  indicators: { vwap: string; trendMa: string; regression: string; regressionBasis: string; regressionUpper: string; regressionLower: string; regressionFill: string; trendlineHalo: string; bullTrendline: string; bearTrendline: string };
   structure: { supportLine: string; supportZone: string; supportLabelBackground: string; supportLabelText: string; resistanceLine: string; resistanceZone: string; resistanceLabelBackground: string; resistanceLabelText: string; fibonacciLine: string; fibonacciText: string; fibonacciLabelBackground: string; fibonacciLabelBorder: string; bullishTriangleBorder: string; bullishTriangleFill: string; bullishTriangleText: string; bearishTriangleBorder: string; bearishTriangleFill: string; bearishTriangleText: string; buyMarker: string; buyText: string; sellMarker: string; sellText: string; waveMarker: string; elliottBorder: string; elliottText: string; elliottFill: string; wyckoffAccumulation: string; wyckoffAccumulationFill: string; wyckoffDistribution: string; wyckoffDistributionFill: string; provisionalBackground: string; provisionalBorder: string };
   profile: { bull: string; bear: string; heading: string };
   opacity: { grid: number; zones: number; labels: number; triangles: number; profile: number; completedPatterns: number };
@@ -13,7 +13,7 @@ export type ChartAppearanceSettings = {
 const dark: Omit<ChartAppearanceSettings, "preset"> = {
   chart: { background: "#090c14", grid: "#57678b", axisText: "#8994ad", priceScaleBorder: "#20283a", timeScaleBorder: "#20283a", crosshair: "#7182a7", livePrice: "#e2e8f6" },
   candles: { bull: "#20c997", bear: "#f05268", bullWick: "#20c997", bearWick: "#f05268", bullVolume: "#20c997", bearVolume: "#f05268" },
-  indicators: { vwap: "#57a5ff", trendMa: "#d58bff", regression: "#67d1ff", bullTrendline: "#61e7b8", bearTrendline: "#ff8a65" },
+  indicators: { vwap: "#57a5ff", trendMa: "#d58bff", regression: "#67d1ff", regressionBasis: "#36B9FF", regressionUpper: "#66D1FF", regressionLower: "#66D1FF", regressionFill: "#2B8FD8", trendlineHalo: "#67D1FF", bullTrendline: "#2EE6A6", bearTrendline: "#FF7A59" },
   structure: { supportLine: "#2ee6a6", supportZone: "#2ee6a6", supportLabelBackground: "#094335", supportLabelText: "#6cf4c2", resistanceLine: "#ff5c70", resistanceZone: "#ff5c70", resistanceLabelBackground: "#4d1924", resistanceLabelText: "#ff8c9c", fibonacciLine: "#ffc75e", fibonacciText: "#FFF0C2", fibonacciLabelBackground: "#5A3A0B", fibonacciLabelBorder: "#FFC75E", bullishTriangleBorder: "#2ee6a6", bullishTriangleFill: "#2ee6a6", bullishTriangleText: "#8affd7", bearishTriangleBorder: "#ff5c70", bearishTriangleFill: "#ff5c70", bearishTriangleText: "#ffb0bc", buyMarker: "#16d991", buyText: "#04130d", sellMarker: "#ff4964", sellText: "#ffffff", waveMarker: "#b994ff", elliottBorder: "#d5c2ff", elliottText: "#ffffff", elliottFill: "#9f7aea", wyckoffAccumulation: "#20c997", wyckoffAccumulationFill: "#20c997", wyckoffDistribution: "#f05268", wyckoffDistributionFill: "#f05268", provisionalBackground: "#30374a", provisionalBorder: "#8994ad" },
   profile: { bull: "#2ee6a6", bear: "#ff5c70", heading: "#a6b2cf" },
   opacity: { grid: .1, zones: .085, labels: .94, triangles: .24, profile: .42, completedPatterns: .14 },
@@ -38,6 +38,13 @@ export function sanitiseAppearance(input: unknown): ChartAppearanceSettings {
     const target = result[group] as Record<string, unknown>;
     for (const key of Object.keys(target)) if (isHexColour(incoming[key])) target[key] = incoming[key];
   }
+  const incomingIndicators = source.indicators && typeof source.indicators === "object" ? source.indicators as Record<string, unknown> : {};
+  const legacyRegression = isHexColour(incomingIndicators.regression) ? incomingIndicators.regression : undefined;
+  const targetIndicators = result.indicators as Record<string, unknown>;
+  for (const key of ["regressionBasis", "regressionUpper", "regressionLower", "regressionFill"]) {
+    if (!isHexColour(incomingIndicators[key]) && legacyRegression) targetIndicators[key] = legacyRegression;
+  }
+  if (!isHexColour(incomingIndicators.trendlineHalo) && legacyRegression) targetIndicators.trendlineHalo = legacyRegression;
   const opacity = source.opacity && typeof source.opacity === "object" ? source.opacity as Record<string, unknown> : {};
   const targetOpacity = result.opacity as Record<string, number>;
   for (const key of Object.keys(targetOpacity)) targetOpacity[key] = clampOpacity(opacity[key], targetOpacity[key]);

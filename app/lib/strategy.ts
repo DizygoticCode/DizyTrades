@@ -13,8 +13,13 @@ export type PriceLevel = {
   kind: "support" | "resistance";
   touches: number;
   label: string;
+  startTime?: number;
+  endTime?: number;
 };
-export type FibLevel = { ratio: number; price: number; label: string };
+export type FibLevel = { ratio: number; price: number; label: string; startTime?: number; endTime?: number };
+export type RegressionChannelGeometry = {
+  basis: [Point, Point]; upper: [Point, Point]; lower: [Point, Point]; startTime: number; endTime: number;
+};
 export type PatternTriangle = {
   id: string;
   direction: "bullish" | "bearish";
@@ -77,6 +82,7 @@ export type StrategyAnalysis = {
   channelBasis: Point[];
   channelTop: Point[];
   channelBottom: Point[];
+  activeChannel: RegressionChannelGeometry | null;
   upperTrendline: Point[];
   lowerTrendline: Point[];
   levels: PriceLevel[];
@@ -144,7 +150,7 @@ function atrSeries(candles: Candle[], length = 14): Point[] {
 
 function regression(values: number[], start: number, end: number) {
   const length = end - start + 1;
-  if (length < 2) return { value: values[end], deviation: 0 };
+  if (length < 2) return { value: values[end], deviation: 0, slope: 0, intercept: values[end] };
   let sumX = 0;
   let sumY = 0;
   let sumXY = 0;
@@ -163,7 +169,7 @@ function regression(values: number[], start: number, end: number) {
   const deviation = stdDev(
     fitted.map((fit, offset) => values[start + offset] - fit),
   );
-  return { value: fitted[length - 1], deviation };
+  return { value: fitted[length - 1], deviation, slope, intercept };
 }
 
 function pivots(candles: Candle[], length: number) {
@@ -191,7 +197,7 @@ function buildLevels(
   const points = [...pivotData.highs, ...pivotData.lows].filter(
     (pivot) => pivot.index >= recentStart,
   );
-  const clusters: { prices: number[]; touches: number }[] = [];
+  const clusters: { prices: number[]; touches: number; times: number[] }[] = [];
   const width = Math.max(atr * settings.srClusterAtr, candles.at(-1)!.close * 0.0005);
   points.forEach((point) => {
     const match = clusters.find(
@@ -200,8 +206,9 @@ function buildLevels(
     if (match) {
       match.prices.push(point.price);
       match.touches += 1;
+      match.times.push(point.time);
     } else {
-      clusters.push({ prices: [point.price], touches: 1 });
+      clusters.push({ prices: [point.price], touches: 1, times: [point.time] });
     }
   });
   const close = candles.at(-1)!.close;
@@ -215,6 +222,8 @@ function buildLevels(
         kind,
         touches: cluster.touches,
         label: "",
+        startTime: Math.min(...cluster.times),
+        endTime: Math.max(...cluster.times),
       } satisfies PriceLevel;
     })
     .sort((a, b) => Math.abs(a.price - close) - Math.abs(b.price - close))
@@ -264,16 +273,13 @@ function buildElliottStages(pivotData: ReturnType<typeof pivots>): { stages: Pat
 
 function trendline(
   pivotsInput: { index: number; time: number; price: number }[],
-  candles: Candle[],
 ): Point[] {
   if (pivotsInput.length < 2) return [];
   const first = pivotsInput.at(-2)!;
   const second = pivotsInput.at(-1)!;
-  const slope = (second.price - first.price) / Math.max(1, second.index - first.index);
-  const lastIndex = candles.length - 1;
   return [
     { time: first.time, value: first.price },
-    { time: candles[lastIndex].time, value: second.price + slope * (lastIndex - second.index) },
+    { time: second.time, value: second.price },
   ];
 }
 
@@ -379,6 +385,7 @@ export function analyzeStrategy(
       channelBasis: [],
       channelTop: [],
       channelBottom: [],
+      activeChannel: null,
       upperTrendline: [],
       lowerTrendline: [],
       levels: [],
@@ -418,6 +425,19 @@ export function analyzeStrategy(
       value: item.value - item.deviation * settings.channelDeviation,
     });
   });
+  const channelStartIndex = Math.max(0, candles.length - settings.channelLength);
+  const channelEndIndex = candles.length - 1;
+  const activeRegression = regression(closes, channelStartIndex, channelEndIndex);
+  const channelOffset = activeRegression.deviation * settings.channelDeviation;
+  const basisStart = activeRegression.intercept;
+  const basisEnd = activeRegression.value;
+  const activeChannel: RegressionChannelGeometry = {
+    startTime: candles[channelStartIndex].time,
+    endTime: candles[channelEndIndex].time,
+    basis: [{ time: candles[channelStartIndex].time, value: basisStart }, { time: candles[channelEndIndex].time, value: basisEnd }],
+    upper: [{ time: candles[channelStartIndex].time, value: basisStart + channelOffset }, { time: candles[channelEndIndex].time, value: basisEnd + channelOffset }],
+    lower: [{ time: candles[channelStartIndex].time, value: basisStart - channelOffset }, { time: candles[channelEndIndex].time, value: basisEnd - channelOffset }],
+  };
 
   const pivotData = pivots(candles, settings.pivotLength);
   const lastAtr = atr.at(-1)!.value;
@@ -425,15 +445,18 @@ export function analyzeStrategy(
   const recent = candles.slice(-Math.min(settings.fibLength, candles.length));
   const swingHigh = Math.max(...recent.map((candle) => candle.high));
   const swingLow = Math.min(...recent.map((candle) => candle.low));
+  const swingHighTime = recent.find(candle => candle.high === swingHigh)!.time;
+  const swingLowTime = recent.find(candle => candle.low === swingLow)!.time;
+  const fibStartTime = Math.min(swingHighTime, swingLowTime), fibEndTime = Math.max(swingHighTime, swingLowTime);
   const range = Math.max(swingHigh - swingLow, Number.EPSILON);
   const fibs = [
-    { ratio: 0, price: swingHigh, label: "FIB 0" },
-    { ratio: 0.236, price: swingHigh - range * 0.236, label: "FIB 0.236" },
-    { ratio: 0.382, price: swingHigh - range * 0.382, label: "FIB 0.382" },
-    { ratio: 0.5, price: swingHigh - range * 0.5, label: "FIB 0.5" },
-    { ratio: 0.618, price: swingHigh - range * 0.618, label: "FIB 0.618" },
-    { ratio: 0.786, price: swingHigh - range * 0.786, label: "FIB 0.786" },
-    { ratio: 1, price: swingLow, label: "FIB 1" },
+    { ratio: 0, price: swingHigh, label: "FIB 0", startTime: fibStartTime, endTime: fibEndTime },
+    { ratio: 0.236, price: swingHigh - range * 0.236, label: "FIB 0.236", startTime: fibStartTime, endTime: fibEndTime },
+    { ratio: 0.382, price: swingHigh - range * 0.382, label: "FIB 0.382", startTime: fibStartTime, endTime: fibEndTime },
+    { ratio: 0.5, price: swingHigh - range * 0.5, label: "FIB 0.5", startTime: fibStartTime, endTime: fibEndTime },
+    { ratio: 0.618, price: swingHigh - range * 0.618, label: "FIB 0.618", startTime: fibStartTime, endTime: fibEndTime },
+    { ratio: 0.786, price: swingHigh - range * 0.786, label: "FIB 0.786", startTime: fibStartTime, endTime: fibEndTime },
+    { ratio: 1, price: swingLow, label: "FIB 1", startTime: fibStartTime, endTime: fibEndTime },
   ];
   const triangles = buildTriangle(candles, pivotData.highs, pivotData.lows);
   const last = candles.at(-1)!;
@@ -529,8 +552,9 @@ export function analyzeStrategy(
     channelBasis,
     channelTop,
     channelBottom,
-    upperTrendline: trendline(pivotData.highs, candles),
-    lowerTrendline: trendline(pivotData.lows, candles),
+    activeChannel,
+    upperTrendline: trendline(pivotData.highs),
+    lowerTrendline: trendline(pivotData.lows),
     levels,
     fibs,
     triangles,

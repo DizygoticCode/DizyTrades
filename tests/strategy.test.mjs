@@ -21,6 +21,12 @@ test("strategy produces finite visual analysis and a paper summary", () => {
   assert.ok(analysis.vwap.length >= 400);
   assert.ok(analysis.fibs.length === 7);
   assert.ok(analysis.levels.length > 0);
+  assert.ok(analysis.levels.every(level=>level.startTime<=level.endTime));
+  assert.ok(analysis.fibs.every(fib=>fib.startTime<=fib.endTime));
+  assert.ok(analysis.activeChannel);
+  const slopes=[analysis.activeChannel.basis,analysis.activeChannel.upper,analysis.activeChannel.lower].map(line=>(line[1].value-line[0].value)/(line[1].time-line[0].time));
+  assert.ok(slopes.every(slope=>Number.isFinite(slope)));
+  assert.ok(slopes.every(slope=>Math.abs(slope-slopes[0])<1e-12));
   assert.ok(Number.isFinite(summary.endingEquity));
   assert.ok(Number.isFinite(summary.maxDrawdownPct));
   assert.equal(summary.trades, summary.closedTrades.length);

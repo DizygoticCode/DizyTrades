@@ -1,6 +1,6 @@
 import type { StrategySettings } from "./strategy";
 import { DEFAULT_APPEARANCE, sanitiseAppearance, type ChartAppearanceSettings } from "./chart/appearance.ts";
-import type { PatternPlacement, SidePlacement } from "./chart/chart-layout.ts";
+import type { LineExtension, PatternPlacement, SidePlacement } from "./chart/chart-layout.ts";
 
 export type ViewSettings = {
   supportResistance: boolean;
@@ -15,6 +15,22 @@ export type ViewSettings = {
   provisionalStages: boolean;
   completedPatternFills: boolean;
   showLevelTouches: boolean;
+  srLineExtension: LineExtension;
+  fibLineExtension: LineExtension;
+  pivotTrendlineExtension: LineExtension;
+  lrChannelExtension: LineExtension;
+  triangleLineExtension: LineExtension;
+  pivotTrendlineWidth: number;
+  pivotTrendlineStyle: "solid" | "dashed" | "dotted";
+  trendlineHalo: boolean;
+  showTrendlineLabels: boolean;
+  lrBasisWidth: number;
+  lrBoundaryWidth: number;
+  lrBoundaryStyle: "solid" | "dashed" | "dotted";
+  showLrChannelFill: boolean;
+  lrChannelFillOpacity: number;
+  showLrChannelLabels: boolean;
+  lrBasisHalo: boolean;
   patternBubbleSize: "Small" | "Medium" | "Large";
   signalBubbleSize: "Medium" | "Large" | "Extra Large";
   signalDetail: "Direction only" | "Direction + confluence";
@@ -83,6 +99,22 @@ export const DEFAULT_VIEW: ViewSettings = {
   provisionalStages: true,
   completedPatternFills: true,
   showLevelTouches: false,
+  srLineExtension: "both",
+  fibLineExtension: "both",
+  pivotTrendlineExtension: "right",
+  lrChannelExtension: "right",
+  triangleLineExtension: "none",
+  pivotTrendlineWidth: 3,
+  pivotTrendlineStyle: "solid",
+  trendlineHalo: true,
+  showTrendlineLabels: true,
+  lrBasisWidth: 3,
+  lrBoundaryWidth: 2,
+  lrBoundaryStyle: "dashed",
+  showLrChannelFill: true,
+  lrChannelFillOpacity: .1,
+  showLrChannelLabels: true,
+  lrBasisHalo: true,
   patternBubbleSize: "Small",
   signalBubbleSize: "Large",
   signalDetail: "Direction only",
@@ -162,6 +194,8 @@ export function sanitiseTerminalSettings(
     : DEFAULT_VIEW.labelSize;
   const sidePlacement = (value: unknown, fallback: SidePlacement) => ["right-before-profile", "left-edge", "near-latest", "hidden"].includes(String(value)) ? value as SidePlacement : fallback;
   const patternPlacement = ["above", "inside", "below", "left", "right", "hidden"].includes(String(viewInput.patternLabelPlacement)) ? viewInput.patternLabelPlacement as PatternPlacement : DEFAULT_VIEW.patternLabelPlacement;
+  const extension = (value: unknown, fallback: LineExtension): LineExtension => ["none", "left", "right", "both"].includes(String(value)) ? value as LineExtension : fallback;
+  const lineStyle = (value: unknown, fallback: "solid" | "dashed" | "dotted") => ["solid", "dashed", "dotted"].includes(String(value)) ? value as "solid" | "dashed" | "dotted" : fallback;
 
   return {
     view: {
@@ -177,6 +211,22 @@ export function sanitiseTerminalSettings(
       provisionalStages: boolean(viewInput.provisionalStages, DEFAULT_VIEW.provisionalStages),
       completedPatternFills: boolean(viewInput.completedPatternFills, DEFAULT_VIEW.completedPatternFills),
       showLevelTouches: boolean(viewInput.showLevelTouches, DEFAULT_VIEW.showLevelTouches),
+      srLineExtension: extension(viewInput.srLineExtension, DEFAULT_VIEW.srLineExtension),
+      fibLineExtension: extension(viewInput.fibLineExtension, DEFAULT_VIEW.fibLineExtension),
+      pivotTrendlineExtension: extension(viewInput.pivotTrendlineExtension, DEFAULT_VIEW.pivotTrendlineExtension),
+      lrChannelExtension: extension(viewInput.lrChannelExtension, DEFAULT_VIEW.lrChannelExtension),
+      triangleLineExtension: extension(viewInput.triangleLineExtension, DEFAULT_VIEW.triangleLineExtension),
+      pivotTrendlineWidth: finite(viewInput.pivotTrendlineWidth, DEFAULT_VIEW.pivotTrendlineWidth, 1, 5),
+      pivotTrendlineStyle: lineStyle(viewInput.pivotTrendlineStyle, DEFAULT_VIEW.pivotTrendlineStyle),
+      trendlineHalo: boolean(viewInput.trendlineHalo, DEFAULT_VIEW.trendlineHalo),
+      showTrendlineLabels: boolean(viewInput.showTrendlineLabels, DEFAULT_VIEW.showTrendlineLabels),
+      lrBasisWidth: finite(viewInput.lrBasisWidth, DEFAULT_VIEW.lrBasisWidth, 1, 5),
+      lrBoundaryWidth: finite(viewInput.lrBoundaryWidth, DEFAULT_VIEW.lrBoundaryWidth, 1, 5),
+      lrBoundaryStyle: lineStyle(viewInput.lrBoundaryStyle, DEFAULT_VIEW.lrBoundaryStyle),
+      showLrChannelFill: boolean(viewInput.showLrChannelFill, DEFAULT_VIEW.showLrChannelFill),
+      lrChannelFillOpacity: finite(viewInput.lrChannelFillOpacity, DEFAULT_VIEW.lrChannelFillOpacity, 0, .4),
+      showLrChannelLabels: boolean(viewInput.showLrChannelLabels, DEFAULT_VIEW.showLrChannelLabels),
+      lrBasisHalo: boolean(viewInput.lrBasisHalo, DEFAULT_VIEW.lrBasisHalo),
       patternBubbleSize: ["Small","Medium","Large"].includes(String(viewInput.patternBubbleSize)) ? viewInput.patternBubbleSize as ViewSettings["patternBubbleSize"] : DEFAULT_VIEW.patternBubbleSize,
       signalBubbleSize: ["Medium","Large","Extra Large"].includes(String(viewInput.signalBubbleSize)) ? viewInput.signalBubbleSize as ViewSettings["signalBubbleSize"] : DEFAULT_VIEW.signalBubbleSize,
       signalDetail: ["Direction only","Direction + confluence"].includes(String(viewInput.signalDetail)) ? viewInput.signalDetail as ViewSettings["signalDetail"] : DEFAULT_VIEW.signalDetail,
