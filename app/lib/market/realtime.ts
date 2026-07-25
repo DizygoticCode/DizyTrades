@@ -68,6 +68,49 @@ export function nextCandleCloseTimestamp(startSeconds: number, timeframe: Candle
   return Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1) / 1000;
 }
 
+export function calculateCandleCountdownSeconds(input: {
+  candleStart: number;
+  timeframe: CandleTimeframe;
+  clientNowMs: number;
+  clockOffsetMs: number;
+}): number {
+  const serverNowSeconds = Math.floor((input.clientNowMs + input.clockOffsetMs) / 1_000);
+  return Math.max(0, nextCandleCloseTimestamp(input.candleStart, input.timeframe) - serverNowSeconds);
+}
+
+/** A clock-bound scheduler which catches up after browser background throttling. */
+export function startAlignedSecondClock(input: {
+  now?: () => number;
+  schedule?: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
+  cancel?: (timer: ReturnType<typeof setTimeout>) => void;
+  document?: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener">;
+  onTick: (nowMs: number) => void;
+}): () => void {
+  const now = input.now ?? Date.now;
+  const schedule = input.schedule ?? setTimeout;
+  const cancel = input.cancel ?? clearTimeout;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let stopped = false;
+  const tick = () => {
+    if (stopped) return;
+    const current = now();
+    input.onTick(current);
+    timer = schedule(tick, Math.max(1, 1_000 - (current % 1_000)));
+  };
+  const onVisibilityChange = () => {
+    if (input.document?.visibilityState !== "visible") return;
+    if (timer !== undefined) cancel(timer);
+    tick();
+  };
+  input.document?.addEventListener("visibilitychange", onVisibilityChange);
+  tick();
+  return () => {
+    stopped = true;
+    if (timer !== undefined) cancel(timer);
+    input.document?.removeEventListener("visibilitychange", onVisibilityChange);
+  };
+}
+
 export function estimateServerClockOffset(serverTimeMs: number, clientReceivedMs: number): number {
   return Number.isFinite(serverTimeMs) && Number.isFinite(clientReceivedMs) ? serverTimeMs - clientReceivedMs : 0;
 }
@@ -87,6 +130,14 @@ export function formatCountdown(secondsInput: number, timeframe?: CandleTimefram
 
 export const formatPriceLineTitle = (seconds: number | null, enabled: boolean): string =>
   enabled && seconds !== null ? `⏱ ${formatCountdown(seconds)}` : "";
+
+export function updatePriceLineCountdownTitle(
+  priceLine: { applyOptions: (options: { title: string }) => void } | null,
+  seconds: number | null,
+  enabled: boolean,
+) {
+  priceLine?.applyOptions({ title: formatPriceLineTitle(seconds, enabled) });
+}
 
 export function defaultVisibleCandleCount(width: number, available: number): number {
   const responsive = Math.round(width / 8);

@@ -31,3 +31,43 @@ test("UTC month boundaries handle leap years and year rollover", () => {
 });
 import { sanitiseTerminalSettings } from "../app/lib/config.ts";
 test("old settings profiles gain real-time visual defaults", () => { const migrated = sanitiseTerminalSettings({ view: { supportResistance: false } }); assert.equal(migrated.view.supportResistance, false); assert.equal(migrated.view.realtimeChartUpdates, true); assert.equal(migrated.view.candleCountdown, true); assert.equal(migrated.view.autoFitOnMarketChange, true); });
+
+import { calculateCandleCountdownSeconds, startAlignedSecondClock, updatePriceLineCountdownTitle } from "../app/lib/market/realtime.ts";
+
+test("countdown uses client seconds and server offset without depending on price", () => {
+  const base = Date.UTC(2026, 6, 25, 12, 0, 0);
+  const input = { candleStart: base / 1000, timeframe: "1m", clockOffsetMs: 2_000 };
+  assert.equal(calculateCandleCountdownSeconds({ ...input, clientNowMs: base + 10_000 }), 48);
+  assert.equal(calculateCandleCountdownSeconds({ ...input, clientNowMs: base + 11_000 }), 47);
+  assert.equal(calculateCandleCountdownSeconds({ ...input, clientNowMs: base + 90_000 }), 0);
+});
+
+test("countdown calculation preserves calendar month rollover", () => {
+  const start = Date.UTC(2024, 1, 1);
+  assert.equal(calculateCandleCountdownSeconds({ candleStart: start / 1000, timeframe: "1M", clientNowMs: Date.UTC(2024, 1, 29, 23, 59, 59), clockOffsetMs: 0 }), 1);
+});
+
+test("aligned clock is independent of price updates and recalculates on visibility", () => {
+  let now = 1_250, callback, delay, listener;
+  const ticks = [];
+  const document = { visibilityState: "visible", addEventListener: (_name, fn) => { listener = fn; }, removeEventListener: () => {} };
+  const stop = startAlignedSecondClock({ now: () => now, schedule: (fn, ms) => { callback = fn; delay = ms; return 1; }, cancel: () => {}, document, onTick: value => ticks.push(value) });
+  assert.deepEqual(ticks, [1_250]);
+  assert.equal(delay, 750);
+  // Arbitrarily many market-price updates have no scheduler input and cannot reset it.
+  callback();
+  assert.deepEqual(ticks, [1_250, 1_250]);
+  now = 8_900;
+  listener();
+  assert.equal(ticks.at(-1), 8_900);
+  assert.equal(delay, 100);
+  stop();
+});
+
+test("price-line title updater runs when only countdown seconds change", () => {
+  const titles = [];
+  const line = { applyOptions: options => titles.push(options.title) };
+  updatePriceLineCountdownTitle(line, 12, true);
+  updatePriceLineCountdownTitle(line, 11, true);
+  assert.deepEqual(titles, ["⏱ 00:12", "⏱ 00:11"]);
+});

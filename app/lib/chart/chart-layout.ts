@@ -56,6 +56,53 @@ export function stackLabels(items: { id: string; y: number }[], height: number, 
   return output.sort((a, b) => a.index - b.index).map(item => ({ id: item.id, y: item.y, placedY: item.placedY, displaced: Math.abs(item.placedY - item.y) > .5 }));
 }
 
+export type FibLabelLayout = {
+  id: string; ratio: number; text: string; x: number; y: number; width: number; height: number;
+  lineY: number; centreY: number; displaced: boolean; connector: boolean; emphasis: 0 | 1 | 2;
+};
+
+export function calculateFibLabelLayout(input: {
+  levels: { ratio: number; label: string; lineY: number; textWidth: number }[];
+  placement: SidePlacement;
+  plot: Rect;
+  leftX: number;
+  rightBoundary: number;
+  latestX: number;
+  offset: number;
+  labelHeight: number;
+  horizontalPadding: number;
+  top?: number;
+  bottom?: number;
+  gap?: number;
+}): FibLabelLayout[] {
+  if (input.placement === "hidden") return [];
+  const top = Math.max(input.plot.y, input.top ?? input.plot.y);
+  const bottom = Math.min(input.plot.y + input.plot.height, input.bottom ?? input.plot.y + input.plot.height);
+  const laneHeight = Math.max(input.labelHeight, bottom - top);
+  const stacked = stackLabels(
+    input.levels.map(level => ({ id: `fib-${Math.round(level.ratio * 1_000)}`, y: level.lineY - top })),
+    laneHeight,
+    input.labelHeight,
+    input.gap ?? 3,
+  );
+  return input.levels.map((level, index) => {
+    const width = Math.max(1, level.textWidth + input.horizontalPadding * 2);
+    let x = input.leftX;
+    if (input.placement === "right-before-profile") x = input.rightBoundary - width;
+    if (input.placement === "near-latest") x = Math.min(input.rightBoundary - width, input.latestX + input.offset);
+    x = Math.max(input.plot.x, Math.min(x, input.plot.x + input.plot.width - width));
+    const placed = stacked[index];
+    const centreY = top + placed.placedY;
+    const ratioKey = Math.round(level.ratio * 1_000);
+    return {
+      id: placed.id, ratio: level.ratio, text: level.label, x,
+      y: centreY - input.labelHeight / 2, width, height: input.labelHeight,
+      lineY: level.lineY, centreY, displaced: placed.displaced,
+      connector: placed.displaced, emphasis: ratioKey === 618 ? 2 : ratioKey === 500 ? 1 : 0,
+    };
+  });
+}
+
 export function patternLabelPosition(bounds: Rect, placement: PatternPlacement, label: { width: number; height: number }, plot: Rect, offset: number) {
   let x = bounds.x + (bounds.width - label.width) / 2, y = bounds.y - label.height - offset;
   if (placement === "inside") y = bounds.y + (bounds.height - label.height) / 2;

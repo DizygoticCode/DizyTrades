@@ -103,3 +103,34 @@ test("price marker countdown title respects toggle", () => {
   assert.equal(formatPriceLineTitle(0, true), "⏱ Closing…");
   assert.equal(formatPriceLineTitle(469, false), "");
 });
+
+import { calculateFibLabelLayout } from "../app/lib/chart/chart-layout.ts";
+
+test("Fibonacci labels are bounded rounded-box geometry with ratio-only text", () => {
+  const plot = { x: 12, y: 0, width: 400, height: 260 };
+  const labels = calculateFibLabelLayout({
+    levels: [
+      { ratio: 0, label: "FIB 0", lineY: 60, textWidth: 32 },
+      { ratio: .5, label: "FIB 0.5", lineY: 61, textWidth: 42 },
+      { ratio: .618, label: "FIB 0.618", lineY: 62, textWidth: 52 },
+    ],
+    placement: "left-edge", plot, leftX: 12, rightBoundary: 390, latestX: 250,
+    offset: 10, labelHeight: 20, horizontalPadding: 7, top: 44, bottom: 236, gap: 3,
+  });
+  assert.ok(labels.every(label => label.width > 0 && label.height > 0));
+  assert.ok(labels.every(label => label.x >= plot.x && label.x + label.width <= plot.x + plot.width));
+  assert.ok(labels.every(label => /^FIB (0|0\.5|0\.618)$/.test(label.text)));
+  assert.ok(labels.every((label, index) => index === 0 || label.y >= labels[index - 1].y + labels[index - 1].height + 3));
+  assert.ok(labels.some(label => label.connector));
+  assert.equal(labels.find(label => label.ratio === .5).emphasis, 1);
+  assert.equal(labels.find(label => label.ratio === .618).emphasis, 2);
+  assert.deepEqual(labels.map(label => label.id), ["fib-0", "fib-500", "fib-618"]);
+});
+
+test("old appearances gain Fib box defaults while custom Fib colours survive", () => {
+  const migrated = sanitiseAppearance({ structure: { fibonacciLine: "#123456", fibonacciText: "#abcdef", fibonacciLabelBorder: "invalid" } });
+  assert.equal(migrated.structure.fibonacciLine, "#123456");
+  assert.equal(migrated.structure.fibonacciText, "#abcdef");
+  assert.equal(migrated.structure.fibonacciLabelBackground, "#5A3A0B");
+  assert.equal(migrated.structure.fibonacciLabelBorder, "#FFC75E");
+});
