@@ -1100,3 +1100,14 @@ button {
 .realtime-delayed i,.realtime-reconnecting i { background:#ffb04f !important; }
 .realtime-offline i,.realtime-demo i { background:#8994ad !important; }
 @keyframes pulse { 50% { opacity:.35; transform:scale(.75); } }
+
+.visual-subtabs { display:grid; grid-template-columns:.8fr 1.4fr .8fr; gap:4px; padding:10px 12px 0; }
+.visual-subtabs button { border:1px solid #273149; border-radius:5px; background:#0d1320; color:#8994ad; padding:7px 3px; font-size:10px; text-transform:capitalize; }
+.visual-subtabs button.active { color:#f1f5ff; border-color:#536b9d; background:#19243a; }
+.colour-group { border:1px solid #222c40; border-radius:7px; margin:10px 0; padding:7px; }
+.colour-group legend { color:#8d9ab5; font-size:10px; padding:0 5px; text-transform:uppercase; }
+.colour-field { display:grid; grid-template-columns:minmax(0,1fr) 28px 60px; align-items:center; gap:7px; min-height:32px; color:#b9c4db; font-size:11px; text-transform:capitalize; }
+.colour-field input { width:27px; height:24px; border:0; background:transparent; padding:0; }
+.colour-field code { color:#75829d; font-size:9px; }
+.appearance-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.appearance-actions button,.reset-appearance { border:1px solid #34415e; background:#111a2b; color:#b9c4db; border-radius:5px; padding:7px 9px; font-size:10px; }

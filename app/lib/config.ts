@@ -1,4 +1,6 @@
 import type { StrategySettings } from "./strategy";
+import { DEFAULT_APPEARANCE, sanitiseAppearance, type ChartAppearanceSettings } from "./chart/appearance.ts";
+import type { PatternPlacement, SidePlacement } from "./chart/chart-layout.ts";
 
 export type ViewSettings = {
   supportResistance: boolean;
@@ -15,7 +17,21 @@ export type ViewSettings = {
   volumeRows: number;
   realtimeChartUpdates: boolean;
   candleCountdown: boolean;
+  countdownToolbar: boolean;
+  countdownPriceMarker: boolean;
   autoFitOnMarketChange: boolean;
+  srLabelPlacement: SidePlacement;
+  fibLabelPlacement: SidePlacement;
+  patternLabelPlacement: PatternPlacement;
+  labelOffset: number;
+  labelPadding: number;
+  compactLabels: boolean;
+  profileWidthPct: number;
+  profileMaxWidth: number;
+  profileOpacity: number;
+  profileInset: number;
+  showProfileHeading: boolean;
+  appearance: ChartAppearanceSettings;
 };
 
 export type RiskSettings = {
@@ -63,7 +79,21 @@ export const DEFAULT_VIEW: ViewSettings = {
   volumeRows: 28,
   realtimeChartUpdates: true,
   candleCountdown: true,
+  countdownToolbar: true,
+  countdownPriceMarker: true,
   autoFitOnMarketChange: true,
+  srLabelPlacement: "right-before-profile",
+  fibLabelPlacement: "left-edge",
+  patternLabelPlacement: "above",
+  labelOffset: 12,
+  labelPadding: 8,
+  compactLabels: false,
+  profileWidthPct: 20,
+  profileMaxWidth: 240,
+  profileOpacity: .42,
+  profileInset: 6,
+  showProfileHeading: true,
+  appearance: DEFAULT_APPEARANCE,
 };
 
 export const DEFAULT_RISK: RiskSettings = {
@@ -118,6 +148,8 @@ export function sanitiseTerminalSettings(
   )
     ? String(viewInput.labelSize) as ViewSettings["labelSize"]
     : DEFAULT_VIEW.labelSize;
+  const sidePlacement = (value: unknown, fallback: SidePlacement) => ["right-before-profile", "left-edge", "near-latest", "hidden"].includes(String(value)) ? value as SidePlacement : fallback;
+  const patternPlacement = ["above", "inside", "below", "left", "right", "hidden"].includes(String(viewInput.patternLabelPlacement)) ? viewInput.patternLabelPlacement as PatternPlacement : DEFAULT_VIEW.patternLabelPlacement;
 
   return {
     view: {
@@ -132,7 +164,21 @@ export function sanitiseTerminalSettings(
       signals: boolean(viewInput.signals, DEFAULT_VIEW.signals),
       realtimeChartUpdates: boolean(viewInput.realtimeChartUpdates, DEFAULT_VIEW.realtimeChartUpdates),
       candleCountdown: boolean(viewInput.candleCountdown, DEFAULT_VIEW.candleCountdown),
+      countdownToolbar: boolean(viewInput.countdownToolbar, boolean(viewInput.candleCountdown, DEFAULT_VIEW.countdownToolbar)),
+      countdownPriceMarker: boolean(viewInput.countdownPriceMarker, DEFAULT_VIEW.countdownPriceMarker),
       autoFitOnMarketChange: boolean(viewInput.autoFitOnMarketChange, DEFAULT_VIEW.autoFitOnMarketChange),
+      srLabelPlacement: sidePlacement(viewInput.srLabelPlacement, DEFAULT_VIEW.srLabelPlacement),
+      fibLabelPlacement: sidePlacement(viewInput.fibLabelPlacement, DEFAULT_VIEW.fibLabelPlacement),
+      patternLabelPlacement: patternPlacement,
+      labelOffset: finite(viewInput.labelOffset, DEFAULT_VIEW.labelOffset, 0, 80),
+      labelPadding: finite(viewInput.labelPadding, DEFAULT_VIEW.labelPadding, 2, 20),
+      compactLabels: boolean(viewInput.compactLabels, DEFAULT_VIEW.compactLabels),
+      profileWidthPct: finite(viewInput.profileWidthPct, DEFAULT_VIEW.profileWidthPct, 10, 30),
+      profileMaxWidth: finite(viewInput.profileMaxWidth, DEFAULT_VIEW.profileMaxWidth, 100, 320),
+      profileOpacity: finite(viewInput.profileOpacity, DEFAULT_VIEW.profileOpacity, 0, 1),
+      profileInset: finite(viewInput.profileInset, DEFAULT_VIEW.profileInset, 0, 40),
+      showProfileHeading: boolean(viewInput.showProfileHeading, DEFAULT_VIEW.showProfileHeading),
+      appearance: sanitiseAppearance(viewInput.appearance),
       labelSize,
       volumeBars: finite(viewInput.volumeBars, DEFAULT_VIEW.volumeBars, 60, 600),
       volumeRows: finite(viewInput.volumeRows, DEFAULT_VIEW.volumeRows, 12, 80),
