@@ -1,0 +1,95 @@
+# DizyTrades
+
+Private test platform containing:
+
+- **DizyCharts** — TradingView Lightweight Charts terminal and visual overlays
+- **DizySignals** — confirmed-candle confluence and historical paper simulator
+
+This repository is intentionally unable to place live exchange orders.
+
+## Test features
+
+- authenticated Rob and Friend workspaces
+- signed HTTP-only sessions and salted scrypt password hashes
+- public MEXC BTC/USDT perpetual candle adapter with deterministic demo fallback
+- 5m, 15m, 1h and 4h charts
+- full-width labelled support/resistance and Fibonacci levels
+- rolling VWAP, trend MA, regression channels and pivot trendlines
+- shaded bullish/bearish triangles and right-aligned volume profile
+- Elliott-lite, Wyckoff and confirmed BUY/SELL labels
+- persisted per-user visual, strategy and risk settings
+- confirmed-signal historical paper runs with ATR stop, TP1, break-even and TP2
+- JSONL audit events and saved paper snapshots
+- health endpoint that reports live trading as disabled
+
+## Local setup
+
+Requires Node.js 22 or newer.
+
+```bash
+npm ci
+cp .env.example .env.local
+npm run hash-password -- "choose a long local password"
+```
+
+Place the generated `salt:hash` value in `ROB_PASSWORD_HASH` or
+`FRIEND_PASSWORD_HASH`, set the matching email, and replace `SESSION_SECRET`
+with at least 32 random characters.
+
+```bash
+npm run dev
+```
+
+Then open `http://localhost:3000`.
+
+## Validation
+
+```bash
+npm run lint
+npm test
+npm run build
+```
+
+GitHub Actions runs the same checks on pushes and pull requests.
+
+## Render test deployment
+
+The included `render.yaml` creates:
+
+- one paid Starter Node web service in Frankfurt;
+- one 1 GB persistent disk mounted at `/var/data`;
+- automatic deploys from `main`;
+- `/api/health` monitoring;
+- a generated session secret;
+- prompted secret values for both users' emails and password hashes.
+
+Create the service from **New → Blueprint** in Render after the private GitHub
+repository is connected. Render prompts for every value marked `sync: false`.
+Do not put those values in this repository.
+
+The test service uses a disk-backed JSON store because it is intentionally
+limited to one instance and two testers. A persistent disk can only attach to
+one Render service instance, so managed Postgres is the required next storage
+step before a separate worker or any scale-out.
+
+## Live-trading boundary
+
+`LIVE_TRADING_ENABLED=false` is part of the deployment configuration, the
+health response always reports `liveTradingEnabled: false`, and there is no
+exchange credential or order endpoint in the codebase.
+
+Before any live milestone: add MFA, database-backed sessions, envelope-encrypted
+exchange credentials, trade-only/IP-allowlisted keys, idempotency, symbol and
+daily-loss caps, exchange reconciliation, durable TP1→BE→TP2 state, immutable
+audit storage, an emergency kill switch and a shadow-mode soak test.
+
+## Attribution
+
+Chart rendering uses
+[TradingView Lightweight Charts](https://www.tradingview.com/lightweight-charts/)
+and keeps TradingView attribution visible.
+
+Render references:
+[Blueprints](https://render.com/docs/blueprint-spec),
+[persistent disks](https://render.com/docs/disks), and
+[web services](https://render.com/docs/web-services).

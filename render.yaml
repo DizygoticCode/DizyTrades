@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: dizytrades-test
+    runtime: node
+    plan: starter
+    region: frankfurt
+    branch: main
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    numInstances: 1
+    maxShutdownDelaySeconds: 30
+    disk:
+      name: dizytrades-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 22.14.0
+      - key: HOSTNAME
+        value: 0.0.0.0
+      - key: DATA_DIR
+        value: /var/data/dizytrades
+      - key: LIVE_TRADING_ENABLED
+        value: "false"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ROB_NAME
+        value: Rob
+      - key: ROB_EMAIL
+        sync: false
+      - key: ROB_PASSWORD_HASH
+        sync: false
+      - key: FRIEND_NAME
+        value: Friend
+      - key: FRIEND_EMAIL
+        sync: false
+      - key: FRIEND_PASSWORD_HASH
+        sync: false
