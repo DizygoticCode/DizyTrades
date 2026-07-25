@@ -1,4 +1,56 @@
 export type Rect = { x: number; y: number; width: number; height: number };
+export type LineExtension = "none" | "left" | "right" | "both";
+export type LinePoint = { x: number; y: number };
+export type LineSegment = { start: LinePoint; end: LinePoint };
+
+const finitePoint = (point: LinePoint) => Number.isFinite(point.x) && Number.isFinite(point.y);
+
+/** Clips a finite segment to a rectangle using Liang-Barsky clipping. */
+export function clipLineToRect(start: LinePoint, end: LinePoint, rect: Rect): LineSegment | null {
+  if (!finitePoint(start) || !finitePoint(end) || !Number.isFinite(rect.x + rect.y + rect.width + rect.height) || rect.width <= 0 || rect.height <= 0) return null;
+  const xMin = rect.x, xMax = rect.x + rect.width, yMin = rect.y, yMax = rect.y + rect.height;
+  const dx = end.x - start.x, dy = end.y - start.y;
+  if (Math.abs(dx) < Number.EPSILON && Math.abs(dy) < Number.EPSILON) {
+    return start.x >= xMin && start.x <= xMax && start.y >= yMin && start.y <= yMax ? { start: { ...start }, end: { ...end } } : null;
+  }
+  let t0 = 0, t1 = 1;
+  for (const [p, q] of [[-dx, start.x - xMin], [dx, xMax - start.x], [-dy, start.y - yMin], [dy, yMax - start.y]] as const) {
+    if (Math.abs(p) < Number.EPSILON) { if (q < 0) return null; continue; }
+    const r = q / p;
+    if (p < 0) t0 = Math.max(t0, r); else t1 = Math.min(t1, r);
+    if (t0 > t1) return null;
+  }
+  return { start: { x: start.x + t0 * dx, y: start.y + t0 * dy }, end: { x: start.x + t1 * dx, y: start.y + t1 * dy } };
+}
+
+/** Extends an anchored mathematical line horizontally, then clips it to the safe candle plot. */
+export function extendLineToPlot(anchors: [LinePoint, LinePoint], plot: Rect, extension: LineExtension): LineSegment | null {
+  let [start, end] = anchors;
+  if (!finitePoint(start) || !finitePoint(end) || plot.width <= 0 || plot.height <= 0) return null;
+  if (start.x > end.x) [start, end] = [end, start];
+  const dx = end.x - start.x, dy = end.y - start.y;
+  // A vertical or degenerate anchor cannot be extrapolated by x, but remains safely clip-able.
+  if (Math.abs(dx) < 1e-7) return clipLineToRect(start, end, plot);
+  const slope = dy / dx;
+  const atX = (x: number): LinePoint => ({ x, y: start.y + slope * (x - start.x) });
+  const extendedStart = extension === "left" || extension === "both" ? atX(plot.x) : start;
+  const extendedEnd = extension === "right" || extension === "both" ? atX(plot.x + plot.width) : end;
+  return clipLineToRect(extendedStart, extendedEnd, plot);
+}
+
+export function calculateHorizontalLineExtent(startX: number, endX: number, plot: Rect, extension: LineExtension): { startX: number; endX: number } | null {
+  if (![startX, endX, plot.x, plot.width].every(Number.isFinite) || plot.width <= 0) return null;
+  const first = Math.min(startX, endX), last = Math.max(startX, endX);
+  const left = extension === "left" || extension === "both" ? plot.x : first;
+  const right = extension === "right" || extension === "both" ? plot.x + plot.width : last;
+  const clippedLeft = Math.max(plot.x, Math.min(plot.x + plot.width, left));
+  const clippedRight = Math.max(plot.x, Math.min(plot.x + plot.width, right));
+  return clippedRight < clippedLeft ? null : { startX: clippedLeft, endX: clippedRight };
+}
+
+export function channelFillPolygon(upper: LineSegment, lower: LineSegment): LinePoint[] {
+  return [upper.start, upper.end, lower.end, lower.start].filter(finitePoint);
+}
 export type SidePlacement = "right-before-profile" | "left-edge" | "near-latest" | "hidden";
 export type PatternPlacement = "above" | "inside" | "below" | "left" | "right" | "hidden";
 

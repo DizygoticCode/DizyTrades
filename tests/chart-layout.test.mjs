@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateAutoFit, calculateChartLayout, calculateGoToLive, calculateProfileRowGeometry, patternLabelPosition, placeChartBubbles, stackLabels } from "../app/lib/chart/chart-layout.ts";
+import { calculateAutoFit, calculateChartLayout, calculateGoToLive, calculateHorizontalLineExtent, channelFillPolygon, clipLineToRect, extendLineToPlot, calculateProfileRowGeometry, patternLabelPosition, placeChartBubbles, stackLabels } from "../app/lib/chart/chart-layout.ts";
 import { ALL_TIMEFRAMES, PROFILE_BAR_PRESETS, profileBarPreset } from "../app/lib/chart/toolbar.ts";
 import { DEFAULT_APPEARANCE, isHexColour, sanitiseAppearance } from "../app/lib/chart/appearance.ts";
 import { sanitiseTerminalSettings } from "../app/lib/config.ts";
@@ -134,3 +134,10 @@ test("old appearances gain Fib box defaults while custom Fib colours survive", (
   assert.equal(migrated.structure.fibonacciLabelBackground, "#5A3A0B");
   assert.equal(migrated.structure.fibonacciLabelBorder, "#FFC75E");
 });
+
+test("anchored line extension modes use and respect the safe plot",()=>{const plot={x:10,y:10,width:100,height:80},anchors=[{x:30,y:70},{x:70,y:30}];assert.deepEqual(extendLineToPlot(anchors,plot,"none"),{start:anchors[0],end:anchors[1]});assert.equal(extendLineToPlot(anchors,plot,"left").start.x,10);assert.equal(extendLineToPlot(anchors,plot,"right").end.x,90);const both=extendLineToPlot(anchors,plot,"both");assert.equal(both.start.x,10);assert.equal(both.end.x,90);for(const point of [both.start,both.end])assert.ok(point.x<=110&&point.y<=90);});
+test("line clipping handles rising falling horizontal vertical and degenerate input",()=>{const plot={x:0,y:0,width:50,height:50};for(const anchors of [[{x:-10,y:40},{x:60,y:10}],[{x:-10,y:10},{x:60,y:40}],[{x:-10,y:25},{x:60,y:25}],[{x:25,y:-10},{x:25,y:60}],[{x:20,y:20},{x:20,y:20}]]){const line=extendLineToPlot(anchors,plot,"both");assert.ok(line);for(const value of [line.start.x,line.start.y,line.end.x,line.end.y])assert.ok(Number.isFinite(value));}assert.equal(clipLineToRect({x:Number.NaN,y:0},{x:2,y:2},plot),null);});
+test("horizontal extents never enter the reserved profile lane",()=>{const safe={x:12,y:0,width:500,height:300};assert.deepEqual(calculateHorizontalLineExtent(100,200,safe,"both"),{startX:12,endX:512});assert.ok(calculateHorizontalLineExtent(100,900,safe,"right").endX<=512);});
+test("channel polygon follows parallel boundaries",()=>{const upper=extendLineToPlot([{x:20,y:20},{x:60,y:30}],{x:0,y:0,width:100,height:100},"right"),lower=extendLineToPlot([{x:20,y:40},{x:60,y:50}],{x:0,y:0,width:100,height:100},"right");assert.ok(upper&&lower);assert.equal((upper.end.y-upper.start.y)/(upper.end.x-upper.start.x),(lower.end.y-lower.start.y)/(lower.end.x-lower.start.x));const polygon=channelFillPolygon(upper,lower);assert.equal(polygon.length,4);assert.ok(polygon[0].y<polygon[3].y&&polygon[1].y<polygon[2].y);});
+test("line visual settings migrate and clamp safely",()=>{const view=sanitiseTerminalSettings({view:{srLineExtension:"bad",fibLineExtension:"left",pivotTrendlineWidth:99,lrBoundaryWidth:0,lrChannelFillOpacity:1}}).view;assert.equal(view.srLineExtension,"both");assert.equal(view.fibLineExtension,"left");assert.equal(view.pivotTrendlineWidth,5);assert.equal(view.lrBoundaryWidth,1);assert.equal(view.lrChannelFillOpacity,.4);});
+test("legacy regression colour seeds new channel colours",()=>{const migrated=sanitiseAppearance({indicators:{regression:"#123456"}});assert.equal(migrated.indicators.regressionBasis,"#123456");assert.equal(migrated.indicators.regressionUpper,"#123456");assert.equal(migrated.indicators.regressionLower,"#123456");});
