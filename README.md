@@ -68,7 +68,9 @@ The included `render.yaml` creates:
 - automatic deploys from `main`;
 - `/api/health` monitoring;
 - a generated session secret;
-- prompted secret values for both users' emails and password hashes.
+- prompted secret values for both users' emails, password hashes and temporary
+  test-only plaintext passwords, with plaintext authentication disabled by
+  default.
 
 Create the service from **New → Blueprint** in Render after the private GitHub
 repository is connected. Render prompts for every value marked `sync: false`.
