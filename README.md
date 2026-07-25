@@ -1,5 +1,11 @@
 # DizyTrades
 
+## Public market views and safety
+
+Native **DizyCharts** reads enabled perpetual-market metadata and closed OHLCV candles only from MEXC's documented public contract API. Its provider boundary is designed for additional public-data exchanges without coupling the analysis UI to an exchange implementation. **TradingView Explorer** is a separate, isolated official Advanced Chart widget: TradingView data and widget state are never consumed by DizySignals or paper simulations, and this application does not execute Pine Script.
+
+Viewer sessions are signed, expire after two hours, and use browser `sessionStorage` for local market preferences. They cannot write profiles, paper snapshots, audit events, or user files. No exchange credentials, private exchange endpoints, order routes, or live-execution capability exist. `LIVE_TRADING_ENABLED=false` must remain unchanged.
+
 Private test platform containing:
 
 - **DizyCharts** — TradingView Lightweight Charts terminal and visual overlays

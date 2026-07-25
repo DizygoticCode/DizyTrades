@@ -1,5 +1,13 @@
 # Security
 
+## Market-data boundary
+
+DizyCharts calls only documented **public** MEXC contract directory and candle endpoints. TradingView Explorer uses the official branded read-only widget in isolation; it is not scraped, read from, injected with DizySignals or Pine Script, or used for simulations. TradingView attribution remains visible.
+
+Viewer access uses the existing HMAC-signed, HTTP-only session cookie with a two-hour lifetime. Server routes reject viewer profile updates and paper snapshots, while profile reads return in-memory sanitised defaults without creating storage. Viewer UI state stays in `sessionStorage`.
+
+There is no credential storage, private exchange API access, order submission/cancellation, or leverage modification. Live execution remains deliberately unavailable and `LIVE_TRADING_ENABLED` must remain `false`.
+
 This repository contains a test terminal, not a live exchange executor.
 
 - Never commit passwords, session secrets, API keys or `.env` files.

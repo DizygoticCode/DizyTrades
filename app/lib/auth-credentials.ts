@@ -3,10 +3,10 @@ import "server-only";
 import { scryptSync, timingSafeEqual } from "node:crypto";
 
 export type AuthUser = {
-  id: "rob" | "friend";
+  id: "rob" | "friend" | "guest";
   name: string;
   email: string;
-  role: "owner" | "admin";
+  role: "owner" | "admin" | "viewer";
 };
 
 export type ConfiguredUser = AuthUser & {

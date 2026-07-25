@@ -33,6 +33,21 @@ export default function LoginForm() {
     }
   };
 
+  const continueAsViewer = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/auth/viewer", { method: "POST" });
+      if (!response.ok) throw new Error("Viewer session unavailable.");
+      router.replace("/");
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Viewer session unavailable.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <form className="login-card" onSubmit={submit}>
       <div className="login-brand">
@@ -53,6 +68,9 @@ export default function LoginForm() {
       {error ? <div className="login-error" role="alert">{error}</div> : null}
       <button disabled={loading} type="submit">
         {loading ? "Signing in…" : "Open trading terminal"}
+      </button>
+      <button className="viewer-login" disabled={loading} onClick={continueAsViewer} type="button">
+        Continue as Viewer
       </button>
       <div className="login-safety">
         <b>TEST MODE</b>
