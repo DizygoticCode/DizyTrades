@@ -85,6 +85,9 @@ export function formatCountdown(secondsInput: number, timeframe?: CandleTimefram
   return `${two(minutes)}:${two(remainder)}`;
 }
 
+export const formatPriceLineTitle = (seconds: number | null, enabled: boolean): string =>
+  enabled && seconds !== null ? `⏱ ${formatCountdown(seconds)}` : "";
+
 export function defaultVisibleCandleCount(width: number, available: number): number {
   const responsive = Math.round(width / 8);
   return Math.min(available, Math.max(80, Math.min(180, responsive || 120)));
