@@ -88,7 +88,7 @@ export const DEFAULT_VIEW: ViewSettings = {
   signalDetail: "Direction only",
   labelSize: "Medium",
   volumeBars: 240,
-  volumeRows: 28,
+  volumeRows: 64,
   realtimeChartUpdates: true,
   candleCountdown: true,
   countdownToolbar: true,
@@ -199,7 +199,7 @@ export function sanitiseTerminalSettings(
       appearance: sanitiseAppearance(viewInput.appearance),
       labelSize,
       volumeBars: finite(viewInput.volumeBars, DEFAULT_VIEW.volumeBars, 60, 600),
-      volumeRows: finite(viewInput.volumeRows, DEFAULT_VIEW.volumeRows, 12, 80),
+      volumeRows: finite(viewInput.volumeRows, DEFAULT_VIEW.volumeRows, 12, 240),
     },
     strategy: {
       pivotLength: finite(strategyInput.pivotLength, DEFAULT_STRATEGY.pivotLength, 2, 20),

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateAutoFit, calculateChartLayout, patternLabelPosition, placeChartBubbles, stackLabels } from "../app/lib/chart/chart-layout.ts";
+import { calculateAutoFit, calculateChartLayout, calculateGoToLive, calculateProfileRowGeometry, patternLabelPosition, placeChartBubbles, stackLabels } from "../app/lib/chart/chart-layout.ts";
+import { ALL_TIMEFRAMES, PROFILE_BAR_PRESETS, profileBarPreset } from "../app/lib/chart/toolbar.ts";
 import { DEFAULT_APPEARANCE, isHexColour, sanitiseAppearance } from "../app/lib/chart/appearance.ts";
 import { sanitiseTerminalSettings } from "../app/lib/config.ts";
 import { formatPriceLineTitle } from "../app/lib/market/realtime.ts";
@@ -31,6 +32,39 @@ test("auto fit reserves the latest candle left of overlays", () => {
   const fit = calculateAutoFit({ candleCount: 800, desiredCount: 125, barSpacing: 7, layout });
   assert.ok(fit.latestMaximumX < layout.rightLabels.x);
   assert.ok(fit.visibleCount >= 1 && fit.visibleCount <= 180);
+});
+
+test("toolbar exposes every timeframe in order and preserves minute/month case", () => {
+  assert.deepEqual(ALL_TIMEFRAMES, ["1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "1w", "1M"]);
+  assert.notEqual(ALL_TIMEFRAMES[0], ALL_TIMEFRAMES.at(-1));
+});
+
+test("go to live preserves zoom span and reserved overlay space", () => {
+  const layout = calculateChartLayout({ width: 1000, height: 500, priceScaleWidth: 65, profileEnabled: true, profileWidthPct: 20, profileMaxWidth: 240, profileInset: 6, rightLabels: true });
+  const live = calculateGoToLive({ candleCount: 800, currentRange: { from: 620.5, to: 700.5 }, barSpacing: 7, layout });
+  assert.equal(live.to - live.from, 80);
+  assert.ok(live.reservedBars > 2);
+  assert.ok(live.to > 799);
+});
+
+test("volume profile settings migrate, default, clamp, and map presets", () => {
+  assert.equal(sanitiseTerminalSettings({ view: { volumeRows: 80 } }).view.volumeRows, 80);
+  assert.equal(sanitiseTerminalSettings({ view: {} }).view.volumeRows, 64);
+  assert.equal(sanitiseTerminalSettings({ view: { volumeRows: 2 } }).view.volumeRows, 12);
+  assert.equal(sanitiseTerminalSettings({ view: { volumeRows: 999 } }).view.volumeRows, 240);
+  assert.deepEqual(PROFILE_BAR_PRESETS, { Large: 24, Medium: 48, Small: 80, "Very small": 120 });
+  assert.equal(profileBarPreset(48), "Medium");
+  assert.equal(profileBarPreset(64), "Custom");
+});
+
+test("dense profile geometry remains finite, positive, and non-overlapping", () => {
+  for (const rows of [24, 64, 120, 240]) {
+    const extent = 400 / rows;
+    const row = calculateProfileRowGeometry(100, 100 + extent, rows);
+    assert.ok(Number.isFinite(row.y) && Number.isFinite(row.height));
+    assert.ok(row.height > 0 && row.height <= extent + 1e-9);
+    assert.ok(row.y + row.height <= 100 + extent + 1e-9);
+  }
 });
 
 test("collision layout is deterministic, separated, and clamped", () => {
