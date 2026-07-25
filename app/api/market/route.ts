@@ -1,86 +1,30 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "../../lib/auth";
-import type { Candle } from "../../lib/strategy";
+import { getMarketProvider } from "../../lib/market";
+import { getMexcMarkets, isCandleTimeframe } from "../../lib/market/mexc";
 
 export const dynamic = "force-dynamic";
 
-const intervals: Record<string, { mexc: string; seconds: number }> = {
-  "5m": { mexc: "Min5", seconds: 300 },
-  "15m": { mexc: "Min15", seconds: 900 },
-  "1h": { mexc: "Min60", seconds: 3600 },
-  "4h": { mexc: "Hour4", seconds: 14_400 },
-};
-
 export async function GET(request: Request) {
-  const user = await requireApiUser();
-  if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
-  const url = new URL(request.url);
-  const timeframe = url.searchParams.get("timeframe") ?? "15m";
-  const selected = intervals[timeframe] ?? intervals["15m"];
-  const symbol = (url.searchParams.get("symbol") ?? "BTC_USDT").replace(
-    /[^A-Z0-9_]/g,
-    "",
-  );
-  const end = Math.floor(Date.now() / 1000);
-  const start = end - selected.seconds * 650;
-  const endpoint = new URL(
-    `https://contract.mexc.com/api/v1/contract/kline/${symbol}`,
-  );
-  endpoint.searchParams.set("interval", selected.mexc);
-  endpoint.searchParams.set("start", String(start));
-  endpoint.searchParams.set("end", String(end));
-
+  if (!await requireApiUser()) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+  const params = new URL(request.url).searchParams;
+  const exchange = params.get("exchange") ?? "mexc";
+  const symbol = params.get("symbol") ?? "BTC_USDT";
+  const timeframe = params.get("timeframe") ?? "15m";
+  const limitRaw = params.get("limit") ?? "800";
+  const endRaw = params.get("end");
+  const limit = Number(limitRaw);
+  const end = endRaw === null ? undefined : Number(endRaw);
+  if (exchange !== "mexc") return NextResponse.json({ error: "Unsupported exchange." }, { status: 400 });
+  if (!isCandleTimeframe(timeframe)) return NextResponse.json({ error: "Unsupported timeframe." }, { status: 400 });
+  if (!Number.isInteger(limit) || limit < 1 || limit > 2000) return NextResponse.json({ error: "Limit must be between 1 and 2,000." }, { status: 400 });
+  if (end !== undefined && (!Number.isInteger(end) || end < 1 || end > Math.floor(Date.now() / 1000))) return NextResponse.json({ error: "Invalid end cursor." }, { status: 400 });
   try {
-    const response = await fetch(endpoint, {
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(5_500),
-      cache: "no-store",
-    });
-    if (!response.ok) throw new Error(`MEXC returned ${response.status}`);
-    const payload = (await response.json()) as {
-      success?: boolean;
-      data?: {
-        time?: number[];
-        open?: number[];
-        high?: number[];
-        low?: number[];
-        close?: number[];
-        vol?: number[];
-      };
-    };
-    const data = payload.data;
-    if (!payload.success || !data?.time?.length) throw new Error("No MEXC candle data");
-    const candles: Candle[] = data.time.map((time, index) => ({
-      time,
-      open: Number(data.open?.[index]),
-      high: Number(data.high?.[index]),
-      low: Number(data.low?.[index]),
-      close: Number(data.close?.[index]),
-      volume: Number(data.vol?.[index] ?? 0),
-    })).filter(
-      (candle) =>
-        Number.isFinite(candle.open) &&
-        Number.isFinite(candle.high) &&
-        Number.isFinite(candle.low) &&
-        Number.isFinite(candle.close),
-    );
-    return NextResponse.json({
-      source: "MEXC futures",
-      symbol,
-      timeframe,
-      candles,
-      receivedAt: Date.now(),
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        source: "unavailable",
-        symbol,
-        timeframe,
-        candles: [],
-        error: error instanceof Error ? error.message : "Market data unavailable",
-      },
-      { status: 503 },
-    );
+    const allowed = (await getMexcMarkets(AbortSignal.timeout(5_500))).some((market) => market.symbol === symbol);
+    if (!allowed) return NextResponse.json({ error: "Unknown or unavailable symbol." }, { status: 400 });
+    const result = await getMarketProvider("mexc").getCandles({ exchange: "mexc", symbol, timeframe, limit, end }, AbortSignal.timeout(6_500));
+    return NextResponse.json(result);
+  } catch {
+    return NextResponse.json({ source: "unavailable", exchange: "mexc", symbol, timeframe, candles: [], receivedAt: Date.now(), error: "MEXC public candle feed is unavailable." }, { status: 503 });
   }
 }

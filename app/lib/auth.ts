@@ -19,6 +19,8 @@ type SessionPayload = AuthUser & { expiresAt: number };
 
 export const SESSION_COOKIE = "dizytrades_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
+export const VIEWER_SESSION_MAX_AGE_SECONDS = 60 * 60 * 2;
+export const VIEWER_USER: AuthUser = { id: "guest", name: "Viewer", email: "", role: "viewer" };
 
 function sessionSecret() {
   const configured = process.env.SESSION_SECRET;
@@ -29,10 +31,10 @@ function sessionSecret() {
   throw new Error("SESSION_SECRET must contain at least 32 characters");
 }
 
-export function createSessionToken(user: AuthUser) {
+export function createSessionToken(user: AuthUser, maxAge = SESSION_MAX_AGE_SECONDS) {
   const payload: SessionPayload = {
     ...user,
-    expiresAt: Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
+    expiresAt: Date.now() + maxAge * 1000,
   };
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = createHmac("sha256", sessionSecret())
@@ -41,7 +43,7 @@ export function createSessionToken(user: AuthUser) {
   return `${body}.${signature}`;
 }
 
-function parseSessionToken(token: string | undefined): AuthUser | null {
+export function parseSessionToken(token: string | undefined): AuthUser | null {
   if (!token) return null;
   const [body, signature] = token.split(".");
   if (!body || !signature) return null;
@@ -55,11 +57,12 @@ function parseSessionToken(token: string | undefined): AuthUser | null {
     ) as SessionPayload;
     if (
       payload.expiresAt <= Date.now() ||
-      !["rob", "friend"].includes(payload.id) ||
-      !["owner", "admin"].includes(payload.role)
+      !["rob", "friend", "guest"].includes(payload.id) ||
+      !["owner", "admin", "viewer"].includes(payload.role)
     ) {
       return null;
     }
+    if (payload.id === "guest" && payload.role === "viewer" && payload.email === "") return VIEWER_USER;
     const configured = configuredUsers().find(
       (candidate) =>
         candidate.id === payload.id && candidate.email === payload.email,

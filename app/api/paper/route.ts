@@ -23,6 +23,7 @@ const validSummary = (value: unknown): value is BacktestSummary => {
 export async function POST(request: Request) {
   const user = await requireApiUser();
   if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+  if (user.role === "viewer") return NextResponse.json({ error: "Viewer sessions are read-only." }, { status: 403 });
   const payload = await request.json() as {
     symbol?: string;
     timeframe?: string;

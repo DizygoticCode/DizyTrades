@@ -28,6 +28,7 @@ export type UserTerminalSettings = {
   view: ViewSettings;
   strategy: StrategySettings;
   risk: RiskSettings;
+  market: { exchange: "mexc"; symbol: string; timeframe: string; favourites: string[] };
 };
 
 export const DEFAULT_STRATEGY: StrategySettings = {
@@ -72,6 +73,7 @@ export const DEFAULT_TERMINAL_SETTINGS: UserTerminalSettings = {
   view: DEFAULT_VIEW,
   strategy: DEFAULT_STRATEGY,
   risk: DEFAULT_RISK,
+  market: { exchange: "mexc", symbol: "BTC_USDT", timeframe: "15m", favourites: [] },
 };
 
 const finite = (
@@ -102,6 +104,9 @@ export function sanitiseTerminalSettings(
   const riskInput = object.risk && typeof object.risk === "object"
     ? object.risk as Record<string, unknown>
     : {};
+  const marketInput = object.market && typeof object.market === "object" ? object.market as Record<string, unknown> : {};
+  const validSymbol = (value: unknown) => /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/.test(String(value));
+  const validTimeframes = ["1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "1w", "1M"];
   const labelSize = ["Small", "Medium", "Large"].includes(
     String(viewInput.labelSize),
   )
@@ -143,6 +148,12 @@ export function sanitiseTerminalSettings(
       atrStop: finite(riskInput.atrStop, DEFAULT_RISK.atrStop, 0.5, 8),
       tp1: finite(riskInput.tp1, DEFAULT_RISK.tp1, 0.5, 10),
       tp2: finite(riskInput.tp2, DEFAULT_RISK.tp2, 1, 20),
+    },
+    market: {
+      exchange: "mexc",
+      symbol: validSymbol(marketInput.symbol) ? String(marketInput.symbol) : "BTC_USDT",
+      timeframe: validTimeframes.includes(String(marketInput.timeframe)) ? String(marketInput.timeframe) : "15m",
+      favourites: Array.isArray(marketInput.favourites) ? [...new Set(marketInput.favourites.filter(validSymbol).map(String))].slice(0, 50) : [],
     },
   };
 }

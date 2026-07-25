@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 export async function GET() {
   const user = await currentUser();
-  if (user) await appendAudit(user.id, "auth.logout");
+  if (user && user.role !== "viewer") await appendAudit(user.id, "auth.logout");
   const response = new NextResponse(null, {
     status: 303,
     headers: {
