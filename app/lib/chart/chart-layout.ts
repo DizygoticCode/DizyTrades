@@ -23,6 +23,26 @@ export function calculateAutoFit(input: { candleCount: number; desiredCount: num
   return { from: Math.max(0, input.candleCount - visible), to: input.candleCount - 1 + reservedBars, visibleCount: visible, reservedBars, latestMaximumX: input.layout.candles.x + input.layout.candles.width - gutter };
 }
 
+/** Keeps the user's horizontal zoom while moving the newest bar into the safe candle lane. */
+export function calculateGoToLive(input: { candleCount: number; currentRange: { from: number; to: number } | null; barSpacing: number; layout: ReturnType<typeof calculateChartLayout>; minimumGutter?: number }) {
+  const gutter = input.minimumGutter ?? 16;
+  const fallbackSpan = Math.max(1, Math.floor(input.layout.candles.width / Math.max(4, input.barSpacing)));
+  const span = input.currentRange && Number.isFinite(input.currentRange.to - input.currentRange.from)
+    ? Math.max(1, input.currentRange.to - input.currentRange.from)
+    : fallbackSpan;
+  const reservedBars = Math.max(2, Math.ceil((input.layout.chart.width - input.layout.candles.x - input.layout.candles.width + gutter) / Math.max(4, input.barSpacing)));
+  const to = Math.max(0, input.candleCount - 1) + reservedBars;
+  return { from: to - span, to, span, reservedBars };
+}
+
+/** Canvas geometry for a price bucket. The gap shrinks before the bar does. */
+export function calculateProfileRowGeometry(top: number, bottom: number, rowCount: number) {
+  const extent = Math.abs(bottom - top);
+  const gap = rowCount >= 160 ? 0 : rowCount >= 96 ? .25 : rowCount >= 64 ? .5 : Math.min(1, extent * .2);
+  const height = Math.min(extent, Math.max(.75, extent - gap));
+  return { y: Math.min(top, bottom) + (extent - height) / 2, height, gap };
+}
+
 export function stackLabels(items: { id: string; y: number }[], height: number, labelHeight: number, gap = 4) {
   if (!items.length) return [];
   const sorted = items.map((item, index) => ({ ...item, index })).sort((a, b) => a.y - b.y || a.id.localeCompare(b.id));

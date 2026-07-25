@@ -67,7 +67,10 @@ button {
 @media (max-width: 900px) { .system-strip > span { display: none; } .nav-tab { font-size: 11px; padding-inline: 4px; } .market-toolbar { overflow: visible; flex-wrap: wrap; height: auto; padding-block: 8px; } }
 
 .terminal-shell {
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   background:
     radial-gradient(circle at 38% -20%, rgba(82, 108, 255, 0.08), transparent 35%),
@@ -238,11 +241,12 @@ button {
 }
 
 .market-toolbar {
-  height: 67px;
+  min-height: 58px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 0 16px;
+  padding: 7px 16px;
   border-bottom: 1px solid var(--border);
   background: #0c1019;
 }
@@ -304,6 +308,15 @@ button {
   border: 1px solid #171e2c;
 }
 
+.timeframes {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.timeframes::-webkit-scrollbar { display: none; }
+
 .timeframes button,
 .mode-control button {
   min-width: 37px;
@@ -317,6 +330,11 @@ button {
   font-weight: 750;
   cursor: pointer;
 }
+.timeframes button { width: 31px; min-width: 31px; padding: 0; }
+
+.chart-view-actions { display: flex; flex: 0 0 auto; gap: 3px; }
+.chart-view-actions button { height: 31px; padding: 0 8px; border: 1px solid #2a354d; border-radius: 6px; background: #111827; color: #b9c4db; font-size: 10px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.chart-view-actions button:hover, .chart-view-actions button:focus-visible { border-color: #536b9d; color: #fff; }
 
 .timeframes button.active,
 .mode-control button.active {
@@ -358,7 +376,8 @@ button {
 .mode-control .live-disabled { color: #755e64; cursor: not-allowed; }
 
 .workspace {
-  height: calc(100vh - 129px);
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 342px;
   transition: grid-template-columns 180ms ease;
@@ -1017,6 +1036,10 @@ button {
     grid-template-columns: minmax(0, 1fr) 310px;
   }
 
+  .market-toolbar { flex-wrap: wrap; gap: 7px 10px; }
+  .timeframes { order: 10; flex-basis: min(100%, 342px); }
+  .chart-view-actions { order: 11; }
+
   .signal-dock {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -1063,7 +1086,8 @@ button {
 
   .workspace,
   .workspace.panel-closed {
-    height: calc(100vh - 128px);
+    flex: 1 1 auto;
+    min-height: 0;
     display: block;
   }
 
@@ -1091,8 +1115,6 @@ button {
   .chart-legend span:nth-child(3) { display: none; }
 }
 
-.chart-controls { position:absolute; z-index:4; right:72px; top:10px; display:flex; gap:6px; }
-.chart-controls button { border:1px solid #2a354d; background:#111827cc; color:#b9c4db; border-radius:5px; padding:5px 9px; font-size:11px; }
 .quote-block { position:relative; }
 .quote-block .countdown { display:block; color:#8d9ab5; font-size:10px; white-space:nowrap; }
 .quote-block .countdown.closing { color:#ffb04f; }
@@ -1111,3 +1133,11 @@ button {
 .colour-field code { color:#75829d; font-size:9px; }
 .appearance-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
 .appearance-actions button,.reset-appearance { border:1px solid #34415e; background:#111a2b; color:#b9c4db; border-radius:5px; padding:7px 9px; font-size:10px; }
+.field-help { margin: -4px 0 8px; color: var(--dim); font-size: 9px; line-height: 1.35; }
+
+@media (max-width: 760px) {
+  .market-toolbar { align-items: center; }
+  .timeframes { order: 20; flex: 1 0 100%; max-width: 100%; }
+  .chart-view-actions { order: 21; }
+  .mode-control { order: 22; margin-left: auto; }
+}
