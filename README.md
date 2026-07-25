@@ -9,7 +9,7 @@ This repository is intentionally unable to place live exchange orders.
 
 ## Test features
 
-- authenticated Rob and Friend workspaces
+- authenticated Dizygotic and Friend workspaces
 - signed HTTP-only sessions and salted scrypt password hashes
 - public MEXC BTC/USDT perpetual candle adapter with deterministic demo fallback
 - 5m, 15m, 1h and 4h charts
