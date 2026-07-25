@@ -10,14 +10,15 @@
     "build": "next build && node scripts/prepare-standalone.mjs",
     "start": "node .next/standalone/server.js",
     "lint": "eslint . --ignore-pattern .next",
-    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test": "node --conditions=react-server --experimental-strip-types --test tests/*.test.mjs",
     "hash-password": "node scripts/hash-password.mjs"
   },
   "dependencies": {
     "lightweight-charts": "^5.0.9",
     "next": "16.2.6",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.2.1",

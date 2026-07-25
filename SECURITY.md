@@ -10,6 +10,14 @@ This repository contains a test terminal, not a live exchange executor.
 - The health endpoint always reports `liveTradingEnabled: false`.
 - The repository contains no MEXC private API client and no order route.
 
+## Temporary plaintext-password test mode
+
+Server-only plaintext environment passwords are a temporary test-only fallback.
+They require the explicit `ALLOW_TEST_PLAINTEXT_PASSWORDS=true` flag and are
+blocked when `LIVE_TRADING_ENABLED=true`. Use unique, throwaway passwords, never
+commit or reuse them, and restore salted scrypt hash authentication before any
+wider testing or live use.
+
 Before live trading is considered, add MFA, database-backed sessions, envelope
 encryption, idempotency keys, exchange reconciliation, daily-loss limits,
 symbol allowlists, immutable audit storage and a tested emergency kill switch.
