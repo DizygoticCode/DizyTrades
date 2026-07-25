@@ -12,6 +12,12 @@ export type ViewSettings = {
   volumeProfile: boolean;
   waves: boolean;
   signals: boolean;
+  provisionalStages: boolean;
+  completedPatternFills: boolean;
+  showLevelTouches: boolean;
+  patternBubbleSize: "Small" | "Medium" | "Large";
+  signalBubbleSize: "Medium" | "Large" | "Extra Large";
+  signalDetail: "Direction only" | "Direction + confluence";
   labelSize: "Small" | "Medium" | "Large";
   volumeBars: number;
   volumeRows: number;
@@ -74,6 +80,12 @@ export const DEFAULT_VIEW: ViewSettings = {
   volumeProfile: true,
   waves: true,
   signals: true,
+  provisionalStages: true,
+  completedPatternFills: true,
+  showLevelTouches: false,
+  patternBubbleSize: "Small",
+  signalBubbleSize: "Large",
+  signalDetail: "Direction only",
   labelSize: "Medium",
   volumeBars: 240,
   volumeRows: 28,
@@ -162,6 +174,12 @@ export function sanitiseTerminalSettings(
       volumeProfile: boolean(viewInput.volumeProfile, DEFAULT_VIEW.volumeProfile),
       waves: boolean(viewInput.waves, DEFAULT_VIEW.waves),
       signals: boolean(viewInput.signals, DEFAULT_VIEW.signals),
+      provisionalStages: boolean(viewInput.provisionalStages, DEFAULT_VIEW.provisionalStages),
+      completedPatternFills: boolean(viewInput.completedPatternFills, DEFAULT_VIEW.completedPatternFills),
+      showLevelTouches: boolean(viewInput.showLevelTouches, DEFAULT_VIEW.showLevelTouches),
+      patternBubbleSize: ["Small","Medium","Large"].includes(String(viewInput.patternBubbleSize)) ? viewInput.patternBubbleSize as ViewSettings["patternBubbleSize"] : DEFAULT_VIEW.patternBubbleSize,
+      signalBubbleSize: ["Medium","Large","Extra Large"].includes(String(viewInput.signalBubbleSize)) ? viewInput.signalBubbleSize as ViewSettings["signalBubbleSize"] : DEFAULT_VIEW.signalBubbleSize,
+      signalDetail: ["Direction only","Direction + confluence"].includes(String(viewInput.signalDetail)) ? viewInput.signalDetail as ViewSettings["signalDetail"] : DEFAULT_VIEW.signalDetail,
       realtimeChartUpdates: boolean(viewInput.realtimeChartUpdates, DEFAULT_VIEW.realtimeChartUpdates),
       candleCountdown: boolean(viewInput.candleCountdown, DEFAULT_VIEW.candleCountdown),
       countdownToolbar: boolean(viewInput.countdownToolbar, boolean(viewInput.candleCountdown, DEFAULT_VIEW.countdownToolbar)),

@@ -16,17 +16,44 @@ export type PriceLevel = {
 };
 export type FibLevel = { ratio: number; price: number; label: string };
 export type PatternTriangle = {
+  id: string;
   direction: "bullish" | "bearish";
+  status: PatternStatus;
   points: { time: number; price: number }[];
   label: string;
 };
-export type SignalMarker = {
+export type PatternStatus = "forming" | "confirmed";
+export type PatternFamily = "elliott" | "wyckoff" | "triangle";
+export type TradeSignalMarker = {
+  id: string;
   time: number;
-  position: "aboveBar" | "belowBar";
-  shape: "arrowUp" | "arrowDown" | "circle";
-  color: string;
-  text: string;
-  size?: number;
+  price: number;
+  direction: "buy" | "sell";
+  status: "confirmed";
+  label: "BUY" | "SELL";
+  confluence: number;
+  confluenceTotal: 5;
+};
+export type PatternStageMarker = {
+  id: string;
+  family: Exclude<PatternFamily, "triangle">;
+  time: number;
+  price: number;
+  direction: "bullish" | "bearish" | "accumulation" | "distribution";
+  status: PatternStatus;
+  label: string;
+  stage: number | "A" | "B" | "C" | "D" | "E";
+};
+export type CompletedPatternRegion = {
+  id: string;
+  family: PatternFamily;
+  status: PatternStatus;
+  direction: "bullish" | "bearish" | "accumulation" | "distribution";
+  startTime: number;
+  endTime: number;
+  high: number;
+  low: number;
+  points?: { time: number; price: number }[];
 };
 
 export type StrategySettings = {
@@ -55,7 +82,9 @@ export type StrategyAnalysis = {
   levels: PriceLevel[];
   fibs: FibLevel[];
   triangles: PatternTriangle[];
-  markers: SignalMarker[];
+  tradeSignals: TradeSignalMarker[];
+  patternStages: PatternStageMarker[];
+  completedPatterns: CompletedPatternRegion[];
   scoreLong: number;
   scoreShort: number;
   bias: "Bullish" | "Bearish" | "Neutral";
@@ -176,7 +205,7 @@ function buildLevels(
     }
   });
   const close = candles.at(-1)!.close;
-  return clusters
+  const raw = clusters
     .filter((cluster) => cluster.touches >= settings.minTouches)
     .map((cluster) => {
       const price = mean(cluster.prices);
@@ -185,11 +214,52 @@ function buildLevels(
         price,
         kind,
         touches: cluster.touches,
-        label: `${kind === "support" ? "SUPPORT" : "RESISTANCE"} · ${cluster.touches} touches`,
+        label: "",
       } satisfies PriceLevel;
     })
     .sort((a, b) => Math.abs(a.price - close) - Math.abs(b.price - close))
     .slice(0, 8);
+  const supports = raw.filter(level => level.kind === "support").sort((a, b) => b.price - a.price);
+  const resistances = raw.filter(level => level.kind === "resistance").sort((a, b) => a.price - b.price);
+  supports.forEach((level, index) => { level.label = `S${index + 1}`; });
+  resistances.forEach((level, index) => { level.label = `R${index + 1}`; });
+  return raw;
+}
+
+export const formatLevelLabel = (level: PriceLevel, showTouches = false) =>
+  `${level.label}${showTouches ? ` · ${level.touches}×` : ""}`;
+
+type Pivot = { index: number; time: number; price: number; kind: "high" | "low" };
+export function alternatingPivots(highs: Omit<Pivot, "kind">[], lows: Omit<Pivot, "kind">[]): Pivot[] {
+  const ordered: Pivot[] = [...highs.map(p => ({ ...p, kind: "high" as const })), ...lows.map(p => ({ ...p, kind: "low" as const }))].sort((a,b) => a.index-b.index || (a.kind === "low" ? -1 : 1));
+  const result: Pivot[] = [];
+  for (const pivot of ordered) {
+    const previous = result.at(-1);
+    if (!previous || previous.kind !== pivot.kind) result.push(pivot);
+    else if ((pivot.kind === "high" && pivot.price >= previous.price) || (pivot.kind === "low" && pivot.price <= previous.price)) result[result.length - 1] = pivot;
+  }
+  return result;
+}
+
+function buildElliottStages(pivotData: ReturnType<typeof pivots>): { stages: PatternStageMarker[]; region?: CompletedPatternRegion } {
+  const sequence = alternatingPivots(pivotData.highs, pivotData.lows).slice(-6);
+  if (sequence.length < 2) return { stages: [] };
+  const bullish = sequence[0].kind === "low";
+  const expected = bullish ? ["high","low","high","low","high"] : ["low","high","low","high","low"];
+  const waves = sequence.slice(1, 6);
+  const validKinds = waves.every((p, i) => p.kind === expected[i]);
+  const progression = waves.length < 5 || (bullish
+    ? waves[2]?.price > waves[0]?.price && waves[4]?.price > waves[2]?.price && waves[3]?.price > sequence[0].price
+    : waves[2]?.price < waves[0]?.price && waves[4]?.price < waves[2]?.price && waves[3]?.price < sequence[0].price);
+  if (!validKinds || !progression) return { stages: [] };
+  const complete = waves.length === 5;
+  const direction = bullish ? "bullish" : "bearish";
+  const stages = waves.map((pivot, index) => {
+    const status: PatternStatus = complete || index < waves.length - 1 ? "confirmed" : "forming";
+    return { id:`elliott-${direction}-${pivot.time}-${index+1}`, family:"elliott", time:pivot.time, price:pivot.price, direction, status, stage:index+1, label:`Elliott ${index+1}${status === "forming" ? "?" : ""}` } satisfies PatternStageMarker;
+  });
+  const points = [sequence[0], ...waves].map(p => ({ time:p.time, price:p.price }));
+  return { stages, region: complete ? { id:`elliott-${direction}-${sequence[0].time}`, family:"elliott", status:"confirmed", direction, startTime:sequence[0].time, endTime:waves[4].time, high:Math.max(...points.map(p=>p.price)), low:Math.min(...points.map(p=>p.price)), points } : undefined };
 }
 
 function trendline(
@@ -258,10 +328,13 @@ function buildTriangle(
   const direction = close >= midpoint ? "bullish" : "bearish";
   const startIndex = Math.min(high1.index, low1.index);
   const endIndex = Math.max(high2.index, low2.index);
+  const breakout = candles.slice(endIndex + 1).find(candle => candle.close > high2.price || candle.close < low2.price);
   return [
     {
+      id: `triangle-${candles[startIndex].time}-${candles[endIndex].time}`,
       direction,
-      label: `${direction === "bullish" ? "BULLISH" : "BEARISH"} TRIANGLE`,
+      status: breakout ? "confirmed" : "forming",
+      label: breakout ? "Triangle" : "Triangle?",
       points: [
         { time: candles[startIndex].time, price: high1.price },
         { time: candles[startIndex].time, price: low1.price },
@@ -269,6 +342,29 @@ function buildTriangle(
       ],
     },
   ];
+}
+
+function buildWyckoff(candles: Candle[], trend: Point[]): { stages: PatternStageMarker[]; region?: CompletedPatternRegion; phase?: string } {
+  if (candles.length < 50) return { stages: [] };
+  const sample = candles.slice(-50);
+  const range = sample.slice(0, 35), high = Math.max(...range.map(c=>c.high)), low = Math.min(...range.map(c=>c.low));
+  const width = (high-low) / Math.max(low, Number.EPSILON);
+  if (width >= .06) return { stages: [] };
+  const trendValue = trend.find(p=>p.time===sample[0].time)?.value ?? sample[0].close;
+  const accumulation = sample[0].close <= trendValue;
+  const direction = accumulation ? "accumulation" : "distribution";
+  const eventIndexes = [0, 10, 24, 34];
+  const breakoutIndex = sample.findIndex((c,i)=>i>34 && (accumulation ? c.close > high : c.close < low));
+  if (breakoutIndex >= 0) eventIndexes.push(breakoutIndex);
+  const letters = ["A","B","C","D","E"] as const;
+  const stages = eventIndexes.map((offset,index) => {
+    const candle=sample[offset], status:PatternStatus = index === eventIndexes.length-1 && breakoutIndex < 0 ? "forming" : "confirmed";
+    return { id:`wyckoff-${direction}-${candle.time}-${letters[index]}`,family:"wyckoff",time:candle.time,price:accumulation?candle.low:candle.high,direction,status,stage:letters[index],label:`Wyckoff ${letters[index]}${status === "forming" ? "?" : ""}` } satisfies PatternStageMarker;
+  });
+  if (breakoutIndex < 0) {
+    const candle=sample[34]; stages[3] = {...stages[3],status:"forming",label:"Wyckoff D?",time:candle.time,price:accumulation?candle.low:candle.high};
+  }
+  return { stages, phase:`Wyckoff-lite ${direction}`, region: breakoutIndex >= 0 ? { id:`wyckoff-${direction}-${sample[0].time}`,family:"wyckoff",status:"confirmed",direction,startTime:sample[0].time,endTime:sample[breakoutIndex].time,high,low } : undefined };
 }
 
 export function analyzeStrategy(
@@ -288,7 +384,9 @@ export function analyzeStrategy(
       levels: [],
       fibs: [],
       triangles: [],
-      markers: [],
+      tradeSignals: [],
+      patternStages: [],
+      completedPatterns: [],
       scoreLong: 0,
       scoreShort: 0,
       bias: "Neutral",
@@ -329,13 +427,13 @@ export function analyzeStrategy(
   const swingLow = Math.min(...recent.map((candle) => candle.low));
   const range = Math.max(swingHigh - swingLow, Number.EPSILON);
   const fibs = [
-    { ratio: 0, price: swingHigh, label: "FIB 0.000" },
+    { ratio: 0, price: swingHigh, label: "FIB 0" },
     { ratio: 0.236, price: swingHigh - range * 0.236, label: "FIB 0.236" },
     { ratio: 0.382, price: swingHigh - range * 0.382, label: "FIB 0.382" },
-    { ratio: 0.5, price: swingHigh - range * 0.5, label: "FIB 0.500" },
+    { ratio: 0.5, price: swingHigh - range * 0.5, label: "FIB 0.5" },
     { ratio: 0.618, price: swingHigh - range * 0.618, label: "FIB 0.618" },
     { ratio: 0.786, price: swingHigh - range * 0.786, label: "FIB 0.786" },
-    { ratio: 1, price: swingLow, label: "FIB 1.000" },
+    { ratio: 1, price: swingLow, label: "FIB 1" },
   ];
   const triangles = buildTriangle(candles, pivotData.highs, pivotData.lows);
   const last = candles.at(-1)!;
@@ -368,7 +466,7 @@ export function analyzeStrategy(
   const bias =
     scoreLong > scoreShort ? "Bullish" : scoreShort > scoreLong ? "Bearish" : "Neutral";
 
-  const markers: SignalMarker[] = [];
+  const tradeSignals: TradeSignalMarker[] = [];
   const start = Math.max(3, candles.length - 160);
   for (let index = start; index < candles.length; index += 1) {
     const previous = candles[index - 1];
@@ -382,50 +480,47 @@ export function analyzeStrategy(
       candle.close > currentVwapAtBar &&
       candle.close > trendAtBar
     ) {
-      markers.push({
+      tradeSignals.push({
+        id: `signal-${candle.time}-buy`,
         time: candle.time,
-        position: "belowBar",
-        shape: "arrowUp",
-        color: "#2ee6a6",
-        text: "BUY · confirmed",
-        size: 1.15,
+        price: candle.high,
+        direction: "buy",
+        status: "confirmed",
+        label: "BUY",
+        confluence: Math.min(5, Number(candle.close > currentVwapAtBar) + Number(candle.close > trendAtBar) + Number(nearSupport) + Number(bullishTriangle) + Number(longFib)),
+        confluenceTotal: 5,
       });
     } else if (
       previous.close >= previousVwap &&
       candle.close < currentVwapAtBar &&
       candle.close < trendAtBar
     ) {
-      markers.push({
+      tradeSignals.push({
+        id: `signal-${candle.time}-sell`,
         time: candle.time,
-        position: "aboveBar",
-        shape: "arrowDown",
-        color: "#ff5c70",
-        text: "SELL · confirmed",
-        size: 1.15,
+        price: candle.high,
+        direction: "sell",
+        status: "confirmed",
+        label: "SELL",
+        confluence: Math.min(5, Number(candle.close < currentVwapAtBar) + Number(candle.close < trendAtBar) + Number(nearResistance) + Number(bearishTriangle) + Number(shortFib)),
+        confluenceTotal: 5,
       });
     }
   }
 
-  const recentHighs = pivotData.highs.slice(-5);
-  recentHighs.forEach((pivot, index) => {
-    markers.push({
-      time: pivot.time,
-      position: "aboveBar",
-      shape: "circle",
-      color: "#9f8cff",
-      text: `E${index + 1}`,
-      size: 0.7,
-    });
-  });
+  const elliott = buildElliottStages(pivotData);
+  const wyckoff = buildWyckoff(candles, trend);
   const recentWidth = (Math.max(...recent.map((c) => c.high)) - Math.min(...recent.map((c) => c.low))) / last.close;
-  const phase =
+  const phase = wyckoff.phase ?? (
     recentWidth < 0.06
       ? last.close >= currentTrend
         ? "Wyckoff accumulation"
         : "Wyckoff distribution"
       : last.close >= currentTrend
         ? "Markup"
-        : "Markdown";
+        : "Markdown");
+  const completedPatterns: CompletedPatternRegion[] = [elliott.region, wyckoff.region, ...triangles.filter(t=>t.status === "confirmed").map(t=>({id:t.id,family:"triangle" as const,status:"confirmed" as const,direction:t.direction,startTime:t.points[0].time,endTime:t.points.at(-1)!.time,high:Math.max(...t.points.map(p=>p.price)),low:Math.min(...t.points.map(p=>p.price)),points:t.points}))].filter((item): item is CompletedPatternRegion => Boolean(item));
+  const uniqueSignals = [...new Map(tradeSignals.map(signal => [signal.id, signal])).values()].sort((a,b)=>a.time-b.time);
 
   return {
     atr,
@@ -439,12 +534,14 @@ export function analyzeStrategy(
     levels,
     fibs,
     triangles,
-    markers: markers.sort((a, b) => a.time - b.time),
+    tradeSignals: uniqueSignals,
+    patternStages: [...elliott.stages, ...wyckoff.stages].sort((a,b)=>a.time-b.time),
+    completedPatterns,
     scoreLong,
     scoreShort,
     bias,
     phase,
-    lastSignal: markers.at(-1)?.text ?? "Waiting for confluence",
+    lastSignal: uniqueSignals.at(-1)?.label ?? "Waiting for confluence",
   };
 }
 

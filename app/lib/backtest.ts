@@ -54,10 +54,7 @@ export function simulateConfirmedSignals(
   const atrByTime = new Map(
     analysis.atr.map((point) => [point.time, point.value]),
   );
-  const signals = analysis.markers.filter(
-    (marker) =>
-      marker.text.startsWith("BUY") || marker.text.startsWith("SELL"),
-  );
+  const signals = analysis.tradeSignals;
   const trades: PaperTrade[] = [];
   let equity = initialEquity;
   let peakEquity = equity;
@@ -74,7 +71,7 @@ export function simulateConfirmedSignals(
       continue;
     }
 
-    const direction = signal.text.startsWith("BUY") ? "long" : "short";
+    const direction = signal.direction === "buy" ? "long" : "short";
     const entryIndex = signalIndex + 1;
     const entryCandle = candles[entryIndex];
     const entry = entryCandle.open;
