@@ -22,11 +22,21 @@ This repository is intentionally unable to place live exchange orders.
 - full-width labelled support/resistance and Fibonacci levels
 - rolling VWAP, trend MA, regression channels and pivot trendlines
 - shaded bullish/bearish triangles and right-aligned volume profile
-- Elliott-lite, Wyckoff and confirmed BUY/SELL labels
+- structured Elliott-lite and Wyckoff-lite stage bubbles plus prominent confirmed BUY/SELL bubbles
 - persisted per-user visual, strategy and risk settings
 - confirmed-signal historical paper runs with ATR stop, TP1, break-even and TP2
 - JSONL audit events and saved paper snapshots
 - health endpoint that reports live trading as disabled
+
+### Pattern annotation limitations
+
+**Elliott-lite** uses alternating, confirmed high/low pivots and a conservative
+directional progression check. **Wyckoff-lite** uses closed-candle range and
+breakout evidence to annotate an ordered A–E candidate. These are visual
+heuristics—not guaranteed textbook Elliott Wave or Wyckoff analysis—and neither
+contributes to signal confluence or paper-test decisions. Provisional stages
+retain a `?`; completed fills require confirmation by closed candles. The
+forming live candle is display-only and cannot confirm a stage.
 
 ## Local setup
 

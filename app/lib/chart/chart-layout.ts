@@ -44,3 +44,16 @@ export function patternLabelPosition(bounds: Rect, placement: PatternPlacement, 
   if (placement === "right") { x = bounds.x + bounds.width + offset; y = bounds.y + (bounds.height - label.height) / 2; }
   return { x: Math.min(plot.x + plot.width - label.width, Math.max(plot.x, x)), y: Math.min(plot.y + plot.height - label.height, Math.max(plot.y, y)) };
 }
+
+export type BubblePlacement = { id:string; anchorX:number; anchorY:number; width:number; height:number; x:number; y:number; row:number };
+export function placeChartBubbles(items: {id:string;anchorX:number;anchorY:number;width:number;height:number}[], plot:Rect, reservedTop=48, gap=5): BubblePlacement[] {
+  const placed: BubblePlacement[]=[];
+  for (const item of [...items].sort((a,b)=>a.anchorX-b.anchorX||a.id.localeCompare(b.id))) {
+    const x=Math.min(plot.x+plot.width-item.width,Math.max(plot.x,item.anchorX-item.width/2));
+    let row=0, y=Math.max(plot.y+reservedTop,item.anchorY-item.height-12);
+    while (placed.some(other=>x<other.x+other.width+gap&&x+item.width+gap>other.x&&y<other.y+other.height+gap&&y+item.height+gap>other.y)) { row+=1; y=Math.max(plot.y+reservedTop,item.anchorY-item.height-12+row*(item.height+gap)); }
+    y=Math.min(plot.y+plot.height-item.height,Math.max(plot.y+reservedTop,y));
+    placed.push({...item,x,y,row});
+  }
+  return placed;
+}
