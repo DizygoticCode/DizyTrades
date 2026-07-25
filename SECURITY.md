@@ -33,3 +33,16 @@ symbol allowlists, immutable audit storage and a tested emergency kill switch.
 ## Public WebSocket boundary
 
 The real-time chart connection uses only MEXC's public `sub.kline` and `sub.deal` channels. It is browser-side, unauthenticated, restricted by CSP to `wss://contract.mexc.com`, and never receives or transmits an exchange key. A forming candle is display-only and cannot confirm a DizySignals signal or paper entry. WebSocket failure degrades visibly to delayed public REST candles. This does not enable live trading: `LIVE_TRADING_ENABLED=false`, private endpoints, credential collection, and order routes remain prohibited.
+
+## Chart workspace boundary
+
+Chart workspaces contain display configuration only. They are stored per user and
+per chart key with atomic mode-`0600` writes; unsafe path components are rejected.
+Viewer workspace reads are empty and viewer writes are forbidden. Server limits
+are 250 drawings, 30 user indicators, 300 characters per note, and 750 KB per
+workspace request. Audit events record only chart keys and object counts—not note
+text or drawing content.
+
+Workspace versions prevent confirmed stale-tab overwrites with HTTP 409. Chart
+indicators remain display-only and cannot enter strategy, confluence, backtest,
+risk, paper-trading, or live-execution paths.
