@@ -41,9 +41,9 @@ import {
 import type { MarketDescriptor } from "./lib/market/types";
 import type { CandleTimeframe } from "./lib/market/types";
 import { useMexcRealtime, type RealtimeStatus } from "./lib/market/use-mexc-realtime";
-import { applyDealToLiveCandle, applyKlineUpdate, defaultVisibleCandleCount, formatCountdown, formatPriceLineTitle, nextCandleCloseTimestamp } from "./lib/market/realtime";
+import { applyDealToLiveCandle, applyKlineUpdate, calculateCandleCountdownSeconds, defaultVisibleCandleCount, formatCountdown, startAlignedSecondClock, updatePriceLineCountdownTitle } from "./lib/market/realtime";
 import { APPEARANCE_PRESETS, hexToRgba, type ChartAppearanceSettings } from "./lib/chart/appearance";
-import { calculateAutoFit, calculateChartLayout, calculateGoToLive, calculateProfileRowGeometry, patternLabelPosition, placeChartBubbles, stackLabels } from "./lib/chart/chart-layout";
+import { calculateAutoFit, calculateChartLayout, calculateFibLabelLayout, calculateGoToLive, calculateProfileRowGeometry, patternLabelPosition, placeChartBubbles, stackLabels } from "./lib/chart/chart-layout";
 import { ALL_TIMEFRAMES, PROFILE_BAR_PRESETS, profileBarPreset, TIMEFRAME_TITLES } from "./lib/chart/toolbar";
 
 const currency = new Intl.NumberFormat("en-US", {
@@ -155,9 +155,56 @@ function drawChartOverlay(canvas: HTMLCanvasElement, chart: IChartApi, candleSer
     });
   }
   if (view.fibonacci) {
-    const fibs = analysis.fibs.map((fib, index) => ({ fib, id: `fib-${index}`, y: candleSeries.priceToCoordinate(fib.price) })).filter((item): item is typeof item & { y: number } => item.y != null);
-    const stacked = stackLabels(fibs.map(({ id, y }) => ({ id, y })), rect.height, labelHeight, 2);
-    fibs.forEach((item, index) => { context.strokeStyle = hexToRgba(a.structure.fibonacciLine, index === 4 ? .8 : .38); context.setLineDash([3,5]); context.beginPath(); context.moveTo(layout.candles.x,item.y); context.lineTo(layout.priceScale.x,item.y); context.stroke(); context.setLineDash([]); if (view.fibLabelPlacement === "hidden") return; const text=item.fib.label, width=context.measureText(text).width; let x=layout.leftLabels.x; if(view.fibLabelPlacement==="right-before-profile") x=layout.profile.x-width-8; if(view.fibLabelPlacement==="near-latest") { const latest=chart.timeScale().timeToCoordinate(candles.at(-1)?.time as UTCTimestamp)??0; x=Math.min(layout.profile.x-width-8,latest+view.labelOffset); } context.fillStyle=a.structure.fibonacciText; context.fillText(text,Math.max(layout.candles.x,x),stacked[index].placedY); });
+    context.save();
+    const fibs = analysis.fibs
+      .map(fib => ({ fib, y: candleSeries.priceToCoordinate(fib.price) }))
+      .filter((item): item is typeof item & { y: number } => item.y != null);
+    const latestX = chart.timeScale().timeToCoordinate(candles.at(-1)?.time as UTCTimestamp) ?? layout.candles.x;
+    const labels = calculateFibLabelLayout({
+      levels: fibs.map(({ fib, y }) => ({ ratio: fib.ratio, label: fib.label, lineY: y, textWidth: context.measureText(fib.label).width })),
+      placement: view.fibLabelPlacement,
+      plot: layout.candles,
+      leftX: layout.leftLabels.x,
+      rightBoundary: layout.profile.x - 4,
+      latestX,
+      offset: view.labelOffset,
+      labelHeight,
+      horizontalPadding: Math.max(6, view.labelPadding),
+      top: Math.max(layout.leftLabels.y, 44),
+      bottom: Math.min(layout.leftLabels.y + layout.leftLabels.height, layout.candles.y + layout.candles.height - 24),
+      gap: 3,
+    });
+    fibs.forEach(({ fib, y }) => {
+      const emphasis = fib.ratio === .618 ? 2 : fib.ratio === .5 ? 1 : 0;
+      context.strokeStyle = hexToRgba(a.structure.fibonacciLine, emphasis === 2 ? .8 : emphasis === 1 ? .6 : .38);
+      context.lineWidth = emphasis === 2 ? 1.5 : 1;
+      context.setLineDash([3, 5]);
+      context.beginPath();
+      context.moveTo(layout.candles.x, y);
+      context.lineTo(layout.priceScale.x, y);
+      context.stroke();
+    });
+    context.setLineDash([]);
+    labels.forEach(label => {
+      if (label.connector) {
+        context.strokeStyle = hexToRgba(a.structure.fibonacciLabelBorder, .72);
+        context.lineWidth = 1;
+        context.beginPath();
+        context.moveTo(label.x, label.centreY);
+        context.lineTo(Math.max(layout.candles.x, label.x - 10), label.lineY);
+        context.stroke();
+      }
+      context.beginPath();
+      context.roundRect(label.x, label.y, label.width, label.height, 6);
+      context.fillStyle = hexToRgba(a.structure.fibonacciLabelBackground, label.emphasis ? 1 : a.opacity.labels);
+      context.fill();
+      context.strokeStyle = a.structure.fibonacciLabelBorder;
+      context.lineWidth = label.emphasis === 2 ? 2 : label.emphasis === 1 ? 1.5 : 1;
+      context.stroke();
+      context.fillStyle = a.structure.fibonacciText;
+      context.fillText(label.text, label.x + Math.max(6, view.labelPadding), label.centreY);
+    });
+    context.restore();
   }
   if (view.volumeProfile && candles.length && layout.profileContent.width > 0) {
     const sample=candles.slice(-Math.min(view.volumeBars,candles.length)), min=Math.min(...sample.map(c=>c.low)), max=Math.max(...sample.map(c=>c.high)), size=(max-min)/view.volumeRows||1;
@@ -183,7 +230,21 @@ const DizyChart = forwardRef<ChartControls, { closedCandles:Candle[];liveCandle:
   useEffect(()=>{const chart=chartRef.current,c=candleRef.current,v=volumeRef.current,a=view.appearance;if(!chart||!c||!v)return;chart.applyOptions({layout:{background:{type:ColorType.Solid,color:a.chart.background},textColor:a.chart.axisText},grid:{vertLines:{color:hexToRgba(a.chart.grid,a.opacity.grid)},horzLines:{color:hexToRgba(a.chart.grid,a.opacity.grid)}},crosshair:{vertLine:{color:a.chart.crosshair},horzLine:{color:a.chart.crosshair}},rightPriceScale:{borderColor:a.chart.priceScaleBorder},timeScale:{borderColor:a.chart.timeScaleBorder}});c.applyOptions({upColor:a.candles.bull,downColor:a.candles.bear,wickUpColor:a.candles.bullWick,wickDownColor:a.candles.bearWick});requestAnimationFrame(redraw);},[view.appearance,redraw]);
   useEffect(()=>{const a=view.appearance;candleRef.current?.setData(closedCandles.map(c=>({...c,time:c.time as UTCTimestamp})));volumeRef.current?.setData(closedCandles.map(c=>({time:c.time as UTCTimestamp,value:c.volume,color:hexToRgba(c.close>=c.open?a.candles.bullVolume:a.candles.bearVolume,.23)})));requestAnimationFrame(redraw);},[closedCandles,view.appearance,redraw]);
   useEffect(()=>{if(!liveCandle)return;const a=view.appearance;candleRef.current?.update({...liveCandle,time:liveCandle.time as UTCTimestamp});volumeRef.current?.update({time:liveCandle.time as UTCTimestamp,value:liveCandle.volume,color:hexToRgba(liveCandle.close>=liveCandle.open?a.candles.bullVolume:a.candles.bearVolume,.23)});},[liveCandle,view.appearance]);
-  useEffect(()=>{const series=candleRef.current;if(!series||!liveCandle)return;if(!priceLineRef.current)priceLineRef.current=series.createPriceLine({price:liveCandle.close,color:view.appearance.chart.livePrice,lineWidth:1,lineStyle:LineStyle.Dashed,axisLabelVisible:true,title:""});priceLineRef.current.applyOptions({price:liveCandle.close,color:view.appearance.chart.livePrice,title:formatPriceLineTitle(countdownSeconds,view.countdownPriceMarker)});},[liveCandle,countdownSeconds,view.countdownPriceMarker,view.appearance.chart.livePrice]);
+  const livePrice = liveCandle?.close ?? null;
+  useEffect(() => {
+    const series = candleRef.current;
+    if (!series) return;
+    if (livePrice === null) {
+      if (priceLineRef.current) series.removePriceLine(priceLineRef.current);
+      priceLineRef.current = null;
+      return;
+    }
+    if (!priceLineRef.current) priceLineRef.current = series.createPriceLine({ price: livePrice, color: view.appearance.chart.livePrice, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "" });
+    priceLineRef.current.applyOptions({ price: livePrice, color: view.appearance.chart.livePrice });
+  }, [livePrice, view.appearance.chart.livePrice]);
+  useEffect(() => {
+    updatePriceLineCountdownTitle(priceLineRef.current, countdownSeconds, view.countdownPriceMarker);
+  }, [countdownSeconds, view.countdownPriceMarker]);
   useEffect(()=>{const chart=chartRef.current,candleSeries=candleRef.current;if(!chart||!candleSeries)return;indicatorsRef.current.forEach(series=>chart.removeSeries(series));indicatorsRef.current=[];const add=(data:{time:number;value:number}[],color:string,width:1|2|3,style=LineStyle.Solid)=>{const series=chart.addSeries(LineSeries,{color,lineWidth:width,lineStyle:style,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});series.setData(data.filter(p=>Number.isFinite(p.value)).map(p=>({...p,time:p.time as UTCTimestamp})));indicatorsRef.current.push(series);};const a=view.appearance.indicators;if(view.vwap)add(analysis.vwap,a.vwap,2);add(analysis.trend,a.trendMa,2);if(view.channels){add(analysis.channelTop,a.regression,1,LineStyle.Dashed);add(analysis.channelBasis,a.regression,1);add(analysis.channelBottom,a.regression,1,LineStyle.Dashed);}if(view.trendlines){add(analysis.upperTrendline,a.bearTrendline,2);add(analysis.lowerTrendline,a.bullTrendline,2);}requestAnimationFrame(redraw);},[analysis,view.vwap,view.channels,view.trendlines,view.appearance.indicators,redraw]);
   useEffect(()=>{requestAnimationFrame(resetView);},[resetKey,resetView]);
   useEffect(()=>{requestAnimationFrame(redraw);},[view.volumeRows,redraw]);
@@ -279,12 +340,17 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     onDeal: (deal) => { setLiveLastPrice(deal.price); setLiveCandle((current) => applyDealToLiveCandle(current, deal, timeframe as CandleTimeframe)); },
   });
 
+  const countdownActive = view.candleCountdown && liveCandle !== null && (view.countdownToolbar || view.countdownPriceMarker);
   useEffect(() => {
-    if (!view.candleCountdown || !liveCandle) return;
-    const timer = window.setInterval(() => setCountdownNow(Date.now()), 1_000);
-    return () => window.clearInterval(timer);
-  }, [liveCandle, view.candleCountdown]);
-  const countdownSeconds = liveCandle ? Math.max(0, nextCandleCloseTimestamp(liveCandle.time, timeframe as CandleTimeframe) - Math.floor((countdownNow + clockOffset) / 1000)) : null;
+    if (!countdownActive) return;
+    return startAlignedSecondClock({ document, onTick: setCountdownNow });
+  }, [countdownActive, symbol, timeframe]);
+  const countdownSeconds = liveCandle ? calculateCandleCountdownSeconds({
+    candleStart: liveCandle.time,
+    timeframe: timeframe as CandleTimeframe,
+    clientNowMs: countdownNow,
+    clockOffsetMs: clockOffset,
+  }) : null;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
