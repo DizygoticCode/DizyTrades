@@ -23,6 +23,8 @@ services:
         value: /var/data/dizytrades
       - key: LIVE_TRADING_ENABLED
         value: "false"
+      - key: ALLOW_TEST_PLAINTEXT_PASSWORDS
+        value: "false"
       - key: SESSION_SECRET
         generateValue: true
       - key: ROB_NAME
@@ -31,9 +33,13 @@ services:
         sync: false
       - key: ROB_PASSWORD_HASH
         sync: false
+      - key: ROB_PASSWORD
+        sync: false
       - key: FRIEND_NAME
         value: Friend
       - key: FRIEND_EMAIL
         sync: false
       - key: FRIEND_PASSWORD_HASH
+        sync: false
+      - key: FRIEND_PASSWORD
         sync: false

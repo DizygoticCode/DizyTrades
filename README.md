@@ -36,6 +36,13 @@ Place the generated `salt:hash` value in `ROB_PASSWORD_HASH` or
 `FRIEND_PASSWORD_HASH`, set the matching email, and replace `SESSION_SECRET`
 with at least 32 random characters.
 
+> **Temporary test-only plaintext login:** If hash authentication is temporarily
+> unavailable, server-only `ROB_PASSWORD` and `FRIEND_PASSWORD` environment
+> values can be enabled explicitly with
+> `ALLOW_TEST_PLAINTEXT_PASSWORDS=true`. This mode is blocked whenever
+> `LIVE_TRADING_ENABLED=true`. Use unique, throwaway passwords only, never commit
+> them, and restore hashed authentication before any wider testing or live use.
+
 ```bash
 npm run dev
 ```
@@ -61,7 +68,9 @@ The included `render.yaml` creates:
 - automatic deploys from `main`;
 - `/api/health` monitoring;
 - a generated session secret;
-- prompted secret values for both users' emails and password hashes.
+- prompted secret values for both users' emails, password hashes and temporary
+  test-only plaintext passwords, with plaintext authentication disabled by
+  default.
 
 Create the service from **New → Blueprint** in Render after the private GitHub
 repository is connected. Render prompts for every value marked `sync: false`.
