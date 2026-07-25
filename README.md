@@ -122,3 +122,22 @@ Render references:
 ## Real-time public market data
 
 Native DizyCharts augments authoritative REST history with MEXC's public contract WebSocket (`wss://contract.mexc.com/edge`). It subscribes only to public kline and transaction channels and uses no API key, credentials, private API, or order route. The forming candle and interim last price are display-only: DizySignals and paper simulations receive closed candles exclusively, with entries still modelled on the following bar. If streaming is unavailable the UI clearly marks the feed delayed and retains/reconciles public REST history. Real-time market data is not live trade execution; `LIVE_TRADING_ENABLED=false` remains mandatory.
+
+## DizyCharts Chart Tools V1
+
+Chart Tools V1 adds original, time/price-anchored manual trend, ray, horizontal,
+vertical, channel, rectangle, Fibonacci, note, and measurement objects. Owners
+and admins receive isolated workspaces for each exchange, symbol, and timeframe;
+viewer sessions remain read-only. Workspaces are stored separately from profile
+settings and are limited to 250 drawings (300 characters per note) and 30 user
+indicator instances.
+
+The user indicator calculation package provides SMA, EMA, Bollinger Bands, RSI,
+MACD, and ATR. These are **display-only** chart aids: they may include the forming
+candle in the live display, but they are never inputs to DizySignals confluence,
+confirmed-candle signals, paper tests, or risk logic. Pure calculations accept a
+fixed candle set for deterministic tests.
+
+DizyCharts uses the public Lightweight Charts API with visible attribution. The
+manual-tool implementation and interface are original; no TradingView proprietary
+runtime, source, assets, Pine scripts, or UI code are included.

@@ -45,6 +45,7 @@ import { applyDealToLiveCandle, applyKlineUpdate, calculateCandleCountdownSecond
 import { APPEARANCE_PRESETS, hexToRgba, type ChartAppearanceSettings } from "./lib/chart/appearance";
 import { calculateAutoFit, calculateChartLayout, calculateFibLabelLayout, calculateGoToLive, calculateHorizontalLineExtent, channelFillPolygon, extendLineToPlot, calculateProfileRowGeometry, patternLabelPosition, placeChartBubbles, stackLabels, type LinePoint } from "./lib/chart/chart-layout";
 import { ALL_TIMEFRAMES, PROFILE_BAR_PRESETS, profileBarPreset, TIMEFRAME_TITLES } from "./lib/chart/toolbar";
+import { ChartToolsLayer } from "./chart-tools-layer";
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -249,7 +250,7 @@ function drawChartOverlay(canvas: HTMLCanvasElement, chart: IChartApi, candleSer
 }
 
 export type ChartControls = { resetView: () => void; goToLive: () => void };
-const DizyChart = forwardRef<ChartControls, { closedCandles:Candle[];liveCandle:Candle|null;analysis:StrategyAnalysis;view:ViewSettings;resetKey:number;countdownSeconds:number|null }>(function DizyChart({ closedCandles, liveCandle, analysis, view, resetKey, countdownSeconds }, ref) {
+const DizyChart = forwardRef<ChartControls, { closedCandles:Candle[];liveCandle:Candle|null;analysis:StrategyAnalysis;view:ViewSettings;resetKey:number;countdownSeconds:number|null;symbol:string;timeframe:string;readOnly:boolean }>(function DizyChart({ closedCandles, liveCandle, analysis, view, resetKey, countdownSeconds,symbol,timeframe,readOnly }, ref) {
   const containerRef=useRef<HTMLDivElement>(null),overlayRef=useRef<HTMLCanvasElement>(null),chartRef=useRef<IChartApi|null>(null),candleRef=useRef<ISeriesApi<"Candlestick">|null>(null),volumeRef=useRef<ISeriesApi<"Histogram">|null>(null),priceLineRef=useRef<IPriceLine|null>(null),indicatorsRef=useRef<ISeriesApi<"Line">[]>([]),latestRef=useRef({candles:closedCandles,analysis,view});
   useEffect(()=>{latestRef.current={candles:liveCandle?[...closedCandles,liveCandle]:closedCandles,analysis,view};});
   const redraw=useCallback(()=>{const chart=chartRef.current,series=candleRef.current,canvas=overlayRef.current;if(chart&&series&&canvas)drawChartOverlay(canvas,chart,series,latestRef.current.candles,latestRef.current.analysis,latestRef.current.view);},[]);
@@ -278,7 +279,7 @@ const DizyChart = forwardRef<ChartControls, { closedCandles:Candle[];liveCandle:
   useEffect(()=>{const chart=chartRef.current,candleSeries=candleRef.current;if(!chart||!candleSeries)return;indicatorsRef.current.forEach(series=>chart.removeSeries(series));indicatorsRef.current=[];const add=(data:{time:number;value:number}[],color:string,width:1|2|3,style=LineStyle.Solid)=>{const series=chart.addSeries(LineSeries,{color,lineWidth:width,lineStyle:style,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});series.setData(data.filter(p=>Number.isFinite(p.value)).map(p=>({...p,time:p.time as UTCTimestamp})));indicatorsRef.current.push(series);};const a=view.appearance.indicators;if(view.vwap)add(analysis.vwap,a.vwap,2);add(analysis.trend,a.trendMa,2);requestAnimationFrame(redraw);},[analysis,view.vwap,view.appearance.indicators,redraw]);
   useEffect(()=>{requestAnimationFrame(resetView);},[resetKey,resetView]);
   useEffect(()=>{requestAnimationFrame(redraw);},[view.volumeRows,redraw]);
-  return <div className="chart-wrap"><div className="chart-canvas" ref={containerRef}/><canvas aria-hidden="true" className="chart-overlay" ref={overlayRef}/><div className="chart-legend"><span><i className="legend-vwap"/>VWAP {analysis.vwap.at(-1)?.value.toFixed(1)}</span><span><i className="legend-trend"/>Trend MA {analysis.trend.at(-1)?.value.toFixed(1)}</span><span><i className="legend-channel"/>LinReg channel</span></div></div>;
+  return <div className="chart-tools-grid"><ChartToolsLayer chart={()=>chartRef.current} exchange="mexc" readOnly={readOnly} series={()=>candleRef.current} symbol={symbol} timeframe={timeframe}/><div className="chart-wrap"><div className="chart-canvas" ref={containerRef}/><canvas aria-hidden="true" className="chart-overlay" ref={overlayRef}/><div className="chart-legend"><span><i className="legend-vwap"/>VWAP {analysis.vwap.at(-1)?.value.toFixed(1)}</span><span><i className="legend-trend"/>Trend MA {analysis.trend.at(-1)?.value.toFixed(1)}</span><span><i className="legend-channel"/>LinReg channel</span></div></div></div>;
 });
 
 export default function TradingTerminal({ user }: { user: AuthUser }) {
@@ -577,7 +578,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               <span>Last signal: {analysis.lastSignal}</span>
             </div>
           </div>
-          {feedError ? <div className="feed-error" role="alert"><strong>{feedError}</strong><span>Real data was not replaced automatically.</span><button onClick={() => { setClosedCandles(generateDemoCandles()); setLiveCandle(null); setDataSource("DEMONSTRATION DATA"); setFeedError(""); }} type="button">Use demonstration data</button></div> : loading || !closedCandles.length ? <div className="chart-skeleton">Loading closed candles…</div> : <DizyChart analysis={analysis} closedCandles={closedCandles} countdownSeconds={countdownSeconds} liveCandle={liveCandle} ref={chartControls} resetKey={viewportReset} view={view} />}
+          {feedError ? <div className="feed-error" role="alert"><strong>{feedError}</strong><span>Real data was not replaced automatically.</span><button onClick={() => { setClosedCandles(generateDemoCandles()); setLiveCandle(null); setDataSource("DEMONSTRATION DATA"); setFeedError(""); }} type="button">Use demonstration data</button></div> : loading || !closedCandles.length ? <div className="chart-skeleton">Loading closed candles…</div> : <DizyChart analysis={analysis} closedCandles={closedCandles} countdownSeconds={countdownSeconds} liveCandle={liveCandle} readOnly={user.role==="viewer"} ref={chartControls} resetKey={viewportReset} symbol={symbol} timeframe={timeframe} view={view} />}
           <div className="signal-dock">
             <article>
               <span>Current setup</span>
