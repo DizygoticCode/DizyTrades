@@ -1090,3 +1090,13 @@ button {
   .panel-closed .settings-panel { display: none; }
   .chart-legend span:nth-child(3) { display: none; }
 }
+
+.chart-controls { position:absolute; z-index:4; right:72px; top:10px; display:flex; gap:6px; }
+.chart-controls button { border:1px solid #2a354d; background:#111827cc; color:#b9c4db; border-radius:5px; padding:5px 9px; font-size:11px; }
+.quote-block { position:relative; }
+.quote-block .countdown { display:block; color:#8d9ab5; font-size:10px; white-space:nowrap; }
+.quote-block .countdown.closing { color:#ffb04f; }
+.realtime-live i { animation:pulse 1.4s infinite; background:#2ee6a6 !important; }
+.realtime-delayed i,.realtime-reconnecting i { background:#ffb04f !important; }
+.realtime-offline i,.realtime-demo i { background:#8994ad !important; }
+@keyframes pulse { 50% { opacity:.35; transform:scale(.75); } }
