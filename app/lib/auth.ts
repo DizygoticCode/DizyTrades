@@ -2,45 +2,23 @@ import "server-only";
 
 import {
   createHmac,
-  scryptSync,
-  timingSafeEqual,
 } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import {
+  authenticateUser,
+  authIsConfigured,
+  configuredUsers,
+  safeEqual,
+  withoutSecrets,
+  type AuthUser,
+} from "./auth-credentials";
 
-export type AuthUser = {
-  id: "rob" | "friend";
-  name: string;
-  email: string;
-  role: "owner" | "admin";
-};
-
-type ConfiguredUser = AuthUser & { passwordHash: string };
+export { authenticateUser, authIsConfigured, type AuthUser };
 type SessionPayload = AuthUser & { expiresAt: number };
 
 export const SESSION_COOKIE = "dizytrades_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
-
-const cleanEmail = (value: string) => value.trim().toLowerCase();
-
-function users(): ConfiguredUser[] {
-  return [
-    {
-      id: "rob",
-      name: process.env.ROB_NAME?.trim() || "Rob",
-      email: cleanEmail(process.env.ROB_EMAIL || ""),
-      passwordHash: process.env.ROB_PASSWORD_HASH || "",
-      role: "owner",
-    },
-    {
-      id: "friend",
-      name: process.env.FRIEND_NAME?.trim() || "Friend",
-      email: cleanEmail(process.env.FRIEND_EMAIL || ""),
-      passwordHash: process.env.FRIEND_PASSWORD_HASH || "",
-      role: "admin",
-    },
-  ].filter((user) => user.email && user.passwordHash) as ConfiguredUser[];
-}
 
 function sessionSecret() {
   const configured = process.env.SESSION_SECRET;
@@ -49,30 +27,6 @@ function sessionSecret() {
     return "local-dizytrades-session-secret-change-before-deploy";
   }
   throw new Error("SESSION_SECRET must contain at least 32 characters");
-}
-
-function safeEqual(left: string, right: string) {
-  const a = Buffer.from(left);
-  const b = Buffer.from(right);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
-function verifyPassword(password: string, encodedHash: string) {
-  const [salt, expected] = encodedHash.split(":");
-  if (!salt || !expected || password.length > 256) return false;
-  const derived = scryptSync(password, salt, 64).toString("hex");
-  return safeEqual(derived, expected);
-}
-
-export function authenticateUser(
-  email: string,
-  password: string,
-): AuthUser | null {
-  const user = users().find((candidate) => candidate.email === cleanEmail(email));
-  if (!user || !verifyPassword(password, user.passwordHash)) return null;
-  const { passwordHash: _passwordHash, ...safeUser } = user;
-  void _passwordHash;
-  return safeUser;
 }
 
 export function createSessionToken(user: AuthUser) {
@@ -106,14 +60,12 @@ function parseSessionToken(token: string | undefined): AuthUser | null {
     ) {
       return null;
     }
-    const configured = users().find(
+    const configured = configuredUsers().find(
       (candidate) =>
         candidate.id === payload.id && candidate.email === payload.email,
     );
     if (!configured) return null;
-    const { passwordHash: _passwordHash, ...user } = configured;
-    void _passwordHash;
-    return user;
+    return withoutSecrets(configured);
   } catch {
     return null;
   }
@@ -132,8 +84,4 @@ export async function requireUser(): Promise<AuthUser> {
 
 export async function requireApiUser(): Promise<AuthUser | null> {
   return currentUser();
-}
-
-export function authIsConfigured() {
-  return users().length > 0;
 }
