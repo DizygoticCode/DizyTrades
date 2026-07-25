@@ -36,6 +36,9 @@ import {
   type ViewSettings,
 } from "./lib/config";
 import type { MarketDescriptor } from "./lib/market/types";
+import type { CandleTimeframe } from "./lib/market/types";
+import { useMexcRealtime, type RealtimeStatus } from "./lib/market/use-mexc-realtime";
+import { applyDealToLiveCandle, applyKlineUpdate, defaultVisibleCandleCount, formatCountdown, nextCandleCloseTimestamp } from "./lib/market/realtime";
 
 const ALL_TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "1w", "1M"];
 
@@ -244,173 +247,54 @@ function drawChartOverlay(
 const mean = (values: number[]) =>
   values.reduce((sum, value) => sum + value, 0) / Math.max(values.length, 1);
 
-function DizyChart({
-  candles,
-  analysis,
-  view,
-}: {
-  candles: Candle[];
-  analysis: StrategyAnalysis;
-  view: ViewSettings;
-}) {
+function DizyChart({ closedCandles, liveCandle, analysis, view, resetKey }: { closedCandles: Candle[]; liveCandle: Candle | null; analysis: StrategyAnalysis; view: ViewSettings; resetKey: number }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const indicatorsRef = useRef<ISeriesApi<"Line">[]>([]);
+  const latestRef = useRef({ candles: closedCandles, analysis, view });
+  useEffect(() => { latestRef.current = { candles: liveCandle ? [...closedCandles, liveCandle] : closedCandles, analysis, view }; });
+  const redraw = useCallback(() => { const chart = chartRef.current, series = candleRef.current, canvas = overlayRef.current; if (chart && series && canvas) drawChartOverlay(canvas, chart, series, latestRef.current.candles, latestRef.current.analysis, latestRef.current.view); }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const chart = createChart(containerRef.current, {
-      autoSize: true,
-      layout: {
-        background: { type: ColorType.Solid, color: "#090c14" },
-        textColor: "#8994ad",
-        fontFamily: "Inter, system-ui, sans-serif",
-        fontSize: 11,
-        panes: { separatorColor: "#1b2233", enableResize: true },
-      },
-      grid: {
-        vertLines: { color: "rgba(87,103,139,.1)" },
-        horzLines: { color: "rgba(87,103,139,.1)" },
-      },
-      crosshair: {
-        vertLine: { color: "#7182a7", labelBackgroundColor: "#24304a" },
-        horzLine: { color: "#7182a7", labelBackgroundColor: "#24304a" },
-      },
-      rightPriceScale: {
-        borderColor: "#20283a",
-        scaleMargins: { top: 0.08, bottom: 0.18 },
-      },
-      timeScale: {
-        borderColor: "#20283a",
-        timeVisible: true,
-        secondsVisible: false,
-        rightOffset: 12,
-        barSpacing: 7,
-      },
-      handleScroll: { mouseWheel: true, pressedMouseMove: true, vertTouchDrag: true },
-      handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true },
-    });
-    const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#20c997",
-      downColor: "#f05268",
-      borderVisible: false,
-      wickUpColor: "#20c997",
-      wickDownColor: "#f05268",
-      priceLineColor: "#e2e8f6",
-    });
-    const volumeSeries = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: "volume" },
-      priceScaleId: "",
-      lastValueVisible: false,
-      priceLineVisible: false,
-    });
-    volumeSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0.82, bottom: 0 },
-    });
-    candleSeries.setData(
-      candles.map((candle) => ({
-        ...candle,
-        time: candle.time as UTCTimestamp,
-      })),
-    );
-    volumeSeries.setData(
-      candles.map((candle) => ({
-        time: candle.time as UTCTimestamp,
-        value: candle.volume,
-        color: candle.close >= candle.open ? "rgba(32,201,151,.23)" : "rgba(240,82,104,.23)",
-      })),
-    );
-    const addLine = (
-      data: { time: number; value: number }[],
-      color: string,
-      width: 1 | 2 | 3,
-      style = LineStyle.Solid,
-    ) => {
-      const series = chart.addSeries(LineSeries, {
-        color,
-        lineWidth: width,
-        lineStyle: style,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-      });
-      series.setData(
-        data
-          .filter((point) => Number.isFinite(point.value))
-          .map((point) => ({ ...point, time: point.time as UTCTimestamp })),
-      );
-      return series;
-    };
-    if (view.vwap) addLine(analysis.vwap, "#57a5ff", 2);
-    addLine(analysis.trend, "#d58bff", 2);
-    if (view.channels) {
-      addLine(analysis.channelTop, "rgba(103,209,255,.52)", 1, LineStyle.Dashed);
-      addLine(analysis.channelBasis, "rgba(103,209,255,.66)", 1);
-      addLine(analysis.channelBottom, "rgba(103,209,255,.52)", 1, LineStyle.Dashed);
-    }
-    if (view.trendlines) {
-      addLine(analysis.upperTrendline, "#ff8a65", 2);
-      addLine(analysis.lowerTrendline, "#61e7b8", 2);
-    }
-    if (view.signals || view.waves) {
-      createSeriesMarkers(
-        candleSeries,
-        analysis.markers
-          .filter((marker) =>
-            marker.text.startsWith("E") ? view.waves : view.signals,
-          )
-          .map((marker) => ({
-            ...marker,
-            time: marker.time as UTCTimestamp,
-          })),
-      );
-    }
-    chart.timeScale().fitContent();
-    chartRef.current = chart;
-    candleRef.current = candleSeries;
-    const redraw = () => {
-      if (overlayRef.current) {
-        drawChartOverlay(
-          overlayRef.current,
-          chart,
-          candleSeries,
-          candles,
-          analysis,
-          view,
-        );
-      }
-    };
-    const resizeObserver = new ResizeObserver(redraw);
-    resizeObserver.observe(containerRef.current);
-    chart.timeScale().subscribeVisibleLogicalRangeChange(redraw);
-    requestAnimationFrame(redraw);
-    return () => {
-      resizeObserver.disconnect();
-      chart.timeScale().unsubscribeVisibleLogicalRangeChange(redraw);
-      chart.remove();
-      chartRef.current = null;
-      candleRef.current = null;
-    };
-  }, [analysis, candles, view]);
+    const chart = createChart(containerRef.current, { autoSize: true, layout: { background: { type: ColorType.Solid, color: "#090c14" }, textColor: "#8994ad", fontFamily: "Inter, system-ui, sans-serif", fontSize: 11, panes: { separatorColor: "#1b2233", enableResize: true } }, grid: { vertLines: { color: "rgba(87,103,139,.1)" }, horzLines: { color: "rgba(87,103,139,.1)" } }, crosshair: { vertLine: { color: "#7182a7", labelBackgroundColor: "#24304a" }, horzLine: { color: "#7182a7", labelBackgroundColor: "#24304a" } }, rightPriceScale: { borderColor: "#20283a", scaleMargins: { top: .08, bottom: .18 }, autoScale: true }, timeScale: { borderColor: "#20283a", timeVisible: true, secondsVisible: false, rightOffset: 8, barSpacing: 7 }, handleScroll: { mouseWheel: true, pressedMouseMove: true, vertTouchDrag: true }, handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true } });
+    const candles = chart.addSeries(CandlestickSeries, { upColor: "#20c997", downColor: "#f05268", borderVisible: false, wickUpColor: "#20c997", wickDownColor: "#f05268", priceLineColor: "#e2e8f6" });
+    const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "", lastValueVisible: false, priceLineVisible: false }); volume.priceScale().applyOptions({ scaleMargins: { top: .82, bottom: 0 } });
+    chartRef.current = chart; candleRef.current = candles; volumeRef.current = volume;
+    const observer = new ResizeObserver(redraw); observer.observe(containerRef.current); chart.timeScale().subscribeVisibleLogicalRangeChange(redraw); requestAnimationFrame(redraw);
+    return () => { observer.disconnect(); chart.timeScale().unsubscribeVisibleLogicalRangeChange(redraw); chart.remove(); chartRef.current = null; candleRef.current = null; volumeRef.current = null; indicatorsRef.current = []; };
+  }, [redraw]);
 
-  return (
-    <div className="chart-wrap">
-      <div className="chart-canvas" ref={containerRef} />
-      <canvas aria-hidden="true" className="chart-overlay" ref={overlayRef} />
-      <div className="chart-legend">
-        <span><i className="legend-vwap" />VWAP {analysis.vwap.at(-1)?.value.toFixed(1)}</span>
-        <span><i className="legend-trend" />Trend MA {analysis.trend.at(-1)?.value.toFixed(1)}</span>
-        <span><i className="legend-channel" />LinReg channel</span>
-      </div>
-    </div>
-  );
+  useEffect(() => { candleRef.current?.setData(closedCandles.map(c => ({ ...c, time: c.time as UTCTimestamp }))); volumeRef.current?.setData(closedCandles.map(c => ({ time: c.time as UTCTimestamp, value: c.volume, color: c.close >= c.open ? "rgba(32,201,151,.23)" : "rgba(240,82,104,.23)" }))); requestAnimationFrame(redraw); }, [closedCandles, redraw]);
+  useEffect(() => { if (!liveCandle) return; candleRef.current?.update({ ...liveCandle, time: liveCandle.time as UTCTimestamp }); volumeRef.current?.update({ time: liveCandle.time as UTCTimestamp, value: liveCandle.volume, color: liveCandle.close >= liveCandle.open ? "rgba(32,201,151,.23)" : "rgba(240,82,104,.23)" }); requestAnimationFrame(redraw); }, [liveCandle, redraw]);
+  useEffect(() => {
+    const chart = chartRef.current, candleSeries = candleRef.current; if (!chart || !candleSeries) return;
+    indicatorsRef.current.forEach(series => chart.removeSeries(series)); indicatorsRef.current = [];
+    const add = (data: { time: number; value: number }[], color: string, width: 1|2|3, style = LineStyle.Solid) => { const series = chart.addSeries(LineSeries, { color, lineWidth: width, lineStyle: style, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }); series.setData(data.filter(p => Number.isFinite(p.value)).map(p => ({ ...p, time: p.time as UTCTimestamp }))); indicatorsRef.current.push(series); };
+    if (view.vwap) add(analysis.vwap, "#57a5ff", 2); add(analysis.trend, "#d58bff", 2);
+    if (view.channels) { add(analysis.channelTop, "rgba(103,209,255,.52)", 1, LineStyle.Dashed); add(analysis.channelBasis, "rgba(103,209,255,.66)", 1); add(analysis.channelBottom, "rgba(103,209,255,.52)", 1, LineStyle.Dashed); }
+    if (view.trendlines) { add(analysis.upperTrendline, "#ff8a65", 2); add(analysis.lowerTrendline, "#61e7b8", 2); }
+    if (view.signals || view.waves) createSeriesMarkers(candleSeries, analysis.markers.filter(m => m.text.startsWith("E") ? view.waves : view.signals).map(m => ({ ...m, time: m.time as UTCTimestamp })));
+    requestAnimationFrame(redraw);
+  }, [analysis, view, redraw]);
+  useEffect(() => { const chart = chartRef.current, element = containerRef.current; if (!chart || !element || !closedCandles.length) return; requestAnimationFrame(() => { const count = defaultVisibleCandleCount(element.clientWidth, closedCandles.length); chart.priceScale("right").applyOptions({ autoScale: true }); chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, closedCandles.length - count), to: closedCandles.length + 6 }); redraw(); }); }, [closedCandles.length, resetKey, redraw]);
+  const reset = () => { const chart = chartRef.current, element = containerRef.current; if (!chart || !element) return; const count = defaultVisibleCandleCount(element.clientWidth, closedCandles.length); chart.priceScale("right").applyOptions({ autoScale: true }); chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, closedCandles.length - count), to: closedCandles.length + 6 }); };
+  return <div className="chart-wrap"><div className="chart-controls"><button onClick={reset} type="button">Reset view</button><button onClick={() => chartRef.current?.timeScale().scrollToRealTime()} type="button">Go to live</button></div><div className="chart-canvas" ref={containerRef} /><canvas aria-hidden="true" className="chart-overlay" ref={overlayRef} /><div className="chart-legend"><span><i className="legend-vwap" />VWAP {analysis.vwap.at(-1)?.value.toFixed(1)}</span><span><i className="legend-trend" />Trend MA {analysis.trend.at(-1)?.value.toFixed(1)}</span><span><i className="legend-channel" />LinReg channel</span></div></div>;
 }
 
 export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [timeframe, setTimeframe] = useState("15m");
   const [symbol, setSymbol] = useState("BTC_USDT");
-  const [candles, setCandles] = useState<Candle[]>(() => generateDemoCandles());
+  const [closedCandles, setClosedCandles] = useState<Candle[]>(() => generateDemoCandles());
+  const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
+  const [liveLastPrice, setLiveLastPrice] = useState<number | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>("connecting");
+  const [clockOffset, setClockOffset] = useState(0);
+  const [countdownNow, setCountdownNow] = useState(() => Date.now());
+  const [viewportReset, setViewportReset] = useState(0);
   const [dataSource, setDataSource] = useState("MEXC PUBLIC DATA");
   const [feedError, setFeedError] = useState("");
   const [markets, setMarkets] = useState<MarketDescriptor[]>([]);
@@ -434,20 +318,20 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   const analysis = useMemo(
-    () => analyzeStrategy(candles, strategy),
-    [candles, strategy],
+    () => analyzeStrategy(closedCandles, strategy),
+    [closedCandles, strategy],
   );
   const backtest = useMemo(
-    () => simulateConfirmedSignals(candles, analysis, risk),
-    [analysis, candles, risk],
+    () => simulateConfirmedSignals(closedCandles, analysis, risk),
+    [analysis, closedCandles, risk],
   );
-  const last = candles.at(-1);
-  const firstVisible = candles.at(-97);
+  const last = liveCandle ?? closedCandles.at(-1);
+  const firstVisible = closedCandles.at(-97);
   const change = last && firstVisible ? ((last.close - firstVisible.close) / firstVisible.close) * 100 : 0;
   const signalColour =
     analysis.bias === "Bullish" ? "positive" : analysis.bias === "Bearish" ? "negative" : "neutral";
 
-  const loadMarketData = useCallback(async () => {
+  const loadMarketData = useCallback(async (resetView = false) => {
     const requestId = ++marketRequest.current;
     setLoading(true);
     setFeedError("");
@@ -457,7 +341,10 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       const payload = (await response.json()) as { source: string; candles: Candle[] };
       if (payload.candles.length < 20) throw new Error("Insufficient candle history");
       if (requestId !== marketRequest.current) return;
-      setCandles(payload.candles);
+      setClosedCandles(payload.candles);
+      setLiveCandle(null);
+      setLiveLastPrice(null);
+      if (resetView && view.autoFitOnMarketChange) setViewportReset((value) => value + 1);
       setDataSource(payload.source.toUpperCase());
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
@@ -465,11 +352,34 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       setFeedError("MEXC candle data is currently unavailable.");
       setDataSource("MEXC UNAVAILABLE");
     } finally { if (requestId === marketRequest.current) setLoading(false); }
-  }, [symbol, timeframe]);
+  }, [symbol, timeframe, view.autoFitOnMarketChange]);
+
+  const demo = dataSource === "DEMONSTRATION DATA";
+  useMexcRealtime({
+    enabled: terminalTab === "charts" && !demo && view.realtimeChartUpdates,
+    symbol,
+    timeframe: timeframe as CandleTimeframe,
+    onStatus: setRealtimeStatus,
+    onClockOffset: setClockOffset,
+    onResync: loadMarketData,
+    onKline: (incoming) => setLiveCandle((current) => {
+      setClosedCandles((closed) => { const result = applyKlineUpdate(closed, current, incoming); if (result.rolled) window.setTimeout(() => void loadMarketData(), 750); return result.closed; });
+      setLiveLastPrice(incoming.close);
+      return !current || incoming.time >= current.time ? incoming : current;
+    }),
+    onDeal: (deal) => { setLiveLastPrice(deal.price); setLiveCandle((current) => applyDealToLiveCandle(current, deal, timeframe as CandleTimeframe)); },
+  });
+
+  useEffect(() => {
+    if (!view.candleCountdown || !liveCandle) return;
+    const timer = window.setInterval(() => setCountdownNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [liveCandle, view.candleCountdown]);
+  const countdownSeconds = liveCandle ? Math.max(0, nextCandleCloseTimestamp(liveCandle.time, timeframe as CandleTimeframe) - Math.floor((countdownNow + clockOffset) / 1000)) : null;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void loadMarketData();
+      void loadMarketData(true);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [loadMarketData]);
@@ -567,10 +477,10 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           </div>
         </div>
         <div className="system-strip">
-          <button className={terminalTab === "charts" ? "nav-tab active" : "nav-tab"} onClick={() => setTerminalTab("charts")} type="button">DizyCharts</button>
+          <button className={terminalTab === "charts" ? "nav-tab active" : "nav-tab"} onClick={() => { setTerminalTab("charts"); if (view.autoFitOnMarketChange) setViewportReset((value) => value + 1); }} type="button">DizyCharts</button>
           <button className={terminalTab === "explorer" ? "nav-tab active" : "nav-tab"} onClick={() => setTerminalTab("explorer")} type="button">TradingView Explorer</button>
-          <span className="connection"><i /> MEXC market feed</span>
-          <span className="confirmed">Confirmed candles</span>
+          <span className={`connection realtime-${demo ? "demo" : realtimeStatus}`}><i /> {demo ? "DEMO" : realtimeStatus === "live" ? "LIVE" : realtimeStatus === "delayed" ? "DELAYED / REST ONLY" : realtimeStatus.toUpperCase()}</span>
+          <span className="confirmed">Confirmed candles · Live market data · simulation only</span>
           <span className="test-mode">Private test mode</span>
           <span className="lock-status">Live execution locked</span>
           {user.role === "viewer" ? <span className="viewer-badge">VIEWER — READ ONLY</span> : null}
@@ -597,8 +507,9 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           {selectorOpen ? <div className="market-menu"><input autoFocus aria-label="Search symbol, base or quote" onChange={(event) => setMarketQuery(event.target.value)} placeholder="Search every MEXC perpetual…" value={marketQuery} /><div className="market-results">{markets.length ? markets.map((market) => <button className={market.symbol === symbol ? "active" : ""} key={market.symbol} onClick={() => { setSymbol(market.symbol); setRecent((items) => [market.symbol, ...items.filter((item) => item !== market.symbol)].slice(0, 8)); setSelectorOpen(false); }} type="button"><span><b>{market.displayName}</b><small>MEXC perpetual · settle {market.settlementCurrency}</small></span><i aria-label="Favourite" onClick={(event) => { event.stopPropagation(); setFavourites((items) => items.includes(market.symbol) ? items.filter((item) => item !== market.symbol) : [...items, market.symbol]); }}>{favourites.includes(market.symbol) ? "★" : "☆"}</i></button>) : <p>No enabled markets found.</p>}</div>{recent.length ? <small>Recent: {recent.join(" · ")}</small> : null}</div> : null}
         </div>
         <div className="quote-block">
-          <strong>{last ? currency.format(last.close) : "—"}</strong>
+          <strong>{last ? currency.format(liveLastPrice ?? last.close) : "—"}</strong>
           <span className={change >= 0 ? "positive" : "negative"}>{signed(change)}</span>
+          {view.candleCountdown && countdownSeconds !== null ? <small className={countdownSeconds <= 10 ? "countdown closing" : "countdown"}>Candle closes in {formatCountdown(countdownSeconds, timeframe as CandleTimeframe)}</small> : null}
         </div>
         <div className="toolbar-divider" />
         <div className="timeframes" aria-label="Chart timeframe">
@@ -619,7 +530,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           <span>Preset</span>
           <strong>Scalping · 15m</strong>
         </button>
-        <button className="refresh-button" disabled={loading} onClick={loadMarketData} type="button">
+        <button className="refresh-button" disabled={loading} onClick={() => void loadMarketData(true)} type="button">
           {loading ? "Syncing…" : "Refresh data"}
         </button>
         <div className="toolbar-spacer" />
@@ -650,11 +561,11 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
             </div>
             <div>
               <span>{dataSource}</span>
-              <span>{candles.length} bars</span>
+              <span>{closedCandles.length} confirmed bars</span>
               <span>Last signal: {analysis.lastSignal}</span>
             </div>
           </div>
-          {feedError ? <div className="feed-error" role="alert"><strong>{feedError}</strong><span>Real data was not replaced automatically.</span><button onClick={() => { setCandles(generateDemoCandles()); setDataSource("DEMONSTRATION DATA"); setFeedError(""); }} type="button">Use demonstration data</button></div> : loading || !candles.length ? <div className="chart-skeleton">Loading closed candles…</div> : <DizyChart analysis={analysis} candles={candles} view={view} />}
+          {feedError ? <div className="feed-error" role="alert"><strong>{feedError}</strong><span>Real data was not replaced automatically.</span><button onClick={() => { setClosedCandles(generateDemoCandles()); setLiveCandle(null); setDataSource("DEMONSTRATION DATA"); setFeedError(""); }} type="button">Use demonstration data</button></div> : loading || !closedCandles.length ? <div className="chart-skeleton">Loading closed candles…</div> : <DizyChart analysis={analysis} closedCandles={closedCandles} liveCandle={liveCandle} resetKey={viewportReset} view={view} />}
           <div className="signal-dock">
             <article>
               <span>Current setup</span>
@@ -727,6 +638,9 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                   <IndicatorToggle checked={view.volumeProfile} colour="#8c7dff" label="Right volume profile" onChange={(value) => setViewKey("volumeProfile", value)} />
                   <IndicatorToggle checked={view.waves} colour="#b994ff" label="Elliott / Wyckoff labels" onChange={(value) => setViewKey("waves", value)} />
                   <IndicatorToggle checked={view.signals} colour="#f2f5fb" label="BUY / SELL signals" onChange={(value) => setViewKey("signals", value)} />
+                  <IndicatorToggle checked={view.realtimeChartUpdates} colour="#2ee6a6" label="Real-time chart updates" onChange={(value) => setViewKey("realtimeChartUpdates", value)} />
+                  <IndicatorToggle checked={view.candleCountdown} colour="#ffd071" label="Candle countdown" onChange={(value) => setViewKey("candleCountdown", value)} />
+                  <IndicatorToggle checked={view.autoFitOnMarketChange} colour="#57a5ff" label="Auto-fit on pair/timeframe change" onChange={(value) => setViewKey("autoFitOnMarketChange", value)} />
                 </div>
                 <div className="setting-section">
                   <h3>Display density</h3>

@@ -1,8 +1,8 @@
 import "server-only";
 
 import type { Candle } from "../strategy";
+import { MEXC_INTERVALS } from "./mexc-shared.ts";
 import {
-  CANDLE_TIMEFRAMES,
   type CandleRequest,
   type CandleResult,
   type CandleTimeframe,
@@ -10,16 +10,7 @@ import {
   type MarketProvider,
 } from "./types.ts";
 
-export const MEXC_INTERVALS: Record<CandleTimeframe, { api: string; seconds: number }> = {
-  "1m": { api: "Min1", seconds: 60 }, "5m": { api: "Min5", seconds: 300 },
-  "15m": { api: "Min15", seconds: 900 }, "30m": { api: "Min30", seconds: 1800 },
-  "1h": { api: "Min60", seconds: 3600 }, "4h": { api: "Hour4", seconds: 14_400 },
-  "8h": { api: "Hour8", seconds: 28_800 }, "1d": { api: "Day1", seconds: 86_400 },
-  "1w": { api: "Week1", seconds: 604_800 }, "1M": { api: "Month1", seconds: 2_592_000 },
-};
-
-export const isCandleTimeframe = (value: string): value is CandleTimeframe =>
-  (CANDLE_TIMEFRAMES as readonly string[]).includes(value);
+export { isCandleTimeframe, MEXC_INTERVALS } from "./mexc-shared.ts";
 
 type RawMarket = Record<string, unknown>;
 export function sanitiseMexcMarkets(input: unknown): MarketDescriptor[] {

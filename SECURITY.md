@@ -29,3 +29,7 @@ wider testing or live use.
 Before live trading is considered, add MFA, database-backed sessions, envelope
 encryption, idempotency keys, exchange reconciliation, daily-loss limits,
 symbol allowlists, immutable audit storage and a tested emergency kill switch.
+
+## Public WebSocket boundary
+
+The real-time chart connection uses only MEXC's public `sub.kline` and `sub.deal` channels. It is browser-side, unauthenticated, restricted by CSP to `wss://contract.mexc.com`, and never receives or transmits an exchange key. A forming candle is display-only and cannot confirm a DizySignals signal or paper entry. WebSocket failure degrades visibly to delayed public REST candles. This does not enable live trading: `LIVE_TRADING_ENABLED=false`, private endpoints, credential collection, and order routes remain prohibited.

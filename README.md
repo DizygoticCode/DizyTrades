@@ -108,3 +108,7 @@ Render references:
 [Blueprints](https://render.com/docs/blueprint-spec),
 [persistent disks](https://render.com/docs/disks), and
 [web services](https://render.com/docs/web-services).
+
+## Real-time public market data
+
+Native DizyCharts augments authoritative REST history with MEXC's public contract WebSocket (`wss://contract.mexc.com/edge`). It subscribes only to public kline and transaction channels and uses no API key, credentials, private API, or order route. The forming candle and interim last price are display-only: DizySignals and paper simulations receive closed candles exclusively, with entries still modelled on the following bar. If streaming is unavailable the UI clearly marks the feed delayed and retains/reconciles public REST history. Real-time market data is not live trade execution; `LIVE_TRADING_ENABLED=false` remains mandatory.

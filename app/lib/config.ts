@@ -13,6 +13,9 @@ export type ViewSettings = {
   labelSize: "Small" | "Medium" | "Large";
   volumeBars: number;
   volumeRows: number;
+  realtimeChartUpdates: boolean;
+  candleCountdown: boolean;
+  autoFitOnMarketChange: boolean;
 };
 
 export type RiskSettings = {
@@ -58,6 +61,9 @@ export const DEFAULT_VIEW: ViewSettings = {
   labelSize: "Medium",
   volumeBars: 240,
   volumeRows: 28,
+  realtimeChartUpdates: true,
+  candleCountdown: true,
+  autoFitOnMarketChange: true,
 };
 
 export const DEFAULT_RISK: RiskSettings = {
@@ -124,6 +130,9 @@ export function sanitiseTerminalSettings(
       volumeProfile: boolean(viewInput.volumeProfile, DEFAULT_VIEW.volumeProfile),
       waves: boolean(viewInput.waves, DEFAULT_VIEW.waves),
       signals: boolean(viewInput.signals, DEFAULT_VIEW.signals),
+      realtimeChartUpdates: boolean(viewInput.realtimeChartUpdates, DEFAULT_VIEW.realtimeChartUpdates),
+      candleCountdown: boolean(viewInput.candleCountdown, DEFAULT_VIEW.candleCountdown),
+      autoFitOnMarketChange: boolean(viewInput.autoFitOnMarketChange, DEFAULT_VIEW.autoFitOnMarketChange),
       labelSize,
       volumeBars: finite(viewInput.volumeBars, DEFAULT_VIEW.volumeBars, 60, 600),
       volumeRows: finite(viewInput.volumeRows, DEFAULT_VIEW.volumeRows, 12, 80),
