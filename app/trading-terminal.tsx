@@ -18,6 +18,7 @@ import {
   forwardRef,
   useImperativeHandle,
   useMemo,
+  useReducer,
   useRef,
   useState,
 } from "react";
@@ -41,15 +42,17 @@ import {
 import type { MarketDescriptor } from "./lib/market/types";
 import type { CandleTimeframe } from "./lib/market/types";
 import { useMexcRealtime, type RealtimeStatus } from "./lib/market/use-mexc-realtime";
-import { applyDealToLiveCandle, applyKlineUpdate, calculateCandleCountdownSeconds, defaultVisibleCandleCount, formatCountdown, startAlignedSecondClock, updatePriceLineCountdownTitle } from "./lib/market/realtime";
+import { calculateCandleCountdownSeconds, defaultVisibleCandleCount, formatCountdown, startAlignedSecondClock, updatePriceLineCountdownTitle } from "./lib/market/realtime";
 import { APPEARANCE_PRESETS, hexToRgba, type ChartAppearanceSettings } from "./lib/chart/appearance";
 import { calculateAutoFit, calculateChartLayout, calculateFibLabelLayout, calculateGoToLive, calculateHorizontalLineExtent, channelFillPolygon, extendLineToPlot, calculateProfileRowGeometry, patternLabelPosition, placeChartBubbles, stackLabels, type LinePoint } from "./lib/chart/chart-layout";
 import { ALL_TIMEFRAMES, PROFILE_BAR_PRESETS, profileBarPreset, TIMEFRAME_TITLES } from "./lib/chart/toolbar";
 import { ChartToolsLayer } from "./chart-tools-layer";
-import { classifySeriesSync, requiresSetData } from "./lib/chart/series-sync";
-import { reconcileClosedCandles, type MarketLoadReason } from "./lib/market/reconciliation";
+import { planSeriesSync } from "./lib/chart/series-sync";
+import { type MarketLoadReason } from "./lib/market/reconciliation";
 import { livePaperSnapshot } from "./lib/paper-performance";
 import { PaperPerformanceToolbar } from "./paper-performance-toolbar";
+import { buildDisplayTimeline, marketTimelineReducer } from "./lib/market/timeline";
+import { ChartErrorBoundary } from "./chart-error-boundary";
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -57,7 +60,7 @@ const currency = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
-const signed = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+const signed = (value: number) => Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${value.toFixed(2)}%` : "—";
 
 function IndicatorToggle({
   checked,
@@ -255,17 +258,17 @@ function drawChartOverlay(canvas: HTMLCanvasElement, chart: IChartApi, candleSer
 }
 
 export type ChartControls = { resetView: () => void; goToLive: () => void };
-const DizyChart = forwardRef<ChartControls, { closedCandles:Candle[];liveCandle:Candle|null;analysis:StrategyAnalysis;view:ViewSettings;resetKey:number;countdownSeconds:number|null;symbol:string;timeframe:string;readOnly:boolean;applyDefaultsNonce:number }>(function DizyChart({ closedCandles, liveCandle, analysis, view, resetKey, countdownSeconds,symbol,timeframe,readOnly,applyDefaultsNonce }, ref) {
-  const containerRef=useRef<HTMLDivElement>(null),overlayRef=useRef<HTMLCanvasElement>(null),chartRef=useRef<IChartApi|null>(null),candleRef=useRef<ISeriesApi<"Candlestick">|null>(null),volumeRef=useRef<ISeriesApi<"Histogram">|null>(null),priceLineRef=useRef<IPriceLine|null>(null),indicatorsRef=useRef(new Map<string,ISeriesApi<"Line">>()),previousClosedRef=useRef<Candle[]>([]),marketKeyRef=useRef(""),redrawFrameRef=useRef<number|null>(null),latestRef=useRef({candles:closedCandles,analysis,view});
-  useEffect(()=>{latestRef.current={candles:liveCandle?[...closedCandles,liveCandle]:closedCandles,analysis,view};});
+const DizyChart = forwardRef<ChartControls, { displayCandles:Candle[];liveCandle:Candle|null;analysis:StrategyAnalysis;view:ViewSettings;resetKey:number;countdownSeconds:number|null;symbol:string;timeframe:string;readOnly:boolean;applyDefaultsNonce:number }>(function DizyChart({ displayCandles, liveCandle, analysis, view, resetKey, countdownSeconds,symbol,timeframe,readOnly,applyDefaultsNonce }, ref) {
+  const containerRef=useRef<HTMLDivElement>(null),overlayRef=useRef<HTMLCanvasElement>(null),chartRef=useRef<IChartApi|null>(null),candleRef=useRef<ISeriesApi<"Candlestick">|null>(null),volumeRef=useRef<ISeriesApi<"Histogram">|null>(null),priceLineRef=useRef<IPriceLine|null>(null),indicatorsRef=useRef(new Map<string,ISeriesApi<"Line">>()),previousDisplayRef=useRef<Candle[]>([]),marketKeyRef=useRef(""),redrawFrameRef=useRef<number|null>(null),latestRef=useRef({candles:displayCandles,analysis,view});
+  useEffect(()=>{latestRef.current={candles:displayCandles,analysis,view};});
+  const [chartError,setChartError]=useState<Error|null>(null);
   const redraw=useCallback(()=>{if(redrawFrameRef.current!==null)return;redrawFrameRef.current=requestAnimationFrame(()=>{redrawFrameRef.current=null;const chart=chartRef.current,series=candleRef.current,canvas=overlayRef.current;if(chart&&series&&canvas)drawChartOverlay(canvas,chart,series,latestRef.current.candles,latestRef.current.analysis,latestRef.current.view);});},[]);
   const resetView=useCallback(()=>{const chart=chartRef.current,element=containerRef.current,canvas=overlayRef.current;if(!chart||!element||!canvas||!latestRef.current.candles.length)return;const layout=chartLayout(canvas,chart,view),count=defaultVisibleCandleCount(element.clientWidth,latestRef.current.candles.length),range=calculateAutoFit({candleCount:latestRef.current.candles.length,desiredCount:count,barSpacing:7,layout});chart.priceScale("right").applyOptions({autoScale:true});chart.timeScale().setVisibleLogicalRange({from:range.from,to:range.to});requestAnimationFrame(redraw);},[view,redraw]);
   const goToLive=useCallback(()=>{const chart=chartRef.current,canvas=overlayRef.current;if(!chart||!canvas||!latestRef.current.candles.length)return;const range=calculateGoToLive({candleCount:latestRef.current.candles.length,currentRange:chart.timeScale().getVisibleLogicalRange(),barSpacing:7,layout:chartLayout(canvas,chart,view)});chart.priceScale("right").applyOptions({autoScale:true});chart.timeScale().setVisibleLogicalRange({from:range.from,to:range.to});requestAnimationFrame(redraw);},[view,redraw]);
   useImperativeHandle(ref,()=>({resetView,goToLive}),[resetView,goToLive]);
   useEffect(()=>{if(!containerRef.current)return;indicatorsRef.current.clear();const element=containerRef.current,a=latestRef.current.view.appearance,chart=createChart(element,{autoSize:true,layout:{background:{type:ColorType.Solid,color:a.chart.background},textColor:a.chart.axisText,fontFamily:"Inter, system-ui, sans-serif",fontSize:11,panes:{separatorColor:"#1b2233",enableResize:true}},grid:{vertLines:{color:hexToRgba(a.chart.grid,a.opacity.grid)},horzLines:{color:hexToRgba(a.chart.grid,a.opacity.grid)}},rightPriceScale:{borderColor:a.chart.priceScaleBorder,scaleMargins:{top:.08,bottom:.18}},timeScale:{borderColor:a.chart.timeScaleBorder,timeVisible:true,rightOffset:8,barSpacing:7}});const candles=chart.addSeries(CandlestickSeries,{priceLineVisible:false,lastValueVisible:false,borderVisible:false}),volume=chart.addSeries(HistogramSeries,{priceFormat:{type:"volume"},priceScaleId:"",lastValueVisible:false,priceLineVisible:false});volume.priceScale().applyOptions({scaleMargins:{top:.82,bottom:0}});chartRef.current=chart;candleRef.current=candles;volumeRef.current=volume;const observer=new ResizeObserver(()=>{redraw();});observer.observe(element);const scheduleRedraw=()=>requestAnimationFrame(redraw);element.addEventListener("wheel",scheduleRedraw,{passive:true});element.addEventListener("pointermove",scheduleRedraw,{passive:true});element.addEventListener("pointerup",scheduleRedraw,{passive:true});chart.timeScale().subscribeVisibleLogicalRangeChange(redraw);return()=>{observer.disconnect();element.removeEventListener("wheel",scheduleRedraw);element.removeEventListener("pointermove",scheduleRedraw);element.removeEventListener("pointerup",scheduleRedraw);chart.timeScale().unsubscribeVisibleLogicalRangeChange(redraw);if(priceLineRef.current)candles.removePriceLine(priceLineRef.current);chart.remove();chartRef.current=null;candleRef.current=null;volumeRef.current=null;priceLineRef.current=null;if(redrawFrameRef.current!==null)cancelAnimationFrame(redrawFrameRef.current);};},[redraw]);
   useEffect(()=>{const chart=chartRef.current,c=candleRef.current,v=volumeRef.current,a=view.appearance;if(!chart||!c||!v)return;chart.applyOptions({layout:{background:{type:ColorType.Solid,color:a.chart.background},textColor:a.chart.axisText},grid:{vertLines:{color:hexToRgba(a.chart.grid,a.opacity.grid)},horzLines:{color:hexToRgba(a.chart.grid,a.opacity.grid)}},crosshair:{vertLine:{color:a.chart.crosshair},horzLine:{color:a.chart.crosshair}},rightPriceScale:{borderColor:a.chart.priceScaleBorder},timeScale:{borderColor:a.chart.timeScaleBorder}});c.applyOptions({upColor:a.candles.bull,downColor:a.candles.bear,wickUpColor:a.candles.bullWick,wickDownColor:a.candles.bearWick});requestAnimationFrame(redraw);},[view.appearance,redraw]);
-  useEffect(()=>{const c=candleRef.current,v=volumeRef.current;if(!c||!v)return;const a=view.appearance,key=`${symbol}:${timeframe}`,sync=classifySeriesSync(previousClosedRef.current,closedCandles,Boolean(marketKeyRef.current&&marketKeyRef.current!==key));const candleData=closedCandles.map(item=>({...item,time:item.time as UTCTimestamp})),volumeData=closedCandles.map(item=>({time:item.time as UTCTimestamp,value:item.volume,color:hexToRgba(item.close>=item.open?a.candles.bullVolume:a.candles.bearVolume,.23)}));if(requiresSetData(sync)){const range=chartRef.current?.timeScale().getVisibleLogicalRange();c.setData(candleData);v.setData(volumeData);if(sync==="historical-correction"&&range)chartRef.current?.timeScale().setVisibleLogicalRange(range);}else if(sync==="append"||sync==="replace-latest"){const lastCandle=candleData.at(-1),lastVolume=volumeData.at(-1);if(lastCandle)c.update(lastCandle);if(lastVolume)v.update(lastVolume);}previousClosedRef.current=closedCandles;marketKeyRef.current=key;redraw();},[closedCandles,symbol,timeframe,view.appearance,redraw]);
-  useEffect(()=>{if(!liveCandle)return;const a=view.appearance;candleRef.current?.update({...liveCandle,time:liveCandle.time as UTCTimestamp});volumeRef.current?.update({time:liveCandle.time as UTCTimestamp,value:liveCandle.volume,color:hexToRgba(liveCandle.close>=liveCandle.open?a.candles.bullVolume:a.candles.bearVolume,.23)});},[liveCandle,view.appearance]);
+  useEffect(()=>{const c=candleRef.current,v=volumeRef.current;if(!c||!v)return;const a=view.appearance,key=`${symbol}:${timeframe}`,previous=previousDisplayRef.current,plan=planSeriesSync(previous,displayCandles,Boolean(marketKeyRef.current&&marketKeyRef.current!==key));const candleData=displayCandles.map(item=>({...item,time:item.time as UTCTimestamp}));const volumeFor=(item:Candle)=>({time:item.time as UTCTimestamp,value:item.volume,color:hexToRgba(item.close>=item.open?a.candles.bullVolume:a.candles.bearVolume,.23)});try{if(plan.operation==="setData"){const range=chartRef.current?.timeScale().getVisibleLogicalRange();c.setData(candleData);v.setData(displayCandles.map(volumeFor));if(range&&marketKeyRef.current===key)chartRef.current?.timeScale().setVisibleLogicalRange(range);}else if(plan.operation==="update"){c.update({...plan.point,time:plan.point.time as UTCTimestamp});v.update(volumeFor(plan.point));}previousDisplayRef.current=displayCandles;marketKeyRef.current=key;redraw();}catch(error){console.error("Chart sync error",{operation:plan.operation,market:key,previousFinal:previous.at(-1)?.time,nextFinal:displayCandles.at(-1)?.time,previousSize:previous.length,nextSize:displayCandles.length,message:error instanceof Error?error.message:String(error),stack:error instanceof Error?error.stack:undefined});queueMicrotask(()=>setChartError(error instanceof Error?error:new Error(String(error))));}},[displayCandles,symbol,timeframe,view.appearance,redraw]);
   const livePrice = liveCandle?.close ?? null;
   useEffect(() => {
     const series = candleRef.current;
@@ -284,15 +287,17 @@ const DizyChart = forwardRef<ChartControls, { closedCandles:Candle[];liveCandle:
   useEffect(()=>{const chart=chartRef.current;if(!chart)return;const desired=new Map<string,{data:{time:number;value:number}[];color:string}>([["trend",{data:analysis.trend,color:view.appearance.indicators.trendMa}]]);if(view.vwap)desired.set("vwap",{data:analysis.vwap,color:view.appearance.indicators.vwap});indicatorsRef.current.forEach((series,key)=>{if(!desired.has(key)){chart.removeSeries(series);indicatorsRef.current.delete(key);}});desired.forEach((item,key)=>{let series=indicatorsRef.current.get(key);if(!series){series=chart.addSeries(LineSeries,{color:item.color,lineWidth:2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});indicatorsRef.current.set(key,series);}else series.applyOptions({color:item.color});series.setData(item.data.filter(p=>Number.isFinite(p.value)).map(p=>({...p,time:p.time as UTCTimestamp})));});redraw();},[analysis.trend,analysis.vwap,view.vwap,view.appearance.indicators,redraw]);
   useEffect(()=>{requestAnimationFrame(resetView);},[resetKey,resetView]);
   useEffect(()=>{requestAnimationFrame(redraw);},[view.volumeRows,redraw]);
-  return <div className="chart-tools-grid"><ChartToolsLayer applyDefaultsNonce={applyDefaultsNonce} candles={liveCandle?[...closedCandles,liveCandle]:closedCandles} chart={()=>chartRef.current} defaults={{trendLine:view.manualTrendLineExtension,ray:view.manualRayExtension,horizontalLine:view.manualHorizontalLineExtension,parallelChannel:view.manualChannelExtension,fibonacci:view.manualFibonacciExtension}} exchange="mexc" fadeExtendedPortions={view.fadeExtendedPortions} globalExtension={view.globalLineExtensionOverride} readOnly={readOnly} series={()=>candleRef.current} symbol={symbol} timeframe={timeframe}/><div className="chart-wrap"><div className="chart-canvas" ref={containerRef}/><canvas aria-hidden="true" className="chart-overlay" ref={overlayRef}/><div className="chart-legend"><span><i className="legend-vwap"/>VWAP {analysis.vwap.at(-1)?.value.toFixed(1)}</span><span><i className="legend-trend"/>Trend MA {analysis.trend.at(-1)?.value.toFixed(1)}</span><span><i className="legend-channel"/>LinReg channel</span></div></div></div>;
+  if(chartError)throw chartError;
+  return <div className="chart-tools-grid"><ChartToolsLayer applyDefaultsNonce={applyDefaultsNonce} candles={displayCandles} chart={()=>chartRef.current} defaults={{trendLine:view.manualTrendLineExtension,ray:view.manualRayExtension,horizontalLine:view.manualHorizontalLineExtension,parallelChannel:view.manualChannelExtension,fibonacci:view.manualFibonacciExtension}} exchange="mexc" fadeExtendedPortions={view.fadeExtendedPortions} globalExtension={view.globalLineExtensionOverride} readOnly={readOnly} series={()=>candleRef.current} symbol={symbol} timeframe={timeframe}/><div className="chart-wrap"><div className="chart-canvas" ref={containerRef}/><canvas aria-hidden="true" className="chart-overlay" ref={overlayRef}/><div className="chart-legend"><span><i className="legend-vwap"/>VWAP {analysis.vwap.at(-1)?.value.toFixed(1)}</span><span><i className="legend-trend"/>Trend MA {analysis.trend.at(-1)?.value.toFixed(1)}</span><span><i className="legend-channel"/>LinReg channel</span></div></div></div>;
 });
 
 export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [timeframe, setTimeframe] = useState("15m");
   const [symbol, setSymbol] = useState("BTC_USDT");
-  const [closedCandles, setClosedCandles] = useState<Candle[]>(() => generateDemoCandles());
-  const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
-  const [liveLastPrice, setLiveLastPrice] = useState<number | null>(null);
+  const marketKey = `${symbol}:${timeframe}`;
+  const [timeline, dispatchTimeline] = useReducer(marketTimelineReducer, undefined, () => ({ marketKey, closed: generateDemoCandles(), live: null, lastPrice: null, rolloverSequence: 0 }));
+  const { closed: closedCandles, live: liveCandle, lastPrice: liveLastPrice } = timeline;
+  const displayCandles = useMemo(() => buildDisplayTimeline(closedCandles, liveCandle), [closedCandles, liveCandle]);
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>("connecting");
   const [clockOffset, setClockOffset] = useState(0);
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
@@ -307,6 +312,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [recent, setRecent] = useState<string[]>([]);
   const [terminalTab, setTerminalTab] = useState<"charts" | "explorer">("charts");
   const marketRequest = useRef(0);
+  const marketAbort = useRef<AbortController | null>(null);
   const hasCandles = useRef(closedCandles.length > 0);
   useEffect(() => { hasCandles.current = closedCandles.length > 0; }, [closedCandles.length]);
   const chartControls = useRef<ChartControls>(null);
@@ -347,24 +353,25 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
 
   const loadMarketData = useCallback(async ({ reason, resetView }: { reason: MarketLoadReason; resetView: boolean }) => {
     const requestId = ++marketRequest.current, requestKey = `${symbol}:${timeframe}`;
+    marketAbort.current?.abort();
+    const controller = new AbortController(); marketAbort.current = controller;
     const blocking = (reason === "initial" || reason === "market-change") && !hasCandles.current;
     if (blocking) setInitialLoading(true); else setBackgroundSyncing(true);
     if (blocking) setFeedError("");
     try {
-      const response = await fetch(`/api/market?exchange=mexc&symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&limit=800`);
+      const response = await fetch(`/api/market?exchange=mexc&symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&limit=800`, { signal: controller.signal });
       if (!response.ok) throw new Error("Feed unavailable");
       const payload = (await response.json()) as { source: string; candles: Candle[] };
       if (payload.candles.length < 20) throw new Error("Insufficient candle history");
       if (requestId !== marketRequest.current || requestKey !== `${symbol}:${timeframe}`) return;
-      setClosedCandles(current => reason === "market-change" || reason === "initial" ? payload.candles.slice(-800) : reconcileClosedCandles(current, payload.candles));
-      if (reason === "initial" || reason === "market-change") { setLiveCandle(null); setLiveLastPrice(null); }
+      dispatchTimeline(reason === "market-change" || reason === "initial" ? { type: "replaceMarket", marketKey: requestKey, closed: payload.candles } : { type: "reconcileClosed", marketKey: requestKey, closed: payload.candles });
       if (resetView && view.autoFitOnMarketChange) setViewportReset(value => value + 1);
       setDataSource(payload.source.toUpperCase()); setResultMarketKey(requestKey);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       if (requestId !== marketRequest.current) return;
       if (blocking) { setFeedError("MEXC candle data is currently unavailable."); setDataSource("MEXC UNAVAILABLE"); }
-    } finally { if (requestId === marketRequest.current) { setInitialLoading(false); setBackgroundSyncing(false); } }
+    } finally { if (requestId === marketRequest.current) { setInitialLoading(false); setBackgroundSyncing(false); marketAbort.current = null; } }
   }, [symbol, timeframe, view.autoFitOnMarketChange]);
 
   const demo = dataSource === "DEMONSTRATION DATA";
@@ -375,13 +382,17 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     onStatus: setRealtimeStatus,
     onClockOffset: setClockOffset,
     onResync: () => void loadMarketData({ reason: "reconnect", resetView: false }),
-    onKline: (incoming) => setLiveCandle((current) => {
-      setClosedCandles((closed) => { const result = applyKlineUpdate(closed, current, incoming); if (result.rolled) window.setTimeout(() => void loadMarketData({ reason: "rollover", resetView: false }), 750); return result.closed; });
-      setLiveLastPrice(incoming.close);
-      return !current || incoming.time >= current.time ? incoming : current;
-    }),
-    onDeal: (deal) => { setLiveLastPrice(deal.price); setLiveCandle((current) => applyDealToLiveCandle(current, deal, timeframe as CandleTimeframe)); },
+    onKline: (incoming) => dispatchTimeline({ type: "kline", marketKey, candle: incoming }),
+    onDeal: (deal) => dispatchTimeline({ type: "deal", marketKey, deal, timeframe: timeframe as CandleTimeframe }),
   });
+
+  useEffect(() => {
+    if (!timeline.rolloverSequence || timeline.marketKey !== marketKey) return;
+    const timer = window.setTimeout(() => void loadMarketData({ reason: "rollover", resetView: false }), 750);
+    return () => window.clearTimeout(timer);
+  }, [timeline.rolloverSequence, timeline.marketKey, marketKey, loadMarketData]);
+
+  useEffect(() => () => marketAbort.current?.abort(), []);
 
   const countdownActive = view.candleCountdown && liveCandle !== null && (view.countdownToolbar || view.countdownPriceMarker);
   useEffect(() => {
@@ -592,7 +603,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               <span>Last signal: {analysis.lastSignal}</span>
             </div>
           </div>
-          {feedError ? <div className="feed-error" role="alert"><strong>{feedError}</strong><span>Real data was not replaced automatically.</span><button onClick={() => { setClosedCandles(generateDemoCandles()); setLiveCandle(null); setDataSource("DEMONSTRATION DATA"); setFeedError(""); }} type="button">Use demonstration data</button></div> : initialLoading && !closedCandles.length ? <div className="chart-skeleton">Loading closed candles…</div> : <DizyChart applyDefaultsNonce={applyDrawingDefaultsNonce} analysis={analysis} closedCandles={closedCandles} countdownSeconds={countdownSeconds} liveCandle={liveCandle} readOnly={user.role==="viewer"} ref={chartControls} resetKey={viewportReset} symbol={symbol} timeframe={timeframe} view={view} />}
+          {feedError ? <div className="feed-error" role="alert"><strong>{feedError}</strong><span>Real data was not replaced automatically.</span><button onClick={() => { dispatchTimeline({ type: "demonstrationData", marketKey, closed: generateDemoCandles() }); setDataSource("DEMONSTRATION DATA"); setFeedError(""); }} type="button">Use demonstration data</button></div> : initialLoading && !closedCandles.length ? <div className="chart-skeleton">Loading closed candles…</div> : <ChartErrorBoundary marketKey={marketKey} onReload={() => setViewportReset(value => value + 1)}><DizyChart key={viewportReset} applyDefaultsNonce={applyDrawingDefaultsNonce} analysis={analysis} displayCandles={displayCandles} countdownSeconds={countdownSeconds} liveCandle={liveCandle} readOnly={user.role==="viewer"} ref={chartControls} resetKey={viewportReset} symbol={symbol} timeframe={timeframe} view={view} /></ChartErrorBoundary>}
           <div className="signal-dock">
             <article>
               <span>Current setup</span>

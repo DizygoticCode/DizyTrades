@@ -16,3 +16,16 @@ export function classifySeriesSync<T extends TimedPoint>(previous: T[], next: T[
 export const requiresSetData = (sync: SeriesSync) =>
   sync === "initial" || sync === "historical-correction" || sync === "market-replacement";
 
+export type SeriesSyncPlan<T> = { operation: "none" } | { operation: "update"; point: T } | { operation: "setData"; data: T[] };
+
+/** Plans a mutation which can never issue an update older than plotted data. */
+export function planSeriesSync<T extends TimedPoint>(previous: T[], next: T[], marketChanged = false): SeriesSyncPlan<T> {
+  const sync = classifySeriesSync(previous, next, marketChanged);
+  if (sync === "none") return { operation: "none" };
+  const point = next.at(-1);
+  const lastPlottedTime = previous.at(-1)?.time;
+  if ((sync === "append" || sync === "replace-latest") && point && (lastPlottedTime === undefined || point.time >= lastPlottedTime)) {
+    return { operation: "update", point };
+  }
+  return { operation: "setData", data: next };
+}
