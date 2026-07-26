@@ -1176,3 +1176,14 @@ button {
 .paper-history th, .paper-history td { padding: 9px 10px; border-bottom: 1px solid #1b2433; text-align: left; white-space: nowrap; }
 .paper-history th { position: sticky; top: 0; color: #8f9bb1; background: #111927; }
 @media (max-width: 700px) { .paper-detail, .paper-label, .mtm-badge { display: none; } .paper-metrics { padding-inline: 10px; gap: 9px; } }
+
+.chart-recovery {
+  min-height: 480px;
+  display: grid;
+  place-content: center;
+  gap: 12px;
+  text-align: center;
+  background: #0b101a;
+  color: #dce5f5;
+}
+.chart-recovery button { justify-self: center; }

@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { LivePaperSnapshot } from "./lib/paper-performance";
 import { formatSignedMoney, tradeExitLabel } from "./lib/paper-performance";
 
-const pct = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+export const finiteNumber = (value: number, digits = 2) => Number.isFinite(value) ? value.toFixed(digits) : "—";
+const pct = (value: number) => Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${value.toFixed(2)}%` : "—";
 const tone = (value: number) => value > 0 ? "positive" : value < 0 ? "negative" : "neutral";
 
 export function PaperPerformanceToolbar({ snapshot, enabled, calculating }: { snapshot: LivePaperSnapshot; enabled: boolean; calculating: boolean }) {
@@ -26,19 +27,19 @@ export function PaperPerformanceToolbar({ snapshot, enabled, calculating }: { sn
       <span className="paper-label">Paper simulation</span>
       {calculating ? <span className="calculating">Calculating…</span> : <>
         <strong className={tone(snapshot.returnPct)}>{pct(snapshot.returnPct)}</strong>
-        <span>Equity <b>{`$${snapshot.endingEquity.toFixed(2)}`}</b></span>
+        <span>Equity <b>{Number.isFinite(snapshot.endingEquity) ? `$${finiteNumber(snapshot.endingEquity)}` : "—"}</b></span>
         <span className={tone(snapshot.pnl)}>P/L <b>{formatSignedMoney(snapshot.pnl)}</b></span>
         <span><b>{snapshot.trades}</b> trades</span>
-        <span className="paper-detail"><b>{snapshot.winRatePct.toFixed(0)}%</b> win</span>
-        <span className="paper-detail">DD <b>{snapshot.maxDrawdownPct.toFixed(1)}%</b></span>
-        <span className="paper-detail">PF <b>{snapshot.profitFactor?.toFixed(2) ?? "—"}</b></span>
+        <span className="paper-detail"><b>{Number.isFinite(snapshot.winRatePct) ? `${finiteNumber(snapshot.winRatePct, 0)}%` : "—"}</b> win</span>
+        <span className="paper-detail">DD <b>{Number.isFinite(snapshot.maxDrawdownPct) ? `${finiteNumber(snapshot.maxDrawdownPct, 1)}%` : "—"}</b></span>
+        <span className="paper-detail">PF <b>{snapshot.profitFactor == null ? "—" : finiteNumber(snapshot.profitFactor)}</b></span>
         <span className="mtm-badge">{enabled && snapshot.liveMtm ? "LIVE MTM" : "CONFIRMED"}</span>
       </>}
       <button aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(value => !value)} type="button">History</button>
     </div>
     {open ? <div aria-label="Recent simulated trades" aria-modal="false" className="paper-history" role="dialog">
       <div className="paper-history-head"><div><strong>Paper simulation history</strong><small>Most recent {trades.length} · simulation only</small></div><button aria-label="Close trade history" onClick={() => setOpen(false)} type="button">×</button></div>
-      <div className="paper-table-wrap"><table><thead><tr><th>Entry time</th><th>Side</th><th>Entry</th><th>Exit / mark</th><th>P/L</th><th>P/L %</th><th>Result</th><th>Exit reason</th></tr></thead><tbody>{trades.length ? trades.map(trade => <tr key={trade.id}><td>{new Date(trade.entryTime * 1000).toLocaleString()}</td><td>{trade.direction === "long" ? "Long" : "Short"}</td><td>{trade.entry.toFixed(2)}</td><td>{trade.exit.toFixed(2)}</td><td className={tone(trade.pnl)}>{formatSignedMoney(trade.pnl)}</td><td className={tone(trade.pnlPct)}>{pct(trade.pnlPct)}</td><td>{trade.exitReason === "MARK" ? "Open" : trade.result}</td><td>{tradeExitLabel(trade.exitReason)}</td></tr>) : <tr><td colSpan={8}>No simulated trades yet.</td></tr>}</tbody></table></div>
+      <div className="paper-table-wrap"><table><thead><tr><th>Entry time</th><th>Side</th><th>Entry</th><th>Exit / mark</th><th>P/L</th><th>P/L %</th><th>Result</th><th>Exit reason</th></tr></thead><tbody>{trades.length ? trades.map(trade => <tr key={trade.id}><td>{new Date(trade.entryTime * 1000).toLocaleString()}</td><td>{trade.direction === "long" ? "Long" : "Short"}</td><td>{finiteNumber(trade.entry)}</td><td>{finiteNumber(trade.exit)}</td><td className={tone(trade.pnl)}>{formatSignedMoney(trade.pnl)}</td><td className={tone(trade.pnlPct)}>{pct(trade.pnlPct)}</td><td>{trade.exitReason === "MARK" ? "Open" : trade.result}</td><td>{tradeExitLabel(trade.exitReason)}</td></tr>) : <tr><td colSpan={8}>No simulated trades yet.</td></tr>}</tbody></table></div>
     </div> : null}
   </div>;
 }
