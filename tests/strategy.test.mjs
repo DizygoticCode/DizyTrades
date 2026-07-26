@@ -12,6 +12,19 @@ import {
   formatLevelLabel,
   generateDemoCandles,
 } from "../app/lib/strategy.ts";
+import { STRATEGY_PRESETS, resolveStrategySettings, strategyHistoryCapacity } from "../app/lib/strategy-presets.ts";
+
+test("Pine V1 preset values are centralised and exact",()=>{
+  assert.deepEqual(STRATEGY_PRESETS["scalp-15m"],{mode:"scalp-15m",trendLength:50,channelDeviation:2,requireMinConfluence:true,minConfluence:2,useVwapFilter:false,useTrendFilter:false,srLookback:300,pivotLength:3,srClusterAtr:.8,minTouches:2,srTolerancePct:.1,triangleTightnessPct:.5,breakoutVolumeMultiple:1.4,channelLength:80,channelReversalWindow:5,fibLength:100,zigZagThresholdPct:1,structureWindow:4,vwapLength:96});
+  assert.deepEqual(STRATEGY_PRESETS["swing-1h-4h"],{mode:"swing-1h-4h",trendLength:50,channelDeviation:2,requireMinConfluence:true,minConfluence:2,useVwapFilter:false,useTrendFilter:false,srLookback:1000,pivotLength:8,srClusterAtr:1.3,minTouches:3,srTolerancePct:.2,triangleTightnessPct:.8,breakoutVolumeMultiple:1.1,channelLength:240,channelReversalWindow:8,fibLength:320,zigZagThresholdPct:2.5,structureWindow:8,vwapLength:192});
+  assert.equal(strategyHistoryCapacity(STRATEGY_PRESETS["swing-1h-4h"]),1400);
+});
+
+test("preset resolution retains stored custom values",()=>{const stored={...DEFAULT_STRATEGY,mode:"scalp-15m",fibLength:555};assert.equal(resolveStrategySettings(stored).fibLength,100);assert.equal(resolveStrategySettings({...stored,mode:"custom"}).fibLength,555);});
+
+test("historical signals are prefix invariant and carry five-part details",()=>{const candles=generateDemoCandles(500),prefix=analyzeStrategy(candles.slice(0,460),DEFAULT_STRATEGY).tradeSignals,extended=analyzeStrategy(candles,DEFAULT_STRATEGY).tradeSignals.filter(s=>s.time<=candles[459].time);assert.deepEqual(extended,prefix);assert.ok(extended.every(s=>s.confluenceTotal===5&&Object.keys(s.components).length===5&&s.primaryTrigger));});
+
+test("signal scan is not limited to the latest 160 bars",()=>{const candles=generateDemoCandles(800),custom={...DEFAULT_STRATEGY,mode:"custom",minConfluence:1,requireMinConfluence:true};const analysis=analyzeStrategy(candles,custom);assert.equal(analysis.diagnostics.barsAfterWarmup,700);assert.ok(analysis.tradeSignals.some(s=>s.time<candles.at(-160).time));});
 
 test("strategy produces finite visual analysis and a paper summary", () => {
   const candles = generateDemoCandles(420);
