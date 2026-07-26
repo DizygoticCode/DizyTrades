@@ -60,6 +60,7 @@ export type ViewSettings = {
   profileOpacity: number;
   profileInset: number;
   showProfileHeading: boolean;
+  showSimulationPerformance: boolean;
   appearance: ChartAppearanceSettings;
 };
 
@@ -151,6 +152,7 @@ export const DEFAULT_VIEW: ViewSettings = {
   profileOpacity: .42,
   profileInset: 6,
   showProfileHeading: true,
+  showSimulationPerformance: true,
   appearance: DEFAULT_APPEARANCE,
 };
 
@@ -256,6 +258,7 @@ export function sanitiseTerminalSettings(
       countdownToolbar: boolean(viewInput.countdownToolbar, boolean(viewInput.candleCountdown, DEFAULT_VIEW.countdownToolbar)),
       countdownPriceMarker: boolean(viewInput.countdownPriceMarker, DEFAULT_VIEW.countdownPriceMarker),
       autoFitOnMarketChange: boolean(viewInput.autoFitOnMarketChange, DEFAULT_VIEW.autoFitOnMarketChange),
+      showSimulationPerformance: boolean(viewInput.showSimulationPerformance, DEFAULT_VIEW.showSimulationPerformance),
       srLabelPlacement: sidePlacement(viewInput.srLabelPlacement, DEFAULT_VIEW.srLabelPlacement),
       fibLabelPlacement: sidePlacement(viewInput.fibLabelPlacement, DEFAULT_VIEW.fibLabelPlacement),
       patternLabelPlacement: patternPlacement,

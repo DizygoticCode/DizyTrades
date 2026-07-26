@@ -14,6 +14,8 @@ export type PaperTrade = {
   pnlPct: number;
   result: "win" | "loss" | "flat";
   exitReason: "SL" | "BE" | "TP2" | "MARK";
+  remainingQuantity: number;
+  realisedPnl: number;
 };
 
 export type BacktestSummary = {
@@ -94,6 +96,7 @@ export function simulateConfirmedSignals(
     let exit = entry;
     let exitIndex = candles.length - 1;
     let exitReason: PaperTrade["exitReason"] = "MARK";
+    let realisedBeforeMark = 0;
 
     for (let index = entryIndex; index < candles.length; index += 1) {
       const candle = candles[index];
@@ -150,6 +153,7 @@ export function simulateConfirmedSignals(
       }
 
       if (index === candles.length - 1) {
+        realisedBeforeMark = realised;
         exit = candle.close;
         const remainingFraction = tp1Hit ? 0.5 : 1;
         const markedPnl = direction === "long"
@@ -179,6 +183,8 @@ export function simulateConfirmedSignals(
       pnlPct: equityBefore > 0 ? (realised / equityBefore) * 100 : 0,
       result: realised > 0 ? "win" : realised < 0 ? "loss" : "flat",
       exitReason,
+      remainingQuantity: exitReason === "MARK" ? quantity * (tp1Hit ? 0.5 : 1) : 0,
+      realisedPnl: exitReason === "MARK" ? realisedBeforeMark : realised,
     });
     nextAvailableIndex = exitIndex + 1;
   }
