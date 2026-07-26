@@ -81,6 +81,7 @@ export type UserTerminalSettings = {
 };
 
 export const DEFAULT_STRATEGY: StrategySettings = {
+  mode: "scalp-15m",
   pivotLength: 3,
   srLookback: 300,
   srTolerancePct: 0.1,
@@ -92,6 +93,14 @@ export const DEFAULT_STRATEGY: StrategySettings = {
   channelDeviation: 2,
   fibLength: 100,
   minConfluence: 2,
+  requireMinConfluence: true,
+  useVwapFilter: false,
+  useTrendFilter: false,
+  triangleTightnessPct: 0.5,
+  breakoutVolumeMultiple: 1.4,
+  channelReversalWindow: 5,
+  zigZagThresholdPct: 1,
+  structureWindow: 4,
 };
 
 export const DEFAULT_VIEW: ViewSettings = {
@@ -276,6 +285,7 @@ export function sanitiseTerminalSettings(
       volumeRows: finite(viewInput.volumeRows, DEFAULT_VIEW.volumeRows, 12, 240),
     },
     strategy: {
+      mode: (["scalp-15m","swing-1h-4h","custom"] as const).includes(strategyInput.mode as never) ? strategyInput.mode as StrategySettings["mode"] : "scalp-15m",
       pivotLength: finite(strategyInput.pivotLength, DEFAULT_STRATEGY.pivotLength, 2, 20),
       srLookback: finite(strategyInput.srLookback, DEFAULT_STRATEGY.srLookback, 150, 1200),
       srTolerancePct: finite(strategyInput.srTolerancePct, DEFAULT_STRATEGY.srTolerancePct, 0.01, 2),
@@ -287,6 +297,14 @@ export function sanitiseTerminalSettings(
       channelDeviation: finite(strategyInput.channelDeviation, DEFAULT_STRATEGY.channelDeviation, 0.5, 5),
       fibLength: finite(strategyInput.fibLength, DEFAULT_STRATEGY.fibLength, 50, 600),
       minConfluence: finite(strategyInput.minConfluence, DEFAULT_STRATEGY.minConfluence, 1, 5),
+      requireMinConfluence: boolean(strategyInput.requireMinConfluence, DEFAULT_STRATEGY.requireMinConfluence),
+      useVwapFilter: boolean(strategyInput.useVwapFilter, DEFAULT_STRATEGY.useVwapFilter),
+      useTrendFilter: boolean(strategyInput.useTrendFilter, DEFAULT_STRATEGY.useTrendFilter),
+      triangleTightnessPct: finite(strategyInput.triangleTightnessPct, DEFAULT_STRATEGY.triangleTightnessPct, 0.1, 5),
+      breakoutVolumeMultiple: finite(strategyInput.breakoutVolumeMultiple, DEFAULT_STRATEGY.breakoutVolumeMultiple, 0.5, 5),
+      channelReversalWindow: finite(strategyInput.channelReversalWindow, DEFAULT_STRATEGY.channelReversalWindow, 1, 20),
+      zigZagThresholdPct: finite(strategyInput.zigZagThresholdPct, DEFAULT_STRATEGY.zigZagThresholdPct, 0.1, 20),
+      structureWindow: finite(strategyInput.structureWindow, DEFAULT_STRATEGY.structureWindow, 1, 20),
     },
     risk: {
       riskPct: finite(riskInput.riskPct, DEFAULT_RISK.riskPct, 0.1, 10),

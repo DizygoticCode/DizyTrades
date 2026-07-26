@@ -53,6 +53,7 @@ import { livePaperSnapshot } from "./lib/paper-performance";
 import { PaperPerformanceToolbar } from "./paper-performance-toolbar";
 import { buildDisplayTimeline, marketTimelineReducer } from "./lib/market/timeline";
 import { ChartErrorBoundary } from "./chart-error-boundary";
+import { resolveStrategySettings, strategyHistoryCapacity, strategyModeLabel, type StrategyMode } from "./lib/strategy-presets";
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -338,6 +339,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     () => analyzeStrategy(closedCandles, strategy),
     [closedCandles, strategy],
   );
+  const effectiveStrategy=useMemo(()=>resolveStrategySettings(strategy),[strategy]);
+  const historyCapacity=useMemo(()=>strategyHistoryCapacity(strategy),[strategy]);
   const backtest = useMemo(
     () => simulateConfirmedSignals(closedCandles, analysis, risk),
     [analysis, closedCandles, risk],
@@ -359,12 +362,12 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     if (blocking) setInitialLoading(true); else setBackgroundSyncing(true);
     if (blocking) setFeedError("");
     try {
-      const response = await fetch(`/api/market?exchange=mexc&symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&limit=800`, { signal: controller.signal });
+      const response = await fetch(`/api/market?exchange=mexc&symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&limit=${historyCapacity}`, { signal: controller.signal });
       if (!response.ok) throw new Error("Feed unavailable");
       const payload = (await response.json()) as { source: string; candles: Candle[] };
       if (payload.candles.length < 20) throw new Error("Insufficient candle history");
       if (requestId !== marketRequest.current || requestKey !== `${symbol}:${timeframe}`) return;
-      dispatchTimeline(reason === "market-change" || reason === "initial" ? { type: "replaceMarket", marketKey: requestKey, closed: payload.candles } : { type: "reconcileClosed", marketKey: requestKey, closed: payload.candles });
+      dispatchTimeline(reason === "market-change" || reason === "initial" ? { type: "replaceMarket", marketKey: requestKey, closed: payload.candles, limit:historyCapacity } : { type: "reconcileClosed", marketKey: requestKey, closed: payload.candles, limit:historyCapacity });
       if (resetView && view.autoFitOnMarketChange) setViewportReset(value => value + 1);
       setDataSource(payload.source.toUpperCase()); setResultMarketKey(requestKey);
     } catch (error) {
@@ -372,7 +375,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       if (requestId !== marketRequest.current) return;
       if (blocking) { setFeedError("MEXC candle data is currently unavailable."); setDataSource("MEXC UNAVAILABLE"); }
     } finally { if (requestId === marketRequest.current) { setInitialLoading(false); setBackgroundSyncing(false); marketAbort.current = null; } }
-  }, [symbol, timeframe, view.autoFitOnMarketChange]);
+  }, [symbol, timeframe, view.autoFitOnMarketChange, historyCapacity]);
 
   const demo = dataSource === "DEMONSTRATION DATA";
   useMexcRealtime({
@@ -491,6 +494,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
 
   const setViewKey = <K extends keyof ViewSettings>(key: K, value: ViewSettings[K]) =>
     setView((current) => ({ ...current, [key]: value }));
+  const setStrategyValue=<K extends keyof typeof strategy>(key:K,value:(typeof strategy)[K])=>setStrategy(current=>({...current,mode:"custom",[key]:value}));
+  const setStrategyMode=(mode:StrategyMode)=>setStrategy(current=>({...current,mode}));
   const setAppearanceColour = (group: "chart" | "candles" | "indicators" | "structure" | "profile", key: string, value: string) => setView(current => ({ ...current, appearance: { ...current.appearance, preset: "custom", [group]: { ...current.appearance[group], [key]: value } } }));
   const applyAppearancePreset = (preset: Exclude<ChartAppearanceSettings["preset"], "custom">) => setView(current => ({ ...current, appearance: structuredClone(APPEARANCE_PRESETS[preset]) }));
 
@@ -563,10 +568,10 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           <button aria-label="Go to live chart position" onClick={()=>chartControls.current?.goToLive()} title="Go to live — move to the latest candle (does not enable live trading)" type="button">Go to live</button>
         </div>
         <div className="toolbar-divider" />
-        <button className="preset-button" type="button">
+        <label className="preset-button">
           <span>Preset</span>
-          <strong>Scalping · 15m</strong>
-        </button>
+          <select aria-label="Strategy preset" value={strategy.mode} onChange={e=>setStrategyMode(e.target.value as StrategyMode)}><option value="scalp-15m">Scalping · 15m</option><option value="swing-1h-4h">Swing · 1H/4H</option><option value="custom">Custom</option></select>
+        </label>
         <button className="refresh-button" disabled={backgroundSyncing} onClick={() => void loadMarketData({ reason: "manual", resetView: false })} type="button">
           {backgroundSyncing ? "Syncing…" : "Refresh data"}
         </button>
@@ -692,19 +697,31 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                 <div className="setting-section">
                   <h3>Confirmed-bar engine</h3>
                   <div className="safety-note"><i>✓</i><p><strong>Non-repainting mode</strong><span>Signals use completed candles only.</span></p></div>
-                  <RangeField label="Minimum confluence" max={5} min={1} onChange={(value) => setStrategy((current) => ({ ...current, minConfluence: value }))} suffix="/ 5" value={strategy.minConfluence} />
-                  <RangeField label="Pivot length" max={20} min={2} onChange={(value) => setStrategy((current) => ({ ...current, pivotLength: value }))} suffix="bars" value={strategy.pivotLength} />
-                  <RangeField label="S/R lookback" max={1200} min={150} onChange={(value) => setStrategy((current) => ({ ...current, srLookback: value }))} step={50} suffix="bars" value={strategy.srLookback} />
-                  <RangeField label="Minimum touches" max={8} min={2} onChange={(value) => setStrategy((current) => ({ ...current, minTouches: value }))} value={strategy.minTouches} />
-                  <RangeField label="VWAP scan length" max={500} min={20} onChange={(value) => setStrategy((current) => ({ ...current, vwapLength: value }))} suffix="bars" value={strategy.vwapLength} />
-                  <RangeField label="Trend MA" max={300} min={5} onChange={(value) => setStrategy((current) => ({ ...current, trendLength: value }))} suffix="bars" value={strategy.trendLength} />
+                  <label className="field-row"><span>Strategy mode</span><select value={strategy.mode} onChange={e=>setStrategyMode(e.target.value as StrategyMode)}><option value="scalp-15m">Scalping · 15m</option><option value="swing-1h-4h">Swing · 1H/4H</option><option value="custom">Custom</option></select></label>
+                  {strategy.mode!=="custom"?<button type="button" onClick={()=>setStrategy({...effectiveStrategy,mode:"custom"})}>Copy preset to Custom</button>:null}
+                  {(strategy.mode==="scalp-15m"&&timeframe!=="15m")||(strategy.mode==="swing-1h-4h"&&!(["1h","4h"].includes(timeframe)))?<div className="safety-note purple"><i>i</i><p><strong>{strategyModeLabel(strategy.mode)} preset</strong><span>Tuned for {strategy.mode==="scalp-15m"?"15m":"1h or 4h"}; currently viewing {timeframe}.</span><button type="button" onClick={()=>setTimeframe(strategy.mode==="scalp-15m"?"15m":"1h")}>Use recommended timeframe</button>{strategy.mode==="swing-1h-4h"?<button type="button" onClick={()=>setTimeframe("4h")}>Use 4h</button>:null}</p></div>:null}
+                  <IndicatorToggle checked={effectiveStrategy.requireMinConfluence} colour="#27d6a1" label="Require minimum confluence" onChange={value=>setStrategyValue("requireMinConfluence",value)}/>
+                  <RangeField label="Minimum confluence" max={5} min={1} onChange={value=>setStrategyValue("minConfluence",value)} suffix="/ 5" value={effectiveStrategy.minConfluence} />
+                  <IndicatorToggle checked={effectiveStrategy.useVwapFilter} colour="#8ca9ff" label="Use VWAP bias filter" onChange={value=>setStrategyValue("useVwapFilter",value)}/>
+                  <IndicatorToggle checked={effectiveStrategy.useTrendFilter} colour="#a979ff" label="Use Trend MA filter" onChange={value=>setStrategyValue("useTrendFilter",value)}/>
+                  <RangeField label="Pivot length" max={20} min={2} onChange={value=>setStrategyValue("pivotLength",value)} suffix="bars" value={effectiveStrategy.pivotLength} />
+                  <RangeField label="S/R lookback" max={1200} min={150} onChange={value=>setStrategyValue("srLookback",value)} step={50} suffix="bars" value={effectiveStrategy.srLookback} />
+                  <RangeField label="Minimum touches" max={8} min={2} onChange={value=>setStrategyValue("minTouches",value)} value={effectiveStrategy.minTouches} />
+                  <RangeField label="VWAP scan length" max={500} min={20} onChange={value=>setStrategyValue("vwapLength",value)} suffix="bars" value={effectiveStrategy.vwapLength} />
+                  <RangeField label="Trend MA" max={300} min={5} onChange={value=>setStrategyValue("trendLength",value)} suffix="bars" value={effectiveStrategy.trendLength} />
                 </div>
                 <div className="setting-section">
                   <h3>Pattern geometry</h3>
-                  <RangeField label="Channel length" max={500} min={30} onChange={(value) => setStrategy((current) => ({ ...current, channelLength: value }))} suffix="bars" value={strategy.channelLength} />
-                  <RangeField label="Channel deviation" max={5} min={0.5} onChange={(value) => setStrategy((current) => ({ ...current, channelDeviation: value }))} step={0.1} suffix="σ" value={strategy.channelDeviation} />
-                  <RangeField label="Fibonacci window" max={600} min={50} onChange={(value) => setStrategy((current) => ({ ...current, fibLength: value }))} step={25} suffix="bars" value={strategy.fibLength} />
+                  <RangeField label="Channel length" max={500} min={30} onChange={value=>setStrategyValue("channelLength",value)} suffix="bars" value={effectiveStrategy.channelLength} />
+                  <RangeField label="Channel deviation" max={5} min={0.5} onChange={value=>setStrategyValue("channelDeviation",value)} step={0.1} suffix="σ" value={effectiveStrategy.channelDeviation} />
+                  <RangeField label="Channel reversal window" max={20} min={1} onChange={value=>setStrategyValue("channelReversalWindow",value)} suffix="bars" value={effectiveStrategy.channelReversalWindow}/>
+                  <RangeField label="Structure confirmation window" max={20} min={1} onChange={value=>setStrategyValue("structureWindow",value)} suffix="bars" value={effectiveStrategy.structureWindow}/>
+                  <RangeField label="Triangle tightness" max={5} min={.1} step={.1} onChange={value=>setStrategyValue("triangleTightnessPct",value)} suffix="%" value={effectiveStrategy.triangleTightnessPct}/>
+                  <RangeField label="Breakout volume multiple" max={5} min={.5} step={.1} onChange={value=>setStrategyValue("breakoutVolumeMultiple",value)} suffix="×" value={effectiveStrategy.breakoutVolumeMultiple}/>
+                  <RangeField label="ZigZag swing threshold" max={20} min={.1} step={.1} onChange={value=>setStrategyValue("zigZagThresholdPct",value)} suffix="%" value={effectiveStrategy.zigZagThresholdPct}/>
+                  <RangeField label="Fibonacci window" max={600} min={50} onChange={value=>setStrategyValue("fibLength",value)} step={25} suffix="bars" value={effectiveStrategy.fibLength} />
                 </div>
+                <div className="setting-section"><h3>Signal diagnostics</h3><div className="paper-summary"><small>Preset: {strategyModeLabel(strategy.mode)} · effective timeframe {timeframe}</small><small>Bars loaded {analysis.diagnostics.barsLoaded} · after warm-up {analysis.diagnostics.barsAfterWarmup}</small><small>Raw long {analysis.diagnostics.rawLongCandidates} · raw short {analysis.diagnostics.rawShortCandidates}</small><small>Blocked: confluence {analysis.diagnostics.blockedByConfluence} · VWAP {analysis.diagnostics.blockedByVwap} · Trend MA {analysis.diagnostics.blockedByTrend}</small><small>Ambiguous ties {analysis.diagnostics.ambiguousTies} · BUY {analysis.diagnostics.confirmedBuys} · SELL {analysis.diagnostics.confirmedSells} · backtest entries {backtest.trades}</small></div></div>
               </>
             ) : null}
 
@@ -713,6 +730,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                 <div className="setting-section">
                   <h3>{user.name}&apos;s account limits</h3>
                   <RangeField label="Risk per trade" max={10} min={0.1} onChange={(value) => setRisk((current) => ({ ...current, riskPct: value }))} step={0.1} suffix="%" value={risk.riskPct} />
+                  {risk.riskPct>2?<div className="safety-note purple"><i>!</i><p><strong>High-risk simulation</strong><span>Compounding and drawdown are greatly amplified.</span></p></div>:null}
                   <RangeField label="Maximum notional" max={100000} min={50} onChange={(value) => setRisk((current) => ({ ...current, maxNotional: value }))} step={50} suffix="USDT" value={risk.maxNotional} />
                   <RangeField label="Maximum leverage" max={10} min={1} onChange={(value) => setRisk((current) => ({ ...current, leverage: value }))} suffix="×" value={risk.leverage} />
                 </div>

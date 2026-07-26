@@ -1,3 +1,6 @@
+import { resolveStrategySettings, strategyWarmup, type StrategySettings } from "./strategy-presets.ts";
+export type { StrategyMode, StrategySettings, EffectiveStrategySettings } from "./strategy-presets.ts";
+
 export type Candle = {
   time: number;
   open: number;
@@ -38,7 +41,11 @@ export type TradeSignalMarker = {
   label: "BUY" | "SELL";
   confluence: number;
   confluenceTotal: 5;
+  components: SignalComponents;
+  primaryTrigger: PrimaryTrigger;
 };
+export type SignalComponents = { supportResistance:boolean; triangle:boolean; channel:boolean; fibonacci:boolean; structure:boolean };
+export type PrimaryTrigger = "support-resistance" | "triangle" | "channel" | "fibonacci" | "structure";
 export type PatternStageMarker = {
   id: string;
   family: Exclude<PatternFamily, "triangle">;
@@ -61,19 +68,7 @@ export type CompletedPatternRegion = {
   points?: { time: number; price: number }[];
 };
 
-export type StrategySettings = {
-  pivotLength: number;
-  srLookback: number;
-  srTolerancePct: number;
-  srClusterAtr: number;
-  minTouches: number;
-  vwapLength: number;
-  trendLength: number;
-  channelLength: number;
-  channelDeviation: number;
-  fibLength: number;
-  minConfluence: number;
-};
+export type StrategyDiagnostics = { barsLoaded:number; barsAfterWarmup:number; rawLongCandidates:number; rawShortCandidates:number; blockedByConfluence:number; blockedByVwap:number; blockedByTrend:number; ambiguousTies:number; confirmedBuys:number; confirmedSells:number; warmupBars:number };
 
 export type StrategyAnalysis = {
   atr: Point[];
@@ -96,6 +91,7 @@ export type StrategyAnalysis = {
   bias: "Bullish" | "Bearish" | "Neutral";
   phase: string;
   lastSignal: string;
+  diagnostics: StrategyDiagnostics;
 };
 
 const mean = (values: number[]) =>
@@ -375,8 +371,10 @@ function buildWyckoff(candles: Candle[], trend: Point[]): { stages: PatternStage
 
 export function analyzeStrategy(
   candles: Candle[],
-  settings: StrategySettings,
+  inputSettings: StrategySettings,
 ): StrategyAnalysis {
+  const settings = resolveStrategySettings(inputSettings);
+  const emptyDiagnostics = { barsLoaded:candles.length,barsAfterWarmup:0,rawLongCandidates:0,rawShortCandidates:0,blockedByConfluence:0,blockedByVwap:0,blockedByTrend:0,ambiguousTies:0,confirmedBuys:0,confirmedSells:0,warmupBars:strategyWarmup(settings) };
   if (candles.length < 30) {
     return {
       atr: [],
@@ -399,6 +397,7 @@ export function analyzeStrategy(
       bias: "Neutral",
       phase: "Building history",
       lastSignal: "Waiting",
+      diagnostics: emptyDiagnostics,
     };
   }
 
@@ -490,45 +489,50 @@ export function analyzeStrategy(
     scoreLong > scoreShort ? "Bullish" : scoreShort > scoreLong ? "Bearish" : "Neutral";
 
   const tradeSignals: TradeSignalMarker[] = [];
-  const start = Math.max(3, candles.length - 160);
-  for (let index = start; index < candles.length; index += 1) {
-    const previous = candles[index - 1];
-    const candle = candles[index];
-    const previousVwap = vwap[index - 1]?.value;
-    const currentVwapAtBar = vwap[index]?.value;
-    const trendAtBar = trend.find((point) => point.time === candle.time)?.value;
-    if (!previousVwap || !currentVwapAtBar || !trendAtBar) continue;
-    if (
-      previous.close <= previousVwap &&
-      candle.close > currentVwapAtBar &&
-      candle.close > trendAtBar
-    ) {
-      tradeSignals.push({
-        id: `signal-${candle.time}-buy`,
-        time: candle.time,
-        price: candle.high,
-        direction: "buy",
-        status: "confirmed",
-        label: "BUY",
-        confluence: Math.min(5, Number(candle.close > currentVwapAtBar) + Number(candle.close > trendAtBar) + Number(nearSupport) + Number(bullishTriangle) + Number(longFib)),
-        confluenceTotal: 5,
-      });
-    } else if (
-      previous.close >= previousVwap &&
-      candle.close < currentVwapAtBar &&
-      candle.close < trendAtBar
-    ) {
-      tradeSignals.push({
-        id: `signal-${candle.time}-sell`,
-        time: candle.time,
-        price: candle.high,
-        direction: "sell",
-        status: "confirmed",
-        label: "SELL",
-        confluence: Math.min(5, Number(candle.close < currentVwapAtBar) + Number(candle.close < trendAtBar) + Number(nearResistance) + Number(bearishTriangle) + Number(shortFib)),
-        confluenceTotal: 5,
-      });
-    }
+  const warmup = strategyWarmup(settings);
+  const diagnostics = { ...emptyDiagnostics, barsAfterWarmup:Math.max(0,candles.length-warmup), warmupBars:warmup };
+  let priorLong=false, priorShort=false;
+  const primary=(c:SignalComponents):PrimaryTrigger=>c.supportResistance?"support-resistance":c.triangle?"triangle":c.channel?"channel":c.fibonacci?"fibonacci":"structure";
+  for (let index=warmup;index<candles.length;index+=1) {
+    const candle=candles[index], confirmedThrough=index-settings.pivotLength;
+    const availableHighs=pivotData.highs.filter(p=>p.index<=confirmedThrough&&p.index>=index-settings.srLookback);
+    const availableLows=pivotData.lows.filter(p=>p.index<=confirmedThrough&&p.index>=index-settings.srLookback);
+    const barAtr=atr[index].value, width=Math.max(barAtr*settings.srClusterAtr,candle.close*.0005);
+    const cluster=(items:typeof availableHighs)=>{const groups:{prices:number[]}[]=[];for(const p of items){const g=groups.find(x=>Math.abs(mean(x.prices)-p.price)<=width);if(g)g.prices.push(p.price);else groups.push({prices:[p.price]});}return groups.filter(g=>g.prices.length>=settings.minTouches).map(g=>mean(g.prices));};
+    const support=cluster(availableLows).filter(p=>p<=candle.close).sort((a,b)=>b-a)[0];
+    const resistance=cluster(availableHighs).filter(p=>p>=candle.close).sort((a,b)=>a-b)[0];
+    const tolerance=candle.close*settings.srTolerancePct/100;
+    const srLong=support!==undefined&&candle.close-support<=tolerance;
+    const srShort=resistance!==undefined&&resistance-candle.close<=tolerance;
+    let triangleLong=false,triangleShort=false;
+    if(availableHighs.length>=2&&availableLows.length>=2){const [h1,h2]=availableHighs.slice(-2),[l1,l2]=availableLows.slice(-2);const upper=h2.price+(h2.price-h1.price)*(index-h2.index)/(h2.index-h1.index);const lower=l2.price+(l2.price-l1.price)*(index-l2.index)/(l2.index-l1.index);const converging=h2.price<h1.price&&l2.price>l1.price&&upper>lower&&(upper-lower)/candle.close*100<=settings.triangleTightnessPct;const vol=mean(candles.slice(index-19,index+1).map(c=>c.volume));triangleLong=converging&&candles[index-1].close<=upper&&candle.close>upper&&candle.volume>=vol*settings.breakoutVolumeMultiple;triangleShort=converging&&candles[index-1].close>=lower&&candle.close<lower&&candle.volume>=vol*settings.breakoutVolumeMultiple;}
+    const reg=regression(closes,index-settings.channelLength+1,index),basis=reg.value;
+    let lowerTouched=false,upperTouched=false;
+    for(let j=Math.max(settings.channelLength-1,index-settings.channelReversalWindow);j<index;j+=1){const r=regression(closes,j-settings.channelLength+1,j);lowerTouched ||= candles[j].low<=r.value-r.deviation*settings.channelDeviation;upperTouched ||= candles[j].high>=r.value+r.deviation*settings.channelDeviation;}
+    const channelLong=lowerTouched&&candles[index-1].close<=regression(closes,index-settings.channelLength,index-1).value&&candle.close>basis;
+    const channelShort=upperTouched&&candles[index-1].close>=regression(closes,index-settings.channelLength,index-1).value&&candle.close<basis;
+    const fibWindow=candles.slice(index-settings.fibLength+1,index+1),hi=Math.max(...fibWindow.map(c=>c.high)),lo=Math.min(...fibWindow.map(c=>c.low)),fibRange=hi-lo;
+    const f618=hi-fibRange*.618,f500=hi-fibRange*.5,f382=hi-fibRange*.382;
+    const fibonacciLong=candle.close>=f618&&candle.close<=f500, fibonacciShort=candle.close>=f500&&candle.close<=f382;
+    const sequence=alternatingPivots(availableHighs,availableLows).slice(-6);let bullEvent=false,bearEvent=false;
+    if(sequence.length===6&&index-sequence[5].index<=settings.pivotLength+settings.structureWindow){const p=sequence.map(x=>x.price),threshold=settings.zigZagThresholdPct/100;const material=p.slice(1).every((value,i)=>Math.abs(value-p[i])/Math.max(p[i],Number.EPSILON)>=threshold);bullEvent=material&&sequence[0].kind==="low"&&p[2]>p[0]&&p[4]>p[2]&&p[5]>p[3];bearEvent=material&&sequence[0].kind==="high"&&p[2]<p[0]&&p[4]<p[2]&&p[5]<p[3];}
+    const rangeSample=candles.slice(Math.max(0,index-50),index-14),rangeHi=Math.max(...rangeSample.map(c=>c.high)),rangeLo=Math.min(...rangeSample.map(c=>c.low));const tight=(rangeHi-rangeLo)/Math.max(rangeLo,1)<.06;
+    const structureLong=bullEvent||(tight&&candles[index-1].close<=rangeHi&&candle.close>rangeHi),structureShort=bearEvent||(tight&&candles[index-1].close>=rangeLo&&candle.close<rangeLo);
+    const longComponents={supportResistance:srLong,triangle:triangleLong,channel:channelLong,fibonacci:fibonacciLong,structure:structureLong};
+    const shortComponents={supportResistance:srShort,triangle:triangleShort,channel:channelShort,fibonacci:fibonacciShort,structure:structureShort};
+    const longScore=Object.values(longComponents).filter(Boolean).length,shortScore=Object.values(shortComponents).filter(Boolean).length;
+    if(longScore)diagnostics.rawLongCandidates++;if(shortScore)diagnostics.rawShortCandidates++;
+    const threshold=settings.requireMinConfluence?settings.minConfluence:1;
+    if(longScore&&longScore<threshold)diagnostics.blockedByConfluence++;if(shortScore&&shortScore<threshold)diagnostics.blockedByConfluence++;
+    const longVwap=!settings.useVwapFilter||candle.close>vwap[index].value,shortVwap=!settings.useVwapFilter||candle.close<vwap[index].value;
+    const trendValue=smaAt(closes,index,settings.trendLength),longTrend=!settings.useTrendFilter||candle.close>trendValue,shortTrend=!settings.useTrendFilter||candle.close<trendValue;
+    if(longScore>=threshold&&!longVwap)diagnostics.blockedByVwap++;if(shortScore>=threshold&&!shortVwap)diagnostics.blockedByVwap++;
+    if(longScore>=threshold&&longVwap&&!longTrend)diagnostics.blockedByTrend++;if(shortScore>=threshold&&shortVwap&&!shortTrend)diagnostics.blockedByTrend++;
+    const longCandidate=longScore>=threshold&&longVwap&&longTrend,shortCandidate=shortScore>=threshold&&shortVwap&&shortTrend;
+    const longEdge=longCandidate&&!priorLong,shortEdge=shortCandidate&&!priorShort;priorLong=longCandidate;priorShort=shortCandidate;
+    if(longEdge&&shortEdge&&longScore===shortScore){diagnostics.ambiguousTies++;continue;}
+    const buy=longEdge&&(!shortEdge||longScore>shortScore),sell=shortEdge&&(!longEdge||shortScore>longScore);
+    if(buy||sell){const components=buy?longComponents:shortComponents,confluence=buy?longScore:shortScore;tradeSignals.push({id:`signal-${candle.time}-${buy?"buy":"sell"}`,time:candle.time,price:candle.high,direction:buy?"buy":"sell",status:"confirmed",label:buy?"BUY":"SELL",confluence,confluenceTotal:5,components,primaryTrigger:primary(components)});if(buy)diagnostics.confirmedBuys++;else diagnostics.confirmedSells++;}
   }
 
   const elliott = buildElliottStages(pivotData);
@@ -566,6 +570,7 @@ export function analyzeStrategy(
     bias,
     phase,
     lastSignal: uniqueSignals.at(-1)?.label ?? "Waiting for confluence",
+    diagnostics,
   };
 }
 
