@@ -157,3 +157,7 @@ test("bubble lanes remain vertical and deterministic", () => {
   assert.deepEqual(result.map(item=>item.id),["a","b"]);
   assert.ok(result.every(item=>item.x===75));
 });
+
+import {projectWorldLine,stableLabelLane} from "../app/lib/chart/world-projection.ts";
+test("world lines remain visible with both original anchors off-screen",()=>{const line={id:"trend",start:{index:0,time:1,price:10},end:{index:10,time:2,price:20},labelAnchor:{index:10,time:2,price:20},createdAt:2,status:"confirmed"};const projected=projectWorldLine(line,{from:50,to:60},i=>i,p=>100-p,{x:50,y:0,width:10,height:100});assert.ok(projected);assert.equal(projected.start.x,50);assert.equal(projected.end.x,60)});
+test("stable label lanes do not depend on viewport",()=>{assert.equal(stableLabelLane("elliott-123",3),stableLabelLane("elliott-123",3));assert.notEqual(stableLabelLane("elliott-123",3,5),undefined)});

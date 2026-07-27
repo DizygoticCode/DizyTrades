@@ -310,7 +310,7 @@ export function sanitiseTerminalSettings(
       volumeRows: finite(viewInput.volumeRows, DEFAULT_VIEW.volumeRows, 12, 240),
     },
     strategy: {
-      mode: (["scalp-15m","swing-1h-4h","custom"] as const).includes(strategyInput.mode as never) ? strategyInput.mode as StrategySettings["mode"] : "scalp-15m",
+      mode: (["scalp-15m","swing-1h-4h","pine-v1-exact","custom"] as const).includes(strategyInput.mode as never) ? strategyInput.mode as StrategySettings["mode"] : "scalp-15m",
       pivotLength: finite(strategyInput.pivotLength, DEFAULT_STRATEGY.pivotLength, 2, 20),
       srLookback: finite(strategyInput.srLookback, DEFAULT_STRATEGY.srLookback, 150, 1200),
       srTolerancePct: finite(strategyInput.srTolerancePct, DEFAULT_STRATEGY.srTolerancePct, 0.01, 2),
