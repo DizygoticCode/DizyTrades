@@ -6,7 +6,7 @@ export function parseDepthLevels(value: unknown): DepthLevel[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((tuple) => {
     if (!Array.isArray(tuple) || tuple.length < 3) return [];
-    const price = number(tuple[0]), orderCount = number(tuple[1]), contractQuantity = number(tuple[2]);
+    const price = number(tuple[0]), contractQuantity = number(tuple[1]), orderCount = number(tuple[2]);
     return price !== null && orderCount !== null && contractQuantity !== null && price > 0 && orderCount >= 0 && contractQuantity >= 0 ? [{ price, orderCount, contractQuantity }] : [];
   });
 }
