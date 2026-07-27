@@ -1,0 +1,13 @@
+import type { BookView, HeatmapCell, VolumeBubble } from "./types.ts";
+import type { MexcDeal } from "../market/realtime.ts";
+export class FlowAggregator {
+  heatmap: HeatmapCell[]=[]; bubbles: VolumeBubble[]=[]; private ids=new Set<string>();
+  private options: { historyMs: number; maxCells: number; maxBubbles: number; timeBucketMs: number; priceStep: number };
+  constructor(options={historyMs:1_800_000,maxCells:50_000,maxBubbles:5_000,timeBucketMs:1_000,priceStep:0.1}){this.options=options;}
+  clear(){this.heatmap=[];this.bubbles=[];this.ids.clear();}
+  captureBook(book:BookView,contractSize:number,timeMs:number,rangeBps=50){ if(!book.valid)return; const bid=book.bids[0]?.price,ask=book.asks[0]?.price;if(!bid||!ask)return;const mid=(bid+ask)/2,low=mid*(1-rangeBps/10_000),high=mid*(1+rangeBps/10_000),bucket=Math.floor(timeMs/this.options.timeBucketMs)*this.options.timeBucketMs,map=new Map<number,HeatmapCell>(); for(const [side,levels] of [["bid",book.bids],["ask",book.asks]] as const)for(const level of levels){if(level.price<low||level.price>high)continue;const price=Math.round(level.price/this.options.priceStep)*this.options.priceStep,cell=map.get(price)??{timeMs:bucket,price,bidNotional:0,askNotional:0,mid,spread:ask-bid};cell[side==="bid"?"bidNotional":"askNotional"]+=level.price*level.contractQuantity*contractSize;map.set(price,cell);} this.heatmap.push(...map.values());this.prune(timeMs);}
+  addDeal(deal:MexcDeal,bucketMs=1_000,priceStep=this.options.priceStep){if(this.ids.has(deal.tradeId))return false;this.ids.add(deal.tradeId);if(this.ids.size>10_000)this.ids=new Set([...this.ids].slice(-5_000));const timeMs=Math.floor(deal.timeMs/bucketMs)*bucketMs,price=Math.round(deal.price/priceStep)*priceStep,last=this.bubbles.findLast(v=>v.timeMs===timeMs&&v.price===price);const bubble=last??{timeMs,price,buyNotional:0,sellNotional:0,tradeCount:0};bubble[deal.side==="buy"?"buyNotional":"sellNotional"]+=deal.notional;bubble.tradeCount++;if(!last)this.bubbles.push(bubble);this.prune(deal.timeMs);return true;}
+  private prune(now:number){const cutoff=now-this.options.historyMs;this.heatmap=this.heatmap.filter(v=>v.timeMs>=cutoff).slice(-this.options.maxCells);this.bubbles=this.bubbles.filter(v=>v.timeMs>=cutoff).slice(-this.options.maxBubbles);}
+}
+export function bubbleRadius(notional:number,threshold:number,min=3,max=24){if(notional<threshold)return 0;return Math.min(max,Math.max(min,min+Math.sqrt(notional-threshold)/Math.max(1,Math.sqrt(threshold))));}
+export function mergePixelColumns<T extends {x:number;notional:number}>(items:T[]){const map=new Map<number,T>();for(const item of items){const x=Math.round(item.x),old=map.get(x);if(!old||item.notional>old.notional)map.set(x,{...item,x});}return [...map.values()];}

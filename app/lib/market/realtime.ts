@@ -3,7 +3,12 @@ import { MEXC_INTERVALS } from "./mexc-shared.ts";
 import type { CandleTimeframe } from "./types.ts";
 
 export type MexcKline = Candle & { symbol: string; interval: string };
-export type MexcDeal = { symbol: string; price: number; timeMs: number; volume: number };
+export type MexcDeal = {
+  symbol: string; price: number; timeMs: number; volume: number;
+  tradeId: string; contractQuantity: number; side: "buy" | "sell";
+  openClose: string | null; engineTimeMs: number; selfTrade: boolean | null;
+  baseQuantity: number; notional: number;
+};
 
 const record = (value: unknown): Record<string, unknown> | null =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -27,7 +32,7 @@ export function parseMexcKline(message: unknown, symbol: string, timeframe: Cand
   return { ...candle, symbol: receivedSymbol, interval };
 }
 
-export function parseMexcDeals(message: unknown, symbol: string): MexcDeal[] {
+export function parseMexcDeals(message: unknown, symbol: string, contractSize = 1): MexcDeal[] {
   const envelope = record(message);
   if (!envelope || envelope.channel !== "push.deal") return [];
   const receivedSymbol = String(envelope.symbol ?? record(envelope.data)?.symbol ?? "");
@@ -36,9 +41,12 @@ export function parseMexcDeals(message: unknown, symbol: string): MexcDeal[] {
   return payload.flatMap((raw): MexcDeal[] => {
     const data = record(raw);
     if (!data) return [];
-    const price = finite(data.p), timeMs = finite(data.t), volume = finite(data.v);
-    if (price === null || timeMs === null || volume === null || price <= 0 || timeMs <= 0 || volume < 0) return [];
-    return [{ symbol: receivedSymbol, price, timeMs, volume }];
+    const price = finite(data.p), timeMs = finite(data.t), volume = finite(data.v), sideCode = data.T == null ? 1 : finite(data.T);
+    if (price === null || timeMs === null || volume === null || price <= 0 || timeMs <= 0 || volume < 0 || ![1, 2].includes(sideCode ?? 0) || !Number.isFinite(contractSize) || contractSize <= 0) return [];
+    const engine = finite(data.cts);
+    const selfTradeRaw = data.S ?? data.st ?? data.selfTrade;
+    const baseQuantity = volume * contractSize;
+    return [{ symbol: receivedSymbol, price, timeMs, volume, tradeId: String(data.i ?? `${timeMs}:${price}:${volume}:${sideCode}`), contractQuantity: volume, side: sideCode === 1 ? "buy" : "sell", openClose: data.O == null ? null : String(data.O), engineTimeMs: engine ?? timeMs, selfTrade: selfTradeRaw == null ? null : Boolean(selfTradeRaw), baseQuantity, notional: price * baseQuantity }];
   });
 }
 

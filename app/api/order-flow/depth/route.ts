@@ -1,0 +1,7 @@
+import { NextResponse } from "next/server";
+import { requireApiUser } from "../../../lib/auth";
+import { getMexcMarkets } from "../../../lib/market/mexc";
+import { parseDepthSnapshot } from "../../../lib/order-flow/mexc-depth";
+
+export const dynamic="force-dynamic";const requests=new Map<string,number[]>();
+export async function GET(request:Request){const user=await requireApiUser();if(!user)return NextResponse.json({error:"Unauthorised"},{status:401});const now=Date.now(),recent=(requests.get(user.id)??[]).filter(v=>v>now-60_000);if(recent.length>=12)return NextResponse.json({error:"Too many depth snapshot requests."},{status:429});recent.push(now);requests.set(user.id,recent);const symbol=new URL(request.url).searchParams.get("symbol")??"";try{const markets=await getMexcMarkets(AbortSignal.timeout(4_500));if(!markets.some(v=>v.symbol===symbol))return NextResponse.json({error:"Unknown or unavailable symbol."},{status:400});const response=await fetch(`https://contract.mexc.com/api/v1/contract/depth/${encodeURIComponent(symbol)}?limit=1000`,{signal:AbortSignal.timeout(5_500),cache:"no-store"});if(!response.ok)throw new Error("upstream");const snapshot=parseDepthSnapshot(await response.json(),symbol);if(!snapshot)return NextResponse.json({error:"Malformed public depth snapshot."},{status:502});return NextResponse.json({source:"MEXC public contract API",...snapshot});}catch{return NextResponse.json({error:"MEXC public depth feed is unavailable."},{status:503});}}

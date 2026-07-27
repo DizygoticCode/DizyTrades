@@ -90,6 +90,9 @@ import {buildPineParityReport} from "./lib/pine-parity";
 import { livePaperSnapshot } from "./lib/paper-performance";
 import { PaperPerformanceToolbar } from "./paper-performance-toolbar";
 import { ManualPaperTicket } from "./manual-paper-ticket";
+import { OrderFlowToolbar } from "./order-flow-toolbar";
+import { OrderFlowAlerts } from "./order-flow-alerts";
+import { useOrderFlow } from "./lib/order-flow/use-order-flow";
 import {
   buildDisplayTimeline,
   marketTimelineReducer,
@@ -1416,6 +1419,9 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [dataSource, setDataSource] = useState("MEXC PUBLIC DATA");
   const [feedError, setFeedError] = useState("");
   const [markets, setMarkets] = useState<MarketDescriptor[]>([]);
+  const [flowEnabled,setFlowEnabled]=useState(false);
+  const selectedMarket=markets.find((market)=>market.symbol===symbol);
+  const orderFlow=useOrderFlow({enabled:flowEnabled,paused:false,symbol,contractSize:selectedMarket?.contractSize??1});
   const [marketQuery, setMarketQuery] = useState("");
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [favourites, setFavourites] = useState<string[]>([]);
@@ -1584,19 +1590,23 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     enabled: terminalTab === "charts" && !demo && view.realtimeChartUpdates,
     symbol,
     timeframe: timeframe as CandleTimeframe,
+    contractSize:selectedMarket?.contractSize??1,
+    orderFlowEnabled:flowEnabled,
+    onDepth:orderFlow.onDepth,
     onStatus: setRealtimeStatus,
     onClockOffset: setClockOffset,
     onResync: () =>
       void loadMarketData({ reason: "reconnect", resetView: false }),
     onKline: (incoming) =>
       dispatchTimeline({ type: "kline", marketKey, candle: incoming }),
-    onDeal: (deal) =>
+    onDeal: (deal) => {
+      orderFlow.onDeal(deal);
       dispatchTimeline({
         type: "deal",
         marketKey,
         deal,
         timeframe: timeframe as CandleTimeframe,
-      }),
+      });},
   });
 
   useEffect(() => {
@@ -2045,6 +2055,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               {backgroundSyncing ? "Syncing…" : "Refresh data"}
             </button>
             <div className="toolbar-spacer" />
+            <OrderFlowToolbar enabled={flowEnabled} onToggle={()=>setFlowEnabled(value=>!value)} summary={orderFlow.summary}/>
             <div className="mode-control" aria-label="Execution mode">
               {(["Off", "Paper"] as const).map((mode) => (
                 <button
@@ -2066,6 +2077,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               </button>
             </div>
           </section>
+          {flowEnabled?<OrderFlowAlerts alerts={orderFlow.summary.alerts} onClear={orderFlow.clear}/>:null}
           {view.showSimulationPerformance ? (
             <PaperPerformanceToolbar
               calculating={resultMarketKey !== `${symbol}:${timeframe}`}
