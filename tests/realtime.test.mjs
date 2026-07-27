@@ -19,8 +19,8 @@ test("same candle replaces and newer candle rolls exactly once", () => {
 });
 test("closed candle merge sorts, deduplicates, and caps", () => { assert.deepEqual(mergeClosedCandles([{ ...candle, close: 10 }], [candle]), [candle]); assert.equal(mergeClosedCandles([candle], [{ ...candle, time: 200 }], 1)[0].time, 200); });
 test("deal smooths prices without changing authoritative volume", () => {
-  const dealMessage = { channel: "push.deal", symbol: "BTC_USDT", data: { p: "13", t: "110000", v: "2" } };
-  const deal = parseMexcDeals(dealMessage, "BTC_USDT")[0]; const updated = applyDealToLiveCandle(candle, deal, "1m"); assert.equal(updated.close, 13); assert.equal(updated.high, 13); assert.equal(updated.volume, 5);
+  const currentCandle={...candle,time:1700000000},dealMessage = { channel: "push.deal", symbol: "BTC_USDT", data: { p: "13", t: "1700000010", v: "2" } };
+  const deal = parseMexcDeals(dealMessage, "BTC_USDT")[0]; const updated = applyDealToLiveCandle(currentCandle, deal, "1m"); assert.equal(updated.close, 13); assert.equal(updated.high, 13); assert.equal(updated.volume, 5);
   assert.deepEqual(parseMexcDeals(dealMessage, "ETH_USDT"), []);
 });
 test("countdown formatting and responsive viewport clamps", () => { assert.equal(formatCountdown(754), "12:34"); assert.equal(formatCountdown(3754), "01:02:34"); assert.equal(formatCountdown(0), "Closing…"); assert.equal(defaultVisibleCandleCount(200, 800), 80); assert.equal(defaultVisibleCandleCount(2000, 800), 180); assert.equal(defaultVisibleCandleCount(1200, 40), 40); });

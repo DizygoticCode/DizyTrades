@@ -18,20 +18,23 @@ export class OrderBook {
     this.drain();
   }
   snapshot(value: DepthSnapshot) {
+    this.installSnapshot(value); this.reconcile([]);
+  }
+  /** Install displayable REST levels without waiting for the socket join. */
+  installSnapshot(value: DepthSnapshot) {
     const buffered = [...this.future.values()].filter((update) => update.version > value.version);
     this.bids.clear(); this.asks.clear(); this.future.clear();
     buffered.forEach((update) => this.future.set(update.version, update));
-    this._version = value.version; this.applyLevels(value); this._valid = true; this.drain();
+    this._version = value.version; this.applyLevels(value); this._valid = buffered.length === 0;
+  }
+  /** Merge recovery commits with buffered socket updates; socket wins a version. */
+  reconcile(values: readonly DepthUpdate[]) {
+    for (const value of values) if(value.version>this._version&&!this.future.has(value.version)) this.future.set(value.version,value);
+    this.drain(); return this._valid;
   }
   /** Apply sorted public commit history without allowing a jump. */
   bridge(values: readonly DepthUpdate[]) {
-    const unique = new Map(values.map((value) => [value.version, value]));
-    for (const value of [...unique.values()].sort((a,b)=>a.version-b.version)) {
-      if (value.version <= this._version) continue;
-      if (value.version !== this._version + 1) return false;
-      this.applyLevels(value); this._version = value.version;
-    }
-    this.drain(); return this._valid;
+    return this.reconcile(values);
   }
   update(value: DepthUpdate): "applied" | "ignored" | "buffered" | "gap" {
     if(this.resnapshotBuffer){this.resnapshotBuffer.set(value.version,value);while(this.resnapshotBuffer.size>this.maxBuffered)this.resnapshotBuffer.delete(Math.min(...this.resnapshotBuffer.keys()));return "buffered";}
