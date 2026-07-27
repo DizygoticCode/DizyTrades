@@ -1,6 +1,8 @@
 import type { StrategySettings } from "./strategy";
 import { DEFAULT_APPEARANCE, sanitiseAppearance, type ChartAppearanceSettings } from "./chart/appearance.ts";
 import type { LineExtension, PatternPlacement, SidePlacement } from "./chart/chart-layout.ts";
+import { DEFAULT_ORDER_FLOW_SETTINGS, sanitiseOrderFlowSettings, type OrderFlowSettings } from "./order-flow/settings.ts";
+export { DEFAULT_ORDER_FLOW_SETTINGS } from "./order-flow/settings.ts";
 
 export type ViewSettings = {
   settingsSchemaVersion: number;
@@ -85,6 +87,7 @@ export type UserTerminalSettings = {
   strategy: StrategySettings;
   risk: RiskSettings;
   market: { exchange: "mexc"; symbol: string; timeframe: string; favourites: string[] };
+  orderFlow: OrderFlowSettings;
 };
 
 export const DEFAULT_STRATEGY: StrategySettings = {
@@ -111,7 +114,7 @@ export const DEFAULT_STRATEGY: StrategySettings = {
 };
 
 export const DEFAULT_VIEW: ViewSettings = {
-  settingsSchemaVersion: 2,
+  settingsSchemaVersion: 3,
   indicatorPackage: true,
   supportResistance: true,
   vwap: true,
@@ -192,6 +195,7 @@ export const DEFAULT_TERMINAL_SETTINGS: UserTerminalSettings = {
   view: DEFAULT_VIEW,
   strategy: DEFAULT_STRATEGY,
   risk: DEFAULT_RISK,
+  orderFlow: DEFAULT_ORDER_FLOW_SETTINGS,
   market: { exchange: "mexc", symbol: "BTC_USDT", timeframe: "15m", favourites: [] },
 };
 
@@ -238,7 +242,7 @@ export function sanitiseTerminalSettings(
 
   return {
     view: {
-      settingsSchemaVersion: 2,
+      settingsSchemaVersion: 3,
       indicatorPackage: boolean(viewInput.indicatorPackage, DEFAULT_VIEW.indicatorPackage),
       supportResistance: boolean(viewInput.supportResistance, DEFAULT_VIEW.supportResistance),
       vwap: boolean(viewInput.vwap, DEFAULT_VIEW.vwap),
@@ -309,6 +313,7 @@ export function sanitiseTerminalSettings(
       volumeBars: finite(viewInput.volumeBars, DEFAULT_VIEW.volumeBars, 60, 600),
       volumeRows: finite(viewInput.volumeRows, DEFAULT_VIEW.volumeRows, 12, 240),
     },
+    orderFlow: sanitiseOrderFlowSettings(object.orderFlow),
     strategy: {
       mode: (["scalp-15m","swing-1h-4h","pine-v1-exact","custom"] as const).includes(strategyInput.mode as never) ? strategyInput.mode as StrategySettings["mode"] : "scalp-15m",
       pivotLength: finite(strategyInput.pivotLength, DEFAULT_STRATEGY.pivotLength, 2, 20),
