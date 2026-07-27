@@ -10,6 +10,7 @@ import {
   type IChartApi,
   type ISeriesApi,
   type IPriceLine,
+  type Logical,
   type UTCTimestamp,
 } from "lightweight-charts";
 import {
@@ -41,20 +42,65 @@ import {
 } from "./lib/config";
 import type { MarketDescriptor } from "./lib/market/types";
 import type { CandleTimeframe } from "./lib/market/types";
-import { useMexcRealtime, type RealtimeStatus } from "./lib/market/use-mexc-realtime";
-import { calculateExchangeAlignedCountdownSeconds, defaultVisibleCandleCount, formatCountdown, startAlignedSecondClock, updatePriceLineCountdownTitle } from "./lib/market/realtime";
-import { APPEARANCE_PRESETS, hexToRgba, type ChartAppearanceSettings } from "./lib/chart/appearance";
-import { calculateAutoFit, calculateChartLayout, calculateFibLabelLayout, calculateGoToLive, calculateHorizontalLineExtent, channelFillPolygon, extendLineToPlot, calculateProfileRowGeometry, patternLabelPosition, placeChartBubbles, stackLabels, type LinePoint } from "./lib/chart/chart-layout";
-import { ALL_TIMEFRAMES, PROFILE_BAR_PRESETS, profileBarPreset, TIMEFRAME_TITLES } from "./lib/chart/toolbar";
+import {
+  useMexcRealtime,
+  type RealtimeStatus,
+} from "./lib/market/use-mexc-realtime";
+import {
+  calculateExchangeAlignedCountdownSeconds,
+  defaultVisibleCandleCount,
+  formatCountdown,
+  startAlignedSecondClock,
+  updatePriceLineCountdownTitle,
+} from "./lib/market/realtime";
+import {
+  APPEARANCE_PRESETS,
+  hexToRgba,
+  type ChartAppearanceSettings,
+} from "./lib/chart/appearance";
+import {
+  calculateAutoFit,
+  calculateChartLayout,
+  calculateFibLabelLayout,
+  calculateGoToLive,
+  calculateHorizontalLineExtent,
+  channelFillPolygon,
+  extendLineToPlot,
+  calculateProfileRowGeometry,
+  patternLabelPosition,
+  placeChartBubbles,
+  stackLabels,
+  type LinePoint,
+} from "./lib/chart/chart-layout";
+import {
+  projectWorldLine,
+  stableLabelLane,
+  type WorldLine,
+} from "./lib/chart/world-projection";
+import {
+  ALL_TIMEFRAMES,
+  PROFILE_BAR_PRESETS,
+  profileBarPreset,
+  TIMEFRAME_TITLES,
+} from "./lib/chart/toolbar";
 import { ChartToolsLayer } from "./chart-tools-layer";
 import { planSeriesSync } from "./lib/chart/series-sync";
 import { type MarketLoadReason } from "./lib/market/reconciliation";
+import {buildPineParityReport} from "./lib/pine-parity";
 import { livePaperSnapshot } from "./lib/paper-performance";
 import { PaperPerformanceToolbar } from "./paper-performance-toolbar";
 import { ManualPaperTicket } from "./manual-paper-ticket";
-import { buildDisplayTimeline, marketTimelineReducer } from "./lib/market/timeline";
+import {
+  buildDisplayTimeline,
+  marketTimelineReducer,
+} from "./lib/market/timeline";
 import { ChartErrorBoundary } from "./chart-error-boundary";
-import { resolveStrategySettings, strategyHistoryCapacity, strategyModeLabel, type StrategyMode } from "./lib/strategy-presets";
+import {
+  resolveStrategySettings,
+  strategyHistoryCapacity,
+  strategyModeLabel,
+  type StrategyMode,
+} from "./lib/strategy-presets";
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -62,7 +108,8 @@ const currency = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
-const signed = (value: number) => Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${value.toFixed(2)}%` : "—";
+const signed = (value: number) =>
+  Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${value.toFixed(2)}%` : "—";
 
 function IndicatorToggle({
   checked,
@@ -126,63 +173,265 @@ function RangeField({
   );
 }
 
-function chartLayout(canvas: HTMLCanvasElement, chart: IChartApi, view: ViewSettings) {
+function chartLayout(
+  canvas: HTMLCanvasElement,
+  chart: IChartApi,
+  view: ViewSettings,
+) {
   const rect = canvas.getBoundingClientRect();
-  return calculateChartLayout({ width: rect.width, height: rect.height, priceScaleWidth: chart.priceScale("right").width(), profileEnabled: view.volumeProfile, profileWidthPct: view.profileWidthPct, profileMaxWidth: view.profileMaxWidth, profileInset: view.profileInset, rightLabels: view.supportResistance && view.srLabelPlacement === "right-before-profile" });
+  return calculateChartLayout({
+    width: rect.width,
+    height: rect.height,
+    priceScaleWidth: chart.priceScale("right").width(),
+    profileEnabled: view.volumeProfile,
+    profileWidthPct: view.profileWidthPct,
+    profileMaxWidth: view.profileMaxWidth,
+    profileInset: view.profileInset,
+    rightLabels:
+      view.supportResistance &&
+      view.srLabelPlacement === "right-before-profile",
+  });
 }
 
-function PlacementField({ label, value, onChange }: { label: string; value: ViewSettings["srLabelPlacement"]; onChange: (value: ViewSettings["srLabelPlacement"]) => void }) {
-  return <label className="field-row"><span>{label}</span><select value={value} onChange={event => onChange(event.target.value as ViewSettings["srLabelPlacement"])}><option value="right-before-profile">Right — before profile</option><option value="left-edge">Left edge</option><option value="near-latest">Near latest candle</option><option value="hidden">Hidden labels</option></select></label>;
+function PlacementField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: ViewSettings["srLabelPlacement"];
+  onChange: (value: ViewSettings["srLabelPlacement"]) => void;
+}) {
+  return (
+    <label className="field-row">
+      <span>{label}</span>
+      <select
+        value={value}
+        onChange={(event) =>
+          onChange(event.target.value as ViewSettings["srLabelPlacement"])
+        }
+      >
+        <option value="right-before-profile">Right — before profile</option>
+        <option value="left-edge">Left edge</option>
+        <option value="near-latest">Near latest candle</option>
+        <option value="hidden">Hidden labels</option>
+      </select>
+    </label>
+  );
 }
 
-function ExtensionField({ label, value, onChange }: { label: string; value: ViewSettings["srLineExtension"]; onChange: (value: ViewSettings["srLineExtension"]) => void }) {
-  return <label className="field-row"><span>{label}</span><select value={value} onChange={event=>onChange(event.target.value as ViewSettings["srLineExtension"])}><option value="none">None</option><option value="left">Left</option><option value="right">Right</option><option value="both">Both</option></select></label>;
+function ExtensionField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: ViewSettings["srLineExtension"];
+  onChange: (value: ViewSettings["srLineExtension"]) => void;
+}) {
+  return (
+    <label className="field-row">
+      <span>{label}</span>
+      <select
+        value={value}
+        onChange={(event) =>
+          onChange(event.target.value as ViewSettings["srLineExtension"])
+        }
+      >
+        <option value="none">None</option>
+        <option value="left">Left</option>
+        <option value="right">Right</option>
+        <option value="both">Both</option>
+      </select>
+    </label>
+  );
 }
 
-const dashFor = (style: "solid" | "dashed" | "dotted") => style === "dashed" ? [8, 5] : style === "dotted" ? [2, 4] : [];
+const dashFor = (style: "solid" | "dashed" | "dotted") =>
+  style === "dashed" ? [8, 5] : style === "dotted" ? [2, 4] : [];
 
-function drawChartOverlay(canvas: HTMLCanvasElement, chart: IChartApi, candleSeries: ISeriesApi<"Candlestick">, candles: Candle[], analysis: StrategyAnalysis, view: ViewSettings) {
-  const rect = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.round(rect.width * dpr); canvas.height = Math.round(rect.height * dpr);
-  const context = canvas.getContext("2d"); if (!context) return;
-  context.scale(dpr, dpr); context.clearRect(0, 0, rect.width, rect.height);
-  const a = view.appearance, layout = chartLayout(canvas, chart, view);
-  const extension=(individual:ViewSettings["srLineExtension"])=>view.globalLineExtensionOverride==="individual"?individual:view.globalLineExtensionOverride;
-  const fontSize = view.labelSize === "Small" ? 10 : view.labelSize === "Large" ? 14 : 12;
-  const labelHeight = fontSize + (view.compactLabels ? 4 : view.labelPadding * 2);
-  context.font = `600 ${fontSize}px Inter, system-ui, sans-serif`; context.textBaseline = "middle";
-  if (view.completedPatternFills) analysis.completedPatterns.forEach(region=>{if(region.status!=="confirmed")return;const start=chart.timeScale().timeToCoordinate(region.startTime as UTCTimestamp),end=chart.timeScale().timeToCoordinate(region.endTime as UTCTimestamp),top=candleSeries.priceToCoordinate(region.high),bottom=candleSeries.priceToCoordinate(region.low);if(start==null||end==null||top==null||bottom==null)return;const colour=region.family==="elliott"?a.structure.elliottFill:region.direction==="bullish"||region.direction==="accumulation"?a.structure.wyckoffAccumulationFill:a.structure.wyckoffDistributionFill;context.fillStyle=hexToRgba(colour,a.opacity.completedPatterns);if(region.points?.length){context.beginPath();region.points.forEach((p,i)=>{const x=chart.timeScale().timeToCoordinate(p.time as UTCTimestamp),y=candleSeries.priceToCoordinate(p.price);if(x!=null&&y!=null){if(i)context.lineTo(x,y);else context.moveTo(x,y);}});context.lineTo(Number(end),Number(bottom));context.lineTo(Number(start),Number(bottom));context.closePath();context.fill();}else context.fillRect(Number(start),Number(top),Number(end)-Number(start),Number(bottom)-Number(top));});
+function drawChartOverlay(
+  canvas: HTMLCanvasElement,
+  chart: IChartApi,
+  candleSeries: ISeriesApi<"Candlestick">,
+  candles: Candle[],
+  analysis: StrategyAnalysis,
+  view: ViewSettings,
+) {
+  const rect = canvas.getBoundingClientRect(),
+    dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(rect.width * dpr);
+  canvas.height = Math.round(rect.height * dpr);
+  const context = canvas.getContext("2d");
+  if (!context) return;
+  context.scale(dpr, dpr);
+  context.clearRect(0, 0, rect.width, rect.height);
+  const a = view.appearance,
+    layout = chartLayout(canvas, chart, view);
+  const extension = (individual: ViewSettings["srLineExtension"]) =>
+    view.globalLineExtensionOverride === "individual"
+      ? individual
+      : view.globalLineExtensionOverride;
+  const fontSize =
+    view.labelSize === "Small" ? 10 : view.labelSize === "Large" ? 14 : 12;
+  const labelHeight =
+    fontSize + (view.compactLabels ? 4 : view.labelPadding * 2);
+  context.font = `600 ${fontSize}px Inter, system-ui, sans-serif`;
+  context.textBaseline = "middle";
+  if (view.completedPatternFills)
+    analysis.completedPatterns.forEach((region) => {
+      if (region.status !== "confirmed") return;
+      const start = chart
+          .timeScale()
+          .timeToCoordinate(region.startTime as UTCTimestamp),
+        end = chart
+          .timeScale()
+          .timeToCoordinate(region.endTime as UTCTimestamp),
+        top = candleSeries.priceToCoordinate(region.high),
+        bottom = candleSeries.priceToCoordinate(region.low);
+      if (start == null || end == null || top == null || bottom == null) return;
+      const colour =
+        region.family === "elliott"
+          ? a.structure.elliottFill
+          : region.direction === "bullish" ||
+              region.direction === "accumulation"
+            ? a.structure.wyckoffAccumulationFill
+            : a.structure.wyckoffDistributionFill;
+      context.fillStyle = hexToRgba(colour, a.opacity.completedPatterns);
+      if (region.points?.length) {
+        context.beginPath();
+        region.points.forEach((p, i) => {
+          const x = chart.timeScale().timeToCoordinate(p.time as UTCTimestamp),
+            y = candleSeries.priceToCoordinate(p.price);
+          if (x != null && y != null) {
+            if (i) context.lineTo(x, y);
+            else context.moveTo(x, y);
+          }
+        });
+        context.lineTo(Number(end), Number(bottom));
+        context.lineTo(Number(start), Number(bottom));
+        context.closePath();
+        context.fill();
+      } else
+        context.fillRect(
+          Number(start),
+          Number(top),
+          Number(end) - Number(start),
+          Number(bottom) - Number(top),
+        );
+    });
   if (view.supportResistance) {
-    const drawable = analysis.levels.map((level, index) => ({ level, id: `${level.kind}-${index}`, y: candleSeries.priceToCoordinate(level.price) })).filter((item): item is typeof item & { y: number } => item.y != null);
-    const stacked = stackLabels(drawable.map(({ id, y }) => ({ id, y })), rect.height, labelHeight, 3);
+    const drawable = analysis.levels
+      .map((level, index) => ({
+        level,
+        id: `${level.kind}-${index}`,
+        y: candleSeries.priceToCoordinate(level.price),
+      }))
+      .filter((item): item is typeof item & { y: number } => item.y != null);
+    const stacked = stackLabels(
+      drawable.map(({ id, y }) => ({ id, y })),
+      rect.height,
+      labelHeight,
+      3,
+    );
     drawable.forEach((item) => {
-      const support = item.level.kind === "support", placed = stacked.find(label => label.id === item.id)!;
-      context.fillStyle = hexToRgba(support ? a.structure.supportZone : a.structure.resistanceZone, a.opacity.zones); context.fillRect(layout.candles.x, item.y - 7, Math.max(0, layout.priceScale.x - layout.candles.x), 14);
-      const fallbackStart = candles[Math.max(0,candles.length-60)]?.time, fallbackEnd = candles.at(-1)?.time;
-      const startX = chart.timeScale().timeToCoordinate((item.level.startTime ?? fallbackStart) as UTCTimestamp) ?? layout.candles.x;
-      const endX = chart.timeScale().timeToCoordinate((item.level.endTime ?? fallbackEnd) as UTCTimestamp) ?? layout.candles.x + layout.candles.width;
-      const extent = calculateHorizontalLineExtent(startX,endX,layout.candles,extension(view.srLineExtension));
-      context.strokeStyle = support ? a.structure.supportLine : a.structure.resistanceLine; context.setLineDash([7, 5]); context.beginPath(); if(extent){context.moveTo(extent.startX,item.y);context.lineTo(extent.endX,item.y);context.stroke();} context.setLineDash([]);
+      const support = item.level.kind === "support",
+        placed = stacked.find((label) => label.id === item.id)!;
+      context.fillStyle = hexToRgba(
+        support ? a.structure.supportZone : a.structure.resistanceZone,
+        a.opacity.zones,
+      );
+      context.fillRect(
+        layout.candles.x,
+        item.y - 7,
+        Math.max(0, layout.priceScale.x - layout.candles.x),
+        14,
+      );
+      const fallbackStart = candles[Math.max(0, candles.length - 60)]?.time,
+        fallbackEnd = candles.at(-1)?.time;
+      const startX =
+        chart
+          .timeScale()
+          .timeToCoordinate(
+            (item.level.startTime ?? fallbackStart) as UTCTimestamp,
+          ) ?? layout.candles.x;
+      const endX =
+        chart
+          .timeScale()
+          .timeToCoordinate(
+            (item.level.endTime ?? fallbackEnd) as UTCTimestamp,
+          ) ?? layout.candles.x + layout.candles.width;
+      const extent = calculateHorizontalLineExtent(
+        startX,
+        endX,
+        layout.candles,
+        extension(view.srLineExtension),
+      );
+      context.strokeStyle = support
+        ? a.structure.supportLine
+        : a.structure.resistanceLine;
+      context.setLineDash([7, 5]);
+      context.beginPath();
+      if (extent) {
+        context.moveTo(extent.startX, item.y);
+        context.lineTo(extent.endX, item.y);
+        context.stroke();
+      }
+      context.setLineDash([]);
       if (view.srLabelPlacement === "hidden") return;
       const text = formatLevelLabel(item.level, view.showLevelTouches);
       const width = context.measureText(text).width + view.labelPadding * 2;
       let x = layout.rightLabels.x + layout.rightLabels.width - width - 4;
       if (view.srLabelPlacement === "left-edge") x = layout.leftLabels.x;
-      if (view.srLabelPlacement === "near-latest") { const latestX = chart.timeScale().timeToCoordinate(candles.at(-1)?.time as UTCTimestamp) ?? layout.candles.x; x = Math.min(layout.profile.x - width - 4, latestX + view.labelOffset); }
+      if (view.srLabelPlacement === "near-latest") {
+        const latestX =
+          chart
+            .timeScale()
+            .timeToCoordinate(candles.at(-1)?.time as UTCTimestamp) ??
+          layout.candles.x;
+        x = Math.min(layout.profile.x - width - 4, latestX + view.labelOffset);
+      }
       x = Math.max(layout.candles.x, Math.min(x, layout.profile.x - width - 4));
-      if (placed.displaced) { context.strokeStyle = hexToRgba(support ? a.structure.supportLine : a.structure.resistanceLine, .55); context.beginPath(); context.moveTo(x, placed.placedY); context.lineTo(x - 10, item.y); context.stroke(); }
-      context.fillStyle = hexToRgba(support ? a.structure.supportLabelBackground : a.structure.resistanceLabelBackground, a.opacity.labels); context.fillRect(x, placed.placedY - labelHeight / 2, width, labelHeight);
-      context.fillStyle = support ? a.structure.supportLabelText : a.structure.resistanceLabelText; context.fillText(text, x + view.labelPadding, placed.placedY);
+      if (placed.displaced) {
+        context.strokeStyle = hexToRgba(
+          support ? a.structure.supportLine : a.structure.resistanceLine,
+          0.55,
+        );
+        context.beginPath();
+        context.moveTo(x, placed.placedY);
+        context.lineTo(x - 10, item.y);
+        context.stroke();
+      }
+      context.fillStyle = hexToRgba(
+        support
+          ? a.structure.supportLabelBackground
+          : a.structure.resistanceLabelBackground,
+        a.opacity.labels,
+      );
+      context.fillRect(x, placed.placedY - labelHeight / 2, width, labelHeight);
+      context.fillStyle = support
+        ? a.structure.supportLabelText
+        : a.structure.resistanceLabelText;
+      context.fillText(text, x + view.labelPadding, placed.placedY);
     });
   }
   if (view.fibonacci) {
     context.save();
     const fibs = analysis.fibs
-      .map(fib => ({ fib, y: candleSeries.priceToCoordinate(fib.price) }))
+      .map((fib) => ({ fib, y: candleSeries.priceToCoordinate(fib.price) }))
       .filter((item): item is typeof item & { y: number } => item.y != null);
-    const latestX = chart.timeScale().timeToCoordinate(candles.at(-1)?.time as UTCTimestamp) ?? layout.candles.x;
+    const latestX =
+      chart
+        .timeScale()
+        .timeToCoordinate(candles.at(-1)?.time as UTCTimestamp) ??
+      layout.candles.x;
     const labels = calculateFibLabelLayout({
-      levels: fibs.map(({ fib, y }) => ({ ratio: fib.ratio, label: fib.label, lineY: y, textWidth: context.measureText(fib.label).width })),
+      levels: fibs.map(({ fib, y }) => ({
+        ratio: fib.ratio,
+        label: fib.label,
+        lineY: y,
+        textWidth: context.measureText(fib.label).width,
+      })),
       placement: view.fibLabelPlacement,
       plot: layout.candles,
       leftX: layout.leftLabels.x,
@@ -192,24 +441,50 @@ function drawChartOverlay(canvas: HTMLCanvasElement, chart: IChartApi, candleSer
       labelHeight,
       horizontalPadding: Math.max(6, view.labelPadding),
       top: Math.max(layout.leftLabels.y, 44),
-      bottom: Math.min(layout.leftLabels.y + layout.leftLabels.height, layout.candles.y + layout.candles.height - 24),
+      bottom: Math.min(
+        layout.leftLabels.y + layout.leftLabels.height,
+        layout.candles.y + layout.candles.height - 24,
+      ),
       gap: 3,
     });
     fibs.forEach(({ fib, y }) => {
-      const emphasis = fib.ratio === .618 ? 2 : fib.ratio === .5 ? 1 : 0;
-      context.strokeStyle = hexToRgba(a.structure.fibonacciLine, emphasis === 2 ? .8 : emphasis === 1 ? .6 : .38);
+      const emphasis = fib.ratio === 0.618 ? 2 : fib.ratio === 0.5 ? 1 : 0;
+      context.strokeStyle = hexToRgba(
+        a.structure.fibonacciLine,
+        emphasis === 2 ? 0.8 : emphasis === 1 ? 0.6 : 0.38,
+      );
       context.lineWidth = emphasis === 2 ? 1.5 : 1;
       context.setLineDash([3, 5]);
-      const fallbackStart=candles[Math.max(0,candles.length-100)]?.time,fallbackEnd=candles.at(-1)?.time;
-      const startX=chart.timeScale().timeToCoordinate((fib.startTime??fallbackStart) as UTCTimestamp)??layout.candles.x,endX=chart.timeScale().timeToCoordinate((fib.endTime??fallbackEnd) as UTCTimestamp)??layout.candles.x+layout.candles.width;
-      const extent=calculateHorizontalLineExtent(startX,endX,layout.candles,extension(view.fibLineExtension));
+      const fallbackStart = candles[Math.max(0, candles.length - 100)]?.time,
+        fallbackEnd = candles.at(-1)?.time;
+      const startX =
+          chart
+            .timeScale()
+            .timeToCoordinate(
+              (fib.startTime ?? fallbackStart) as UTCTimestamp,
+            ) ?? layout.candles.x,
+        endX =
+          chart
+            .timeScale()
+            .timeToCoordinate((fib.endTime ?? fallbackEnd) as UTCTimestamp) ??
+          layout.candles.x + layout.candles.width;
+      const extent = calculateHorizontalLineExtent(
+        startX,
+        endX,
+        layout.candles,
+        extension(view.fibLineExtension),
+      );
       context.beginPath();
-      if(extent){context.moveTo(extent.startX,y);context.lineTo(extent.endX,y);context.stroke();}
+      if (extent) {
+        context.moveTo(extent.startX, y);
+        context.lineTo(extent.endX, y);
+        context.stroke();
+      }
     });
     context.setLineDash([]);
-    labels.forEach(label => {
+    labels.forEach((label) => {
       if (label.connector) {
-        context.strokeStyle = hexToRgba(a.structure.fibonacciLabelBorder, .72);
+        context.strokeStyle = hexToRgba(a.structure.fibonacciLabelBorder, 0.72);
         context.lineWidth = 1;
         context.beginPath();
         context.moveTo(label.x, label.centreY);
@@ -218,74 +493,772 @@ function drawChartOverlay(canvas: HTMLCanvasElement, chart: IChartApi, candleSer
       }
       context.beginPath();
       context.roundRect(label.x, label.y, label.width, label.height, 6);
-      context.fillStyle = hexToRgba(a.structure.fibonacciLabelBackground, label.emphasis ? 1 : a.opacity.labels);
+      context.fillStyle = hexToRgba(
+        a.structure.fibonacciLabelBackground,
+        label.emphasis ? 1 : a.opacity.labels,
+      );
       context.fill();
       context.strokeStyle = a.structure.fibonacciLabelBorder;
-      context.lineWidth = label.emphasis === 2 ? 2 : label.emphasis === 1 ? 1.5 : 1;
+      context.lineWidth =
+        label.emphasis === 2 ? 2 : label.emphasis === 1 ? 1.5 : 1;
       context.stroke();
       context.fillStyle = a.structure.fibonacciText;
-      context.fillText(label.text, label.x + Math.max(6, view.labelPadding), label.centreY);
+      context.fillText(
+        label.text,
+        label.x + Math.max(6, view.labelPadding),
+        label.centreY,
+      );
     });
     context.restore();
   }
-  const toCanvasLine=(points:{time:number;value:number}[])=>{if(points.length<2)return null;const converted=points.slice(0,2).map(point=>({x:chart.timeScale().timeToCoordinate(point.time as UTCTimestamp),y:candleSeries.priceToCoordinate(point.value)}));return converted.every(point=>point.x!=null&&point.y!=null)?converted.map(point=>({x:Number(point.x),y:Number(point.y)})) as [LinePoint,LinePoint]:null;};
-  if(view.channels&&analysis.activeChannel){
-    const basis=toCanvasLine(analysis.activeChannel.basis),upper=toCanvasLine(analysis.activeChannel.upper),lower=toCanvasLine(analysis.activeChannel.lower);
-    const basisLine=basis&&extendLineToPlot(basis,layout.candles,extension(view.lrChannelExtension)),upperLine=upper&&extendLineToPlot(upper,layout.candles,extension(view.lrChannelExtension)),lowerLine=lower&&extendLineToPlot(lower,layout.candles,extension(view.lrChannelExtension));
-    if(basisLine&&upperLine&&lowerLine){context.save();context.beginPath();context.rect(layout.candles.x,layout.candles.y,layout.candles.width,layout.candles.height);context.clip();
-      if(view.showLrChannelFill){const polygon=channelFillPolygon(upperLine,lowerLine);context.fillStyle=hexToRgba(a.indicators.regressionFill,view.lrChannelFillOpacity);context.beginPath();polygon.forEach((p,i)=>i?context.lineTo(p.x,p.y):context.moveTo(p.x,p.y));context.closePath();context.fill();}
-      const stroke=(line:{start:LinePoint;end:LinePoint},colour:string,width:number,dash:number[]=[])=>{context.strokeStyle=colour;context.lineWidth=width;context.setLineDash(dash);context.beginPath();context.moveTo(line.start.x,line.start.y);context.lineTo(line.end.x,line.end.y);context.stroke();};
-      stroke(upperLine,a.indicators.regressionUpper,view.lrBoundaryWidth,dashFor(view.lrBoundaryStyle));stroke(lowerLine,a.indicators.regressionLower,view.lrBoundaryWidth,dashFor(view.lrBoundaryStyle));
-      if(view.lrBasisHalo){context.globalAlpha=.18;stroke(basisLine,a.indicators.trendlineHalo,view.lrBasisWidth+4);context.globalAlpha=1;}stroke(basisLine,a.indicators.regressionBasis,view.lrBasisWidth);
-      if(view.showLrChannelLabels){const entries=[{id:"LR upper",line:upperLine,colour:a.indicators.regressionUpper},{id:"LR basis",line:basisLine,colour:a.indicators.regressionBasis},{id:"LR lower",line:lowerLine,colour:a.indicators.regressionLower}],placed=stackLabels(entries.map(e=>({id:e.id,y:e.line.end.y})),layout.candles.height,labelHeight,3);entries.forEach(entry=>{const text=entry.id,width=context.measureText(text).width+12,y=placed.find(p=>p.id===entry.id)!.placedY,x=Math.max(layout.candles.x,Math.min(layout.candles.x+layout.candles.width-width-4,entry.line.end.x-width-6));context.fillStyle=hexToRgba(entry.colour,.88);context.beginPath();context.roundRect(x,y-labelHeight/2,width,labelHeight,5);context.fill();context.fillStyle=a.chart.background;context.fillText(text,x+6,y);});}
+  const indexByTime = new Map(
+    candles.map((candle, index) => [candle.time, index]),
+  );
+  const visible = chart.timeScale().getVisibleLogicalRange();
+  const worldLine = (
+    id: string,
+    points: { time: number; value: number }[],
+    status: "forming" | "confirmed" = "confirmed",
+  ): {
+    model: WorldLine;
+    line: { start: LinePoint; end: LinePoint } | null;
+    label: LinePoint | null;
+  } | null => {
+    if (points.length < 2 || !visible) return null;
+    const startIndex = indexByTime.get(points[0].time),
+      endIndex = indexByTime.get(points[1].time);
+    if (startIndex == null || endIndex == null || startIndex === endIndex)
+      return null;
+    const model: WorldLine = {
+      id,
+      start: {
+        index: startIndex,
+        time: points[0].time,
+        price: points[0].value,
+      },
+      end: { index: endIndex, time: points[1].time, price: points[1].value },
+      labelAnchor: {
+        index: endIndex,
+        time: points[1].time,
+        price: points[1].value,
+      },
+      createdAt: points[1].time,
+      status,
+    };
+    const line = projectWorldLine(
+      model,
+      visible,
+      (index) => chart.timeScale().logicalToCoordinate(index as Logical),
+      (price) => candleSeries.priceToCoordinate(price),
+      layout.candles,
+    );
+    const labelX = chart
+        .timeScale()
+        .logicalToCoordinate(model.labelAnchor.index as Logical),
+      labelY = candleSeries.priceToCoordinate(model.labelAnchor.price);
+    const label =
+      labelX == null ||
+      labelY == null ||
+      labelX < layout.candles.x ||
+      labelX > layout.candles.x + layout.candles.width
+        ? null
+        : { x: Number(labelX), y: Number(labelY) };
+    return { model, line, label };
+  };
+  if (view.channels && analysis.activeChannel) {
+    const projected = [
+      {
+        id: "LR upper",
+        points: analysis.activeChannel.upper,
+        colour: a.indicators.regressionUpper,
+      },
+      {
+        id: "LR basis",
+        points: analysis.activeChannel.basis,
+        colour: a.indicators.regressionBasis,
+      },
+      {
+        id: "LR lower",
+        points: analysis.activeChannel.lower,
+        colour: a.indicators.regressionLower,
+      },
+    ].map((item) => ({
+      ...item,
+      projected: worldLine(
+        `lr-${item.id}-${item.points[1]?.time}`,
+        item.points,
+      ),
+    }));
+    const upperLine = projected[0].projected?.line,
+      basisLine = projected[1].projected?.line,
+      lowerLine = projected[2].projected?.line;
+    if (basisLine && upperLine && lowerLine) {
+      context.save();
+      context.beginPath();
+      context.rect(
+        layout.candles.x,
+        layout.candles.y,
+        layout.candles.width,
+        layout.candles.height,
+      );
+      context.clip();
+      if (view.showLrChannelFill) {
+        const polygon = channelFillPolygon(upperLine, lowerLine);
+        context.fillStyle = hexToRgba(
+          a.indicators.regressionFill,
+          view.lrChannelFillOpacity,
+        );
+        context.beginPath();
+        polygon.forEach((p, i) =>
+          i ? context.lineTo(p.x, p.y) : context.moveTo(p.x, p.y),
+        );
+        context.closePath();
+        context.fill();
+      }
+      const stroke = (
+        line: { start: LinePoint; end: LinePoint },
+        colour: string,
+        width: number,
+        dash: number[] = [],
+      ) => {
+        context.strokeStyle = colour;
+        context.lineWidth = width;
+        context.setLineDash(dash);
+        context.beginPath();
+        context.moveTo(line.start.x, line.start.y);
+        context.lineTo(line.end.x, line.end.y);
+        context.stroke();
+      };
+      stroke(
+        upperLine,
+        a.indicators.regressionUpper,
+        view.lrBoundaryWidth,
+        dashFor(view.lrBoundaryStyle),
+      );
+      stroke(
+        lowerLine,
+        a.indicators.regressionLower,
+        view.lrBoundaryWidth,
+        dashFor(view.lrBoundaryStyle),
+      );
+      if (view.lrBasisHalo) {
+        context.globalAlpha = 0.18;
+        stroke(basisLine, a.indicators.trendlineHalo, view.lrBasisWidth + 4);
+        context.globalAlpha = 1;
+      }
+      stroke(basisLine, a.indicators.regressionBasis, view.lrBasisWidth);
+      if (view.showLrChannelLabels)
+        projected.forEach((entry, priority) => {
+          const anchor = entry.projected?.label;
+          if (!anchor) return;
+          const width = context.measureText(entry.id).width + 12,
+            lane = stableLabelLane(entry.projected!.model.id, 5 + priority),
+            y = anchor.y + (lane - 1) * (labelHeight + 3),
+            x = anchor.x - width - 6;
+          context.fillStyle = hexToRgba(entry.colour, 0.88);
+          context.beginPath();
+          context.roundRect(x, y - labelHeight / 2, width, labelHeight, 5);
+          context.fill();
+          context.fillStyle = a.chart.background;
+          context.fillText(entry.id, x + 6, y);
+        });
       context.restore();
     }
   }
-  if(view.trendlines){
-    const lines=[{id:"Upper trend",points:analysis.upperTrendline,colour:a.indicators.bearTrendline},{id:"Lower trend",points:analysis.lowerTrendline,colour:a.indicators.bullTrendline}].map(item=>{const anchors=toCanvasLine(item.points);return anchors?{...item,line:extendLineToPlot(anchors,layout.candles,extension(view.pivotTrendlineExtension))}:null;}).filter((item):item is NonNullable<typeof item>=>Boolean(item?.line));
-    context.save();context.beginPath();context.rect(layout.candles.x,layout.candles.y,layout.candles.width,layout.candles.height);context.clip();context.setLineDash(dashFor(view.pivotTrendlineStyle));
-    lines.forEach(item=>{if(view.trendlineHalo){context.globalAlpha=.18;context.strokeStyle=item.colour;context.lineWidth=Math.min(7,view.pivotTrendlineWidth+2);context.beginPath();context.moveTo(item.line!.start.x,item.line!.start.y);context.lineTo(item.line!.end.x,item.line!.end.y);context.stroke();context.globalAlpha=1;}context.strokeStyle=item.colour;context.lineWidth=view.pivotTrendlineWidth;context.beginPath();context.moveTo(item.line!.start.x,item.line!.start.y);context.lineTo(item.line!.end.x,item.line!.end.y);context.stroke();});context.setLineDash([]);
-    if(view.showTrendlineLabels){const placed=stackLabels(lines.map(item=>({id:item.id,y:item.line!.end.y})),layout.candles.height,labelHeight,4);lines.forEach(item=>{const width=context.measureText(item.id).width+12,y=placed.find(p=>p.id===item.id)!.placedY,x=Math.max(layout.candles.x,Math.min(layout.candles.x+layout.candles.width-width-4,item.line!.end.x-width-6));context.fillStyle=hexToRgba(item.colour,.9);context.beginPath();context.roundRect(x,y-labelHeight/2,width,labelHeight,5);context.fill();context.fillStyle=a.chart.background;context.fillText(item.id,x+6,y);});}context.restore();
+  if (view.trendlines) {
+    const lines = [
+      {
+        id: "Upper trend",
+        points: analysis.upperTrendline,
+        colour: a.indicators.bearTrendline,
+      },
+      {
+        id: "Lower trend",
+        points: analysis.lowerTrendline,
+        colour: a.indicators.bullTrendline,
+      },
+    ]
+      .map((item) => ({
+        ...item,
+        projected: worldLine(
+          `pivot-${item.id}-${item.points[1]?.time}`,
+          item.points,
+        ),
+      }))
+      .filter((item) => item.projected?.line);
+    context.save();
+    context.beginPath();
+    context.rect(
+      layout.candles.x,
+      layout.candles.y,
+      layout.candles.width,
+      layout.candles.height,
+    );
+    context.clip();
+    context.setLineDash(dashFor(view.pivotTrendlineStyle));
+    lines.forEach((item) => {
+      const line = item.projected!.line!;
+      if (view.trendlineHalo) {
+        context.globalAlpha = 0.18;
+        context.strokeStyle = item.colour;
+        context.lineWidth = Math.min(7, view.pivotTrendlineWidth + 2);
+        context.beginPath();
+        context.moveTo(line.start.x, line.start.y);
+        context.lineTo(line.end.x, line.end.y);
+        context.stroke();
+        context.globalAlpha = 1;
+      }
+      context.strokeStyle = item.colour;
+      context.lineWidth = view.pivotTrendlineWidth;
+      context.beginPath();
+      context.moveTo(line.start.x, line.start.y);
+      context.lineTo(line.end.x, line.end.y);
+      context.stroke();
+      if (view.showTrendlineLabels && item.projected!.label) {
+        const anchor = item.projected!.label!,
+          width = context.measureText(item.id).width + 12,
+          lane = stableLabelLane(item.projected!.model.id, 5),
+          y = anchor.y + (lane - 1) * (labelHeight + 3),
+          x = anchor.x - width - 6;
+        context.fillStyle = hexToRgba(item.colour, 0.9);
+        context.beginPath();
+        context.roundRect(x, y - labelHeight / 2, width, labelHeight, 5);
+        context.fill();
+        context.fillStyle = a.chart.background;
+        context.fillText(item.id, x + 6, y);
+      }
+    });
+    context.restore();
   }
   if (view.volumeProfile && candles.length && layout.profileContent.width > 0) {
-    const sample=candles.slice(-Math.min(view.volumeBars,candles.length)), min=Math.min(...sample.map(c=>c.low)), max=Math.max(...sample.map(c=>c.high)), size=(max-min)/view.volumeRows||1;
-    const buckets=Array.from({length:view.volumeRows},(_,i)=>({price:min+size*(i+.5),up:0,down:0})); sample.forEach(c=>{const i=Math.min(buckets.length-1,Math.max(0,Math.floor((((c.high+c.low+c.close)/3)-min)/size))); if(c.close>=c.open)buckets[i].up+=c.volume;else buckets[i].down+=c.volume;}); const maximum=Math.max(1,...buckets.map(b=>b.up+b.down));
-    context.save(); context.beginPath(); context.rect(layout.profileContent.x,layout.profileContent.y,layout.profileContent.width,layout.profileContent.height); context.clip(); buckets.forEach(b=>{const top=candleSeries.priceToCoordinate(b.price+size/2),bottom=candleSeries.priceToCoordinate(b.price-size/2);if(top==null||bottom==null)return;const total=((b.up+b.down)/maximum)*layout.profileContent.width,up=total*(b.up/Math.max(1,b.up+b.down)),x=layout.profileContent.x+layout.profileContent.width-total,row=calculateProfileRowGeometry(top,bottom,view.volumeRows);context.fillStyle=hexToRgba(a.profile.bear,view.profileOpacity);context.fillRect(x,row.y,total-up,row.height);context.fillStyle=hexToRgba(a.profile.bull,view.profileOpacity);context.fillRect(x+total-up,row.y,up,row.height);}); context.restore();
-    if(view.showProfileHeading){context.save();context.beginPath();context.rect(layout.profile.x,0,layout.profile.width,28);context.clip();context.fillStyle=a.profile.heading;context.font=`600 ${Math.min(10,fontSize)}px Inter`;context.textBaseline="alphabetic";context.fillText(`VOLUME PROFILE · ${sample.length} candles · ${view.volumeRows} price bars`,layout.profile.x+view.profileInset,18);context.restore();}
+    const sample = candles.slice(-Math.min(view.volumeBars, candles.length)),
+      min = Math.min(...sample.map((c) => c.low)),
+      max = Math.max(...sample.map((c) => c.high)),
+      size = (max - min) / view.volumeRows || 1;
+    const buckets = Array.from({ length: view.volumeRows }, (_, i) => ({
+      price: min + size * (i + 0.5),
+      up: 0,
+      down: 0,
+    }));
+    sample.forEach((c) => {
+      const i = Math.min(
+        buckets.length - 1,
+        Math.max(0, Math.floor(((c.high + c.low + c.close) / 3 - min) / size)),
+      );
+      if (c.close >= c.open) buckets[i].up += c.volume;
+      else buckets[i].down += c.volume;
+    });
+    const maximum = Math.max(1, ...buckets.map((b) => b.up + b.down));
+    context.save();
+    context.beginPath();
+    context.rect(
+      layout.profileContent.x,
+      layout.profileContent.y,
+      layout.profileContent.width,
+      layout.profileContent.height,
+    );
+    context.clip();
+    buckets.forEach((b) => {
+      const top = candleSeries.priceToCoordinate(b.price + size / 2),
+        bottom = candleSeries.priceToCoordinate(b.price - size / 2);
+      if (top == null || bottom == null) return;
+      const total = ((b.up + b.down) / maximum) * layout.profileContent.width,
+        up = total * (b.up / Math.max(1, b.up + b.down)),
+        x = layout.profileContent.x + layout.profileContent.width - total,
+        row = calculateProfileRowGeometry(top, bottom, view.volumeRows);
+      context.fillStyle = hexToRgba(a.profile.bear, view.profileOpacity);
+      context.fillRect(x, row.y, total - up, row.height);
+      context.fillStyle = hexToRgba(a.profile.bull, view.profileOpacity);
+      context.fillRect(x + total - up, row.y, up, row.height);
+    });
+    context.restore();
+    if (view.showProfileHeading) {
+      context.save();
+      context.beginPath();
+      context.rect(layout.profile.x, 0, layout.profile.width, 28);
+      context.clip();
+      context.fillStyle = a.profile.heading;
+      context.font = `600 ${Math.min(10, fontSize)}px Inter`;
+      context.textBaseline = "alphabetic";
+      context.fillText(
+        `VOLUME PROFILE · ${sample.length} candles · ${view.volumeRows} price bars`,
+        layout.profile.x + view.profileInset,
+        18,
+      );
+      context.restore();
+    }
   }
-  if(view.triangles){analysis.triangles.forEach(triangle=>{const pts=triangle.points.map(point=>({x:chart.timeScale().timeToCoordinate(point.time as UTCTimestamp),y:candleSeries.priceToCoordinate(point.price)})).filter(p=>p.x!=null&&p.y!=null).map(p=>({x:Number(p.x),y:Number(p.y)}));if(pts.length!==3)return;const bullish=triangle.direction==="bullish",border=bullish?a.structure.bullishTriangleBorder:a.structure.bearishTriangleBorder;context.save();context.beginPath();context.rect(layout.candles.x,layout.candles.y,layout.candles.width,layout.candles.height);context.clip();context.fillStyle=hexToRgba(bullish?a.structure.bullishTriangleFill:a.structure.bearishTriangleFill,a.opacity.triangles);context.strokeStyle=border;context.beginPath();context.moveTo(pts[0].x,pts[0].y);context.lineTo(pts[1].x,pts[1].y);context.lineTo(pts[2].x,pts[2].y);context.closePath();context.fill();context.stroke();if(extension(view.triangleLineExtension)!=="none"){[pts[0],pts[1]].forEach(anchor=>{const ray=extendLineToPlot([anchor,pts[2]],layout.candles,extension(view.triangleLineExtension));if(ray){context.beginPath();context.moveTo(ray.start.x,ray.start.y);context.lineTo(ray.end.x,ray.end.y);context.stroke();}});}context.restore();if(view.patternLabelPlacement==="hidden")return;const text=`${bullish?"▲":"▼"} ${triangle.label}`,width=context.measureText(text).width+12,minX=Math.min(...pts.map(p=>p.x)),maxX=Math.max(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y)),maxY=Math.max(...pts.map(p=>p.y)),position=patternLabelPosition({x:minX,y:minY,width:maxX-minX,height:maxY-minY},view.patternLabelPlacement,{width,height:labelHeight},layout.candles,view.labelOffset);context.fillStyle=bullish?a.structure.bullishTriangleText:a.structure.bearishTriangleText;context.fillText(text,position.x+6,position.y+labelHeight/2);});}
-  const candleByTime=new Map(candles.map(candle=>[candle.time,candle]));
-  const drawBubbles=(source:{id:string;time:number;price:number;label:string;status?:"forming"|"confirmed";direction?:string;confluence?:number}[],signal=false)=>{
-    const signalSizes={Tiny:8,Small:10,Medium:11,Large:13,"Extra Large":15} as const;
-    const size=signal?signalSizes[view.signalBubbleSize]:(view.patternBubbleSize==="Small"?10:view.patternBubbleSize==="Medium"?12:14);
-    context.font=`700 ${size}px Inter, system-ui`;
-    const items=source.map(item=>{
-      const candle=candleByTime.get(item.time),buy=item.direction==="buy";
-      const side=signal?(view.signalPlacement==="side-aware"?(buy?"below":"above"):view.signalPlacement):"above";
-      const anchorPrice=signal&&candle?(side==="below"?candle.low:candle.high):item.price;
-      const x=chart.timeScale().timeToCoordinate(item.time as UTCTimestamp),y=candleSeries.priceToCoordinate(anchorPrice);
-      const text=signal&&view.signalDetail==="Direction + confluence"?`${item.label} ${item.confluence ?? 0}/5`:item.label;
-      return x==null||y==null?null:{...item,text,side,anchorX:Number(x),anchorY:Number(y)+(side==="below"?view.signalDistance:-view.signalDistance),width:context.measureText(text).width+(signal?12:14),height:size+(signal?8:10)};
-    }).filter((i):i is NonNullable<typeof i>=>Boolean(i));
-    const positions=placeChartBubbles(items,layout.candles,52);
-    positions.forEach(p=>{const meta=items.find(item=>item.id===p.id)!;const provisional=meta.status==="forming",buy=meta.direction==="buy";const background=signal?(buy?a.structure.buyMarker:a.structure.sellMarker):provisional?a.structure.provisionalBackground:meta.direction==="accumulation"?a.structure.wyckoffAccumulation:meta.direction==="distribution"?a.structure.wyckoffDistribution:a.structure.waveMarker;const border=provisional?a.structure.provisionalBorder:signal?background:a.structure.elliottBorder;context.globalAlpha=provisional?.65:1;context.strokeStyle=border;context.fillStyle=background;context.setLineDash(provisional?[4,3]:[]);if(!signal&&view.showPatternConnectors){context.beginPath();context.moveTo(p.anchorX,p.anchorY);context.lineTo(p.anchorX,p.side==="below"?p.y:p.y+p.height);context.stroke();}context.beginPath();context.roundRect(p.x,p.y,p.width,p.height,5);context.fill();context.stroke();context.setLineDash([]);context.fillStyle=signal?(buy?a.structure.buyText:a.structure.sellText):a.structure.elliottText;context.fillText(meta.text,p.x+(signal?6:7),p.y+p.height/2);context.globalAlpha=1;});
+  if (view.triangles) {
+    analysis.triangles.forEach((triangle) => {
+      const pts = triangle.points
+        .map((point) => ({
+          x: chart.timeScale().timeToCoordinate(point.time as UTCTimestamp),
+          y: candleSeries.priceToCoordinate(point.price),
+        }))
+        .filter((p) => p.x != null && p.y != null)
+        .map((p) => ({ x: Number(p.x), y: Number(p.y) }));
+      if (pts.length !== 3) return;
+      const bullish = triangle.direction === "bullish",
+        border = bullish
+          ? a.structure.bullishTriangleBorder
+          : a.structure.bearishTriangleBorder;
+      context.save();
+      context.beginPath();
+      context.rect(
+        layout.candles.x,
+        layout.candles.y,
+        layout.candles.width,
+        layout.candles.height,
+      );
+      context.clip();
+      context.fillStyle = hexToRgba(
+        bullish
+          ? a.structure.bullishTriangleFill
+          : a.structure.bearishTriangleFill,
+        a.opacity.triangles,
+      );
+      context.strokeStyle = border;
+      context.beginPath();
+      context.moveTo(pts[0].x, pts[0].y);
+      context.lineTo(pts[1].x, pts[1].y);
+      context.lineTo(pts[2].x, pts[2].y);
+      context.closePath();
+      context.fill();
+      context.stroke();
+      if (extension(view.triangleLineExtension) !== "none") {
+        [pts[0], pts[1]].forEach((anchor) => {
+          const ray = extendLineToPlot(
+            [anchor, pts[2]],
+            layout.candles,
+            extension(view.triangleLineExtension),
+          );
+          if (ray) {
+            context.beginPath();
+            context.moveTo(ray.start.x, ray.start.y);
+            context.lineTo(ray.end.x, ray.end.y);
+            context.stroke();
+          }
+        });
+      }
+      context.restore();
+      if (view.patternLabelPlacement === "hidden") return;
+      const text = `${bullish ? "▲" : "▼"} ${triangle.label}`,
+        width = context.measureText(text).width + 12,
+        minX = Math.min(...pts.map((p) => p.x)),
+        maxX = Math.max(...pts.map((p) => p.x)),
+        minY = Math.min(...pts.map((p) => p.y)),
+        maxY = Math.max(...pts.map((p) => p.y)),
+        position = patternLabelPosition(
+          { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+          view.patternLabelPlacement,
+          { width, height: labelHeight },
+          layout.candles,
+          view.labelOffset,
+        );
+      context.fillStyle = bullish
+        ? a.structure.bullishTriangleText
+        : a.structure.bearishTriangleText;
+      context.fillText(text, position.x + 6, position.y + labelHeight / 2);
+    });
+  }
+  if(view.waves&&view.indicatorPackage){
+    (["elliott","wyckoff"] as const).forEach(family=>{
+      const stages=analysis.patternStages.filter(stage=>stage.family===family&&(view.provisionalStages||stage.status==="confirmed"));
+      if(stages.length<2)return;
+      context.save();context.beginPath();context.rect(layout.candles.x,layout.candles.y,layout.candles.width,layout.candles.height);context.clip();context.lineWidth=family==="elliott"?2.5:2;context.strokeStyle=family==="elliott"?a.structure.waveMarker:stages[0].direction==="accumulation"?a.structure.wyckoffAccumulation:a.structure.wyckoffDistribution;
+      stages.forEach((stage,index)=>{const logical=indexByTime.get(stage.time),x=logical==null?null:chart.timeScale().logicalToCoordinate(logical as Logical),y=candleSeries.priceToCoordinate(stage.price);if(x==null||y==null)return;context.setLineDash(stage.status==="forming"?[7,5]:[]);if(index===0){context.beginPath();context.moveTo(Number(x),Number(y));}else{context.lineTo(Number(x),Number(y));context.stroke();context.beginPath();context.moveTo(Number(x),Number(y));}context.beginPath();context.arc(Number(x),Number(y),3,0,Math.PI*2);context.fillStyle=context.strokeStyle;context.fill();});context.restore();
+    });
+  }
+  const candleByTime = new Map(candles.map((candle) => [candle.time, candle]));
+  const drawBubbles = (
+    source: {
+      id: string;
+      time: number;
+      price: number;
+      label: string;
+      status?: "forming" | "confirmed";
+      direction?: string;
+      confluence?: number;
+    }[],
+    signal = false,
+  ) => {
+    const signalSizes = {
+      Tiny: 8,
+      Small: 10,
+      Medium: 11,
+      Large: 13,
+      "Extra Large": 15,
+    } as const;
+    const size = signal
+      ? signalSizes[view.signalBubbleSize]
+      : view.patternBubbleSize === "Small"
+        ? 10
+        : view.patternBubbleSize === "Medium"
+          ? 12
+          : 14;
+    context.font = `700 ${size}px Inter, system-ui`;
+    const items = source
+      .map((item) => {
+        const candle = candleByTime.get(item.time),
+          buy = item.direction === "buy";
+        const side = signal
+          ? view.signalPlacement === "side-aware"
+            ? buy
+              ? "below"
+              : "above"
+            : view.signalPlacement
+          : "above";
+        const anchorPrice =
+          signal && candle
+            ? side === "below"
+              ? candle.low
+              : candle.high
+            : item.price;
+        const x = chart.timeScale().timeToCoordinate(item.time as UTCTimestamp),
+          y = candleSeries.priceToCoordinate(anchorPrice);
+        const text =
+          signal && view.signalDetail === "Direction + confluence"
+            ? `${item.label} ${item.confluence ?? 0}/5`
+            : item.label;
+        return x == null || y == null
+          ? null
+          : {
+              ...item,
+              text,
+              side,
+              anchorX: Number(x),
+              anchorY:
+                Number(y) +
+                (side === "below" ? view.signalDistance : -view.signalDistance),
+              width: context.measureText(text).width + (signal ? 12 : 14),
+              height: size + (signal ? 8 : 10),
+            };
+      })
+      .filter((i): i is NonNullable<typeof i> => Boolean(i));
+    const positions = placeChartBubbles(items, layout.candles, 52);
+    positions.forEach((p) => {
+      const meta = items.find((item) => item.id === p.id)!;
+      const provisional = meta.status === "forming",
+        buy = meta.direction === "buy";
+      const background = signal
+        ? buy
+          ? a.structure.buyMarker
+          : a.structure.sellMarker
+        : provisional
+          ? a.structure.provisionalBackground
+          : meta.direction === "accumulation"
+            ? a.structure.wyckoffAccumulation
+            : meta.direction === "distribution"
+              ? a.structure.wyckoffDistribution
+              : a.structure.waveMarker;
+      const border = provisional
+        ? a.structure.provisionalBorder
+        : signal
+          ? background
+          : a.structure.elliottBorder;
+      context.globalAlpha = provisional ? 0.65 : 1;
+      context.strokeStyle = border;
+      context.fillStyle = background;
+      context.setLineDash(provisional ? [4, 3] : []);
+      if (!signal && view.showPatternConnectors) {
+        context.beginPath();
+        context.moveTo(p.anchorX, p.anchorY);
+        context.lineTo(p.anchorX, p.side === "below" ? p.y : p.y + p.height);
+        context.stroke();
+      }
+      context.beginPath();
+      context.roundRect(p.x, p.y, p.width, p.height, 5);
+      context.fill();
+      context.stroke();
+      context.setLineDash([]);
+      context.fillStyle = signal
+        ? buy
+          ? a.structure.buyText
+          : a.structure.sellText
+        : a.structure.elliottText;
+      context.fillText(meta.text, p.x + (signal ? 6 : 7), p.y + p.height / 2);
+      context.globalAlpha = 1;
+    });
   };
-  if(view.waves&&view.indicatorPackage)drawBubbles(analysis.patternStages.filter(stage=>view.provisionalStages||stage.status==="confirmed"));
-  if(view.signals&&view.indicatorPackage)drawBubbles(view.showHistoricalSignals?analysis.tradeSignals:analysis.tradeSignals.slice(-1),true);
+  if (view.waves && view.indicatorPackage)
+    drawBubbles(
+      analysis.patternStages.filter(
+        (stage) => view.provisionalStages || stage.status === "confirmed",
+      ),
+    );
+  if (view.signals && view.indicatorPackage)
+    drawBubbles(
+      view.showHistoricalSignals
+        ? analysis.tradeSignals
+        : analysis.tradeSignals.slice(-1),
+      true,
+    );
 }
 
 export type ChartControls = { resetView: () => void; goToLive: () => void };
-const DizyChart = forwardRef<ChartControls, { displayCandles:Candle[];liveCandle:Candle|null;analysis:StrategyAnalysis;view:ViewSettings;resetKey:number;countdownSeconds:number|null;symbol:string;timeframe:string;readOnly:boolean;applyDefaultsNonce:number }>(function DizyChart({ displayCandles, liveCandle, analysis, view, resetKey, countdownSeconds,symbol,timeframe,readOnly,applyDefaultsNonce }, ref) {
-  const containerRef=useRef<HTMLDivElement>(null),overlayRef=useRef<HTMLCanvasElement>(null),chartRef=useRef<IChartApi|null>(null),candleRef=useRef<ISeriesApi<"Candlestick">|null>(null),volumeRef=useRef<ISeriesApi<"Histogram">|null>(null),priceLineRef=useRef<IPriceLine|null>(null),indicatorsRef=useRef(new Map<string,ISeriesApi<"Line">>()),previousDisplayRef=useRef<Candle[]>([]),marketKeyRef=useRef(""),redrawFrameRef=useRef<number|null>(null),latestRef=useRef({candles:displayCandles,analysis,view});
-  useEffect(()=>{latestRef.current={candles:displayCandles,analysis,view};});
-  const [chartError,setChartError]=useState<Error|null>(null);
-  const redraw=useCallback(()=>{if(redrawFrameRef.current!==null)return;redrawFrameRef.current=requestAnimationFrame(()=>{redrawFrameRef.current=null;const chart=chartRef.current,series=candleRef.current,canvas=overlayRef.current;if(chart&&series&&canvas)drawChartOverlay(canvas,chart,series,latestRef.current.candles,latestRef.current.analysis,latestRef.current.view);});},[]);
-  const resetView=useCallback(()=>{const chart=chartRef.current,element=containerRef.current,canvas=overlayRef.current;if(!chart||!element||!canvas||!latestRef.current.candles.length)return;const layout=chartLayout(canvas,chart,view),count=defaultVisibleCandleCount(element.clientWidth,latestRef.current.candles.length),range=calculateAutoFit({candleCount:latestRef.current.candles.length,desiredCount:count,barSpacing:7,layout});chart.priceScale("right").applyOptions({autoScale:true});chart.timeScale().setVisibleLogicalRange({from:range.from,to:range.to});requestAnimationFrame(redraw);},[view,redraw]);
-  const goToLive=useCallback(()=>{const chart=chartRef.current,canvas=overlayRef.current;if(!chart||!canvas||!latestRef.current.candles.length)return;const range=calculateGoToLive({candleCount:latestRef.current.candles.length,currentRange:chart.timeScale().getVisibleLogicalRange(),barSpacing:7,layout:chartLayout(canvas,chart,view)});chart.priceScale("right").applyOptions({autoScale:true});chart.timeScale().setVisibleLogicalRange({from:range.from,to:range.to});requestAnimationFrame(redraw);},[view,redraw]);
-  useImperativeHandle(ref,()=>({resetView,goToLive}),[resetView,goToLive]);
-  useEffect(()=>{if(!containerRef.current)return;indicatorsRef.current.clear();const element=containerRef.current,a=latestRef.current.view.appearance,chart=createChart(element,{autoSize:true,layout:{background:{type:ColorType.Solid,color:a.chart.background},textColor:a.chart.axisText,fontFamily:"Inter, system-ui, sans-serif",fontSize:11,panes:{separatorColor:"#1b2233",enableResize:true}},grid:{vertLines:{color:hexToRgba(a.chart.grid,a.opacity.grid)},horzLines:{color:hexToRgba(a.chart.grid,a.opacity.grid)}},rightPriceScale:{borderColor:a.chart.priceScaleBorder,scaleMargins:{top:.08,bottom:.18}},timeScale:{borderColor:a.chart.timeScaleBorder,timeVisible:true,rightOffset:8,barSpacing:7}});const candles=chart.addSeries(CandlestickSeries,{priceLineVisible:false,lastValueVisible:false,borderVisible:false}),volume=chart.addSeries(HistogramSeries,{priceFormat:{type:"volume"},priceScaleId:"",lastValueVisible:false,priceLineVisible:false});volume.priceScale().applyOptions({scaleMargins:{top:.82,bottom:0}});chartRef.current=chart;candleRef.current=candles;volumeRef.current=volume;const observer=new ResizeObserver(()=>{redraw();});observer.observe(element);const scheduleRedraw=()=>requestAnimationFrame(redraw);element.addEventListener("wheel",scheduleRedraw,{passive:true});element.addEventListener("pointermove",scheduleRedraw,{passive:true});element.addEventListener("pointerup",scheduleRedraw,{passive:true});chart.timeScale().subscribeVisibleLogicalRangeChange(redraw);return()=>{observer.disconnect();element.removeEventListener("wheel",scheduleRedraw);element.removeEventListener("pointermove",scheduleRedraw);element.removeEventListener("pointerup",scheduleRedraw);chart.timeScale().unsubscribeVisibleLogicalRangeChange(redraw);if(priceLineRef.current)candles.removePriceLine(priceLineRef.current);chart.remove();chartRef.current=null;candleRef.current=null;volumeRef.current=null;priceLineRef.current=null;if(redrawFrameRef.current!==null)cancelAnimationFrame(redrawFrameRef.current);};},[redraw]);
-  useEffect(()=>{const chart=chartRef.current,c=candleRef.current,v=volumeRef.current,a=view.appearance;if(!chart||!c||!v)return;chart.applyOptions({layout:{background:{type:ColorType.Solid,color:a.chart.background},textColor:a.chart.axisText},grid:{vertLines:{color:hexToRgba(a.chart.grid,a.opacity.grid)},horzLines:{color:hexToRgba(a.chart.grid,a.opacity.grid)}},crosshair:{vertLine:{color:a.chart.crosshair},horzLine:{color:a.chart.crosshair}},rightPriceScale:{borderColor:a.chart.priceScaleBorder},timeScale:{borderColor:a.chart.timeScaleBorder}});c.applyOptions({upColor:a.candles.bull,downColor:a.candles.bear,wickUpColor:a.candles.bullWick,wickDownColor:a.candles.bearWick});requestAnimationFrame(redraw);},[view.appearance,redraw]);
-  useEffect(()=>{const c=candleRef.current,v=volumeRef.current;if(!c||!v)return;const a=view.appearance,key=`${symbol}:${timeframe}`,previous=previousDisplayRef.current,plan=planSeriesSync(previous,displayCandles,Boolean(marketKeyRef.current&&marketKeyRef.current!==key));const candleData=displayCandles.map(item=>({...item,time:item.time as UTCTimestamp}));const volumeFor=(item:Candle)=>({time:item.time as UTCTimestamp,value:item.volume,color:hexToRgba(item.close>=item.open?a.candles.bullVolume:a.candles.bearVolume,.23)});try{if(plan.operation==="setData"){const range=chartRef.current?.timeScale().getVisibleLogicalRange();c.setData(candleData);v.setData(displayCandles.map(volumeFor));if(range&&marketKeyRef.current===key)chartRef.current?.timeScale().setVisibleLogicalRange(range);}else if(plan.operation==="update"){c.update({...plan.point,time:plan.point.time as UTCTimestamp});v.update(volumeFor(plan.point));}previousDisplayRef.current=displayCandles;marketKeyRef.current=key;redraw();}catch(error){console.error("Chart sync error",{operation:plan.operation,market:key,previousFinal:previous.at(-1)?.time,nextFinal:displayCandles.at(-1)?.time,previousSize:previous.length,nextSize:displayCandles.length,message:error instanceof Error?error.message:String(error),stack:error instanceof Error?error.stack:undefined});queueMicrotask(()=>setChartError(error instanceof Error?error:new Error(String(error))));}},[displayCandles,symbol,timeframe,view.appearance,redraw]);
+const DizyChart = forwardRef<
+  ChartControls,
+  {
+    displayCandles: Candle[];
+    liveCandle: Candle | null;
+    analysis: StrategyAnalysis;
+    view: ViewSettings;
+    resetKey: number;
+    countdownSeconds: number | null;
+    symbol: string;
+    timeframe: string;
+    readOnly: boolean;
+    applyDefaultsNonce: number;
+  }
+>(function DizyChart(
+  {
+    displayCandles,
+    liveCandle,
+    analysis,
+    view,
+    resetKey,
+    countdownSeconds,
+    symbol,
+    timeframe,
+    readOnly,
+    applyDefaultsNonce,
+  },
+  ref,
+) {
+  const containerRef = useRef<HTMLDivElement>(null),
+    markerRef = useRef<HTMLDivElement>(null),
+    overlayRef = useRef<HTMLCanvasElement>(null),
+    chartRef = useRef<IChartApi | null>(null),
+    candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null),
+    volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null),
+    priceLineRef = useRef<IPriceLine | null>(null),
+    indicatorsRef = useRef(new Map<string, ISeriesApi<"Line">>()),
+    previousDisplayRef = useRef<Candle[]>([]),
+    marketKeyRef = useRef(""),
+    redrawFrameRef = useRef<number | null>(null),
+    latestRef = useRef({ candles: displayCandles, analysis, view });
+  useEffect(() => {
+    latestRef.current = { candles: displayCandles, analysis, view };
+  });
+  const [chartError, setChartError] = useState<Error | null>(null);
+  const redraw = useCallback(() => {
+    if (redrawFrameRef.current !== null) return;
+    redrawFrameRef.current = requestAnimationFrame(() => {
+      redrawFrameRef.current = null;
+      const chart = chartRef.current,
+        series = candleRef.current,
+        canvas = overlayRef.current;
+      if (chart && series && canvas)
+        drawChartOverlay(
+          canvas,
+          chart,
+          series,
+          latestRef.current.candles,
+          latestRef.current.analysis,
+          latestRef.current.view,
+        );
+    });
+  }, []);
+  const resetView = useCallback(() => {
+    const chart = chartRef.current,
+      element = containerRef.current,
+      canvas = overlayRef.current;
+    if (!chart || !element || !canvas || !latestRef.current.candles.length)
+      return;
+    const layout = chartLayout(canvas, chart, view),
+      count = defaultVisibleCandleCount(
+        element.clientWidth,
+        latestRef.current.candles.length,
+      ),
+      range = calculateAutoFit({
+        candleCount: latestRef.current.candles.length,
+        desiredCount: count,
+        barSpacing: 7,
+        layout,
+      });
+    chart.priceScale("right").applyOptions({ autoScale: true });
+    chart
+      .timeScale()
+      .setVisibleLogicalRange({ from: range.from, to: range.to });
+    requestAnimationFrame(redraw);
+  }, [view, redraw]);
+  const goToLive = useCallback(() => {
+    const chart = chartRef.current,
+      canvas = overlayRef.current;
+    if (!chart || !canvas || !latestRef.current.candles.length) return;
+    const range = calculateGoToLive({
+      candleCount: latestRef.current.candles.length,
+      currentRange: chart.timeScale().getVisibleLogicalRange(),
+      barSpacing: 7,
+      layout: chartLayout(canvas, chart, view),
+    });
+    chart.priceScale("right").applyOptions({ autoScale: true });
+    chart
+      .timeScale()
+      .setVisibleLogicalRange({ from: range.from, to: range.to });
+    requestAnimationFrame(redraw);
+  }, [view, redraw]);
+  useImperativeHandle(ref, () => ({ resetView, goToLive }), [
+    resetView,
+    goToLive,
+  ]);
+  useEffect(() => {
+    if (!containerRef.current) return;
+    indicatorsRef.current.clear();
+    const element = containerRef.current,
+      a = latestRef.current.view.appearance,
+      chart = createChart(element, {
+        autoSize: true,
+        layout: {
+          background: { type: ColorType.Solid, color: a.chart.background },
+          textColor: a.chart.axisText,
+          fontFamily: "Inter, system-ui, sans-serif",
+          fontSize: 11,
+          panes: { separatorColor: "#1b2233", enableResize: true },
+        },
+        grid: {
+          vertLines: { color: hexToRgba(a.chart.grid, a.opacity.grid) },
+          horzLines: { color: hexToRgba(a.chart.grid, a.opacity.grid) },
+        },
+        rightPriceScale: {
+          borderColor: a.chart.priceScaleBorder,
+          scaleMargins: { top: 0.08, bottom: 0.18 },
+        },
+        timeScale: {
+          borderColor: a.chart.timeScaleBorder,
+          timeVisible: true,
+          rightOffset: 8,
+          barSpacing: 7,
+        },
+      });
+    const candles = chart.addSeries(CandlestickSeries, {
+        priceLineVisible: false,
+        lastValueVisible: false,
+        borderVisible: false,
+      }),
+      volume = chart.addSeries(HistogramSeries, {
+        priceFormat: { type: "volume" },
+        priceScaleId: "",
+        lastValueVisible: false,
+        priceLineVisible: false,
+      });
+    volume
+      .priceScale()
+      .applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+    chartRef.current = chart;
+    candleRef.current = candles;
+    volumeRef.current = volume;
+    const observer = new ResizeObserver(() => {
+      redraw();
+    });
+    observer.observe(element);
+    const scheduleRedraw = () => requestAnimationFrame(redraw);
+    element.addEventListener("wheel", scheduleRedraw, { passive: true });
+    element.addEventListener("pointermove", scheduleRedraw, { passive: true });
+    element.addEventListener("pointerup", scheduleRedraw, { passive: true });
+    chart.timeScale().subscribeVisibleLogicalRangeChange(redraw);
+    return () => {
+      observer.disconnect();
+      element.removeEventListener("wheel", scheduleRedraw);
+      element.removeEventListener("pointermove", scheduleRedraw);
+      element.removeEventListener("pointerup", scheduleRedraw);
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(redraw);
+      if (priceLineRef.current) candles.removePriceLine(priceLineRef.current);
+      chart.remove();
+      chartRef.current = null;
+      candleRef.current = null;
+      volumeRef.current = null;
+      priceLineRef.current = null;
+      if (redrawFrameRef.current !== null)
+        cancelAnimationFrame(redrawFrameRef.current);
+    };
+  }, [redraw]);
+  useEffect(() => {
+    const chart = chartRef.current,
+      c = candleRef.current,
+      v = volumeRef.current,
+      a = view.appearance;
+    if (!chart || !c || !v) return;
+    chart.applyOptions({
+      layout: {
+        background: { type: ColorType.Solid, color: a.chart.background },
+        textColor: a.chart.axisText,
+      },
+      grid: {
+        vertLines: { color: hexToRgba(a.chart.grid, a.opacity.grid) },
+        horzLines: { color: hexToRgba(a.chart.grid, a.opacity.grid) },
+      },
+      crosshair: {
+        vertLine: { color: a.chart.crosshair },
+        horzLine: { color: a.chart.crosshair },
+      },
+      rightPriceScale: { borderColor: a.chart.priceScaleBorder },
+      timeScale: { borderColor: a.chart.timeScaleBorder },
+    });
+    c.applyOptions({
+      upColor: a.candles.bull,
+      downColor: a.candles.bear,
+      wickUpColor: a.candles.bullWick,
+      wickDownColor: a.candles.bearWick,
+    });
+    requestAnimationFrame(redraw);
+  }, [view.appearance, redraw]);
+  useEffect(() => {
+    const c = candleRef.current,
+      v = volumeRef.current;
+    if (!c || !v) return;
+    const a = view.appearance,
+      key = `${symbol}:${timeframe}`,
+      previous = previousDisplayRef.current,
+      plan = planSeriesSync(
+        previous,
+        displayCandles,
+        Boolean(marketKeyRef.current && marketKeyRef.current !== key),
+      );
+    const candleData = displayCandles.map((item) => ({
+      ...item,
+      time: item.time as UTCTimestamp,
+    }));
+    const volumeFor = (item: Candle) => ({
+      time: item.time as UTCTimestamp,
+      value: item.volume,
+      color: hexToRgba(
+        item.close >= item.open ? a.candles.bullVolume : a.candles.bearVolume,
+        0.23,
+      ),
+    });
+    try {
+      if (plan.operation === "setData") {
+        const range = chartRef.current?.timeScale().getVisibleLogicalRange();
+        c.setData(candleData);
+        v.setData(displayCandles.map(volumeFor));
+        if (range && marketKeyRef.current === key)
+          chartRef.current?.timeScale().setVisibleLogicalRange(range);
+      } else if (plan.operation === "update") {
+        c.update({ ...plan.point, time: plan.point.time as UTCTimestamp });
+        v.update(volumeFor(plan.point));
+      }
+      previousDisplayRef.current = displayCandles;
+      marketKeyRef.current = key;
+      redraw();
+    } catch (error) {
+      console.error("Chart sync error", {
+        operation: plan.operation,
+        market: key,
+        previousFinal: previous.at(-1)?.time,
+        nextFinal: displayCandles.at(-1)?.time,
+        previousSize: previous.length,
+        nextSize: displayCandles.length,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      queueMicrotask(() =>
+        setChartError(
+          error instanceof Error ? error : new Error(String(error)),
+        ),
+      );
+    }
+  }, [displayCandles, symbol, timeframe, view.appearance, redraw]);
   const livePrice = liveCandle?.close ?? null;
   useEffect(() => {
     const series = candleRef.current;
@@ -295,31 +1268,155 @@ const DizyChart = forwardRef<ChartControls, { displayCandles:Candle[];liveCandle
       priceLineRef.current = null;
       return;
     }
-    if (!priceLineRef.current) priceLineRef.current = series.createPriceLine({ price: livePrice, color: view.appearance.chart.livePrice, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "" });
-    priceLineRef.current.applyOptions({ price: livePrice, color: view.appearance.chart.livePrice });
+    if (!priceLineRef.current)
+      priceLineRef.current = series.createPriceLine({
+        price: livePrice,
+        color: view.appearance.chart.livePrice,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: false,
+        title: "",
+      });
+    priceLineRef.current.applyOptions({
+      price: livePrice,
+      color: view.appearance.chart.livePrice,
+    });
   }, [livePrice, view.appearance.chart.livePrice]);
   useEffect(() => {
-    updatePriceLineCountdownTitle(priceLineRef.current, countdownSeconds, view.countdownPriceMarker);
-  }, [countdownSeconds, view.countdownPriceMarker]);
-  useEffect(()=>{const chart=chartRef.current;if(!chart)return;const desired=new Map<string,{data:{time:number;value:number}[];color:string}>([["trend",{data:analysis.trend,color:view.appearance.indicators.trendMa}]]);if(view.vwap)desired.set("vwap",{data:analysis.vwap,color:view.appearance.indicators.vwap});indicatorsRef.current.forEach((series,key)=>{if(!desired.has(key)){chart.removeSeries(series);indicatorsRef.current.delete(key);}});desired.forEach((item,key)=>{let series=indicatorsRef.current.get(key);if(!series){series=chart.addSeries(LineSeries,{color:item.color,lineWidth:2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});indicatorsRef.current.set(key,series);}else series.applyOptions({color:item.color});series.setData(item.data.filter(p=>Number.isFinite(p.value)).map(p=>({...p,time:p.time as UTCTimestamp})));});redraw();},[analysis.trend,analysis.vwap,view.vwap,view.appearance.indicators,redraw]);
-  useEffect(()=>{requestAnimationFrame(resetView);},[resetKey,resetView]);
-  useEffect(()=>{requestAnimationFrame(redraw);},[view.volumeRows,redraw]);
-  if(chartError)throw chartError;
-  return <div className="chart-tools-grid"><ChartToolsLayer applyDefaultsNonce={applyDefaultsNonce} candles={displayCandles} chart={()=>chartRef.current} defaults={{trendLine:view.manualTrendLineExtension,ray:view.manualRayExtension,horizontalLine:view.manualHorizontalLineExtension,parallelChannel:view.manualChannelExtension,fibonacci:view.manualFibonacciExtension}} exchange="mexc" fadeExtendedPortions={view.fadeExtendedPortions} globalExtension={view.globalLineExtensionOverride} readOnly={readOnly} series={()=>candleRef.current} symbol={symbol} timeframe={timeframe}/><div className="chart-wrap"><div className="chart-canvas" ref={containerRef}/><canvas aria-hidden="true" className="chart-overlay" ref={overlayRef}/><div className="chart-legend"><span><i className="legend-vwap"/>VWAP {analysis.vwap.at(-1)?.value.toFixed(1)}</span><span><i className="legend-trend"/>Trend MA {analysis.trend.at(-1)?.value.toFixed(1)}</span><span><i className="legend-channel"/>LinReg channel</span></div></div></div>;
+    updatePriceLineCountdownTitle(priceLineRef.current, countdownSeconds, false);
+    const marker=markerRef.current, series=candleRef.current;
+    if(marker&&series&&livePrice!==null){const y=series.priceToCoordinate(livePrice),height=marker.parentElement?.clientHeight??0;if(y!==null)marker.style.top=`${Math.max(2,Math.min(height-48,Number(y)-18))}px`;}
+  }, [countdownSeconds, view.countdownPriceMarker, livePrice]);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const desired = new Map<
+      string,
+      { data: { time: number; value: number }[]; color: string }
+    >([
+      [
+        "trend",
+        { data: analysis.trend, color: view.appearance.indicators.trendMa },
+      ],
+    ]);
+    if (view.vwap)
+      desired.set("vwap", {
+        data: analysis.vwap,
+        color: view.appearance.indicators.vwap,
+      });
+    indicatorsRef.current.forEach((series, key) => {
+      if (!desired.has(key)) {
+        chart.removeSeries(series);
+        indicatorsRef.current.delete(key);
+      }
+    });
+    desired.forEach((item, key) => {
+      let series = indicatorsRef.current.get(key);
+      if (!series) {
+        series = chart.addSeries(LineSeries, {
+          color: item.color,
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+        });
+        indicatorsRef.current.set(key, series);
+      } else series.applyOptions({ color: item.color });
+      series.setData(
+        item.data
+          .filter((p) => Number.isFinite(p.value))
+          .map((p) => ({ ...p, time: p.time as UTCTimestamp })),
+      );
+    });
+    redraw();
+  }, [
+    analysis.trend,
+    analysis.vwap,
+    view.vwap,
+    view.appearance.indicators,
+    redraw,
+  ]);
+  useEffect(() => {
+    requestAnimationFrame(resetView);
+  }, [resetKey, resetView]);
+  useEffect(() => {
+    requestAnimationFrame(redraw);
+  }, [view.volumeRows, redraw]);
+  if (chartError) throw chartError;
+  return (
+    <div className="chart-tools-grid">
+      <ChartToolsLayer
+        applyDefaultsNonce={applyDefaultsNonce}
+        candles={displayCandles}
+        chart={() => chartRef.current}
+        defaults={{
+          trendLine: view.manualTrendLineExtension,
+          ray: view.manualRayExtension,
+          horizontalLine: view.manualHorizontalLineExtension,
+          parallelChannel: view.manualChannelExtension,
+          fibonacci: view.manualFibonacciExtension,
+        }}
+        exchange="mexc"
+        fadeExtendedPortions={view.fadeExtendedPortions}
+        globalExtension={view.globalLineExtensionOverride}
+        readOnly={readOnly}
+        series={() => candleRef.current}
+        symbol={symbol}
+        timeframe={timeframe}
+      />
+      <div className="chart-wrap">
+        <div className="chart-canvas" ref={containerRef} />
+        <canvas aria-hidden="true" className="chart-overlay" ref={overlayRef} />
+          {livePrice!==null&&view.countdownPriceMarker?<div className={`live-price-marker ${liveCandle&&liveCandle.close>liveCandle.open?"up":liveCandle&&liveCandle.close<liveCandle.open?"down":"neutral"}`} ref={markerRef}><strong>{currency.format(livePrice)}</strong><small>{countdownSeconds===null?"—":formatCountdown(countdownSeconds,timeframe as CandleTimeframe)}</small></div>:null}
+        <div className="chart-legend">
+          <span>
+            <i className="legend-vwap" />
+            VWAP {analysis.vwap.at(-1)?.value.toFixed(1)}
+          </span>
+          <span>
+            <i className="legend-trend" />
+            Trend MA {analysis.trend.at(-1)?.value.toFixed(1)}
+          </span>
+          <span>
+            <i className="legend-channel" />
+            LinReg channel
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 });
 
 export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [timeframe, setTimeframe] = useState("15m");
   const [symbol, setSymbol] = useState("BTC_USDT");
   const marketKey = `${symbol}:${timeframe}`;
-  const [timeline, dispatchTimeline] = useReducer(marketTimelineReducer, undefined, () => ({ marketKey, closed: generateDemoCandles(), live: null, lastPrice: null, rolloverSequence: 0 }));
-  const { closed: closedCandles, live: liveCandle, lastPrice: liveLastPrice } = timeline;
-  const displayCandles = useMemo(() => buildDisplayTimeline(closedCandles, liveCandle), [closedCandles, liveCandle]);
-  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>("connecting");
+  const [timeline, dispatchTimeline] = useReducer(
+    marketTimelineReducer,
+    undefined,
+    () => ({
+      marketKey,
+      closed: generateDemoCandles(),
+      live: null,
+      lastPrice: null,
+      rolloverSequence: 0,
+    }),
+  );
+  const {
+    closed: closedCandles,
+    live: liveCandle,
+    lastPrice: liveLastPrice,
+  } = timeline;
+  const displayCandles = useMemo(
+    () => buildDisplayTimeline(closedCandles, liveCandle),
+    [closedCandles, liveCandle],
+  );
+  const [realtimeStatus, setRealtimeStatus] =
+    useState<RealtimeStatus>("connecting");
   const [clockOffset, setClockOffset] = useState(0);
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
   const [viewportReset, setViewportReset] = useState(0);
-  const [applyDrawingDefaultsNonce,setApplyDrawingDefaultsNonce]=useState(0);
+  const [applyDrawingDefaultsNonce, setApplyDrawingDefaultsNonce] = useState(0);
   const [dataSource, setDataSource] = useState("MEXC PUBLIC DATA");
   const [feedError, setFeedError] = useState("");
   const [markets, setMarkets] = useState<MarketDescriptor[]>([]);
@@ -327,19 +1424,27 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [favourites, setFavourites] = useState<string[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
-  const [terminalTab, setTerminalTab] = useState<"charts" | "explorer">("charts");
+  const [terminalTab, setTerminalTab] = useState<"charts" | "explorer">(
+    "charts",
+  );
   const marketRequest = useRef(0);
   const marketAbort = useRef<AbortController | null>(null);
   const hasCandles = useRef(closedCandles.length > 0);
-  useEffect(() => { hasCandles.current = closedCandles.length > 0; }, [closedCandles.length]);
+  useEffect(() => {
+    hasCandles.current = closedCandles.length > 0;
+  }, [closedCandles.length]);
   const chartControls = useRef<ChartControls>(null);
   const timeframeStrip = useRef<HTMLDivElement>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [backgroundSyncing, setBackgroundSyncing] = useState(false);
   const [resultMarketKey, setResultMarketKey] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(true);
-  const [activePanel, setActivePanel] = useState<"visuals" | "strategy" | "risk">("visuals");
-  const [visualTab, setVisualTab] = useState<"layers" | "layout" | "lines" | "colours">("layers");
+  const [activePanel, setActivePanel] = useState<
+    "visuals" | "strategy" | "risk"
+  >("visuals");
+  const [visualTab, setVisualTab] = useState<
+    "layers" | "layout" | "lines" | "colours"
+  >("layers");
   const [executionMode, setExecutionMode] = useState<"Off" | "Paper">("Paper");
   const [view, setView] = useState<ViewSettings>(DEFAULT_VIEW);
   const [strategy, setStrategy] = useState(DEFAULT_STRATEGY);
@@ -348,50 +1453,135 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     riskPct: user.id === "friend" ? 0.5 : DEFAULT_RISK.riskPct,
     maxNotional: user.id === "friend" ? 500 : DEFAULT_RISK.maxNotional,
   }));
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  useEffect(()=>{timeframeStrip.current?.querySelector<HTMLElement>("[aria-pressed='true']")?.scrollIntoView({block:"nearest",inline:"nearest"});},[timeframe]);
+  const [saveState, setSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  useEffect(() => {
+    timeframeStrip.current
+      ?.querySelector<HTMLElement>("[aria-pressed='true']")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [timeframe]);
 
   const analysis = useMemo(
     () => analyzeStrategy(closedCandles, strategy),
     [closedCandles, strategy],
   );
-  const effectiveStrategy=useMemo(()=>resolveStrategySettings(strategy),[strategy]);
-  const historyCapacity=useMemo(()=>strategyHistoryCapacity(strategy),[strategy]);
+  const effectiveStrategy = useMemo(
+    () => resolveStrategySettings(strategy),
+    [strategy],
+  );
+  const historyCapacity = useMemo(
+    () => strategyHistoryCapacity(strategy),
+    [strategy],
+  );
   const backtest = useMemo(
     () => simulateConfirmedSignals(closedCandles, analysis, risk),
     [analysis, closedCandles, risk],
   );
+  const parityReport=useMemo(()=>buildPineParityReport({candles:closedCandles,analysis,datasetSource:dataSource,symbol,timeframe,backtest,compatibilityMode:strategyModeLabel(strategy.mode)}),[closedCandles,analysis,dataSource,symbol,timeframe,backtest,strategy.mode]);
   const [paperMark, setPaperMark] = useState<number | null>(null);
-  useEffect(() => { const timer=window.setTimeout(()=>setPaperMark(executionMode === "Paper" ? (liveLastPrice ?? liveCandle?.close ?? null) : null),225);return()=>window.clearTimeout(timer);},[executionMode,liveLastPrice,liveCandle?.close]);
-  const paperSnapshot = useMemo(() => livePaperSnapshot(backtest, paperMark, executionMode === "Paper"), [backtest,paperMark,executionMode]);
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () =>
+        setPaperMark(
+          executionMode === "Paper"
+            ? (liveLastPrice ?? liveCandle?.close ?? null)
+            : null,
+        ),
+      225,
+    );
+    return () => window.clearTimeout(timer);
+  }, [executionMode, liveLastPrice, liveCandle?.close]);
+  const paperSnapshot = useMemo(
+    () => livePaperSnapshot(backtest, paperMark, executionMode === "Paper"),
+    [backtest, paperMark, executionMode],
+  );
   const last = liveCandle ?? closedCandles.at(-1);
   const firstVisible = closedCandles.at(-97);
-  const change = last && firstVisible ? ((last.close - firstVisible.close) / firstVisible.close) * 100 : 0;
+  const change =
+    last && firstVisible
+      ? ((last.close - firstVisible.close) / firstVisible.close) * 100
+      : 0;
   const signalColour =
-    analysis.bias === "Bullish" ? "positive" : analysis.bias === "Bearish" ? "negative" : "neutral";
+    analysis.bias === "Bullish"
+      ? "positive"
+      : analysis.bias === "Bearish"
+        ? "negative"
+        : "neutral";
 
-  const loadMarketData = useCallback(async ({ reason, resetView }: { reason: MarketLoadReason; resetView: boolean }) => {
-    const requestId = ++marketRequest.current, requestKey = `${symbol}:${timeframe}`;
-    marketAbort.current?.abort();
-    const controller = new AbortController(); marketAbort.current = controller;
-    const blocking = (reason === "initial" || reason === "market-change") && !hasCandles.current;
-    if (blocking) setInitialLoading(true); else setBackgroundSyncing(true);
-    if (blocking) setFeedError("");
-    try {
-      const response = await fetch(`/api/market?exchange=mexc&symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&limit=${historyCapacity}`, { signal: controller.signal });
-      if (!response.ok) throw new Error("Feed unavailable");
-      const payload = (await response.json()) as { source: string; candles: Candle[] };
-      if (payload.candles.length < 20) throw new Error("Insufficient candle history");
-      if (requestId !== marketRequest.current || requestKey !== `${symbol}:${timeframe}`) return;
-      dispatchTimeline(reason === "market-change" || reason === "initial" ? { type: "replaceMarket", marketKey: requestKey, closed: payload.candles, limit:historyCapacity } : { type: "reconcileClosed", marketKey: requestKey, closed: payload.candles, limit:historyCapacity });
-      if (resetView && view.autoFitOnMarketChange) setViewportReset(value => value + 1);
-      setDataSource(payload.source.toUpperCase()); setResultMarketKey(requestKey);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      if (requestId !== marketRequest.current) return;
-      if (blocking) { setFeedError("MEXC candle data is currently unavailable."); setDataSource("MEXC UNAVAILABLE"); }
-    } finally { if (requestId === marketRequest.current) { setInitialLoading(false); setBackgroundSyncing(false); marketAbort.current = null; } }
-  }, [symbol, timeframe, view.autoFitOnMarketChange, historyCapacity]);
+  const loadMarketData = useCallback(
+    async ({
+      reason,
+      resetView,
+    }: {
+      reason: MarketLoadReason;
+      resetView: boolean;
+    }) => {
+      const requestId = ++marketRequest.current,
+        requestKey = `${symbol}:${timeframe}`;
+      marketAbort.current?.abort();
+      const controller = new AbortController();
+      marketAbort.current = controller;
+      const blocking =
+        (reason === "initial" || reason === "market-change") &&
+        !hasCandles.current;
+      if (blocking) setInitialLoading(true);
+      else setBackgroundSyncing(true);
+      if (blocking) setFeedError("");
+      try {
+        const response = await fetch(
+          `/api/market?exchange=mexc&symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&limit=${historyCapacity}`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) throw new Error("Feed unavailable");
+        const payload = (await response.json()) as {
+          source: string;
+          candles: Candle[];
+        };
+        if (payload.candles.length < 20)
+          throw new Error("Insufficient candle history");
+        if (
+          requestId !== marketRequest.current ||
+          requestKey !== `${symbol}:${timeframe}`
+        )
+          return;
+        dispatchTimeline(
+          reason === "market-change" || reason === "initial"
+            ? {
+                type: "replaceMarket",
+                marketKey: requestKey,
+                closed: payload.candles,
+                limit: historyCapacity,
+              }
+            : {
+                type: "reconcileClosed",
+                marketKey: requestKey,
+                closed: payload.candles,
+                limit: historyCapacity,
+              },
+        );
+        if (resetView && view.autoFitOnMarketChange)
+          setViewportReset((value) => value + 1);
+        setDataSource(payload.source.toUpperCase());
+        setResultMarketKey(requestKey);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError")
+          return;
+        if (requestId !== marketRequest.current) return;
+        if (blocking) {
+          setFeedError("MEXC candle data is currently unavailable.");
+          setDataSource("MEXC UNAVAILABLE");
+        }
+      } finally {
+        if (requestId === marketRequest.current) {
+          setInitialLoading(false);
+          setBackgroundSyncing(false);
+          marketAbort.current = null;
+        }
+      }
+    },
+    [symbol, timeframe, view.autoFitOnMarketChange, historyCapacity],
+  );
 
   const demo = dataSource === "DEMONSTRATION DATA";
   useMexcRealtime({
@@ -400,25 +1590,50 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     timeframe: timeframe as CandleTimeframe,
     onStatus: setRealtimeStatus,
     onClockOffset: setClockOffset,
-    onResync: () => void loadMarketData({ reason: "reconnect", resetView: false }),
-    onKline: (incoming) => dispatchTimeline({ type: "kline", marketKey, candle: incoming }),
-    onDeal: (deal) => dispatchTimeline({ type: "deal", marketKey, deal, timeframe: timeframe as CandleTimeframe }),
+    onResync: () =>
+      void loadMarketData({ reason: "reconnect", resetView: false }),
+    onKline: (incoming) =>
+      dispatchTimeline({ type: "kline", marketKey, candle: incoming }),
+    onDeal: (deal) =>
+      dispatchTimeline({
+        type: "deal",
+        marketKey,
+        deal,
+        timeframe: timeframe as CandleTimeframe,
+      }),
   });
 
   useEffect(() => {
     if (!timeline.rolloverSequence || timeline.marketKey !== marketKey) return;
-    const timer = window.setTimeout(() => void loadMarketData({ reason: "rollover", resetView: false }), 750);
+    const timer = window.setTimeout(
+      () => void loadMarketData({ reason: "rollover", resetView: false }),
+      750,
+    );
     return () => window.clearTimeout(timer);
-  }, [timeline.rolloverSequence, timeline.marketKey, marketKey, loadMarketData]);
+  }, [
+    timeline.rolloverSequence,
+    timeline.marketKey,
+    marketKey,
+    loadMarketData,
+  ]);
 
   useEffect(() => () => marketAbort.current?.abort(), []);
 
-  const countdownActive = view.candleCountdown && liveCandle !== null && (view.countdownToolbar || view.countdownPriceMarker);
+  const countdownActive =
+    view.candleCountdown &&
+    liveCandle !== null &&
+    (view.countdownToolbar || view.countdownPriceMarker);
   useEffect(() => {
     if (!countdownActive) return;
     return startAlignedSecondClock({ document, onTick: setCountdownNow });
   }, [countdownActive, symbol, timeframe]);
-  const countdownSeconds = countdownActive ? calculateExchangeAlignedCountdownSeconds({ timeframe: timeframe as CandleTimeframe, clientNowMs: countdownNow, clockOffsetMs: clockOffset }) : null;
+  const countdownSeconds = countdownActive
+    ? calculateExchangeAlignedCountdownSeconds({
+        timeframe: timeframe as CandleTimeframe,
+        clientNowMs: countdownNow,
+        clockOffsetMs: clockOffset,
+      })
+    : null;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -439,11 +1654,19 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
         setView(payload.settings.view);
         setStrategy(payload.settings.strategy);
         setRisk(payload.settings.risk);
-        const stored = user.role === "viewer" ? JSON.parse(sessionStorage.getItem("dizy-viewer-market") || "null") : payload.settings.market;
-        if (stored) { setSymbol(stored.symbol || "BTC_USDT"); setTimeframe(stored.timeframe || "15m"); setFavourites(stored.favourites || []); }
+        const stored =
+          user.role === "viewer"
+            ? JSON.parse(sessionStorage.getItem("dizy-viewer-market") || "null")
+            : payload.settings.market;
+        if (stored) {
+          setSymbol(stored.symbol || "BTC_USDT");
+          setTimeframe(stored.timeframe || "15m");
+          setFavourites(stored.favourites || []);
+        }
       })
       .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (error instanceof DOMException && error.name === "AbortError")
+          return;
         setSaveState("error");
       });
     return () => controller.abort();
@@ -452,16 +1675,30 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   useEffect(() => {
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      void fetch(`/api/markets?exchange=mexc&query=${encodeURIComponent(marketQuery)}&favourites=${encodeURIComponent(favourites.join(","))}`, { signal: controller.signal })
-        .then((response) => response.ok ? response.json() : Promise.reject())
-        .then((payload: { markets: MarketDescriptor[] }) => setMarkets(payload.markets))
-        .catch(() => { if (!controller.signal.aborted) setMarkets([]); });
+      void fetch(
+        `/api/markets?exchange=mexc&query=${encodeURIComponent(marketQuery)}&favourites=${encodeURIComponent(favourites.join(","))}`,
+        { signal: controller.signal },
+      )
+        .then((response) => (response.ok ? response.json() : Promise.reject()))
+        .then((payload: { markets: MarketDescriptor[] }) =>
+          setMarkets(payload.markets),
+        )
+        .catch(() => {
+          if (!controller.signal.aborted) setMarkets([]);
+        });
     }, 180);
-    return () => { controller.abort(); window.clearTimeout(timer); };
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
   }, [marketQuery, favourites]);
 
   useEffect(() => {
-    if (user.role === "viewer") sessionStorage.setItem("dizy-viewer-market", JSON.stringify({ symbol, timeframe, favourites }));
+    if (user.role === "viewer")
+      sessionStorage.setItem(
+        "dizy-viewer-market",
+        JSON.stringify({ symbol, timeframe, favourites }),
+      );
   }, [favourites, symbol, timeframe, user.role]);
 
   const applyPaperSettings = async () => {
@@ -470,7 +1707,12 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       const profileResponse = await fetch("/api/profile", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ view, strategy, risk, market: { exchange: "mexc", symbol, timeframe, favourites } }),
+        body: JSON.stringify({
+          view,
+          strategy,
+          risk,
+          market: { exchange: "mexc", symbol, timeframe, favourites },
+        }),
       });
       if (!profileResponse.ok) throw new Error("Could not save settings");
       if (executionMode === "Paper") {
@@ -503,12 +1745,36 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     setSaveState("idle");
   };
 
-  const setViewKey = <K extends keyof ViewSettings>(key: K, value: ViewSettings[K]) =>
-    setView((current) => ({ ...current, [key]: value }));
-  const setStrategyValue=<K extends keyof typeof strategy>(key:K,value:(typeof strategy)[K])=>setStrategy(current=>({...current,mode:"custom",[key]:value}));
-  const setStrategyMode=(mode:StrategyMode)=>setStrategy(current=>({...current,mode}));
-  const setAppearanceColour = (group: "chart" | "candles" | "indicators" | "structure" | "profile", key: string, value: string) => setView(current => ({ ...current, appearance: { ...current.appearance, preset: "custom", [group]: { ...current.appearance[group], [key]: value } } }));
-  const applyAppearancePreset = (preset: Exclude<ChartAppearanceSettings["preset"], "custom">) => setView(current => ({ ...current, appearance: structuredClone(APPEARANCE_PRESETS[preset]) }));
+  const setViewKey = <K extends keyof ViewSettings>(
+    key: K,
+    value: ViewSettings[K],
+  ) => setView((current) => ({ ...current, [key]: value }));
+  const setStrategyValue = <K extends keyof typeof strategy>(
+    key: K,
+    value: (typeof strategy)[K],
+  ) => setStrategy((current) => ({ ...current, mode: "custom", [key]: value }));
+  const setStrategyMode = (mode: StrategyMode) =>
+    setStrategy((current) => ({ ...current, mode }));
+  const setAppearanceColour = (
+    group: "chart" | "candles" | "indicators" | "structure" | "profile",
+    key: string,
+    value: string,
+  ) =>
+    setView((current) => ({
+      ...current,
+      appearance: {
+        ...current.appearance,
+        preset: "custom",
+        [group]: { ...current.appearance[group], [key]: value },
+      },
+    }));
+  const applyAppearancePreset = (
+    preset: Exclude<ChartAppearanceSettings["preset"], "custom">,
+  ) =>
+    setView((current) => ({
+      ...current,
+      appearance: structuredClone(APPEARANCE_PRESETS[preset]),
+    }));
 
   return (
     <main className="terminal-shell">
@@ -525,14 +1791,47 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           </div>
         </div>
         <div className="system-strip">
-          <button className={terminalTab === "charts" ? "nav-tab active" : "nav-tab"} onClick={() => { setTerminalTab("charts"); if (view.autoFitOnMarketChange) setViewportReset((value) => value + 1); }} type="button">DizyCharts</button>
-          <button className={terminalTab === "explorer" ? "nav-tab active" : "nav-tab"} onClick={() => setTerminalTab("explorer")} type="button">TradingView Explorer</button>
-          <span className={`connection realtime-${demo ? "demo" : realtimeStatus}`}><i /> {demo ? "DEMO" : realtimeStatus === "live" ? "LIVE" : realtimeStatus === "delayed" ? "DELAYED / REST ONLY" : realtimeStatus.toUpperCase()}</span>
-          <span className="confirmed">Confirmed candles · Live market data · simulation only</span>
+          <button
+            className={terminalTab === "charts" ? "nav-tab active" : "nav-tab"}
+            onClick={() => {
+              setTerminalTab("charts");
+              if (view.autoFitOnMarketChange)
+                setViewportReset((value) => value + 1);
+            }}
+            type="button"
+          >
+            DizyCharts
+          </button>
+          <button
+            className={
+              terminalTab === "explorer" ? "nav-tab active" : "nav-tab"
+            }
+            onClick={() => setTerminalTab("explorer")}
+            type="button"
+          >
+            TradingView Explorer
+          </button>
+          <span
+            className={`connection realtime-${demo ? "demo" : realtimeStatus}`}
+          >
+            <i />{" "}
+            {demo
+              ? "DEMO"
+              : realtimeStatus === "live"
+                ? "LIVE"
+                : realtimeStatus === "delayed"
+                  ? "DELAYED / REST ONLY"
+                  : realtimeStatus.toUpperCase()}
+          </span>
+          <span className="confirmed">
+            Confirmed candles · Live market data · simulation only
+          </span>
           <span className="test-mode">Private test mode</span>
           <span className="lock-status">Live execution locked</span>
-          <ManualPaperTicket publicPrice={liveLastPrice ?? liveCandle?.close ?? null} readOnly={user.role==="viewer"} symbol={symbol}/>
-          {user.role === "viewer" ? <span className="viewer-badge">VIEWER — READ ONLY</span> : null}
+          
+          {user.role === "viewer" ? (
+            <span className="viewer-badge">VIEWER — READ ONLY</span>
+          ) : null}
         </div>
         <div className="profile">
           <div className="account-switch static-account">
@@ -540,270 +1839,1800 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
             <b>{user.name}</b>
             <em>{user.role}</em>
           </div>
-          {user.role !== "viewer" ? <button aria-label="Open settings" className="icon-button" type="button" onClick={() => setSettingsOpen((open) => !open)}>
-            ⚙
-          </button> : null}
-          <a aria-label={user.role === "viewer" ? "Exit viewer" : "Sign out"} className="icon-button signout-button" href="/api/auth/logout">
+          {user.role !== "viewer" ? (
+            <button
+              aria-label="Open settings"
+              className="icon-button"
+              type="button"
+              onClick={() => setSettingsOpen((open) => !open)}
+            >
+              ⚙
+            </button>
+          ) : null}
+          <a
+            aria-label={user.role === "viewer" ? "Exit viewer" : "Sign out"}
+            className="icon-button signout-button"
+            href="/api/auth/logout"
+          >
             ↗
           </a>
         </div>
       </header>
 
-      {terminalTab === "explorer" ? <TradingViewExplorer nativeChart={<DizyChart applyDefaultsNonce={applyDrawingDefaultsNonce} analysis={analysis} displayCandles={displayCandles} countdownSeconds={countdownSeconds} liveCandle={liveCandle} readOnly={user.role==="viewer"} resetKey={viewportReset} symbol={symbol} timeframe={timeframe} view={view}/>} symbol={symbol} timeframe={timeframe} /> : <>
-      <section className="market-toolbar">
-        <div className="symbol-block">
-          <button aria-expanded={selectorOpen} aria-label="Search MEXC perpetual markets" className="symbol-selector" onClick={() => setSelectorOpen((value) => !value)} type="button"><span className="coin">{symbol.split("_")[0].slice(0, 1)}</span><span><strong>{symbol.replace("_", " / ")}</strong><small>MEXC · perpetual ▾</small></span></button>
-          {selectorOpen ? <div className="market-menu"><input autoFocus aria-label="Search symbol, base or quote" onChange={(event) => setMarketQuery(event.target.value)} placeholder="Search every MEXC perpetual…" value={marketQuery} /><div className="market-results">{markets.length ? markets.map((market) => <button className={market.symbol === symbol ? "active" : ""} key={market.symbol} onClick={() => { setSymbol(market.symbol); setRecent((items) => [market.symbol, ...items.filter((item) => item !== market.symbol)].slice(0, 8)); setSelectorOpen(false); }} type="button"><span><b>{market.displayName}</b><small>MEXC perpetual · settle {market.settlementCurrency}</small></span><i aria-label="Favourite" onClick={(event) => { event.stopPropagation(); setFavourites((items) => items.includes(market.symbol) ? items.filter((item) => item !== market.symbol) : [...items, market.symbol]); }}>{favourites.includes(market.symbol) ? "★" : "☆"}</i></button>) : <p>No enabled markets found.</p>}</div>{recent.length ? <small>Recent: {recent.join(" · ")}</small> : null}</div> : null}
-        </div>
-        <div className="quote-block">
-          <strong>{last ? currency.format(liveLastPrice ?? last.close) : "—"}</strong>
-          <span className={change >= 0 ? "positive" : "negative"}>{signed(change)}</span>
-          {view.countdownToolbar && countdownSeconds !== null ? <small className={countdownSeconds <= 10 ? "countdown closing" : "countdown"}>Candle closes in {formatCountdown(countdownSeconds, timeframe as CandleTimeframe)}</small> : null}
-        </div>
-        <div className="toolbar-divider" />
-        <div className="timeframes" aria-label="Chart timeframe" ref={timeframeStrip} role="group" tabIndex={0}>
-          {ALL_TIMEFRAMES.map((item) => (
-            <button
-              aria-pressed={timeframe === item}
-              className={timeframe === item ? "active" : ""}
-              key={item}
-              onClick={() => setTimeframe(item)}
-              title={TIMEFRAME_TITLES[item]}
-              type="button"
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-        <div className="chart-view-actions" aria-label="Chart view controls">
-          <button aria-label="Reset chart view" onClick={()=>chartControls.current?.resetView()} title="Reset view — automatically fit candles and overlays" type="button">Reset view</button>
-          <button aria-label="Go to live chart position" onClick={()=>chartControls.current?.goToLive()} title="Go to live — move to the latest candle (does not enable live trading)" type="button">Go to live</button>
-        </div>
-        <div className="toolbar-divider" />
-        <label className="preset-button">
-          <span>Preset</span>
-          <select aria-label="Strategy preset" value={strategy.mode} onChange={e=>setStrategyMode(e.target.value as StrategyMode)}><option value="scalp-15m">Scalping · 15m</option><option value="swing-1h-4h">Swing · 1H/4H</option><option value="custom">Custom</option></select>
-        </label>
-        <button className="refresh-button" disabled={backgroundSyncing} onClick={() => void loadMarketData({ reason: "manual", resetView: false })} type="button">
-          {backgroundSyncing ? "Syncing…" : "Refresh data"}
-        </button>
-        <div className="toolbar-spacer" />
-        <div className="mode-control" aria-label="Execution mode">
-          {(["Off", "Paper"] as const).map((mode) => (
-            <button
-              className={executionMode === mode ? "active" : ""}
-              key={mode}
-              onClick={() => setExecutionMode(mode)}
-              type="button"
-            >
-              {mode}
-            </button>
-          ))}
-          <button className="live-disabled" disabled title="Live trading is deliberately unavailable in this review build" type="button">
-            Live 🔒
-          </button>
-        </div>
-      </section>
-      {view.showSimulationPerformance ? <PaperPerformanceToolbar calculating={resultMarketKey !== `${symbol}:${timeframe}`} enabled={executionMode === "Paper"} snapshot={paperSnapshot} /> : null}
-
-      <div className={`workspace ${settingsOpen ? "" : "panel-closed"}`}>
-        <section className="chart-section">
-          <div className="chart-status-row">
-            <div>
-              <span className={`bias-pill ${signalColour}`}>{analysis.bias} bias</span>
-              <strong>Confluence {Math.max(analysis.scoreLong, analysis.scoreShort)} / 5</strong>
-              <span>{analysis.phase}</span>
-            </div>
-            <div>
-              <span>{dataSource}</span>
-              <span>{closedCandles.length} confirmed bars</span>
-              <span>Last signal: {analysis.lastSignal}</span>
-            </div>
-          </div>
-          {feedError ? <div className="feed-error" role="alert"><strong>{feedError}</strong><span>Real data was not replaced automatically.</span><button onClick={() => { dispatchTimeline({ type: "demonstrationData", marketKey, closed: generateDemoCandles() }); setDataSource("DEMONSTRATION DATA"); setFeedError(""); }} type="button">Use demonstration data</button></div> : initialLoading && !closedCandles.length ? <div className="chart-skeleton">Loading closed candles…</div> : <ChartErrorBoundary marketKey={marketKey} onReload={() => setViewportReset(value => value + 1)}><DizyChart key={viewportReset} applyDefaultsNonce={applyDrawingDefaultsNonce} analysis={analysis} displayCandles={displayCandles} countdownSeconds={countdownSeconds} liveCandle={liveCandle} readOnly={user.role==="viewer"} ref={chartControls} resetKey={viewportReset} symbol={symbol} timeframe={timeframe} view={view} /></ChartErrorBoundary>}
-          <div className="signal-dock">
-            <article>
-              <span>Current setup</span>
-              <strong className={signalColour}>{analysis.bias}</strong>
-              <small>{analysis.lastSignal}</small>
-            </article>
-            <article>
-              <span>Long confluence</span>
-              <strong>{analysis.scoreLong} / 5</strong>
-              <div className="score-track"><i style={{ width: `${analysis.scoreLong * 20}%` }} /></div>
-            </article>
-            <article>
-              <span>Short confluence</span>
-              <strong>{analysis.scoreShort} / 5</strong>
-              <div className="score-track red"><i style={{ width: `${analysis.scoreShort * 20}%` }} /></div>
-            </article>
-            <article>
-              <span>Risk gate</span>
-              <strong>{risk.riskPct}% · {risk.leverage}×</strong>
-              <small>Max {currency.format(risk.maxNotional)}</small>
-            </article>
-            <article className="paper-card">
-              <span>{executionMode === "Paper" ? "Historical paper run" : "Engine"}</span>
-              <strong className={backtest.returnPct >= 0 ? "positive" : "negative"}>
-                {executionMode === "Paper" ? signed(backtest.returnPct) : "Signals only"}
-              </strong>
-              <small>
-                {executionMode === "Paper"
-                  ? `${backtest.trades} trades · ${backtest.winRatePct.toFixed(0)}% win`
-                  : "Live orders blocked"}
-              </small>
-            </article>
-          </div>
-        </section>
-
-        {user.role !== "viewer" ? <aside className="settings-panel" aria-label="DizySignals settings">
-          <div className="panel-heading">
-            <div><small>{user.name}&apos;s private workspace</small><strong>Signal settings</strong></div>
-            <button aria-label="Close settings" onClick={() => setSettingsOpen(false)} type="button">×</button>
-          </div>
-          <div className="panel-tabs">
-            {(["visuals", "strategy", "risk"] as const).map((panel) => (
+      {terminalTab === "explorer" ? (
+        <TradingViewExplorer
+          nativeChart={
+            <DizyChart
+              applyDefaultsNonce={applyDrawingDefaultsNonce}
+              analysis={analysis}
+              displayCandles={displayCandles}
+              countdownSeconds={countdownSeconds}
+              liveCandle={liveCandle}
+              readOnly={user.role === "viewer"}
+              resetKey={viewportReset}
+              symbol={symbol}
+              timeframe={timeframe}
+              view={view}
+            />
+          }
+          symbol={symbol}
+          timeframe={timeframe}
+        />
+      ) : (
+        <>
+          <section className="market-toolbar">
+            <div className="symbol-block">
               <button
-                className={activePanel === panel ? "active" : ""}
-                key={panel}
-                onClick={() => setActivePanel(panel)}
+                aria-expanded={selectorOpen}
+                aria-label="Search MEXC perpetual markets"
+                className="symbol-selector"
+                onClick={() => setSelectorOpen((value) => !value)}
                 type="button"
               >
-                {panel}
+                <span className="coin">{symbol.split("_")[0].slice(0, 1)}</span>
+                <span>
+                  <strong>{symbol.replace("_", " / ")}</strong>
+                  <small>MEXC · perpetual ▾</small>
+                </span>
               </button>
-            ))}
-          </div>
-
-          <div className="panel-scroll">
-            {activePanel === "visuals" ? (
-              <>
-                <div className="visual-subtabs" role="tablist">{(["layers", "layout", "lines", "colours"] as const).map(tab => <button className={visualTab === tab ? "active" : ""} key={tab} onClick={() => setVisualTab(tab)} type="button">{tab === "layout" ? "Labels & layout" : tab === "lines" ? "Lines & channels" : tab}</button>)}</div>
-                {visualTab === "layers" ? <div className="setting-section"><h3>Chart layers</h3>
-                  <IndicatorToggle checked={view.indicatorPackage} colour="#8b7cff" label="DizyTrades Indicator Package" onChange={value=>setViewKey("indicatorPackage",value)}/>
-                  <IndicatorToggle checked={view.supportResistance} colour={view.appearance.structure.supportLine} label="Support & resistance zones" onChange={value=>setViewKey("supportResistance",value)}/><IndicatorToggle checked={view.showLevelTouches} colour={view.appearance.structure.supportLine} label="Show S/R touches" onChange={value=>setViewKey("showLevelTouches",value)}/><IndicatorToggle checked={view.vwap} colour={view.appearance.indicators.vwap} label="Rolling VWAP" onChange={value=>setViewKey("vwap",value)}/><IndicatorToggle checked={view.fibonacci} colour={view.appearance.structure.fibonacciLine} label="Fibonacci levels" onChange={value=>setViewKey("fibonacci",value)}/><IndicatorToggle checked={view.channels} colour={view.appearance.indicators.regression} label="Regression channel" onChange={value=>setViewKey("channels",value)}/><IndicatorToggle checked={view.trendlines} colour={view.appearance.indicators.bullTrendline} label="Pivot trendlines" onChange={value=>setViewKey("trendlines",value)}/><IndicatorToggle checked={view.triangles} colour={view.appearance.structure.bearishTriangleBorder} label="Triangle outlines" onChange={value=>setViewKey("triangles",value)}/><IndicatorToggle checked={view.completedPatternFills} colour={view.appearance.structure.elliottFill} label="Completed pattern fills" onChange={value=>setViewKey("completedPatternFills",value)}/><IndicatorToggle checked={view.volumeProfile} colour={view.appearance.profile.bull} label="Right volume profile" onChange={value=>setViewKey("volumeProfile",value)}/><IndicatorToggle checked={view.waves} colour={view.appearance.structure.waveMarker} label="Elliott/Wyckoff stage bubbles" onChange={value=>setViewKey("waves",value)}/><IndicatorToggle checked={view.provisionalStages} colour={view.appearance.structure.provisionalBorder} label="Provisional ? stages" onChange={value=>setViewKey("provisionalStages",value)}/><IndicatorToggle checked={view.signals} colour={view.appearance.structure.buyMarker} label="BUY/SELL signal bubbles" onChange={value=>setViewKey("signals",value)}/><IndicatorToggle checked={view.showSimulationPerformance} colour="#8b7cff" label="Show simulation performance in toolbar" onChange={value=>setViewKey("showSimulationPerformance",value)}/><IndicatorToggle checked={view.realtimeChartUpdates} colour="#2ee6a6" label="Real-time chart updates" onChange={value=>setViewKey("realtimeChartUpdates",value)}/><IndicatorToggle checked={view.countdownToolbar} colour="#ffd071" label="Countdown in toolbar" onChange={value=>setViewKey("countdownToolbar",value)}/><IndicatorToggle checked={view.countdownPriceMarker} colour={view.appearance.chart.livePrice} label="Countdown on price marker" onChange={value=>setViewKey("countdownPriceMarker",value)}/><IndicatorToggle checked={view.autoFitOnMarketChange} colour="#57a5ff" label="Auto-fit on market change" onChange={value=>setViewKey("autoFitOnMarketChange",value)}/>
-                  <RangeField label="Volume lookback" max={600} min={60} onChange={value=>setViewKey("volumeBars",value)} step={20} suffix="candles" value={view.volumeBars}/><p className="field-help">How many historical candles are analysed.</p>
-                  <label className="field-row"><span>Profile bar size</span><select aria-label="Profile bar size" value={profileBarPreset(view.volumeRows)} onChange={event=>{const preset=event.target.value as keyof typeof PROFILE_BAR_PRESETS;if(preset in PROFILE_BAR_PRESETS)setViewKey("volumeRows",PROFILE_BAR_PRESETS[preset]);}}><option>Large</option><option>Medium</option><option>Small</option><option>Very small</option><option disabled value="Custom">Custom</option></select></label>
-                  <RangeField label="Volume profile bars" max={240} min={12} onChange={value=>setViewKey("volumeRows",value)} step={4} suffix="bars" value={view.volumeRows}/><p className="field-help">More bars create thinner, more detailed price rows.</p><RangeField label="Profile opacity" max={1} min={0} step={.05} onChange={value=>setViewKey("profileOpacity",value)} value={view.profileOpacity}/><IndicatorToggle checked={view.showProfileHeading} colour={view.appearance.profile.heading} label="Profile heading" onChange={value=>setViewKey("showProfileHeading",value)}/>
-                </div> : null}
-                {visualTab === "layout" ? <div className="setting-section"><h3>Labels & reserved lanes</h3>
-                  <label className="field-row"><span>Label size</span><select value={view.labelSize} onChange={e=>setViewKey("labelSize",e.target.value as ViewSettings["labelSize"])}><option>Small</option><option>Medium</option><option>Large</option></select></label>
-                  <label className="field-row"><span>Pattern bubble size</span><select value={view.patternBubbleSize} onChange={e=>setViewKey("patternBubbleSize",e.target.value as ViewSettings["patternBubbleSize"])}><option>Small</option><option>Medium</option><option>Large</option></select></label><label className="field-row"><span>Signal bubble size</span><select value={view.signalBubbleSize} onChange={e=>setViewKey("signalBubbleSize",e.target.value as ViewSettings["signalBubbleSize"])}><option>Tiny</option><option>Small</option><option>Medium</option><option>Large</option><option>Extra Large</option></select></label><label className="field-row"><span>Signal detail</span><select value={view.signalDetail} onChange={e=>setViewKey("signalDetail",e.target.value as ViewSettings["signalDetail"])}><option>Direction only</option><option>Direction + confluence</option></select></label><label className="field-row"><span>Signal placement</span><select value={view.signalPlacement} onChange={e=>setViewKey("signalPlacement",e.target.value as ViewSettings["signalPlacement"])}><option value="side-aware">Side-aware</option><option value="above">Above candle</option><option value="below">Below candle</option></select></label><RangeField label="Signal distance" max={80} min={0} onChange={value=>setViewKey("signalDistance",value)} suffix="px" value={view.signalDistance}/><IndicatorToggle checked={view.showHistoricalSignals} colour={view.appearance.structure.buyMarker} label="Show historical automatic signals" onChange={value=>setViewKey("showHistoricalSignals",value)}/><IndicatorToggle checked={view.showManualPaperMarkers} colour="#ffd071" label="Show manual paper-trade markers" onChange={value=>setViewKey("showManualPaperMarkers",value)}/><IndicatorToggle checked={view.showPatternConnectors} colour="#8994ad" label="Pattern label connector lines" onChange={value=>setViewKey("showPatternConnectors",value)}/>
-                  <PlacementField label="S/R labels" value={view.srLabelPlacement} onChange={value=>setViewKey("srLabelPlacement",value)}/><PlacementField label="Fibonacci labels" value={view.fibLabelPlacement} onChange={value=>setViewKey("fibLabelPlacement",value)}/>
-                  <label className="field-row"><span>Pattern labels</span><select value={view.patternLabelPlacement} onChange={e=>setViewKey("patternLabelPlacement",e.target.value as ViewSettings["patternLabelPlacement"])}><option value="above">Above pattern</option><option value="inside">Inside pattern</option><option value="below">Below pattern</option><option value="left">Left of pattern</option><option value="right">Right of pattern</option><option value="hidden">Hidden labels</option></select></label>
-                  <RangeField label="Horizontal offset" max={80} min={0} onChange={value=>setViewKey("labelOffset",value)} suffix="px" value={view.labelOffset}/><RangeField label="Label padding" max={20} min={2} onChange={value=>setViewKey("labelPadding",value)} suffix="px" value={view.labelPadding}/><IndicatorToggle checked={view.compactLabels} colour="#8994ad" label="Compact labels" onChange={value=>setViewKey("compactLabels",value)}/><RangeField label="Profile width" max={30} min={10} onChange={value=>setViewKey("profileWidthPct",value)} suffix="%" value={view.profileWidthPct}/><RangeField label="Profile maximum" max={320} min={100} onChange={value=>setViewKey("profileMaxWidth",value)} step={10} suffix="px" value={view.profileMaxWidth}/><RangeField label="Profile inset" max={40} min={0} onChange={value=>setViewKey("profileInset",value)} suffix="px" value={view.profileInset}/><button className="reset-appearance" onClick={()=>setView(current=>({...current,...DEFAULT_VIEW,appearance:current.appearance}))} type="button">Reset labels / layout</button>
-                </div> : null}
-                {visualTab === "lines" ? <div className="setting-section"><h3>Line extensions</h3><label className="field-row"><span>Global line extension override</span><select value={view.globalLineExtensionOverride} onChange={e=>setViewKey("globalLineExtensionOverride",e.target.value as ViewSettings["globalLineExtensionOverride"])}><option value="individual">Use individual settings</option><option value="none">None</option><option value="left">Left</option><option value="right">Right</option><option value="both">Both</option></select></label><IndicatorToggle checked={view.fadeExtendedPortions} colour={view.appearance.indicators.bullTrendline} label="Fade extended portions" onChange={value=>setViewKey("fadeExtendedPortions",value)}/><h3>Manual drawing defaults</h3><ExtensionField label="Trend line default extension" value={view.manualTrendLineExtension} onChange={value=>setViewKey("manualTrendLineExtension",value)}/><ExtensionField label="Ray default extension" value={view.manualRayExtension} onChange={value=>setViewKey("manualRayExtension",value)}/><label className="field-row"><span>Horizontal line default extension</span><select value={view.manualHorizontalLineExtension} onChange={e=>setViewKey("manualHorizontalLineExtension",e.target.value as ViewSettings["manualHorizontalLineExtension"])}><option value="left">Left</option><option value="right">Right</option><option value="both">Both</option></select></label><ExtensionField label="Parallel channel default extension" value={view.manualChannelExtension} onChange={value=>setViewKey("manualChannelExtension",value)}/><ExtensionField label="Fibonacci default extension" value={view.manualFibonacciExtension} onChange={value=>setViewKey("manualFibonacciExtension",value)}/><button onClick={()=>{if(window.confirm("Apply extension defaults to all unlocked compatible drawings?"))setApplyDrawingDefaultsNonce(n=>n+1)}} type="button">Apply defaults to existing drawings</button><h3>Pivot trendlines</h3><p className="field-help">Line extension reaches the visible plot edge and updates when the chart is panned or zoomed.</p>
-                  <IndicatorToggle checked={view.trendlines} colour={view.appearance.indicators.bullTrendline} label="Show pivot trendlines" onChange={value=>setViewKey("trendlines",value)}/><ExtensionField label="Pivot extension" value={view.pivotTrendlineExtension} onChange={value=>setViewKey("pivotTrendlineExtension",value)}/><RangeField label="Pivot width" max={5} min={1} onChange={value=>setViewKey("pivotTrendlineWidth",value)} suffix="px" value={view.pivotTrendlineWidth}/><label className="field-row"><span>Pivot style</span><select value={view.pivotTrendlineStyle} onChange={e=>setViewKey("pivotTrendlineStyle",e.target.value as ViewSettings["pivotTrendlineStyle"])}><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label><IndicatorToggle checked={view.trendlineHalo} colour={view.appearance.indicators.trendlineHalo} label="Trendline halo" onChange={value=>setViewKey("trendlineHalo",value)}/><IndicatorToggle checked={view.showTrendlineLabels} colour={view.appearance.indicators.bullTrendline} label="Show trendline labels" onChange={value=>setViewKey("showTrendlineLabels",value)}/>
-                  <h3>LR channel</h3><IndicatorToggle checked={view.channels} colour={view.appearance.indicators.regressionBasis} label="Show LR channel" onChange={value=>setViewKey("channels",value)}/><ExtensionField label="LR extension" value={view.lrChannelExtension} onChange={value=>setViewKey("lrChannelExtension",value)}/><RangeField label="Basis width" max={5} min={1} onChange={value=>setViewKey("lrBasisWidth",value)} suffix="px" value={view.lrBasisWidth}/><RangeField label="Boundary width" max={5} min={1} onChange={value=>setViewKey("lrBoundaryWidth",value)} suffix="px" value={view.lrBoundaryWidth}/><label className="field-row"><span>Boundary style</span><select value={view.lrBoundaryStyle} onChange={e=>setViewKey("lrBoundaryStyle",e.target.value as ViewSettings["lrBoundaryStyle"])}><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label><IndicatorToggle checked={view.showLrChannelFill} colour={view.appearance.indicators.regressionFill} label="Show LR channel fill" onChange={value=>setViewKey("showLrChannelFill",value)}/><RangeField label="Fill opacity" max={.4} min={0} step={.01} onChange={value=>setViewKey("lrChannelFillOpacity",value)} value={view.lrChannelFillOpacity}/><IndicatorToggle checked={view.showLrChannelLabels} colour={view.appearance.indicators.regressionUpper} label="Show LR channel labels" onChange={value=>setViewKey("showLrChannelLabels",value)}/><IndicatorToggle checked={view.lrBasisHalo} colour={view.appearance.indicators.trendlineHalo} label="LR basis halo" onChange={value=>setViewKey("lrBasisHalo",value)}/>
-                  <h3>Horizontal levels</h3><ExtensionField label="S/R extension" value={view.srLineExtension} onChange={value=>setViewKey("srLineExtension",value)}/><ExtensionField label="Fibonacci extension" value={view.fibLineExtension} onChange={value=>setViewKey("fibLineExtension",value)}/><h3>Patterns</h3><ExtensionField label="Triangle boundaries" value={view.triangleLineExtension} onChange={value=>setViewKey("triangleLineExtension",value)}/>
-                </div> : null}
-                {visualTab === "colours" ? <div className="setting-section colours-section"><h3>Chart appearance</h3><label className="field-row"><span>Preset</span><select value={view.appearance.preset} onChange={e=>{if(e.target.value!=="custom")applyAppearancePreset(e.target.value as Exclude<ChartAppearanceSettings["preset"],"custom">)}}><option value="dizy-dark">Dizy Dark</option><option value="high-contrast">High Contrast</option><option value="colourblind-friendly">Colourblind Friendly</option><option value="minimal">Minimal</option><option value="custom">Custom</option></select></label>
-                  {(["chart","candles","indicators","structure","profile"] as const).map(group=><fieldset className="colour-group" key={group}><legend>{group}</legend>{Object.entries(view.appearance[group]).map(([key,value])=><label className="colour-field" key={key}><span>{key.replace(/([A-Z])/g," $1")}</span><input aria-label={`${group} ${key}`} type="color" value={value} onChange={e=>setAppearanceColour(group,key,e.target.value)}/><code>{value}</code></label>)}</fieldset>)}
-                  {Object.entries(view.appearance.opacity).map(([key,value])=><RangeField key={key} label={`${key} opacity`} max={1} min={0} step={.05} value={value} onChange={next=>setView(current=>({...current,appearance:{...current.appearance,preset:"custom",opacity:{...current.appearance.opacity,[key]:next}}}))}/>) }
-                  <div className="appearance-actions"><button onClick={()=>applyAppearancePreset("dizy-dark")} type="button">Reset colours</button><button onClick={()=>setView(current=>({...current,...DEFAULT_VIEW}))} type="button">Reset complete appearance</button></div>
-                </div> : null}
-              </>
-            ) : null}
-
-            {activePanel === "strategy" ? (
-              <>
-                <div className="setting-section">
-                  <h3>Confirmed-bar engine</h3>
-                  <div className="safety-note"><i>✓</i><p><strong>Non-repainting mode</strong><span>Signals use completed candles only.</span></p></div>
-                  <label className="field-row"><span>Strategy mode</span><select value={strategy.mode} onChange={e=>setStrategyMode(e.target.value as StrategyMode)}><option value="scalp-15m">Scalping · 15m</option><option value="swing-1h-4h">Swing · 1H/4H</option><option value="custom">Custom</option></select></label>
-                  {strategy.mode!=="custom"?<button type="button" onClick={()=>setStrategy({...effectiveStrategy,mode:"custom"})}>Copy preset to Custom</button>:null}
-                  {(strategy.mode==="scalp-15m"&&timeframe!=="15m")||(strategy.mode==="swing-1h-4h"&&!(["1h","4h"].includes(timeframe)))?<div className="safety-note purple"><i>i</i><p><strong>{strategyModeLabel(strategy.mode)} preset</strong><span>Tuned for {strategy.mode==="scalp-15m"?"15m":"1h or 4h"}; currently viewing {timeframe}.</span><button type="button" onClick={()=>setTimeframe(strategy.mode==="scalp-15m"?"15m":"1h")}>Use recommended timeframe</button>{strategy.mode==="swing-1h-4h"?<button type="button" onClick={()=>setTimeframe("4h")}>Use 4h</button>:null}</p></div>:null}
-                  <IndicatorToggle checked={effectiveStrategy.requireMinConfluence} colour="#27d6a1" label="Require minimum confluence" onChange={value=>setStrategyValue("requireMinConfluence",value)}/>
-                  <RangeField label="Minimum confluence" max={5} min={1} onChange={value=>setStrategyValue("minConfluence",value)} suffix="/ 5" value={effectiveStrategy.minConfluence} />
-                  <IndicatorToggle checked={effectiveStrategy.useVwapFilter} colour="#8ca9ff" label="Use VWAP bias filter" onChange={value=>setStrategyValue("useVwapFilter",value)}/>
-                  <IndicatorToggle checked={effectiveStrategy.useTrendFilter} colour="#a979ff" label="Use Trend MA filter" onChange={value=>setStrategyValue("useTrendFilter",value)}/>
-                  <RangeField label="Pivot length" max={20} min={2} onChange={value=>setStrategyValue("pivotLength",value)} suffix="bars" value={effectiveStrategy.pivotLength} />
-                  <RangeField label="S/R lookback" max={1200} min={150} onChange={value=>setStrategyValue("srLookback",value)} step={50} suffix="bars" value={effectiveStrategy.srLookback} />
-                  <RangeField label="Minimum touches" max={8} min={2} onChange={value=>setStrategyValue("minTouches",value)} value={effectiveStrategy.minTouches} />
-                  <RangeField label="VWAP scan length" max={500} min={20} onChange={value=>setStrategyValue("vwapLength",value)} suffix="bars" value={effectiveStrategy.vwapLength} />
-                  <RangeField label="Trend MA" max={300} min={5} onChange={value=>setStrategyValue("trendLength",value)} suffix="bars" value={effectiveStrategy.trendLength} />
-                </div>
-                <div className="setting-section">
-                  <h3>Pattern geometry</h3>
-                  <RangeField label="Channel length" max={500} min={30} onChange={value=>setStrategyValue("channelLength",value)} suffix="bars" value={effectiveStrategy.channelLength} />
-                  <RangeField label="Channel deviation" max={5} min={0.5} onChange={value=>setStrategyValue("channelDeviation",value)} step={0.1} suffix="σ" value={effectiveStrategy.channelDeviation} />
-                  <RangeField label="Channel reversal window" max={20} min={1} onChange={value=>setStrategyValue("channelReversalWindow",value)} suffix="bars" value={effectiveStrategy.channelReversalWindow}/>
-                  <RangeField label="Structure confirmation window" max={20} min={1} onChange={value=>setStrategyValue("structureWindow",value)} suffix="bars" value={effectiveStrategy.structureWindow}/>
-                  <RangeField label="Triangle tightness" max={5} min={.1} step={.1} onChange={value=>setStrategyValue("triangleTightnessPct",value)} suffix="%" value={effectiveStrategy.triangleTightnessPct}/>
-                  <RangeField label="Breakout volume multiple" max={5} min={.5} step={.1} onChange={value=>setStrategyValue("breakoutVolumeMultiple",value)} suffix="×" value={effectiveStrategy.breakoutVolumeMultiple}/>
-                  <RangeField label="ZigZag swing threshold" max={20} min={.1} step={.1} onChange={value=>setStrategyValue("zigZagThresholdPct",value)} suffix="%" value={effectiveStrategy.zigZagThresholdPct}/>
-                  <RangeField label="Fibonacci window" max={600} min={50} onChange={value=>setStrategyValue("fibLength",value)} step={25} suffix="bars" value={effectiveStrategy.fibLength} />
-                </div>
-                <div className="setting-section"><h3>Signal diagnostics</h3><div className="paper-summary"><small>Preset: {strategyModeLabel(strategy.mode)} · effective timeframe {timeframe}</small><small>Bars loaded {analysis.diagnostics.barsLoaded} · after warm-up {analysis.diagnostics.barsAfterWarmup}</small><small>Raw long {analysis.diagnostics.rawLongCandidates} · raw short {analysis.diagnostics.rawShortCandidates}</small><small>Blocked: confluence {analysis.diagnostics.blockedByConfluence} · VWAP {analysis.diagnostics.blockedByVwap} · Trend MA {analysis.diagnostics.blockedByTrend}</small><small>Ambiguous ties {analysis.diagnostics.ambiguousTies} · BUY {analysis.diagnostics.confirmedBuys} · SELL {analysis.diagnostics.confirmedSells} · backtest entries {backtest.trades}</small></div></div>
-              </>
-            ) : null}
-
-            {activePanel === "risk" ? (
-              <>
-                <div className="setting-section">
-                  <h3>{user.name}&apos;s account limits</h3>
-                  <RangeField label="Risk per trade" max={10} min={0.1} onChange={(value) => setRisk((current) => ({ ...current, riskPct: value }))} step={0.1} suffix="%" value={risk.riskPct} />
-                  {risk.riskPct>2?<div className="safety-note purple"><i>!</i><p><strong>High-risk simulation</strong><span>Compounding and drawdown are greatly amplified.</span></p></div>:null}
-                  <RangeField label="Maximum notional" max={100000} min={50} onChange={(value) => setRisk((current) => ({ ...current, maxNotional: value }))} step={50} suffix="USDT" value={risk.maxNotional} />
-                  <RangeField label="Maximum leverage" max={10} min={1} onChange={(value) => setRisk((current) => ({ ...current, leverage: value }))} suffix="×" value={risk.leverage} />
-                </div>
-                <div className="setting-section">
-                  <h3>Protection</h3>
-                  <RangeField label="ATR stop" max={8} min={0.5} onChange={(value) => setRisk((current) => ({ ...current, atrStop: value }))} step={0.1} suffix="ATR" value={risk.atrStop} />
-                  <RangeField label="TP1 reward" max={10} min={0.5} onChange={(value) => setRisk((current) => ({ ...current, tp1: value }))} step={0.1} suffix="R" value={risk.tp1} />
-                  <RangeField label="TP2 reward" max={20} min={1} onChange={(value) => setRisk((current) => ({ ...current, tp2: value }))} step={0.1} suffix="R" value={risk.tp2} />
-                  <div className="safety-note purple"><i>↗</i><p><strong>TP1 → break-even → TP2</strong><span>The test engine models confirmed-bar entries and conservative exits.</span></p></div>
-                  <div className="paper-summary">
-                    <span>Historical test</span>
-                    <strong className={backtest.returnPct >= 0 ? "positive" : "negative"}>
-                      {signed(backtest.returnPct)}
-                    </strong>
-                    <small>{backtest.trades} trades · {backtest.winRatePct.toFixed(0)}% win · {backtest.maxDrawdownPct.toFixed(2)}% max DD</small>
+              {selectorOpen ? (
+                <div className="market-menu">
+                  <input
+                    autoFocus
+                    aria-label="Search symbol, base or quote"
+                    onChange={(event) => setMarketQuery(event.target.value)}
+                    placeholder="Search every MEXC perpetual…"
+                    value={marketQuery}
+                  />
+                  <div className="market-results">
+                    {markets.length ? (
+                      markets.map((market) => (
+                        <button
+                          className={market.symbol === symbol ? "active" : ""}
+                          key={market.symbol}
+                          onClick={() => {
+                            setSymbol(market.symbol);
+                            setRecent((items) =>
+                              [
+                                market.symbol,
+                                ...items.filter(
+                                  (item) => item !== market.symbol,
+                                ),
+                              ].slice(0, 8),
+                            );
+                            setSelectorOpen(false);
+                          }}
+                          type="button"
+                        >
+                          <span>
+                            <b>{market.displayName}</b>
+                            <small>
+                              MEXC perpetual · settle{" "}
+                              {market.settlementCurrency}
+                            </small>
+                          </span>
+                          <i
+                            aria-label="Favourite"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setFavourites((items) =>
+                                items.includes(market.symbol)
+                                  ? items.filter(
+                                      (item) => item !== market.symbol,
+                                    )
+                                  : [...items, market.symbol],
+                              );
+                            }}
+                          >
+                            {favourites.includes(market.symbol) ? "★" : "☆"}
+                          </i>
+                        </button>
+                      ))
+                    ) : (
+                      <p>No enabled markets found.</p>
+                    )}
                   </div>
+                  {recent.length ? (
+                    <small>Recent: {recent.join(" · ")}</small>
+                  ) : null}
                 </div>
-                <div className="setting-section">
-                  <h3>Exchange connection</h3>
-                  <div className="credential-card">
-                    <span className="credential-icon">◇</span>
-                    <p><strong>MEXC credentials not configured</strong><span>Credential entry is disabled until encryption, MFA and audit storage are active.</span></p>
-                    <button disabled type="button">Configure later</button>
-                  </div>
-                </div>
-              </>
-            ) : null}
-          </div>
-          <div className="panel-footer">
-            <button className="secondary" onClick={resetPreset} type="button">Reset preset</button>
-            <button className="primary" disabled={saveState === "saving"} onClick={applyPaperSettings} type="button">
-              {saveState === "saving"
-                ? "Saving…"
-                : saveState === "saved"
-                  ? "Saved ✓"
-                  : saveState === "error"
-                    ? "Retry save"
-                    : "Save & snapshot paper run"}
+              ) : null}
+            </div>
+            {user.role!=="viewer"?<div className="manual-quick"><span>MANUAL PAPER</span><button className="sell" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"short"}))}>SELL</button><b>{last?currency.format(liveLastPrice??last.close):"—"}</b><button className="buy" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"long"}))}>BUY</button></div>:null}
+        <div className="quote-block">
+              <strong>
+                {last ? currency.format(liveLastPrice ?? last.close) : "—"}
+              </strong>
+              <span className={change >= 0 ? "positive" : "negative"}>
+                {signed(change)}
+              </span>
+              {view.countdownToolbar && countdownSeconds !== null ? (
+                <small
+                  className={
+                    countdownSeconds <= 10 ? "countdown closing" : "countdown"
+                  }
+                >
+                  Candle closes in{" "}
+                  {formatCountdown(
+                    countdownSeconds,
+                    timeframe as CandleTimeframe,
+                  )}
+                </small>
+              ) : null}
+            </div>
+            <div className="toolbar-divider" />
+            <div
+              className="timeframes"
+              aria-label="Chart timeframe"
+              ref={timeframeStrip}
+              role="group"
+              tabIndex={0}
+            >
+              {ALL_TIMEFRAMES.map((item) => (
+                <button
+                  aria-pressed={timeframe === item}
+                  className={timeframe === item ? "active" : ""}
+                  key={item}
+                  onClick={() => setTimeframe(item)}
+                  title={TIMEFRAME_TITLES[item]}
+                  type="button"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+            <div
+              className="chart-view-actions"
+              aria-label="Chart view controls"
+            >
+              <button
+                aria-label="Reset chart view"
+                onClick={() => chartControls.current?.resetView()}
+                title="Reset view — automatically fit candles and overlays"
+                type="button"
+              >
+                Reset view
+              </button>
+              <button
+                aria-label="Go to live chart position"
+                onClick={() => chartControls.current?.goToLive()}
+                title="Go to live — move to the latest candle (does not enable live trading)"
+                type="button"
+              >
+                Go to live
+              </button>
+            </div>
+            <div className="toolbar-divider" />
+            <label className="preset-button">
+              <span>Preset</span>
+              <select
+                aria-label="Strategy preset"
+                value={strategy.mode}
+                onChange={(e) =>
+                  setStrategyMode(e.target.value as StrategyMode)
+                }
+              >
+                <option value="scalp-15m">Scalping · 15m</option>
+                <option value="pine-v1-exact">Pine V1 Exact</option>
+                <option value="swing-1h-4h">Swing · 1H/4H</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+            <button
+              className="refresh-button"
+              disabled={backgroundSyncing}
+              onClick={() =>
+                void loadMarketData({ reason: "manual", resetView: false })
+              }
+              type="button"
+            >
+              {backgroundSyncing ? "Syncing…" : "Refresh data"}
             </button>
+            <div className="toolbar-spacer" />
+            <div className="mode-control" aria-label="Execution mode">
+              {(["Off", "Paper"] as const).map((mode) => (
+                <button
+                  className={executionMode === mode ? "active" : ""}
+                  key={mode}
+                  onClick={() => setExecutionMode(mode)}
+                  type="button"
+                >
+                  {mode}
+                </button>
+              ))}
+              <button
+                className="live-disabled"
+                disabled
+                title="Live trading is deliberately unavailable in this review build"
+                type="button"
+              >
+                Live 🔒
+              </button>
+            </div>
+          </section>
+          {view.showSimulationPerformance ? (
+            <PaperPerformanceToolbar
+              calculating={resultMarketKey !== `${symbol}:${timeframe}`}
+              enabled={executionMode === "Paper"}
+              snapshot={paperSnapshot}
+            />
+          ) : null}
+
+          <div className={`workspace ${settingsOpen ? "" : "panel-closed"}`}>
+            <section className="chart-section">
+              <div className="chart-status-row">
+                <div>
+                  <span className={`bias-pill ${signalColour}`}>
+                    {analysis.bias} bias
+                  </span>
+                  <strong>
+                    Confluence{" "}
+                    {Math.max(analysis.scoreLong, analysis.scoreShort)} / 5
+                  </strong>
+                  <span>{analysis.phase}</span>
+                </div>
+                <div>
+                  <span>{dataSource}</span>
+                  <span>{closedCandles.length} confirmed bars</span>
+                  <span>Last signal: {analysis.lastSignal}</span>
+                </div>
+              </div>
+              {feedError ? (
+                <div className="feed-error" role="alert">
+                  <strong>{feedError}</strong>
+                  <span>Real data was not replaced automatically.</span>
+                  <button
+                    onClick={() => {
+                      dispatchTimeline({
+                        type: "demonstrationData",
+                        marketKey,
+                        closed: generateDemoCandles(),
+                      });
+                      setDataSource("DEMONSTRATION DATA");
+                      setFeedError("");
+                    }}
+                    type="button"
+                  >
+                    Use demonstration data
+                  </button>
+                </div>
+              ) : initialLoading && !closedCandles.length ? (
+                <div className="chart-skeleton">Loading closed candles…</div>
+              ) : (
+                <ChartErrorBoundary
+                  marketKey={marketKey}
+                  onReload={() => setViewportReset((value) => value + 1)}
+                >
+                  <DizyChart
+                    key={viewportReset}
+                    applyDefaultsNonce={applyDrawingDefaultsNonce}
+                    analysis={analysis}
+                    displayCandles={displayCandles}
+                    countdownSeconds={countdownSeconds}
+                    liveCandle={liveCandle}
+                    readOnly={user.role === "viewer"}
+                    ref={chartControls}
+                    resetKey={viewportReset}
+                    symbol={symbol}
+                    timeframe={timeframe}
+                    view={view}
+                  />
+                </ChartErrorBoundary>
+              )}
+              <div className="signal-dock">
+                <article>
+                  <span>Current setup</span>
+                  <strong className={signalColour}>{analysis.bias}</strong>
+                  <small>{analysis.lastSignal}</small>
+                </article>
+                <article>
+                  <span>Long confluence</span>
+                  <strong>{analysis.scoreLong} / 5</strong>
+                  <div className="score-track">
+                    <i style={{ width: `${analysis.scoreLong * 20}%` }} />
+                  </div>
+                </article>
+                <article>
+                  <span>Short confluence</span>
+                  <strong>{analysis.scoreShort} / 5</strong>
+                  <div className="score-track red">
+                    <i style={{ width: `${analysis.scoreShort * 20}%` }} />
+                  </div>
+                </article>
+                <article>
+                  <span>Risk gate</span>
+                  <strong>
+                    {risk.riskPct}% · {risk.leverage}×
+                  </strong>
+                  <small>Max {currency.format(risk.maxNotional)}</small>
+                </article>
+                <article className="paper-card">
+                  <span>
+                    {executionMode === "Paper"
+                      ? "Historical paper run"
+                      : "Engine"}
+                  </span>
+                  <strong
+                    className={
+                      backtest.returnPct >= 0 ? "positive" : "negative"
+                    }
+                  >
+                    {executionMode === "Paper"
+                      ? signed(backtest.returnPct)
+                      : "Signals only"}
+                  </strong>
+                  <small>
+                    {executionMode === "Paper"
+                      ? `${backtest.trades} trades · ${backtest.winRatePct.toFixed(0)}% win`
+                      : "Live orders blocked"}
+                  </small>
+                </article>
+              </div>
+            </section>
+
+            {user.role !== "viewer" ? (
+              <aside
+                className="settings-panel"
+                aria-label="DizySignals settings"
+              >
+                <div className="panel-heading">
+                  <div>
+                    <small>{user.name}&apos;s private workspace</small>
+                    <strong>Signal settings</strong>
+                  </div>
+                  <button
+                    aria-label="Close settings"
+                    onClick={() => setSettingsOpen(false)}
+                    type="button"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="panel-tabs">
+                  {(["visuals", "strategy", "risk"] as const).map((panel) => (
+                    <button
+                      className={activePanel === panel ? "active" : ""}
+                      key={panel}
+                      onClick={() => setActivePanel(panel)}
+                      type="button"
+                    >
+                      {panel}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="panel-scroll">
+                  {activePanel === "visuals" ? (
+                    <>
+                      <div className="visual-subtabs" role="tablist">
+                        {(
+                          ["layers", "layout", "lines", "colours"] as const
+                        ).map((tab) => (
+                          <button
+                            className={visualTab === tab ? "active" : ""}
+                            key={tab}
+                            onClick={() => setVisualTab(tab)}
+                            type="button"
+                          >
+                            {tab === "layout"
+                              ? "Labels & layout"
+                              : tab === "lines"
+                                ? "Lines & channels"
+                                : tab}
+                          </button>
+                        ))}
+                      </div>
+                      {visualTab === "layers" ? (
+                        <div className="setting-section">
+                          <h3>Chart layers</h3>
+                          <IndicatorToggle
+                            checked={view.indicatorPackage}
+                            colour="#8b7cff"
+                            label="DizyTrades Indicator Package"
+                            onChange={(value) =>
+                              setViewKey("indicatorPackage", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.supportResistance}
+                            colour={view.appearance.structure.supportLine}
+                            label="Support & resistance zones"
+                            onChange={(value) =>
+                              setViewKey("supportResistance", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.showLevelTouches}
+                            colour={view.appearance.structure.supportLine}
+                            label="Show S/R touches"
+                            onChange={(value) =>
+                              setViewKey("showLevelTouches", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.vwap}
+                            colour={view.appearance.indicators.vwap}
+                            label="Rolling VWAP"
+                            onChange={(value) => setViewKey("vwap", value)}
+                          />
+                          <IndicatorToggle
+                            checked={view.fibonacci}
+                            colour={view.appearance.structure.fibonacciLine}
+                            label="Fibonacci levels"
+                            onChange={(value) => setViewKey("fibonacci", value)}
+                          />
+                          <IndicatorToggle
+                            checked={view.channels}
+                            colour={view.appearance.indicators.regression}
+                            label="Regression channel"
+                            onChange={(value) => setViewKey("channels", value)}
+                          />
+                          <IndicatorToggle
+                            checked={view.trendlines}
+                            colour={view.appearance.indicators.bullTrendline}
+                            label="Pivot trendlines"
+                            onChange={(value) =>
+                              setViewKey("trendlines", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.triangles}
+                            colour={
+                              view.appearance.structure.bearishTriangleBorder
+                            }
+                            label="Triangle outlines"
+                            onChange={(value) => setViewKey("triangles", value)}
+                          />
+                          <IndicatorToggle
+                            checked={view.completedPatternFills}
+                            colour={view.appearance.structure.elliottFill}
+                            label="Completed pattern fills"
+                            onChange={(value) =>
+                              setViewKey("completedPatternFills", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.volumeProfile}
+                            colour={view.appearance.profile.bull}
+                            label="Right volume profile"
+                            onChange={(value) =>
+                              setViewKey("volumeProfile", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.waves}
+                            colour={view.appearance.structure.waveMarker}
+                            label="Elliott/Wyckoff stage bubbles"
+                            onChange={(value) => setViewKey("waves", value)}
+                          />
+                          <IndicatorToggle
+                            checked={view.provisionalStages}
+                            colour={view.appearance.structure.provisionalBorder}
+                            label="Provisional ? stages"
+                            onChange={(value) =>
+                              setViewKey("provisionalStages", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.signals}
+                            colour={view.appearance.structure.buyMarker}
+                            label="BUY/SELL signal bubbles"
+                            onChange={(value) => setViewKey("signals", value)}
+                          />
+                          <IndicatorToggle
+                            checked={view.showSimulationPerformance}
+                            colour="#8b7cff"
+                            label="Show simulation performance in toolbar"
+                            onChange={(value) =>
+                              setViewKey("showSimulationPerformance", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.realtimeChartUpdates}
+                            colour="#2ee6a6"
+                            label="Real-time chart updates"
+                            onChange={(value) =>
+                              setViewKey("realtimeChartUpdates", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.countdownToolbar}
+                            colour="#ffd071"
+                            label="Countdown in toolbar"
+                            onChange={(value) =>
+                              setViewKey("countdownToolbar", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.countdownPriceMarker}
+                            colour={view.appearance.chart.livePrice}
+                            label="Countdown on price marker"
+                            onChange={(value) =>
+                              setViewKey("countdownPriceMarker", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.autoFitOnMarketChange}
+                            colour="#57a5ff"
+                            label="Auto-fit on market change"
+                            onChange={(value) =>
+                              setViewKey("autoFitOnMarketChange", value)
+                            }
+                          />
+                          <RangeField
+                            label="Volume lookback"
+                            max={600}
+                            min={60}
+                            onChange={(value) =>
+                              setViewKey("volumeBars", value)
+                            }
+                            step={20}
+                            suffix="candles"
+                            value={view.volumeBars}
+                          />
+                          <p className="field-help">
+                            How many historical candles are analysed.
+                          </p>
+                          <label className="field-row">
+                            <span>Profile bar size</span>
+                            <select
+                              aria-label="Profile bar size"
+                              value={profileBarPreset(view.volumeRows)}
+                              onChange={(event) => {
+                                const preset = event.target
+                                  .value as keyof typeof PROFILE_BAR_PRESETS;
+                                if (preset in PROFILE_BAR_PRESETS)
+                                  setViewKey(
+                                    "volumeRows",
+                                    PROFILE_BAR_PRESETS[preset],
+                                  );
+                              }}
+                            >
+                              <option>Large</option>
+                              <option>Medium</option>
+                              <option>Small</option>
+                              <option>Very small</option>
+                              <option disabled value="Custom">
+                                Custom
+                              </option>
+                            </select>
+                          </label>
+                          <RangeField
+                            label="Volume profile bars"
+                            max={240}
+                            min={12}
+                            onChange={(value) =>
+                              setViewKey("volumeRows", value)
+                            }
+                            step={4}
+                            suffix="bars"
+                            value={view.volumeRows}
+                          />
+                          <p className="field-help">
+                            More bars create thinner, more detailed price rows.
+                          </p>
+                          <RangeField
+                            label="Profile opacity"
+                            max={1}
+                            min={0}
+                            step={0.05}
+                            onChange={(value) =>
+                              setViewKey("profileOpacity", value)
+                            }
+                            value={view.profileOpacity}
+                          />
+                          <IndicatorToggle
+                            checked={view.showProfileHeading}
+                            colour={view.appearance.profile.heading}
+                            label="Profile heading"
+                            onChange={(value) =>
+                              setViewKey("showProfileHeading", value)
+                            }
+                          />
+                        </div>
+                      ) : null}
+                      {visualTab === "layout" ? (
+                        <div className="setting-section">
+                          <h3>Labels & reserved lanes</h3>
+                          <label className="field-row">
+                            <span>Label size</span>
+                            <select
+                              value={view.labelSize}
+                              onChange={(e) =>
+                                setViewKey(
+                                  "labelSize",
+                                  e.target.value as ViewSettings["labelSize"],
+                                )
+                              }
+                            >
+                              <option>Small</option>
+                              <option>Medium</option>
+                              <option>Large</option>
+                            </select>
+                          </label>
+                          <label className="field-row">
+                            <span>Pattern bubble size</span>
+                            <select
+                              value={view.patternBubbleSize}
+                              onChange={(e) =>
+                                setViewKey(
+                                  "patternBubbleSize",
+                                  e.target
+                                    .value as ViewSettings["patternBubbleSize"],
+                                )
+                              }
+                            >
+                              <option>Small</option>
+                              <option>Medium</option>
+                              <option>Large</option>
+                            </select>
+                          </label>
+                          <label className="field-row">
+                            <span>Signal bubble size</span>
+                            <select
+                              value={view.signalBubbleSize}
+                              onChange={(e) =>
+                                setViewKey(
+                                  "signalBubbleSize",
+                                  e.target
+                                    .value as ViewSettings["signalBubbleSize"],
+                                )
+                              }
+                            >
+                              <option>Tiny</option>
+                              <option>Small</option>
+                              <option>Medium</option>
+                              <option>Large</option>
+                              <option>Extra Large</option>
+                            </select>
+                          </label>
+                          <label className="field-row">
+                            <span>Signal detail</span>
+                            <select
+                              value={view.signalDetail}
+                              onChange={(e) =>
+                                setViewKey(
+                                  "signalDetail",
+                                  e.target
+                                    .value as ViewSettings["signalDetail"],
+                                )
+                              }
+                            >
+                              <option>Direction only</option>
+                              <option>Direction + confluence</option>
+                            </select>
+                          </label>
+                          <label className="field-row">
+                            <span>Signal placement</span>
+                            <select
+                              value={view.signalPlacement}
+                              onChange={(e) =>
+                                setViewKey(
+                                  "signalPlacement",
+                                  e.target
+                                    .value as ViewSettings["signalPlacement"],
+                                )
+                              }
+                            >
+                              <option value="side-aware">Side-aware</option>
+                              <option value="above">Above candle</option>
+                              <option value="below">Below candle</option>
+                            </select>
+                          </label>
+                          <RangeField
+                            label="Signal distance"
+                            max={80}
+                            min={0}
+                            onChange={(value) =>
+                              setViewKey("signalDistance", value)
+                            }
+                            suffix="px"
+                            value={view.signalDistance}
+                          />
+                          <IndicatorToggle
+                            checked={view.showHistoricalSignals}
+                            colour={view.appearance.structure.buyMarker}
+                            label="Show historical automatic signals"
+                            onChange={(value) =>
+                              setViewKey("showHistoricalSignals", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.showManualPaperMarkers}
+                            colour="#ffd071"
+                            label="Show manual paper-trade markers"
+                            onChange={(value) =>
+                              setViewKey("showManualPaperMarkers", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.showPatternConnectors}
+                            colour="#8994ad"
+                            label="Pattern label connector lines"
+                            onChange={(value) =>
+                              setViewKey("showPatternConnectors", value)
+                            }
+                          />
+                          <PlacementField
+                            label="S/R labels"
+                            value={view.srLabelPlacement}
+                            onChange={(value) =>
+                              setViewKey("srLabelPlacement", value)
+                            }
+                          />
+                          <PlacementField
+                            label="Fibonacci labels"
+                            value={view.fibLabelPlacement}
+                            onChange={(value) =>
+                              setViewKey("fibLabelPlacement", value)
+                            }
+                          />
+                          <label className="field-row">
+                            <span>Pattern labels</span>
+                            <select
+                              value={view.patternLabelPlacement}
+                              onChange={(e) =>
+                                setViewKey(
+                                  "patternLabelPlacement",
+                                  e.target
+                                    .value as ViewSettings["patternLabelPlacement"],
+                                )
+                              }
+                            >
+                              <option value="above">Above pattern</option>
+                              <option value="inside">Inside pattern</option>
+                              <option value="below">Below pattern</option>
+                              <option value="left">Left of pattern</option>
+                              <option value="right">Right of pattern</option>
+                              <option value="hidden">Hidden labels</option>
+                            </select>
+                          </label>
+                          <RangeField
+                            label="Horizontal offset"
+                            max={80}
+                            min={0}
+                            onChange={(value) =>
+                              setViewKey("labelOffset", value)
+                            }
+                            suffix="px"
+                            value={view.labelOffset}
+                          />
+                          <RangeField
+                            label="Label padding"
+                            max={20}
+                            min={2}
+                            onChange={(value) =>
+                              setViewKey("labelPadding", value)
+                            }
+                            suffix="px"
+                            value={view.labelPadding}
+                          />
+                          <IndicatorToggle
+                            checked={view.compactLabels}
+                            colour="#8994ad"
+                            label="Compact labels"
+                            onChange={(value) =>
+                              setViewKey("compactLabels", value)
+                            }
+                          />
+                          <RangeField
+                            label="Profile width"
+                            max={30}
+                            min={10}
+                            onChange={(value) =>
+                              setViewKey("profileWidthPct", value)
+                            }
+                            suffix="%"
+                            value={view.profileWidthPct}
+                          />
+                          <RangeField
+                            label="Profile maximum"
+                            max={320}
+                            min={100}
+                            onChange={(value) =>
+                              setViewKey("profileMaxWidth", value)
+                            }
+                            step={10}
+                            suffix="px"
+                            value={view.profileMaxWidth}
+                          />
+                          <RangeField
+                            label="Profile inset"
+                            max={40}
+                            min={0}
+                            onChange={(value) =>
+                              setViewKey("profileInset", value)
+                            }
+                            suffix="px"
+                            value={view.profileInset}
+                          />
+                          <button
+                            className="reset-appearance"
+                            onClick={() =>
+                              setView((current) => ({
+                                ...current,
+                                ...DEFAULT_VIEW,
+                                appearance: current.appearance,
+                              }))
+                            }
+                            type="button"
+                          >
+                            Reset labels / layout
+                          </button>
+                        </div>
+                      ) : null}
+                      {visualTab === "lines" ? (
+                        <div className="setting-section">
+                          <h3>Line extensions</h3>
+                          <label className="field-row">
+                            <span>Global line extension override</span>
+                            <select
+                              value={view.globalLineExtensionOverride}
+                              onChange={(e) =>
+                                setViewKey(
+                                  "globalLineExtensionOverride",
+                                  e.target
+                                    .value as ViewSettings["globalLineExtensionOverride"],
+                                )
+                              }
+                            >
+                              <option value="individual">
+                                Use individual settings
+                              </option>
+                              <option value="none">None</option>
+                              <option value="left">Left</option>
+                              <option value="right">Right</option>
+                              <option value="both">Both</option>
+                            </select>
+                          </label>
+                          <IndicatorToggle
+                            checked={view.fadeExtendedPortions}
+                            colour={view.appearance.indicators.bullTrendline}
+                            label="Fade extended portions"
+                            onChange={(value) =>
+                              setViewKey("fadeExtendedPortions", value)
+                            }
+                          />
+                          <h3>Manual drawing defaults</h3>
+                          <ExtensionField
+                            label="Trend line default extension"
+                            value={view.manualTrendLineExtension}
+                            onChange={(value) =>
+                              setViewKey("manualTrendLineExtension", value)
+                            }
+                          />
+                          <ExtensionField
+                            label="Ray default extension"
+                            value={view.manualRayExtension}
+                            onChange={(value) =>
+                              setViewKey("manualRayExtension", value)
+                            }
+                          />
+                          <label className="field-row">
+                            <span>Horizontal line default extension</span>
+                            <select
+                              value={view.manualHorizontalLineExtension}
+                              onChange={(e) =>
+                                setViewKey(
+                                  "manualHorizontalLineExtension",
+                                  e.target
+                                    .value as ViewSettings["manualHorizontalLineExtension"],
+                                )
+                              }
+                            >
+                              <option value="left">Left</option>
+                              <option value="right">Right</option>
+                              <option value="both">Both</option>
+                            </select>
+                          </label>
+                          <ExtensionField
+                            label="Parallel channel default extension"
+                            value={view.manualChannelExtension}
+                            onChange={(value) =>
+                              setViewKey("manualChannelExtension", value)
+                            }
+                          />
+                          <ExtensionField
+                            label="Fibonacci default extension"
+                            value={view.manualFibonacciExtension}
+                            onChange={(value) =>
+                              setViewKey("manualFibonacciExtension", value)
+                            }
+                          />
+                          <button
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  "Apply extension defaults to all unlocked compatible drawings?",
+                                )
+                              )
+                                setApplyDrawingDefaultsNonce((n) => n + 1);
+                            }}
+                            type="button"
+                          >
+                            Apply defaults to existing drawings
+                          </button>
+                          <h3>Pivot trendlines</h3>
+                          <p className="field-help">
+                            Line extension reaches the visible plot edge and
+                            updates when the chart is panned or zoomed.
+                          </p>
+                          <IndicatorToggle
+                            checked={view.trendlines}
+                            colour={view.appearance.indicators.bullTrendline}
+                            label="Show pivot trendlines"
+                            onChange={(value) =>
+                              setViewKey("trendlines", value)
+                            }
+                          />
+                          <ExtensionField
+                            label="Pivot extension"
+                            value={view.pivotTrendlineExtension}
+                            onChange={(value) =>
+                              setViewKey("pivotTrendlineExtension", value)
+                            }
+                          />
+                          <RangeField
+                            label="Pivot width"
+                            max={5}
+                            min={1}
+                            onChange={(value) =>
+                              setViewKey("pivotTrendlineWidth", value)
+                            }
+                            suffix="px"
+                            value={view.pivotTrendlineWidth}
+                          />
+                          <label className="field-row">
+                            <span>Pivot style</span>
+                            <select
+                              value={view.pivotTrendlineStyle}
+                              onChange={(e) =>
+                                setViewKey(
+                                  "pivotTrendlineStyle",
+                                  e.target
+                                    .value as ViewSettings["pivotTrendlineStyle"],
+                                )
+                              }
+                            >
+                              <option value="solid">Solid</option>
+                              <option value="dashed">Dashed</option>
+                              <option value="dotted">Dotted</option>
+                            </select>
+                          </label>
+                          <IndicatorToggle
+                            checked={view.trendlineHalo}
+                            colour={view.appearance.indicators.trendlineHalo}
+                            label="Trendline halo"
+                            onChange={(value) =>
+                              setViewKey("trendlineHalo", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.showTrendlineLabels}
+                            colour={view.appearance.indicators.bullTrendline}
+                            label="Show trendline labels"
+                            onChange={(value) =>
+                              setViewKey("showTrendlineLabels", value)
+                            }
+                          />
+                          <h3>LR channel</h3>
+                          <IndicatorToggle
+                            checked={view.channels}
+                            colour={view.appearance.indicators.regressionBasis}
+                            label="Show LR channel"
+                            onChange={(value) => setViewKey("channels", value)}
+                          />
+                          <ExtensionField
+                            label="LR extension"
+                            value={view.lrChannelExtension}
+                            onChange={(value) =>
+                              setViewKey("lrChannelExtension", value)
+                            }
+                          />
+                          <RangeField
+                            label="Basis width"
+                            max={5}
+                            min={1}
+                            onChange={(value) =>
+                              setViewKey("lrBasisWidth", value)
+                            }
+                            suffix="px"
+                            value={view.lrBasisWidth}
+                          />
+                          <RangeField
+                            label="Boundary width"
+                            max={5}
+                            min={1}
+                            onChange={(value) =>
+                              setViewKey("lrBoundaryWidth", value)
+                            }
+                            suffix="px"
+                            value={view.lrBoundaryWidth}
+                          />
+                          <label className="field-row">
+                            <span>Boundary style</span>
+                            <select
+                              value={view.lrBoundaryStyle}
+                              onChange={(e) =>
+                                setViewKey(
+                                  "lrBoundaryStyle",
+                                  e.target
+                                    .value as ViewSettings["lrBoundaryStyle"],
+                                )
+                              }
+                            >
+                              <option value="solid">Solid</option>
+                              <option value="dashed">Dashed</option>
+                              <option value="dotted">Dotted</option>
+                            </select>
+                          </label>
+                          <IndicatorToggle
+                            checked={view.showLrChannelFill}
+                            colour={view.appearance.indicators.regressionFill}
+                            label="Show LR channel fill"
+                            onChange={(value) =>
+                              setViewKey("showLrChannelFill", value)
+                            }
+                          />
+                          <RangeField
+                            label="Fill opacity"
+                            max={0.4}
+                            min={0}
+                            step={0.01}
+                            onChange={(value) =>
+                              setViewKey("lrChannelFillOpacity", value)
+                            }
+                            value={view.lrChannelFillOpacity}
+                          />
+                          <IndicatorToggle
+                            checked={view.showLrChannelLabels}
+                            colour={view.appearance.indicators.regressionUpper}
+                            label="Show LR channel labels"
+                            onChange={(value) =>
+                              setViewKey("showLrChannelLabels", value)
+                            }
+                          />
+                          <IndicatorToggle
+                            checked={view.lrBasisHalo}
+                            colour={view.appearance.indicators.trendlineHalo}
+                            label="LR basis halo"
+                            onChange={(value) =>
+                              setViewKey("lrBasisHalo", value)
+                            }
+                          />
+                          <h3>Horizontal levels</h3>
+                          <ExtensionField
+                            label="S/R extension"
+                            value={view.srLineExtension}
+                            onChange={(value) =>
+                              setViewKey("srLineExtension", value)
+                            }
+                          />
+                          <ExtensionField
+                            label="Fibonacci extension"
+                            value={view.fibLineExtension}
+                            onChange={(value) =>
+                              setViewKey("fibLineExtension", value)
+                            }
+                          />
+                          <h3>Patterns</h3>
+                          <ExtensionField
+                            label="Triangle boundaries"
+                            value={view.triangleLineExtension}
+                            onChange={(value) =>
+                              setViewKey("triangleLineExtension", value)
+                            }
+                          />
+                        </div>
+                      ) : null}
+                      {visualTab === "colours" ? (
+                        <div className="setting-section colours-section">
+                          <h3>Chart appearance</h3>
+                          <label className="field-row">
+                            <span>Preset</span>
+                            <select
+                              value={view.appearance.preset}
+                              onChange={(e) => {
+                                if (e.target.value !== "custom")
+                                  applyAppearancePreset(
+                                    e.target.value as Exclude<
+                                      ChartAppearanceSettings["preset"],
+                                      "custom"
+                                    >,
+                                  );
+                              }}
+                            >
+                              <option value="dizy-dark">Dizy Dark</option>
+                              <option value="high-contrast">
+                                High Contrast
+                              </option>
+                              <option value="colourblind-friendly">
+                                Colourblind Friendly
+                              </option>
+                              <option value="minimal">Minimal</option>
+                              <option value="custom">Custom</option>
+                            </select>
+                          </label>
+                          {(
+                            [
+                              "chart",
+                              "candles",
+                              "indicators",
+                              "structure",
+                              "profile",
+                            ] as const
+                          ).map((group) => (
+                            <fieldset className="colour-group" key={group}>
+                              <legend>{group}</legend>
+                              {Object.entries(view.appearance[group]).map(
+                                ([key, value]) => (
+                                  <label className="colour-field" key={key}>
+                                    <span>
+                                      {key.replace(/([A-Z])/g, " $1")}
+                                    </span>
+                                    <input
+                                      aria-label={`${group} ${key}`}
+                                      type="color"
+                                      value={value}
+                                      onChange={(e) =>
+                                        setAppearanceColour(
+                                          group,
+                                          key,
+                                          e.target.value,
+                                        )
+                                      }
+                                    />
+                                    <code>{value}</code>
+                                  </label>
+                                ),
+                              )}
+                            </fieldset>
+                          ))}
+                          {Object.entries(view.appearance.opacity).map(
+                            ([key, value]) => (
+                              <RangeField
+                                key={key}
+                                label={`${key} opacity`}
+                                max={1}
+                                min={0}
+                                step={0.05}
+                                value={value}
+                                onChange={(next) =>
+                                  setView((current) => ({
+                                    ...current,
+                                    appearance: {
+                                      ...current.appearance,
+                                      preset: "custom",
+                                      opacity: {
+                                        ...current.appearance.opacity,
+                                        [key]: next,
+                                      },
+                                    },
+                                  }))
+                                }
+                              />
+                            ),
+                          )}
+                          <div className="appearance-actions">
+                            <button
+                              onClick={() => applyAppearancePreset("dizy-dark")}
+                              type="button"
+                            >
+                              Reset colours
+                            </button>
+                            <button
+                              onClick={() =>
+                                setView((current) => ({
+                                  ...current,
+                                  ...DEFAULT_VIEW,
+                                }))
+                              }
+                              type="button"
+                            >
+                              Reset complete appearance
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : null}
+
+                  {activePanel === "strategy" ? (
+                    <>
+                      <div className="setting-section">
+                        <h3>Confirmed-bar engine</h3>
+                        <div className="safety-note">
+                          <i>✓</i>
+                          <p>
+                            <strong>Non-repainting mode</strong>
+                            <span>Signals use completed candles only.</span>
+                          </p>
+                        </div>
+                        <label className="field-row">
+                          <span>Strategy mode</span>
+                          <select
+                            value={strategy.mode}
+                            onChange={(e) =>
+                              setStrategyMode(e.target.value as StrategyMode)
+                            }
+                          >
+                            <option value="scalp-15m">Scalping · 15m</option>
+                <option value="pine-v1-exact">Pine V1 Exact</option>
+                            <option value="swing-1h-4h">Swing · 1H/4H</option>
+                            <option value="custom">Custom</option>
+                          </select>
+                        </label>
+                        {strategy.mode !== "custom" ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setStrategy({
+                                ...effectiveStrategy,
+                                mode: "custom",
+                              })
+                            }
+                          >
+                            Copy preset to Custom
+                          </button>
+                        ) : null}
+                        {(strategy.mode === "scalp-15m" &&
+                          timeframe !== "15m") ||
+                        (strategy.mode === "swing-1h-4h" &&
+                          !["1h", "4h"].includes(timeframe)) ? (
+                          <div className="safety-note purple">
+                            <i>i</i>
+                            <p>
+                              <strong>
+                                {strategyModeLabel(strategy.mode)} preset
+                              </strong>
+                              <span>
+                                Tuned for{" "}
+                                {strategy.mode === "scalp-15m"
+                                  ? "15m"
+                                  : "1h or 4h"}
+                                ; currently viewing {timeframe}.
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setTimeframe(
+                                    strategy.mode === "scalp-15m"
+                                      ? "15m"
+                                      : "1h",
+                                  )
+                                }
+                              >
+                                Use recommended timeframe
+                              </button>
+                              {strategy.mode === "swing-1h-4h" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setTimeframe("4h")}
+                                >
+                                  Use 4h
+                                </button>
+                              ) : null}
+                            </p>
+                          </div>
+                        ) : null}
+                        <IndicatorToggle
+                          checked={effectiveStrategy.requireMinConfluence}
+                          colour="#27d6a1"
+                          label="Require minimum confluence"
+                          onChange={(value) =>
+                            setStrategyValue("requireMinConfluence", value)
+                          }
+                        />
+                        <RangeField
+                          label="Minimum confluence"
+                          max={5}
+                          min={1}
+                          onChange={(value) =>
+                            setStrategyValue("minConfluence", value)
+                          }
+                          suffix="/ 5"
+                          value={effectiveStrategy.minConfluence}
+                        />
+                        <IndicatorToggle
+                          checked={effectiveStrategy.useVwapFilter}
+                          colour="#8ca9ff"
+                          label="Use VWAP bias filter"
+                          onChange={(value) =>
+                            setStrategyValue("useVwapFilter", value)
+                          }
+                        />
+                        <IndicatorToggle
+                          checked={effectiveStrategy.useTrendFilter}
+                          colour="#a979ff"
+                          label="Use Trend MA filter"
+                          onChange={(value) =>
+                            setStrategyValue("useTrendFilter", value)
+                          }
+                        />
+                        <RangeField
+                          label="Pivot length"
+                          max={20}
+                          min={2}
+                          onChange={(value) =>
+                            setStrategyValue("pivotLength", value)
+                          }
+                          suffix="bars"
+                          value={effectiveStrategy.pivotLength}
+                        />
+                        <RangeField
+                          label="S/R lookback"
+                          max={1200}
+                          min={150}
+                          onChange={(value) =>
+                            setStrategyValue("srLookback", value)
+                          }
+                          step={50}
+                          suffix="bars"
+                          value={effectiveStrategy.srLookback}
+                        />
+                        <RangeField
+                          label="Minimum touches"
+                          max={8}
+                          min={2}
+                          onChange={(value) =>
+                            setStrategyValue("minTouches", value)
+                          }
+                          value={effectiveStrategy.minTouches}
+                        />
+                        <RangeField
+                          label="VWAP scan length"
+                          max={500}
+                          min={20}
+                          onChange={(value) =>
+                            setStrategyValue("vwapLength", value)
+                          }
+                          suffix="bars"
+                          value={effectiveStrategy.vwapLength}
+                        />
+                        <RangeField
+                          label="Trend MA"
+                          max={300}
+                          min={5}
+                          onChange={(value) =>
+                            setStrategyValue("trendLength", value)
+                          }
+                          suffix="bars"
+                          value={effectiveStrategy.trendLength}
+                        />
+                      </div>
+                      <div className="setting-section">
+                        <h3>Pattern geometry</h3>
+                        <RangeField
+                          label="Channel length"
+                          max={500}
+                          min={30}
+                          onChange={(value) =>
+                            setStrategyValue("channelLength", value)
+                          }
+                          suffix="bars"
+                          value={effectiveStrategy.channelLength}
+                        />
+                        <RangeField
+                          label="Channel deviation"
+                          max={5}
+                          min={0.5}
+                          onChange={(value) =>
+                            setStrategyValue("channelDeviation", value)
+                          }
+                          step={0.1}
+                          suffix="σ"
+                          value={effectiveStrategy.channelDeviation}
+                        />
+                        <RangeField
+                          label="Channel reversal window"
+                          max={20}
+                          min={1}
+                          onChange={(value) =>
+                            setStrategyValue("channelReversalWindow", value)
+                          }
+                          suffix="bars"
+                          value={effectiveStrategy.channelReversalWindow}
+                        />
+                        <RangeField
+                          label="Structure confirmation window"
+                          max={20}
+                          min={1}
+                          onChange={(value) =>
+                            setStrategyValue("structureWindow", value)
+                          }
+                          suffix="bars"
+                          value={effectiveStrategy.structureWindow}
+                        />
+                        <RangeField
+                          label="Triangle tightness"
+                          max={5}
+                          min={0.1}
+                          step={0.1}
+                          onChange={(value) =>
+                            setStrategyValue("triangleTightnessPct", value)
+                          }
+                          suffix="%"
+                          value={effectiveStrategy.triangleTightnessPct}
+                        />
+                        <RangeField
+                          label="Breakout volume multiple"
+                          max={5}
+                          min={0.5}
+                          step={0.1}
+                          onChange={(value) =>
+                            setStrategyValue("breakoutVolumeMultiple", value)
+                          }
+                          suffix="×"
+                          value={effectiveStrategy.breakoutVolumeMultiple}
+                        />
+                        <RangeField
+                          label="ZigZag swing threshold"
+                          max={20}
+                          min={0.1}
+                          step={0.1}
+                          onChange={(value) =>
+                            setStrategyValue("zigZagThresholdPct", value)
+                          }
+                          suffix="%"
+                          value={effectiveStrategy.zigZagThresholdPct}
+                        />
+                        <RangeField
+                          label="Fibonacci window"
+                          max={600}
+                          min={50}
+                          onChange={(value) =>
+                            setStrategyValue("fibLength", value)
+                          }
+                          step={25}
+                          suffix="bars"
+                          value={effectiveStrategy.fibLength}
+                        />
+                      </div>
+                      <div className="setting-section">
+                        <h3>Signal diagnostics</h3>
+                        <div className="paper-summary">
+                          <small>
+                            Preset: {strategyModeLabel(strategy.mode)} ·
+                            effective timeframe {timeframe}
+                          </small>
+                          <small>
+                            Bars loaded {analysis.diagnostics.barsLoaded} ·
+                            after warm-up {analysis.diagnostics.barsAfterWarmup}
+                          </small>
+                          <small>
+                            Raw long {analysis.diagnostics.rawLongCandidates} ·
+                            raw short {analysis.diagnostics.rawShortCandidates}
+                          </small>
+                          <small>
+                            Blocked: confluence{" "}
+                            {analysis.diagnostics.blockedByConfluence} · VWAP{" "}
+                            {analysis.diagnostics.blockedByVwap} · Trend MA{" "}
+                            {analysis.diagnostics.blockedByTrend}
+                          </small>
+                          <small>
+                            Ambiguous ties {analysis.diagnostics.ambiguousTies}{" "}
+                            · BUY {analysis.diagnostics.confirmedBuys} · SELL{" "}
+                            {analysis.diagnostics.confirmedSells} · backtest
+                            entries {backtest.trades}
+                          </small>
+                          <small>Pine parity: {parityReport.datasetSource} · {parityReport.symbol} {parityReport.timeframe} · {parityReport.candleCount} candles · signals {parityReport.signalCount} · entries {parityReport.entryCount} · rejected {parityReport.rejectedSignals}</small>
+                          <small>Final equity {currency.format(parityReport.finalEquity)} · return {signed(parityReport.returnPct)} · max drawdown {parityReport.maximumDrawdownPct.toFixed(2)}% · profit factor {parityReport.profitFactor.toFixed(2)} · win rate {parityReport.winRatePct.toFixed(2)}%</small>
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
+
+                  {activePanel === "risk" ? (
+                    <>
+                      <div className="setting-section">
+                        <h3>{user.name}&apos;s account limits</h3>
+                        <RangeField
+                          label="Risk per trade"
+                          max={10}
+                          min={0.1}
+                          onChange={(value) =>
+                            setRisk((current) => ({
+                              ...current,
+                              riskPct: value,
+                            }))
+                          }
+                          step={0.1}
+                          suffix="%"
+                          value={risk.riskPct}
+                        />
+                        {risk.riskPct > 2 ? (
+                          <div className="safety-note purple">
+                            <i>!</i>
+                            <p>
+                              <strong>High-risk simulation</strong>
+                              <span>
+                                Compounding and drawdown are greatly amplified.
+                              </span>
+                            </p>
+                          </div>
+                        ) : null}
+                        <RangeField
+                          label="Maximum notional"
+                          max={100000}
+                          min={50}
+                          onChange={(value) =>
+                            setRisk((current) => ({
+                              ...current,
+                              maxNotional: value,
+                            }))
+                          }
+                          step={50}
+                          suffix="USDT"
+                          value={risk.maxNotional}
+                        />
+                        <RangeField
+                          label="Maximum leverage"
+                          max={10}
+                          min={1}
+                          onChange={(value) =>
+                            setRisk((current) => ({
+                              ...current,
+                              leverage: value,
+                            }))
+                          }
+                          suffix="×"
+                          value={risk.leverage}
+                        />
+                      </div>
+                      <div className="setting-section">
+                        <h3>Protection</h3>
+                        <RangeField
+                          label="ATR stop"
+                          max={8}
+                          min={0.5}
+                          onChange={(value) =>
+                            setRisk((current) => ({
+                              ...current,
+                              atrStop: value,
+                            }))
+                          }
+                          step={0.1}
+                          suffix="ATR"
+                          value={risk.atrStop}
+                        />
+                        <RangeField
+                          label="TP1 reward"
+                          max={10}
+                          min={0.5}
+                          onChange={(value) =>
+                            setRisk((current) => ({ ...current, tp1: value }))
+                          }
+                          step={0.1}
+                          suffix="R"
+                          value={risk.tp1}
+                        />
+                        <RangeField
+                          label="TP2 reward"
+                          max={20}
+                          min={1}
+                          onChange={(value) =>
+                            setRisk((current) => ({ ...current, tp2: value }))
+                          }
+                          step={0.1}
+                          suffix="R"
+                          value={risk.tp2}
+                        />
+                        <div className="safety-note purple">
+                          <i>↗</i>
+                          <p>
+                            <strong>TP1 → break-even → TP2</strong>
+                            <span>
+                              The test engine models confirmed-bar entries and
+                              conservative exits.
+                            </span>
+                          </p>
+                        </div>
+                        <div className="paper-summary">
+                          <span>Historical test</span>
+                          <strong
+                            className={
+                              backtest.returnPct >= 0 ? "positive" : "negative"
+                            }
+                          >
+                            {signed(backtest.returnPct)}
+                          </strong>
+                          <small>
+                            {backtest.trades} trades ·{" "}
+                            {backtest.winRatePct.toFixed(0)}% win ·{" "}
+                            {backtest.maxDrawdownPct.toFixed(2)}% max DD
+                          </small>
+                        </div>
+                      </div>
+                      <div className="setting-section">
+                        <h3>Exchange connection</h3>
+                        <div className="credential-card">
+                          <span className="credential-icon">◇</span>
+                          <p>
+                            <strong>MEXC credentials not configured</strong>
+                            <span>
+                              Credential entry is disabled until encryption, MFA
+                              and audit storage are active.
+                            </span>
+                          </p>
+                          <button disabled type="button">
+                            Configure later
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+                <div className="panel-footer">
+                  <button
+                    className="secondary"
+                    onClick={resetPreset}
+                    type="button"
+                  >
+                    Reset preset
+                  </button>
+                  <button
+                    className="primary"
+                    disabled={saveState === "saving"}
+                    onClick={applyPaperSettings}
+                    type="button"
+                  >
+                    {saveState === "saving"
+                      ? "Saving…"
+                      : saveState === "saved"
+                        ? "Saved ✓"
+                        : saveState === "error"
+                          ? "Retry save"
+                          : "Save & snapshot paper run"}
+                  </button>
+                </div>
+              </aside>
+            ) : null}
           </div>
-        </aside> : null}
-      </div>
-      </>}
+          <ManualPaperTicket publicPrice={liveLastPrice ?? liveCandle?.close ?? null} readOnly={user.role === "viewer"} symbol={symbol} />
+        </>
+      )}
     </main>
   );
 }
 
-
-function TradingViewExplorer({nativeChart,symbol,timeframe}:{nativeChart:React.ReactNode;symbol:string;timeframe:string}) {
-  const [mode,setMode]=useState<"native"|"official">("native");
+function TradingViewExplorer({
+  nativeChart,
+  symbol,
+  timeframe,
+}: {
+  nativeChart: React.ReactNode;
+  symbol: string;
+  timeframe: string;
+}) {
+  const [mode, setMode] = useState<"native" | "official">("native");
   const container = useRef<HTMLDivElement>(null);
-  const tvSymbol=`MEXC:${symbol.replace("_","")}.P`, interval=({"1m":"1","5m":"5","15m":"15","30m":"30","1h":"60","4h":"240","8h":"480","1d":"D","1w":"W","1M":"M"} as Record<string,string>)[timeframe]??"15";
-  const standard=`https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}&interval=${encodeURIComponent(interval)}`;
-  const openUrl=process.env.NEXT_PUBLIC_TRADINGVIEW_LAYOUT_URL || standard;
+  const tvSymbol = `MEXC:${symbol.replace("_", "")}.P`,
+    interval =
+      (
+        {
+          "1m": "1",
+          "5m": "5",
+          "15m": "15",
+          "30m": "30",
+          "1h": "60",
+          "4h": "240",
+          "8h": "480",
+          "1d": "D",
+          "1w": "W",
+          "1M": "M",
+        } as Record<string, string>
+      )[timeframe] ?? "15";
+  const standard = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}&interval=${encodeURIComponent(interval)}`;
+  const openUrl = process.env.NEXT_PUBLIC_TRADINGVIEW_LAYOUT_URL || standard;
   useEffect(() => {
-    if(mode!=="official"||!container.current) return;
-    const element = container.current,script = document.createElement("script");
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";script.async = true;
-    script.text = JSON.stringify({ autosize:true,symbol:tvSymbol,interval,timezone:"Etc/UTC",theme:"dark",style:"1",locale:"en",allow_symbol_change:true,calendar:false,support_host:"https://www.tradingview.com" });
-    element.appendChild(script);return () => { element.replaceChildren(); };
-  }, [mode,tvSymbol,interval]);
-  return <section className="explorer"><div className="explorer-mode-tabs"><button className={mode==="native"?"active":""} onClick={()=>setMode("native")} type="button">DizyTrades Pine V1</button><button className={mode==="official"?"active":""} onClick={()=>setMode("official")} type="button">Official TradingView</button></div>{mode==="native"?<><div className="explorer-notice">Shared Pine-equivalent TypeScript engine · confirmed candles · Signal Simulation remains independent of visibility.</div><div className="explorer-native">{nativeChart}</div></>:<><div className="explorer-notice">TradingView’s embedded chart cannot load custom Pine scripts. Use DizyTrades Pine V1 mode for the equivalent native overlay, or open the script in TradingView. <a href={openUrl} rel="noopener noreferrer" target="_blank">Open in TradingView</a></div><details className="explorer-help"><summary>Using the Pine script on TradingView</summary><ol><li>Open the Pine script in TradingView.</li><li>Add it to the chart.</li><li>Save the chart layout or indicator template.</li><li>Leave symbol/interval remembering disabled if the indicator should stay active when changing symbols.</li><li>Use “Apply indicators to entire layout” for multi-chart layouts.</li></ol></details><div className="tradingview-widget-container" ref={container}><div className="tradingview-widget-container__widget" /><div className="tradingview-widget-copyright"><a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank"><span>Track all markets on TradingView</span></a></div></div></>}</section>;
+    if (mode !== "official" || !container.current) return;
+    const element = container.current,
+      script = document.createElement("script");
+    script.src =
+      "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.async = true;
+    script.text = JSON.stringify({
+      autosize: true,
+      symbol: tvSymbol,
+      interval,
+      timezone: "Etc/UTC",
+      theme: "dark",
+      style: "1",
+      locale: "en",
+      allow_symbol_change: true,
+      calendar: false,
+      support_host: "https://www.tradingview.com",
+    });
+    element.appendChild(script);
+    return () => {
+      element.replaceChildren();
+    };
+  }, [mode, tvSymbol, interval]);
+  return (
+    <section className="explorer">
+      <div className="explorer-mode-tabs">
+        <button
+          className={mode === "native" ? "active" : ""}
+          onClick={() => setMode("native")}
+          type="button"
+        >
+          DizyTrades Pine V1
+        </button>
+        <button
+          className={mode === "official" ? "active" : ""}
+          onClick={() => setMode("official")}
+          type="button"
+        >
+          Official TradingView
+        </button>
+      </div>
+      {mode === "native" ? (
+        <>
+          <div className="explorer-notice">
+            Shared Pine-equivalent TypeScript engine · confirmed candles ·
+            Signal Simulation remains independent of visibility.
+          </div>
+          <div className="explorer-native">{nativeChart}</div>
+        </>
+      ) : (
+        <>
+          <div className="explorer-notice">
+            TradingView’s embedded chart cannot load custom Pine scripts. Use
+            DizyTrades Pine V1 mode for the equivalent native overlay, or open
+            the script in TradingView.{" "}
+            <a href={openUrl} rel="noopener noreferrer" target="_blank">
+              Open in TradingView
+            </a>
+          </div>
+          <details className="explorer-help">
+            <summary>Using the Pine script on TradingView</summary>
+            <ol>
+              <li>Open the Pine script in TradingView.</li>
+              <li>Add it to the chart.</li>
+              <li>Save the chart layout or indicator template.</li>
+              <li>
+                Leave symbol/interval remembering disabled if the indicator
+                should stay active when changing symbols.
+              </li>
+              <li>
+                Use “Apply indicators to entire layout” for multi-chart layouts.
+              </li>
+            </ol>
+          </details>
+          <div className="tradingview-widget-container" ref={container}>
+            <div className="tradingview-widget-container__widget" />
+            <div className="tradingview-widget-copyright">
+              <a
+                href="https://www.tradingview.com/"
+                rel="noopener nofollow"
+                target="_blank"
+              >
+                <span>Track all markets on TradingView</span>
+              </a>
+            </div>
+          </div>
+        </>
+      )}
+    </section>
+  );
 }

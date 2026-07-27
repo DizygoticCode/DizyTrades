@@ -261,7 +261,7 @@ function buildElliottStages(pivotData: ReturnType<typeof pivots>): { stages: Pat
   const direction = bullish ? "bullish" : "bearish";
   const stages = waves.map((pivot, index) => {
     const status: PatternStatus = complete || index < waves.length - 1 ? "confirmed" : "forming";
-    return { id:`elliott-${direction}-${pivot.time}-${index+1}`, family:"elliott", time:pivot.time, price:pivot.price, direction, status, stage:index+1, label:`Elliott ${index+1}${status === "forming" ? "?" : ""}` } satisfies PatternStageMarker;
+    return { id:`elliott-${direction}-${pivot.time}-${index+1}`, family:"elliott", time:pivot.time, price:pivot.price, direction, status, stage:index+1, label:`Elliott Wave ${index+1}${status === "forming" ? "?" : ""}` } satisfies PatternStageMarker;
   });
   const points = [sequence[0], ...waves].map(p => ({ time:p.time, price:p.price }));
   return { stages, region: complete ? { id:`elliott-${direction}-${sequence[0].time}`, family:"elliott", status:"confirmed", direction, startTime:sequence[0].time, endTime:waves[4].time, high:Math.max(...points.map(p=>p.price)), low:Math.min(...points.map(p=>p.price)), points } : undefined };
