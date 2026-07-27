@@ -137,14 +137,18 @@ export function patternLabelPosition(bounds: Rect, placement: PatternPlacement, 
   return { x: Math.min(plot.x + plot.width - label.width, Math.max(plot.x, x)), y: Math.min(plot.y + plot.height - label.height, Math.max(plot.y, y)) };
 }
 
-export type BubblePlacement = { id:string; anchorX:number; anchorY:number; width:number; height:number; x:number; y:number; row:number };
-export function placeChartBubbles(items: {id:string;anchorX:number;anchorY:number;width:number;height:number}[], plot:Rect, reservedTop=48, gap=5): BubblePlacement[] {
+export type BubblePlacement = { id:string; anchorX:number; anchorY:number; width:number; height:number; x:number; y:number; row:number; side?:"above"|"below" };
+export function placeChartBubbles(items: {id:string;anchorX:number;anchorY:number;width:number;height:number;side?:"above"|"below"}[], plot:Rect, reservedTop=48, gap=5, tolerance=2): BubblePlacement[] {
   const placed: BubblePlacement[]=[];
-  for (const item of [...items].sort((a,b)=>a.anchorX-b.anchorX||a.id.localeCompare(b.id))) {
-    const x=Math.min(plot.x+plot.width-item.width,Math.max(plot.x,item.anchorX-item.width/2));
-    let row=0, y=Math.max(plot.y+reservedTop,item.anchorY-item.height-12);
-    while (placed.some(other=>x<other.x+other.width+gap&&x+item.width+gap>other.x&&y<other.y+other.height+gap&&y+item.height+gap>other.y)) { row+=1; y=Math.max(plot.y+reservedTop,item.anchorY-item.height-12+row*(item.height+gap)); }
-    y=Math.min(plot.y+plot.height-item.height,Math.max(plot.y+reservedTop,y));
+  const visible=items.filter(item=>item.anchorX>=plot.x-tolerance&&item.anchorX<=plot.x+plot.width+tolerance);
+  for (const item of [...visible].sort((a,b)=>a.anchorX-b.anchorX||a.id.localeCompare(b.id))) {
+    const x=item.anchorX-item.width/2;
+    const below=item.side==="below";
+    let row=0, y=below?item.anchorY+12:item.anchorY-item.height-12;
+    const shifted=()=>y+(below?row:-row)*(item.height+gap);
+    while (placed.some(other=>x<other.x+other.width+gap&&x+item.width+gap>other.x&&shifted()<other.y+other.height+gap&&shifted()+item.height+gap>other.y)) row+=1;
+    y=shifted();
+    if(y<plot.y+reservedTop||y+item.height>plot.y+plot.height) continue;
     placed.push({...item,x,y,row});
   }
   return placed;

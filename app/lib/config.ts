@@ -3,6 +3,8 @@ import { DEFAULT_APPEARANCE, sanitiseAppearance, type ChartAppearanceSettings } 
 import type { LineExtension, PatternPlacement, SidePlacement } from "./chart/chart-layout.ts";
 
 export type ViewSettings = {
+  settingsSchemaVersion: number;
+  indicatorPackage: boolean;
   supportResistance: boolean;
   vwap: boolean;
   fibonacci: boolean;
@@ -39,7 +41,12 @@ export type ViewSettings = {
   showLrChannelLabels: boolean;
   lrBasisHalo: boolean;
   patternBubbleSize: "Small" | "Medium" | "Large";
-  signalBubbleSize: "Medium" | "Large" | "Extra Large";
+  signalBubbleSize: "Tiny" | "Small" | "Medium" | "Large" | "Extra Large";
+  signalPlacement: "side-aware" | "above" | "below";
+  signalDistance: number;
+  showHistoricalSignals: boolean;
+  showManualPaperMarkers: boolean;
+  showPatternConnectors: boolean;
   signalDetail: "Direction only" | "Direction + confluence";
   labelSize: "Small" | "Medium" | "Large";
   volumeBars: number;
@@ -104,6 +111,8 @@ export const DEFAULT_STRATEGY: StrategySettings = {
 };
 
 export const DEFAULT_VIEW: ViewSettings = {
+  settingsSchemaVersion: 2,
+  indicatorPackage: true,
   supportResistance: true,
   vwap: true,
   fibonacci: true,
@@ -116,18 +125,18 @@ export const DEFAULT_VIEW: ViewSettings = {
   provisionalStages: true,
   completedPatternFills: true,
   showLevelTouches: false,
-  globalLineExtensionOverride: "individual",
-  fadeExtendedPortions: true,
-  manualTrendLineExtension: "none",
+  globalLineExtensionOverride: "both",
+  fadeExtendedPortions: false,
+  manualTrendLineExtension: "both",
   manualRayExtension: "right",
   manualHorizontalLineExtension: "both",
-  manualChannelExtension: "none",
-  manualFibonacciExtension: "none",
+  manualChannelExtension: "both",
+  manualFibonacciExtension: "both",
   srLineExtension: "both",
   fibLineExtension: "both",
-  pivotTrendlineExtension: "right",
-  lrChannelExtension: "right",
-  triangleLineExtension: "none",
+  pivotTrendlineExtension: "both",
+  lrChannelExtension: "both",
+  triangleLineExtension: "both",
   pivotTrendlineWidth: 3,
   pivotTrendlineStyle: "solid",
   trendlineHalo: true,
@@ -140,7 +149,12 @@ export const DEFAULT_VIEW: ViewSettings = {
   showLrChannelLabels: true,
   lrBasisHalo: true,
   patternBubbleSize: "Small",
-  signalBubbleSize: "Large",
+  signalBubbleSize: "Small",
+  signalPlacement: "side-aware",
+  signalDistance: 8,
+  showHistoricalSignals: true,
+  showManualPaperMarkers: true,
+  showPatternConnectors: false,
   signalDetail: "Direction only",
   labelSize: "Medium",
   volumeBars: 240,
@@ -224,6 +238,8 @@ export function sanitiseTerminalSettings(
 
   return {
     view: {
+      settingsSchemaVersion: 2,
+      indicatorPackage: boolean(viewInput.indicatorPackage, DEFAULT_VIEW.indicatorPackage),
       supportResistance: boolean(viewInput.supportResistance, DEFAULT_VIEW.supportResistance),
       vwap: boolean(viewInput.vwap, DEFAULT_VIEW.vwap),
       fibonacci: boolean(viewInput.fibonacci, DEFAULT_VIEW.fibonacci),
@@ -260,7 +276,16 @@ export function sanitiseTerminalSettings(
       showLrChannelLabels: boolean(viewInput.showLrChannelLabels, DEFAULT_VIEW.showLrChannelLabels),
       lrBasisHalo: boolean(viewInput.lrBasisHalo, DEFAULT_VIEW.lrBasisHalo),
       patternBubbleSize: ["Small","Medium","Large"].includes(String(viewInput.patternBubbleSize)) ? viewInput.patternBubbleSize as ViewSettings["patternBubbleSize"] : DEFAULT_VIEW.patternBubbleSize,
-      signalBubbleSize: ["Medium","Large","Extra Large"].includes(String(viewInput.signalBubbleSize)) ? viewInput.signalBubbleSize as ViewSettings["signalBubbleSize"] : DEFAULT_VIEW.signalBubbleSize,
+      // Version 1 shipped Large as an implicit default. Migrate it once; version 2
+      // subsequently preserves every explicit user choice, including Large.
+      signalBubbleSize: Number(viewInput.settingsSchemaVersion ?? 1) < 2 && (viewInput.signalBubbleSize == null || viewInput.signalBubbleSize === "Large")
+        ? "Small"
+        : ["Tiny","Small","Medium","Large","Extra Large"].includes(String(viewInput.signalBubbleSize)) ? viewInput.signalBubbleSize as ViewSettings["signalBubbleSize"] : DEFAULT_VIEW.signalBubbleSize,
+      signalPlacement: ["side-aware","above","below"].includes(String(viewInput.signalPlacement)) ? viewInput.signalPlacement as ViewSettings["signalPlacement"] : DEFAULT_VIEW.signalPlacement,
+      signalDistance: finite(viewInput.signalDistance, DEFAULT_VIEW.signalDistance, 0, 80),
+      showHistoricalSignals: boolean(viewInput.showHistoricalSignals, DEFAULT_VIEW.showHistoricalSignals),
+      showManualPaperMarkers: boolean(viewInput.showManualPaperMarkers, DEFAULT_VIEW.showManualPaperMarkers),
+      showPatternConnectors: boolean(viewInput.showPatternConnectors, DEFAULT_VIEW.showPatternConnectors),
       signalDetail: ["Direction only","Direction + confluence"].includes(String(viewInput.signalDetail)) ? viewInput.signalDetail as ViewSettings["signalDetail"] : DEFAULT_VIEW.signalDetail,
       realtimeChartUpdates: boolean(viewInput.realtimeChartUpdates, DEFAULT_VIEW.realtimeChartUpdates),
       candleCountdown: boolean(viewInput.candleCountdown, DEFAULT_VIEW.candleCountdown),

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { MEXC_INTERVALS } from "../app/lib/market/mexc-shared.ts";
-import { applyDealToLiveCandle, applyKlineUpdate, defaultVisibleCandleCount, formatCountdown, mergeClosedCandles, nextCandleCloseTimestamp, parseMexcDeals, parseMexcKline } from "../app/lib/market/realtime.ts";
+import { StableClockOffset, calculateExchangeAlignedCountdownSeconds, applyDealToLiveCandle, applyKlineUpdate, defaultVisibleCandleCount, formatCountdown, mergeClosedCandles, nextCandleCloseTimestamp, parseMexcDeals, parseMexcKline } from "../app/lib/market/realtime.ts";
 
 const candle = { time: 100, open: 10, high: 12, low: 9, close: 11, volume: 5 };
 test("shared intervals distinguish minutes and months", () => { assert.equal(MEXC_INTERVALS["1m"].api, "Min1"); assert.equal(MEXC_INTERVALS["1M"].api, "Month1"); });
@@ -71,3 +71,6 @@ test("price-line title updater runs when only countdown seconds change", () => {
   updatePriceLineCountdownTitle(line, 11, true);
   assert.deepEqual(titles, ["⏱ 00:12", "⏱ 00:11"]);
 });
+
+test("exchange aligned countdown rolls without a candle update",()=>{assert.equal(calculateExchangeAlignedCountdownSeconds({timeframe:"1m",clientNowMs:59_000,clockOffsetMs:0}),1);assert.equal(calculateExchangeAlignedCountdownSeconds({timeframe:"1m",clientNowMs:60_000,clockOffsetMs:0}),60);});
+test("stable clock rejects execution-like outliers and limits correction",()=>{const clock=new StableClockOffset();assert.equal(clock.add(10_100,10_000),100);clock.add(11_100,11_000);clock.add(12_100,12_000);assert.equal(clock.add(99_000,13_000),100);assert.equal(clock.add(13_900,13_000),350);});

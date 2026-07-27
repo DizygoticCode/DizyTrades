@@ -1,0 +1,9 @@
+import {NextResponse} from "next/server";
+import {requireApiUser} from "../../lib/auth";
+import {appendAudit} from "../../lib/store";
+import {closeManualPosition,latestPublicPrice,readManualAccount,resetManualAccount,submitManualOrder} from "../../lib/manual-paper";
+export const runtime="nodejs";export const dynamic="force-dynamic";
+const attempts=new Map<string,{at:number;count:number}>();
+function limited(id:string){const now=Date.now(),old=attempts.get(id);const value=!old||now-old.at>60_000?{at:now,count:1}:{at:old.at,count:old.count+1};attempts.set(id,value);return value.count>20;}
+export async function GET(){const user=await requireApiUser();if(!user)return NextResponse.json({error:"Unauthorised"},{status:401});return NextResponse.json({account:await readManualAccount(user.id),readOnly:user.role==="viewer"});}
+export async function POST(request:Request){const user=await requireApiUser();if(!user)return NextResponse.json({error:"Unauthorised"},{status:401});if(user.role==="viewer")return NextResponse.json({error:"Viewer sessions are read-only."},{status:403});if(limited(user.id))return NextResponse.json({error:"Rate limit exceeded."},{status:429});try{const body=await request.json() as Record<string,unknown>;let account;if(body.action==="reset")account=await resetManualAccount(user.id,String(body.confirmation));else{const symbol=String(body.symbol??"");const price=await latestPublicPrice(symbol);account=body.action==="close"?await closeManualPosition(user.id,symbol,String(body.idempotencyKey),price):await submitManualOrder(user.id,body as never,price);}await appendAudit(user.id,"manual-paper."+String(body.action??"order"),{symbol:body.symbol});return NextResponse.json({account});}catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Invalid request"},{status:400});}}
