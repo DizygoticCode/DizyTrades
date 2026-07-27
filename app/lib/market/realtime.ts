@@ -41,13 +41,21 @@ export function parseMexcDeals(message: unknown, symbol: string, contractSize = 
   return payload.flatMap((raw): MexcDeal[] => {
     const data = record(raw);
     if (!data) return [];
-    const price = finite(data.p), timeMs = finite(data.t), volume = finite(data.v), sideCode = data.T == null ? 1 : finite(data.T);
-    if (price === null || timeMs === null || volume === null || price <= 0 || timeMs <= 0 || volume < 0 || ![1, 2].includes(sideCode ?? 0) || !Number.isFinite(contractSize) || contractSize <= 0) return [];
+    const price = finite(data.p), eventTime = finite(data.cts) ?? finite(data.t), volume = finite(data.v), sideCode = data.T == null ? 1 : finite(data.T);
+    if (price === null || eventTime === null || volume === null || price <= 0 || eventTime <= 0 || volume < 0 || ![1, 2].includes(sideCode ?? 0) || !Number.isFinite(contractSize) || contractSize <= 0) return [];
     const engine = finite(data.cts);
     const selfTradeRaw = data.S ?? data.st ?? data.selfTrade;
     const baseQuantity = volume * contractSize;
-    return [{ symbol: receivedSymbol, price, timeMs, volume, tradeId: String(data.i ?? `${timeMs}:${price}:${volume}:${sideCode}`), contractQuantity: volume, side: sideCode === 1 ? "buy" : "sell", openClose: data.O == null ? null : String(data.O), engineTimeMs: engine ?? timeMs, selfTrade: selfTradeRaw == null ? null : Boolean(selfTradeRaw), baseQuantity, notional: price * baseQuantity }];
+    return [{ symbol: receivedSymbol, price, timeMs:eventTime, volume, tradeId: String(data.i ?? `${receivedSymbol}:${eventTime}:${price}:${volume}:${sideCode}`), contractQuantity: volume, side: sideCode === 1 ? "buy" : "sell", openClose: data.O == null ? null : String(data.O), engineTimeMs: engine ?? eventTime, selfTrade: selfTradeRaw == null ? null : Boolean(selfTradeRaw), baseQuantity, notional: price * baseQuantity }];
   });
+}
+
+/** Normalise the one-shot public REST deal backfill through the same parser as
+ * websocket deals, so contract sizing, direction and de-duplication agree. */
+export function parseMexcRecentDeals(payload:unknown,symbol:string,contractSize=1):MexcDeal[]{
+  const envelope=record(payload),data=envelope?.data;
+  if(!Array.isArray(data))return [];
+  return parseMexcDeals({channel:"push.deal",symbol,data},symbol,contractSize);
 }
 
 export function mergeClosedCandles(candles: Candle[], additions: Candle[], limit = 800): Candle[] {
