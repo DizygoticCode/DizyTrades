@@ -18,3 +18,17 @@ test("events project to containing native candles",()=>{const base=Date.UTC(2026
 test("trade aggregates retain notional delta and VWAP coordinates",()=>{const flow=new FlowAggregator({priceStep:100});const deal=(id,side,notional,timeMs,price)=>({tradeId:id,side,notional,timeMs,price,symbol:"BTC_USDT",baseQuantity:notional/price,contractQuantity:notional/price});flow.addDeal(deal("a","buy",100,1000,100),5000,100);flow.addDeal(deal("b","sell",300,3000,110),5000,100);const dot=flow.bubbles[0];assert.equal(dot.timeMs,2500);assert.equal(dot.price,107.5);assert.equal(dot.buyNotional-dot.sellNotional,-200)});
 test("recent REST deals share websocket composite IDs and contract notional",()=>{const payload={data:[{p:100,v:3,T:1,t:1700000000000}]};const [rest]=parseMexcRecentDeals(payload,"BTC_USDT",.01);const [ws]=parseMexcDeals({channel:"push.deal",symbol:"BTC_USDT",data:payload.data},"BTC_USDT",.01);assert.equal(rest.notional,3);const flow=new FlowAggregator();assert.equal(flow.addDeal(rest),true);assert.equal(flow.addDeal(ws),false)});
 test("feed age classification never initiates recovery for a merely stale valid book",async()=>{const {feedAgeStatus}=await import("../app/lib/order-flow/lifecycle.ts");assert.equal(feedAgeStatus(1000),"Live");assert.equal(feedAgeStatus(3000),"Delayed");assert.equal(feedAgeStatus(6000),"Stale")});
+
+test("canonical root-level depth commits repair a buffered websocket gap",()=>{
+  const symbol="BTC_USDT",update=version=>({symbol,version,engineTimeMs:version,bids:[],asks:[]});
+  const book=new OrderBook();book.snapshot(update(100));assert.equal(book.update(update(103)),"gap");
+  const payload={success:true,symbol,source:"contract.mexc.com",requestedAt:"2026-07-27T00:00:00.000Z",commits:[{version:101,timestamp:101,bids:[],asks:[]},{version:102,timestamp:102,bids:[],asks:[]}]};
+  const commits=parseDepthCommits(payload,symbol);assert.equal(commits.length,2);assert.equal(book.bridge(commits),true);
+  assert.deepEqual({version:book.view().version,valid:book.view().valid,status:book.view().valid?"Live":"Recovering"},{version:103,valid:true,status:"Live"});
+});
+
+test("atomic resnapshot drops an old poisoned gap but joins events received in flight",()=>{
+  const symbol="BTC_USDT",update=version=>({symbol,version,engineTimeMs:version,bids:[],asks:[]});
+  const book=new OrderBook();book.snapshot(update(100));book.update(update(105));book.beginResnapshot();book.update(update(103));book.update(update(104));book.applyResnapshot(update(102));
+  assert.deepEqual({version:book.view().version,valid:book.view().valid},{version:104,valid:true});
+});

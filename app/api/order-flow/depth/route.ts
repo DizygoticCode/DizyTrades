@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireApiUser } from "../../../lib/auth";
 import { getMexcMarkets } from "../../../lib/market/mexc";
 import { parseDepthCommits, parseDepthSnapshot } from "../../../lib/order-flow/mexc-depth";
+import type { DepthCommitsResponse } from "../../../lib/order-flow/types";
 
 export const dynamic="force-dynamic";
 const requests=new Map<string,number[]>(), TIMEOUT_MS=5_500;
@@ -28,7 +29,7 @@ export async function GET(request:Request){
   const path=mode==="commits"?`/api/v1/contract/depth_commits/${encodeURIComponent(symbol)}/1000`:`/api/v1/contract/depth/${encodeURIComponent(symbol)}?limit=1000`;
   // Render has intermittently rejected the api.mexc.com contract alias. Try it
   // first as requested by MEXC, then use the canonical public contract host.
-  const failures:Failure[]=[];for(const host of ["api.mexc.com","contract.mexc.com"]){const result=await requestUpstream(`https://${host}${path}`,symbol,mode);if(result.failure){failures.push(result.failure);continue;}return mode==="commits"?NextResponse.json({source:result.hostname,requestedAt,commits:result.commits}):NextResponse.json({source:result.hostname,requestedAt,...result.snapshot});}
+  const failures:Failure[]=[];for(const host of ["api.mexc.com","contract.mexc.com"]){const result=await requestUpstream(`https://${host}${path}`,symbol,mode);if(result.failure){failures.push(result.failure);continue;}if(mode==="commits"){const response:DepthCommitsResponse={success:true,symbol,source:result.hostname!,requestedAt,commits:result.commits!};return NextResponse.json(response)}return NextResponse.json({source:result.hostname,requestedAt,...result.snapshot});}
   console.error("MEXC public depth request failed",{symbol,mode,requestedAt,failures});
   return NextResponse.json({error:"MEXC public depth feed is unavailable.",requestedAt,failures},{status:503});
 }
