@@ -1,4 +1,4 @@
-import { clipLineToRect, type LinePoint, type Rect } from "./chart-layout.ts";
+import { clipLineToRect, type Rect } from "./chart-layout.ts";
 
 export type WorldLinePoint = { index: number; time: number; price: number };
 export type WorldLine = {
