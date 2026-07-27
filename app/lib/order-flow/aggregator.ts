@@ -10,7 +10,7 @@ export class FlowAggregator {
   configure(options:Partial<AggregatorOptions>){this.options={...this.options,...options};}
   clear(){this.heatmap=[];this.bubbles=[];this.heatmapBuckets.clear();this.bubbleBuckets.clear();this.ids.clear();}
   captureBook(book:BookView,contractSize:number,timeMs:number,rangeBps=50){
-    if(!book.valid)return;const bid=book.bids[0]?.price,ask=book.asks[0]?.price;if(!bid||!ask)return;
+    if(!Number.isFinite(contractSize)||contractSize<=0)return;const bid=book.bids[0]?.price,ask=book.asks[0]?.price;if(!bid||!ask)return;
     const mid=(bid+ask)/2,low=mid*(1-rangeBps/10_000),high=mid*(1+rangeBps/10_000),timeBucket=Math.floor(timeMs/this.options.timeBucketMs)*this.options.timeBucketMs;
     const observation=new Map<number,HeatmapCell>();
     for(const [side,levels] of [["bid",book.bids],["ask",book.asks]] as const)for(const level of levels){if(level.price<low||level.price>high)continue;const price=Math.round(level.price/this.options.priceStep)*this.options.priceStep,cell=observation.get(price)??{timeMs:timeBucket,price,bidNotional:0,askNotional:0,mid,spread:ask-bid};cell[side==="bid"?"bidNotional":"askNotional"]+=level.price*level.contractQuantity*contractSize;observation.set(price,cell);}
