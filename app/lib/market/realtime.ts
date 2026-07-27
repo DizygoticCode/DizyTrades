@@ -134,9 +134,11 @@ export class StableClockOffset {
   add(serverTimeMs: number, clientReceivedMs: number) {
     const sample = estimateServerClockOffset(serverTimeMs, clientReceivedMs);
     if (!Number.isFinite(sample) || Math.abs(sample) > 60_000) return this.value;
+    const existing=[...this.samples].sort((a,b)=>a-b);
+    const existingMedian=existing[Math.floor(existing.length/2)];
+    if (existing.length>2 && Math.abs(sample-existingMedian)>5_000) return this.value;
     this.samples.push(sample); this.samples = this.samples.slice(-7);
     const sorted=[...this.samples].sort((a,b)=>a-b),median=sorted[Math.floor(sorted.length/2)];
-    if (this.samples.length>2 && Math.abs(sample-median)>5_000) return this.value;
     const delta=Math.max(-250,Math.min(250,median-this.value));
     this.value+=delta;
     return this.value;

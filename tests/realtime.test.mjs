@@ -73,4 +73,4 @@ test("price-line title updater runs when only countdown seconds change", () => {
 });
 
 test("exchange aligned countdown rolls without a candle update",()=>{assert.equal(calculateExchangeAlignedCountdownSeconds({timeframe:"1m",clientNowMs:59_000,clockOffsetMs:0}),1);assert.equal(calculateExchangeAlignedCountdownSeconds({timeframe:"1m",clientNowMs:60_000,clockOffsetMs:0}),60);});
-test("stable clock rejects execution-like outliers and limits correction",()=>{const clock=new StableClockOffset();assert.equal(clock.add(10_100,10_000),100);clock.add(11_100,11_000);clock.add(12_100,12_000);assert.equal(clock.add(99_000,13_000),100);assert.equal(clock.add(13_900,13_000),350);});
+test("stable clock rejects outliers and rate-limits a sustained correction",()=>{const clock=new StableClockOffset();assert.equal(clock.add(10_100,10_000),100);clock.add(11_100,11_000);clock.add(12_100,12_000);assert.equal(clock.add(99_000,13_000),100);assert.equal(clock.add(13_900,13_000),100);clock.add(14_900,14_000);assert.equal(clock.add(15_900,15_000),350);assert.equal(clock.add(16_900,16_000),600);});
