@@ -11,10 +11,15 @@ export type WorldLine = {
 };
 
 /** Project a market-space straight line at the visible logical boundaries. */
+export function logicalToCanvasX(logical:number,visible:{from:number;to:number},plot:Rect){
+  const span=visible.to-visible.from;
+  if(!Number.isFinite(logical)||!Number.isFinite(visible.from)||!Number.isFinite(visible.to)||!Number.isFinite(plot.x)||!Number.isFinite(plot.width)||span===0||plot.width<0)return null;
+  return plot.x+((logical-visible.from)/span)*plot.width;
+}
 export function projectWorldLine(
   line: WorldLine,
   visible: { from: number; to: number },
-  xForLogical: (index: number) => number | null,
+  _xForLogical: (index: number) => number | null,
   yForPrice: (price: number) => number | null,
   plot: Rect,
 ) {
@@ -25,9 +30,9 @@ export function projectWorldLine(
     line.start.price + slope * (index - line.start.index);
   const from = Math.min(visible.from, visible.to),
     to = Math.max(visible.from, visible.to);
-  const ax = xForLogical(from),
+  const ax = logicalToCanvasX(from,visible,plot),
     ay = yForPrice(priceAt(from)),
-    bx = xForLogical(to),
+    bx = logicalToCanvasX(to,visible,plot),
     by = yForPrice(priceAt(to));
   if (ax == null || ay == null || bx == null || by == null) return null;
   return clipLineToRect({ x: ax, y: ay }, { x: bx, y: by }, plot);

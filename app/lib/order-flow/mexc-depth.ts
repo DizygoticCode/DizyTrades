@@ -13,7 +13,9 @@ export function parseDepthLevels(value: unknown): DepthLevel[] {
 }
 export function parseDepthCommits(raw: unknown, symbol: string): DepthUpdate[] {
   const root=object(raw), data=root?.data, nested=object(data);
-  const values=Array.isArray(data)?data:Array.isArray(nested?.commits)?nested.commits as unknown[]:[];
+  // root.commits is the canonical application DTO. The two data shapes remain
+  // accepted only for compatibility with direct/legacy MEXC responses.
+  const values=Array.isArray(root?.commits)?root.commits as unknown[]:Array.isArray(data)?data:Array.isArray(nested?.commits)?nested.commits as unknown[]:[];
   const parsed=values.flatMap(value=>{const item=object(value);if(!item)return [];const version=number(item.version),engineTimeMs=number(item.timestamp??item.cts??item.ts??Date.now());if(version===null||engineTimeMs===null||!Number.isInteger(version)||version<0)return [];return [{symbol,version,engineTimeMs,bids:parseDepthLevels(item.bids),asks:parseDepthLevels(item.asks)}]});
   return [...new Map(parsed.map(value=>[value.version,value])).values()].sort((a,b)=>a.version-b.version);
 }

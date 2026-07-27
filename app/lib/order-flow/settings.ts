@@ -10,8 +10,8 @@ export type OrderFlowSettings = {
 export const DEFAULT_ORDER_FLOW_SETTINGS: OrderFlowSettings = {
   version:2,captureHistoryMinutes:30,maxRecords:50_000,
   enabled:false, heatmapVisible:true, bubblesVisible:true, domVisible:false, alertsVisible:true, imbalanceVisible:true,
-  heatmap:{bidColour:"#19c98b",askColour:"#ef5b72",opacity:.36,rangeBps:50,timeBucketMs:0,priceMode:"auto",fixedPriceStep:.1,minimumNotional:0,intensity:"log",intensityMultiplier:1,gamma:.8,percentile:.95,historyMinutes:30,side:"both"},
-  bubbles:{buyColour:"#20e3a2",sellColour:"#ff5573",outlineColour:"#f3f6ff",opacity:.72,timeBucketMs:1000,priceMode:"auto",fixedPriceStep:.1,minimumNotional:350,adaptive:false,percentile:.8,minimumSamples:50,minimumRadius:3,maximumRadius:18,hover:true,maximumRetained:5000},
+  heatmap:{bidColour:"#18c8e8",askColour:"#ff8a24",opacity:.48,rangeBps:100,timeBucketMs:0,priceMode:"auto",fixedPriceStep:.1,minimumNotional:0,intensity:"log",intensityMultiplier:1,gamma:.8,percentile:.95,historyMinutes:30,side:"both"},
+  bubbles:{buyColour:"#20e3a2",sellColour:"#ff5573",outlineColour:"#f3f6ff",opacity:.62,timeBucketMs:1000,priceMode:"auto",fixedPriceStep:.1,minimumNotional:100,adaptive:false,percentile:.8,minimumSamples:50,minimumRadius:3,maximumRadius:20,hover:true,maximumRetained:5000},
   dom:{width:230,levels:10,units:"contracts",cumulative:true,autoCentre:true,density:"compact",rowHeight:20,bidColour:"#19c98b",askColour:"#ef5b72",midpointColour:"#a985ff",backgroundColour:"#0b0e17",barOpacity:.22,liveThresholdMs:2000,staleThresholdMs:5000},
   alerts:{toasts:true,placement:"top-right",durationMs:6000,maximumVisible:3,historyCapacity:250,marketBuys:true,marketSells:true,bidWalls:true,askWalls:true,liquidityPulled:true,buyColour:"#20e3a2",sellColour:"#ff5573",bidWallColour:"#19c98b",askWallColour:"#ef5b72",pulledColour:"#f7b955",fixedThreshold:25_000,adaptive:true,percentile:.99,minimumSamples:30,cooldownMs:10_000,wallMultiple:5,wallPersistenceMs:1000,pulledPercentage:70},
 };

@@ -3,9 +3,20 @@ import type { BookView, DepthLevel, DepthSnapshot, DepthUpdate } from "./types.t
 export class OrderBook {
   private bids = new Map<number, DepthLevel>(); private asks = new Map<number, DepthLevel>();
   private future = new Map<number, DepthUpdate>(); private _version = -1; private _valid = false;
+  private resnapshotBuffer: Map<number, DepthUpdate> | null = null;
   private readonly maxBuffered: number;
   constructor(maxBuffered = 250) { this.maxBuffered = maxBuffered; }
-  reset() { this.bids.clear(); this.asks.clear(); this.future.clear(); this._version = -1; this._valid = false; }
+  reset() { this.bids.clear(); this.asks.clear(); this.future.clear(); this.resnapshotBuffer=null; this._version = -1; this._valid = false; }
+  /** Start an atomic fresh-snapshot generation. New socket events are isolated. */
+  beginResnapshot() { this.resnapshotBuffer=new Map(); }
+  /** Replace a poisoned buffer and join only events received during this request. */
+  applyResnapshot(value: DepthSnapshot) {
+    const received=this.resnapshotBuffer??new Map<number,DepthUpdate>();
+    this.resnapshotBuffer=null;this.bids.clear();this.asks.clear();this.future.clear();
+    this._version=value.version;this.applyLevels(value);
+    for(const update of received.values())if(update.version>value.version)this.future.set(update.version,update);
+    this.drain();
+  }
   snapshot(value: DepthSnapshot) {
     const buffered = [...this.future.values()].filter((update) => update.version > value.version);
     this.bids.clear(); this.asks.clear(); this.future.clear();
@@ -23,6 +34,7 @@ export class OrderBook {
     this.drain(); return this._valid;
   }
   update(value: DepthUpdate): "applied" | "ignored" | "buffered" | "gap" {
+    if(this.resnapshotBuffer){this.resnapshotBuffer.set(value.version,value);while(this.resnapshotBuffer.size>this.maxBuffered)this.resnapshotBuffer.delete(Math.min(...this.resnapshotBuffer.keys()));return "buffered";}
     if (value.version <= this._version) return "ignored";
     if (value.version > this._version + 1 || this._version < 0) { this.future.set(value.version, value); while (this.future.size > this.maxBuffered) this.future.delete(Math.min(...this.future.keys())); this._valid = false; return this._version < 0 ? "buffered" : "gap"; }
     // A commit recovery deliberately supplies localVersion + 1 while invalid.

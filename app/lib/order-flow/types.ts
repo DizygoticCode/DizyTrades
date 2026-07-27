@@ -3,6 +3,8 @@ export type DepthSide = "bid" | "ask";
 export type DepthLevel = { price: number; orderCount: number; contractQuantity: number };
 export type DepthUpdate = { symbol: string; version: number; engineTimeMs: number; bids: DepthLevel[]; asks: DepthLevel[] };
 export type DepthSnapshot = DepthUpdate;
+/** Canonical response returned by the public depth-commit recovery route. */
+export type DepthCommitsResponse = { success: true; symbol: string; source: string; requestedAt: string; commits: DepthUpdate[] };
 export type BookView = { valid: boolean; version: number; bids: DepthLevel[]; asks: DepthLevel[] };
 export type HeatmapCell = { timeMs: number; price: number; bidNotional: number; askNotional: number; mid: number; spread: number };
 export type VolumeBubble = { timeMs: number; price: number; buyNotional: number; sellNotional: number; buyQuantity:number; sellQuantity:number; tradeCount: number };
