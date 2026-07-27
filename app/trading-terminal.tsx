@@ -1041,6 +1041,7 @@ const DizyChart = forwardRef<
     indicatorsRef = useRef(new Map<string, ISeriesApi<"Line">>()),
     previousDisplayRef = useRef<Candle[]>([]),
     marketKeyRef = useRef(""),
+    projectionGenerationRef = useRef(0),
     redrawFrameRef = useRef<number | null>(null),
     flowPrimitiveRef = useRef<DizyFlowPrimitive | null>(null),
     latestRef = useRef({ candles: displayCandles, analysis, view });
@@ -1231,7 +1232,6 @@ const DizyChart = forwardRef<
       ...item,
       time: item.time as UTCTimestamp,
     }));
-    flowPrimitiveRef.current?.setProjection(displayCandles,timeframe as CandleTimeframe);
     const volumeFor = (item: Candle) => ({
       time: item.time as UTCTimestamp,
       value: item.volume,
@@ -1253,6 +1253,8 @@ const DizyChart = forwardRef<
       }
       previousDisplayRef.current = displayCandles;
       marketKeyRef.current = key;
+      const generation=++projectionGenerationRef.current;
+      flowPrimitiveRef.current?.setProjection(displayCandles,timeframe as CandleTimeframe,generation,{count:displayCandles.length,finalTime:displayCandles.at(-1)?.time??null,generation});
       redraw();
     } catch (error) {
       console.error("Chart sync error", {

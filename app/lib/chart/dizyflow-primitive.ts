@@ -20,13 +20,13 @@ class FlowPaneView implements IPrimitivePaneView {
   zOrder(){return this.layer==="heatmap"?"bottom" as const:"normal" as const} renderer(){return this.painter}
 }
 export class DizyFlowPrimitive implements ISeriesPrimitive<Time> {
-  private attachedApi:Attached|null=null;private unsubscribe:(()=>void)|null=null;private candles:readonly Candle[]=[];private timeframe:CandleTimeframe="15m";
+  private attachedApi:Attached|null=null;private unsubscribe:(()=>void)|null=null;private candles:readonly Candle[]=[];private timeframe:CandleTimeframe="15m";private projectionGeneration=0;
   private views:readonly IPrimitivePaneView[]=[new FlowPaneView(this,"heatmap"),new FlowPaneView(this,"bubbles")];
   constructor(private store:FlowRenderStore){}
   attached(param:Attached){this.attachedApi=param;this.unsubscribe=this.store.subscribe(param.requestUpdate);}
   detached(){this.unsubscribe?.();this.unsubscribe=null;this.attachedApi=null;}
   paneViews(){return this.views;}
-  setProjection(candles:readonly Candle[],timeframe:CandleTimeframe){this.candles=candles;this.timeframe=timeframe;this.attachedApi?.requestUpdate();}
+  setProjection(candles:readonly Candle[],timeframe:CandleTimeframe,generation:number,series:{count:number;finalTime:number|null;generation:number}){const finalTime=candles.at(-1)?.time??null;if(generation!==series.generation||candles.length!==series.count||finalTime!==series.finalTime||generation<this.projectionGeneration)return false;this.candles=candles;this.timeframe=timeframe;this.projectionGeneration=generation;this.attachedApi?.requestUpdate();return true;}
   paint(context:CanvasRenderingContext2D,width:number,height:number,layer:"heatmap"|"bubbles"){
     // Executed trades are sequence-independent: a recovering depth book may
     // dim retained liquidity, but must never suppress captured bubbles.

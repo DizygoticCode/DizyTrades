@@ -19,7 +19,7 @@ export function logicalToCanvasX(logical:number,visible:{from:number;to:number},
 export function projectWorldLine(
   line: WorldLine,
   visible: { from: number; to: number },
-  _xForLogical: (index: number) => number | null,
+  xForLogical: (index: number) => number | null,
   yForPrice: (price: number) => number | null,
   plot: Rect,
 ) {
@@ -30,9 +30,10 @@ export function projectWorldLine(
     line.start.price + slope * (index - line.start.index);
   const from = Math.min(visible.from, visible.to),
     to = Math.max(visible.from, visible.to);
-  const ax = logicalToCanvasX(from,visible,plot),
+  const coordinate=(index:number)=>{const exact=xForLogical(index);if(exact!=null)return exact;const middle=(from+to)/2,anchor=xForLogical(middle),near=xForLogical(middle+1);return anchor!=null&&near!=null?anchor+(index-middle)*(near-anchor):null};
+  const ax = coordinate(from),
     ay = yForPrice(priceAt(from)),
-    bx = logicalToCanvasX(to,visible,plot),
+    bx = coordinate(to),
     by = yForPrice(priceAt(to));
   if (ax == null || ay == null || bx == null || by == null) return null;
   return clipLineToRect({ x: ax, y: ay }, { x: bx, y: by }, plot);
