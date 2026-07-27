@@ -12,6 +12,16 @@ export class OrderBook {
     buffered.forEach((update) => this.future.set(update.version, update));
     this._version = value.version; this.applyLevels(value); this._valid = true; this.drain();
   }
+  /** Apply sorted public commit history without allowing a jump. */
+  bridge(values: readonly DepthUpdate[]) {
+    const unique = new Map(values.map((value) => [value.version, value]));
+    for (const value of [...unique.values()].sort((a,b)=>a.version-b.version)) {
+      if (value.version <= this._version) continue;
+      if (value.version !== this._version + 1) return false;
+      this.applyLevels(value); this._version = value.version;
+    }
+    this.drain(); return this._valid;
+  }
   update(value: DepthUpdate): "applied" | "ignored" | "buffered" | "gap" {
     if (value.version <= this._version) return "ignored";
     if (value.version > this._version + 1 || this._version < 0) { this.future.set(value.version, value); while (this.future.size > this.maxBuffered) this.future.delete(Math.min(...this.future.keys())); this._valid = false; return this._version < 0 ? "buffered" : "gap"; }

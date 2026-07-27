@@ -2075,6 +2075,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
             </button>
             <div className="toolbar-spacer" />
             <OrderFlowToolbar settings={orderFlowSettings} onChange={setOrderFlowSettings} summary={orderFlow.summary} onHistory={()=>setFlowHistoryOpen(true)}/>
+            <DizyFlowToastRail alerts={orderFlow.summary.alerts} settings={orderFlowSettings} onHistory={()=>setFlowHistoryOpen(true)}/>
             <div className="mode-control" aria-label="Execution mode">
               {(["Off", "Paper"] as const).map((mode) => (
                 <button
@@ -2096,7 +2097,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               </button>
             </div>
           </section>
-          <DizyFlowToastRail alerts={orderFlow.summary.alerts} settings={orderFlowSettings} onHistory={()=>setFlowHistoryOpen(true)}/><DizyFlowAlertHistory alerts={orderFlow.summary.alerts} open={flowHistoryOpen} onClose={()=>setFlowHistoryOpen(false)} onClear={orderFlow.clear}/>
+          <DizyFlowAlertHistory alerts={orderFlow.summary.alerts} open={flowHistoryOpen} onClose={()=>setFlowHistoryOpen(false)} onClear={orderFlow.clear}/>
           {view.showSimulationPerformance ? (
             <PaperPerformanceToolbar
               calculating={resultMarketKey !== `${symbol}:${timeframe}`}
@@ -2106,7 +2107,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           ) : null}
 
           <div className={`workspace ${settingsOpen ? "" : "panel-closed"}`}>
-            {orderFlowSettings.enabled&&orderFlowSettings.domVisible?<DizyFlowDom store={orderFlow.renderStore} contractSize={selectedMarket?.contractSize??1} onWidth={width=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,width}}))} onClose={()=>setOrderFlowSettings(value=>({...value,domVisible:false}))}/>:null}
+            {orderFlowSettings.enabled&&orderFlowSettings.domVisible?<DizyFlowDom store={orderFlow.renderStore} summary={orderFlow.summary} contractSize={selectedMarket?.contractSize??1} onWidth={width=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,width}}))} onClose={()=>setOrderFlowSettings(value=>({...value,domVisible:false}))}/>:null}
             <section className="chart-section">
               <div className="chart-status-row">
                 <div>
