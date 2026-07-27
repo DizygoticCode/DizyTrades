@@ -21,10 +21,19 @@ export class FlowAggregator {
   }
   addDeal(deal:MexcDeal,bucketMs=this.options.timeBucketMs,priceStep=this.options.priceStep){
     if(this.ids.has(deal.tradeId))return false;this.ids.add(deal.tradeId);if(this.ids.size>10_000)this.ids=new Set([...this.ids].slice(-5_000));
-    const timeMs=Math.floor(deal.timeMs/bucketMs)*bucketMs,price=Math.round(deal.price/priceStep)*priceStep,key=`${timeMs}:${price}`,bubble=this.bubbleBuckets.get(key)??{timeMs,price,buyNotional:0,sellNotional:0,tradeCount:0};bubble[deal.side==="buy"?"buyNotional":"sellNotional"]+=deal.notional;bubble.tradeCount++;this.bubbleBuckets.set(key,bubble);this.prune(deal.timeMs);return true;
+    const timeBucket=Math.floor(deal.timeMs/bucketMs)*bucketMs,priceBucket=Math.round(deal.price/priceStep)*priceStep,key=`${timeBucket}:${priceBucket}`,bubble=this.bubbleBuckets.get(key)??{timeMs:0,price:0,buyNotional:0,sellNotional:0,buyQuantity:0,sellQuantity:0,tradeCount:0};
+    const oldNotional=bubble.buyNotional+bubble.sellNotional,totalNotional=oldNotional+deal.notional;
+    // Preserve the volume-weighted event coordinates inside the aggregation
+    // bucket. This prevents all executions in a 15m candle being painted at a
+    // bucket/candle centre.
+    bubble.timeMs=totalNotional?(bubble.timeMs*oldNotional+deal.timeMs*deal.notional)/totalNotional:deal.timeMs;
+    bubble.price=totalNotional?(bubble.price*oldNotional+deal.price*deal.notional)/totalNotional:deal.price;
+    bubble[deal.side==="buy"?"buyNotional":"sellNotional"]+=deal.notional;
+    bubble[deal.side==="buy"?"buyQuantity":"sellQuantity"]+=Number.isFinite(deal.baseQuantity)?deal.baseQuantity:deal.contractQuantity;
+    bubble.tradeCount++;this.bubbleBuckets.set(key,bubble);this.prune(deal.timeMs);return true;
   }
   private prune(now:number){const cutoff=now-this.options.historyMs;for(const [key,value] of this.heatmapBuckets)if(value.timeMs<cutoff)this.heatmapBuckets.delete(key);for(const [key,value] of this.bubbleBuckets)if(value.timeMs<cutoff)this.bubbleBuckets.delete(key);while(this.heatmapBuckets.size>this.options.maxCells)this.heatmapBuckets.delete(this.heatmapBuckets.keys().next().value!);while(this.bubbleBuckets.size>this.options.maxBubbles)this.bubbleBuckets.delete(this.bubbleBuckets.keys().next().value!);this.heatmap=[...this.heatmapBuckets.values()];this.bubbles=[...this.bubbleBuckets.values()];}
 }
 export function bubbleRadius(notional:number,threshold:number,min=3,max=24){if(notional<threshold)return 0;return Math.min(max,Math.max(min,min+Math.sqrt(notional-threshold)/Math.max(1,Math.sqrt(threshold))));}
-export function bubbleComposition(bubble:VolumeBubble){const total=bubble.buyNotional+bubble.sellNotional;return{total,buyRatio:total?bubble.buyNotional/total:0,sellRatio:total?bubble.sellNotional/total:0,dominant:bubble.buyNotional>=bubble.sellNotional?"buy" as const:"sell" as const};}
+export function bubbleComposition(bubble:VolumeBubble){const total=bubble.buyNotional+bubble.sellNotional;return{total,buyRatio:total?bubble.buyNotional/total:0,sellRatio:total?bubble.sellNotional/total:0,delta:bubble.buyNotional-bubble.sellNotional,aggressorPercent:total?Math.max(bubble.buyNotional,bubble.sellNotional)/total:0,dominant:bubble.buyNotional>=bubble.sellNotional?"buy" as const:"sell" as const};}
 export function mergePixelColumns<T extends {x:number;notional:number}>(items:T[]){const map=new Map<number,T>();for(const item of items){const x=Math.round(item.x),old=map.get(x);if(!old||item.notional>old.notional)map.set(x,{...item,x});}return [...map.values()];}
