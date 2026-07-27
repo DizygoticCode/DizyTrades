@@ -3,7 +3,8 @@ import type { BookView, DepthLevel, DepthSnapshot, DepthUpdate } from "./types.t
 export class OrderBook {
   private bids = new Map<number, DepthLevel>(); private asks = new Map<number, DepthLevel>();
   private future = new Map<number, DepthUpdate>(); private _version = -1; private _valid = false;
-  constructor(private readonly maxBuffered = 250) {}
+  private readonly maxBuffered: number;
+  constructor(maxBuffered = 250) { this.maxBuffered = maxBuffered; }
   reset() { this.bids.clear(); this.asks.clear(); this.future.clear(); this._version = -1; this._valid = false; }
   snapshot(value: DepthSnapshot) { this.reset(); this._version = value.version; this.applyLevels(value); this._valid = true; this.drain(); }
   update(value: DepthUpdate): "applied" | "ignored" | "buffered" | "gap" {
