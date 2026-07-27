@@ -261,7 +261,7 @@ function buildElliottStages(pivotData: ReturnType<typeof pivots>): { stages: Pat
   const direction = bullish ? "bullish" : "bearish";
   const stages = waves.map((pivot, index) => {
     const status: PatternStatus = complete || index < waves.length - 1 ? "confirmed" : "forming";
-    return { id:`elliott-${direction}-${pivot.time}-${index+1}`, family:"elliott", time:pivot.time, price:pivot.price, direction, status, stage:index+1, label:`Elliott Wave ${index+1}${status === "forming" ? "?" : ""}` } satisfies PatternStageMarker;
+    return { id:`elliott-${direction}-${pivot.time}-${index+1}`, family:"elliott", time:pivot.time, price:pivot.price, direction, status, stage:index+1, label:`Impulse Wave ${index+1}${status === "forming" ? "?" : ""}` } satisfies PatternStageMarker;
   });
   const points = [sequence[0], ...waves].map(p => ({ time:p.time, price:p.price }));
   return { stages, region: complete ? { id:`elliott-${direction}-${sequence[0].time}`, family:"elliott", status:"confirmed", direction, startTime:sequence[0].time, endTime:waves[4].time, high:Math.max(...points.map(p=>p.price)), low:Math.min(...points.map(p=>p.price)), points } : undefined };
@@ -359,14 +359,15 @@ function buildWyckoff(candles: Candle[], trend: Point[]): { stages: PatternStage
   const breakoutIndex = sample.findIndex((c,i)=>i>34 && (accumulation ? c.close > high : c.close < low));
   if (breakoutIndex >= 0) eventIndexes.push(breakoutIndex);
   const letters = ["A","B","C","D","E"] as const;
+  const broad = accumulation ? ["Accumulation","Accumulation","Accumulation","Accumulation","Markup Confirmed"] : ["Distribution","Distribution","Distribution","Distribution","Markdown Confirmed"];
   const stages = eventIndexes.map((offset,index) => {
     const candle=sample[offset], status:PatternStatus = index === eventIndexes.length-1 && breakoutIndex < 0 ? "forming" : "confirmed";
-    return { id:`wyckoff-${direction}-${candle.time}-${letters[index]}`,family:"wyckoff",time:candle.time,price:accumulation?candle.low:candle.high,direction,status,stage:letters[index],label:`Wyckoff ${letters[index]}${status === "forming" ? "?" : ""}` } satisfies PatternStageMarker;
+    return { id:`wyckoff-${direction}-${candle.time}-${letters[index]}`,family:"wyckoff",time:candle.time,price:accumulation?candle.low:candle.high,direction,status,stage:letters[index],label:`${broad[index]}${status === "forming" ? "?" : ""}` } satisfies PatternStageMarker;
   });
   if (breakoutIndex < 0) {
-    const candle=sample[34]; stages[3] = {...stages[3],status:"forming",label:"Wyckoff D?",time:candle.time,price:accumulation?candle.low:candle.high};
+    const candle=sample[34]; stages[3] = {...stages[3],status:"forming",label:accumulation?"Accumulation?":"Distribution?",time:candle.time,price:accumulation?candle.low:candle.high};
   }
-  return { stages, phase:`Wyckoff-lite ${direction}`, region: breakoutIndex >= 0 ? { id:`wyckoff-${direction}-${sample[0].time}`,family:"wyckoff",status:"confirmed",direction,startTime:sample[0].time,endTime:sample[breakoutIndex].time,high,low } : undefined };
+  return { stages, phase:accumulation?"Accumulation":"Distribution", region: breakoutIndex >= 0 ? { id:`wyckoff-${direction}-${sample[0].time}`,family:"wyckoff",status:"confirmed",direction,startTime:sample[0].time,endTime:sample[breakoutIndex].time,high,low } : undefined };
 }
 
 export function analyzeStrategy(

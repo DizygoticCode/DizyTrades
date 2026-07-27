@@ -556,11 +556,7 @@ function drawChartOverlay(
         .timeScale()
         .logicalToCoordinate(model.labelAnchor.index as Logical),
       labelY = candleSeries.priceToCoordinate(model.labelAnchor.price);
-    const label =
-      labelX == null ||
-      labelY == null ||
-      labelX < layout.candles.x ||
-      labelX > layout.candles.x + layout.candles.width
+    const label = labelX == null || labelY == null
         ? null
         : { x: Number(labelX), y: Number(labelY) };
     return { model, line, label };

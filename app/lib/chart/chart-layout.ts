@@ -128,19 +128,19 @@ export function calculateFibLabelLayout(input: {
   });
 }
 
-export function patternLabelPosition(bounds: Rect, placement: PatternPlacement, label: { width: number; height: number }, plot: Rect, offset: number) {
+export function patternLabelPosition(bounds: Rect, placement: PatternPlacement, label: { width: number; height: number }, plot: Rect, offset: number, clampToPlot=true) {
   let x = bounds.x + (bounds.width - label.width) / 2, y = bounds.y - label.height - offset;
   if (placement === "inside") y = bounds.y + (bounds.height - label.height) / 2;
   if (placement === "below") y = bounds.y + bounds.height + offset;
   if (placement === "left") { x = bounds.x - label.width - offset; y = bounds.y + (bounds.height - label.height) / 2; }
   if (placement === "right") { x = bounds.x + bounds.width + offset; y = bounds.y + (bounds.height - label.height) / 2; }
-  return { x: Math.min(plot.x + plot.width - label.width, Math.max(plot.x, x)), y: Math.min(plot.y + plot.height - label.height, Math.max(plot.y, y)) };
+  return clampToPlot ? { x: Math.min(plot.x + plot.width - label.width, Math.max(plot.x, x)), y: Math.min(plot.y + plot.height - label.height, Math.max(plot.y, y)) } : {x,y};
 }
 
 export type BubblePlacement = { id:string; anchorX:number; anchorY:number; width:number; height:number; x:number; y:number; row:number; side?:"above"|"below" };
 export function placeChartBubbles(items: {id:string;anchorX:number;anchorY:number;width:number;height:number;side?:"above"|"below"}[], plot:Rect, reservedTop=48, gap=5, tolerance=2): BubblePlacement[] {
   const placed: BubblePlacement[]=[];
-  const visible=items.filter(item=>item.anchorX>=plot.x-tolerance&&item.anchorX<=plot.x+plot.width+tolerance);
+  const visible=items.filter(item=>{const x=item.anchorX-item.width/2;return x<plot.x+plot.width+tolerance&&x+item.width>plot.x-tolerance});
   for (const item of [...visible].sort((a,b)=>a.anchorX-b.anchorX||a.id.localeCompare(b.id))) {
     const x=item.anchorX-item.width/2;
     const below=item.side==="below";
