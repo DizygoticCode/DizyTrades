@@ -41,10 +41,10 @@ export function parseMexcDeals(message: unknown, symbol: string, contractSize = 
   return payload.flatMap((raw): MexcDeal[] => {
     const data = record(raw);
     if (!data) return [];
-    const price = finite(data.p), eventTime = finite(data.cts) ?? finite(data.t), volume = finite(data.v), sideCode = data.T == null ? 1 : finite(data.T);
+    const price = finite(data.p), eventTime = finite(data.t) ?? finite(data.cts), volume = finite(data.v), sideCode = data.T == null ? 1 : finite(data.T);
     if (price === null || eventTime === null || volume === null || price <= 0 || eventTime <= 0 || volume < 0 || ![1, 2].includes(sideCode ?? 0) || !Number.isFinite(contractSize) || contractSize <= 0) return [];
     const engine = finite(data.cts);
-    const selfTradeRaw = data.S ?? data.st ?? data.selfTrade;
+    const selfTradeRaw = data.M;
     const baseQuantity = volume * contractSize;
     return [{ symbol: receivedSymbol, price, timeMs:eventTime, volume, tradeId: String(data.i ?? `${receivedSymbol}:${eventTime}:${price}:${volume}:${sideCode}`), contractQuantity: volume, side: sideCode === 1 ? "buy" : "sell", openClose: data.O == null ? null : String(data.O), engineTimeMs: engine ?? eventTime, selfTrade: selfTradeRaw == null ? null : Boolean(selfTradeRaw), baseQuantity, notional: price * baseQuantity }];
   });
