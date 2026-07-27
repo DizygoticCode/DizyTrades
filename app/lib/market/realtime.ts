@@ -78,6 +78,17 @@ export function calculateCandleCountdownSeconds(input: {
   return Math.max(0, nextCandleCloseTimestamp(input.candleStart, input.timeframe) - serverNowSeconds);
 }
 
+export function calculateExchangeAlignedCountdownSeconds(input:{timeframe:CandleTimeframe;clientNowMs:number;clockOffsetMs:number}):number{
+  const nowMs=input.clientNowMs+input.clockOffsetMs;
+  if(input.timeframe==="1M"){
+    const now=new Date(nowMs),next=Date.UTC(now.getUTCFullYear(),now.getUTCMonth()+1,1);
+    return Math.max(0,Math.ceil((next-nowMs)/1000));
+  }
+  const interval=MEXC_INTERVALS[input.timeframe].seconds*1000;
+  const remainder=((nowMs%interval)+interval)%interval;
+  return Math.max(0,Math.ceil((interval-remainder)/1000));
+}
+
 /** A clock-bound scheduler which catches up after browser background throttling. */
 export function startAlignedSecondClock(input: {
   now?: () => number;
@@ -113,6 +124,27 @@ export function startAlignedSecondClock(input: {
 
 export function estimateServerClockOffset(serverTimeMs: number, clientReceivedMs: number): number {
   return Number.isFinite(serverTimeMs) && Number.isFinite(clientReceivedMs) ? serverTimeMs - clientReceivedMs : 0;
+}
+
+/** Stable exchange-clock estimator. Samples are median-filtered, large latency
+ * outliers are ignored, and accepted corrections are deliberately rate-limited. */
+export class StableClockOffset {
+  private samples: number[] = [];
+  private value = 0;
+  add(serverTimeMs: number, clientReceivedMs: number) {
+    const sample = estimateServerClockOffset(serverTimeMs, clientReceivedMs);
+    if (!Number.isFinite(sample) || Math.abs(sample) > 60_000) return this.value;
+    const existing=[...this.samples].sort((a,b)=>a-b);
+    const existingMedian=existing[Math.floor(existing.length/2)];
+    if (existing.length>2 && Math.abs(sample-existingMedian)>5_000) return this.value;
+    this.samples.push(sample); this.samples = this.samples.slice(-7);
+    const sorted=[...this.samples].sort((a,b)=>a-b),median=sorted[Math.floor(sorted.length/2)];
+    const delta=Math.max(-250,Math.min(250,median-this.value));
+    this.value+=delta;
+    return this.value;
+  }
+  reset(){this.samples=[];this.value=0;}
+  current(){return this.value;}
 }
 
 export function formatCountdown(secondsInput: number, timeframe?: CandleTimeframe): string {

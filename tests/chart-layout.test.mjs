@@ -13,10 +13,11 @@ test("reserved profile and label lanes never overlap", () => {
   assert.ok(layout.profileContent.x >= layout.profile.x);
 });
 
-test("bubble collision layout clamps to the candle plot and reserved top lane", () => {
+test("bubble collision layout keeps anchor x and respects the reserved top lane", () => {
   const plot={x:12,y:0,width:240,height:180};
   const bubbles=placeChartBubbles([{id:"a",anchorX:250,anchorY:70,width:90,height:24},{id:"b",anchorX:248,anchorY:70,width:90,height:24}],plot,48);
-  assert.ok(bubbles.every(b=>b.x>=plot.x&&b.x+b.width<=plot.x+plot.width&&b.y>=48));
+  assert.equal(bubbles.length,2);
+  assert.ok(bubbles.every(b=>b.x===b.anchorX-b.width/2&&b.y>=48));
   assert.notEqual(bubbles[0].y,bubbles[1].y);
 });
 
@@ -142,3 +143,17 @@ test("channel polygon follows parallel boundaries",()=>{const upper=extendLineTo
 test("line visual settings migrate and clamp safely",()=>{const view=sanitiseTerminalSettings({view:{srLineExtension:"bad",fibLineExtension:"left",pivotTrendlineWidth:99,lrBoundaryWidth:0,lrChannelFillOpacity:1}}).view;assert.equal(view.srLineExtension,"both");assert.equal(view.fibLineExtension,"left");assert.equal(view.pivotTrendlineWidth,5);assert.equal(view.lrBoundaryWidth,1);assert.equal(view.lrChannelFillOpacity,.4);});
 test("legacy regression colour seeds new channel colours",()=>{const migrated=sanitiseAppearance({indicators:{regression:"#123456"}});assert.equal(migrated.indicators.regressionBasis,"#123456");assert.equal(migrated.indicators.regressionUpper,"#123456");assert.equal(migrated.indicators.regressionLower,"#123456");});
 test("global and manual extension settings migrate without changing individual categories",()=>{const view=sanitiseTerminalSettings({view:{globalLineExtensionOverride:"both",fadeExtendedPortions:false,manualRayExtension:"left",srLineExtension:"none",fibLineExtension:"right"}}).view;assert.equal(view.globalLineExtensionOverride,"both");assert.equal(view.fadeExtendedPortions,false);assert.equal(view.manualRayExtension,"left");assert.equal(view.srLineExtension,"none");assert.equal(view.fibLineExtension,"right");const restored=sanitiseTerminalSettings({view:{...view,globalLineExtensionOverride:"individual"}}).view;assert.equal(restored.srLineExtension,"none");assert.equal(restored.fibLineExtension,"right")});
+
+test("event bubbles discard off-screen anchors without edge stacking", () => {
+  const plot={x:10,y:0,width:200,height:300};
+  const result=placeChartBubbles([{id:"old",anchorX:-500,anchorY:100,width:40,height:20},{id:"visible",anchorX:80,anchorY:100,width:40,height:20}],plot);
+  assert.deepEqual(result.map(item=>item.id),["visible"]);
+  assert.equal(result[0].x,60);
+});
+
+test("bubble lanes remain vertical and deterministic", () => {
+  const plot={x:0,y:0,width:300,height:300},items=[{id:"b",anchorX:100,anchorY:150,width:50,height:20},{id:"a",anchorX:100,anchorY:150,width:50,height:20}];
+  const result=placeChartBubbles(items,plot,0);
+  assert.deepEqual(result.map(item=>item.id),["a","b"]);
+  assert.ok(result.every(item=>item.x===75));
+});

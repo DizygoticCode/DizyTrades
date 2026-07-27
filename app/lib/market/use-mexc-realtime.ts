@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { Candle } from "../strategy";
 import { MEXC_INTERVALS } from "./mexc-shared";
-import { estimateServerClockOffset, parseMexcDeals, parseMexcKline, type MexcDeal } from "./realtime";
+import { StableClockOffset, parseMexcDeals, parseMexcKline, type MexcDeal } from "./realtime";
 import type { CandleTimeframe } from "./types";
 
 export type RealtimeStatus = "connecting" | "live" | "reconnecting" | "delayed" | "offline";
@@ -13,9 +13,10 @@ export function useMexcRealtime(options: Options) {
   const callbacks = useRef(options);
   useEffect(() => { callbacks.current = options; });
   const generation = useRef(0);
+  const clock = useRef(new StableClockOffset());
   useEffect(() => {
     if (!options.enabled) { options.onStatus("offline"); return; }
-    const id = ++generation.current;
+    const id = ++generation.current; clock.current.reset();
     let socket: WebSocket | null = null, heartbeat: number | undefined, staleTimer: number | undefined, reconnectTimer: number | undefined;
     let attempt = 0, stopped = false, lastActivity = Date.now();
     const valid = () => !stopped && generation.current === id;
@@ -27,7 +28,7 @@ export function useMexcRealtime(options: Options) {
       callbacks.current.onStatus(attempt ? "reconnecting" : "connecting");
       const current = new WebSocket("wss://contract.mexc.com/edge"); socket = current;
       current.onopen = () => { if (!valid() || socket !== current) return current.close(); lastActivity = Date.now(); current.send(JSON.stringify({ method: "sub.kline", param: { symbol: options.symbol, interval: MEXC_INTERVALS[options.timeframe].api } })); current.send(JSON.stringify({ method: "sub.deal", param: { symbol: options.symbol } })); if (attempt) callbacks.current.onResync(); attempt = 0; heartbeat = window.setInterval(() => current.readyState === WebSocket.OPEN && current.send(JSON.stringify({ method: "ping" })), 15_000); staleTimer = window.setInterval(() => Date.now() - lastActivity > 45_000 && reconnect(), 5_000); };
-      current.onmessage = (event) => { if (!valid() || socket !== current) return; let message: unknown; try { message = JSON.parse(String(event.data)); } catch { return; } const envelope = message && typeof message === "object" ? message as Record<string, unknown> : {}; if (envelope.channel === "pong" || envelope.method === "pong" || envelope.data === "pong") { lastActivity = Date.now(); callbacks.current.onStatus("live"); } const serverTs = Number(envelope.ts); if (Number.isFinite(serverTs) && serverTs > 0) callbacks.current.onClockOffset(estimateServerClockOffset(serverTs < 1e12 ? serverTs * 1000 : serverTs, Date.now())); const kline = parseMexcKline(message, options.symbol, options.timeframe); if (kline) { lastActivity = Date.now(); callbacks.current.onStatus("live"); callbacks.current.onKline(kline); } const deals = parseMexcDeals(message, options.symbol); if (deals.length) { lastActivity = Date.now(); callbacks.current.onStatus("live"); const newest = deals.reduce((a, b) => a.timeMs > b.timeMs ? a : b); callbacks.current.onClockOffset(estimateServerClockOffset(newest.timeMs, Date.now())); deals.forEach(callbacks.current.onDeal); } };
+      current.onmessage = (event) => { if (!valid() || socket !== current) return; let message: unknown; try { message = JSON.parse(String(event.data)); } catch { return; } const envelope = message && typeof message === "object" ? message as Record<string, unknown> : {}; if (envelope.channel === "pong" || envelope.method === "pong" || envelope.data === "pong") { lastActivity = Date.now(); callbacks.current.onStatus("live"); } const serverTs = Number(envelope.ts); if (Number.isFinite(serverTs) && serverTs > 0) callbacks.current.onClockOffset(clock.current.add(serverTs < 1e12 ? serverTs * 1000 : serverTs, Date.now())); const kline = parseMexcKline(message, options.symbol, options.timeframe); if (kline) { lastActivity = Date.now(); callbacks.current.onStatus("live"); callbacks.current.onKline(kline); } const deals = parseMexcDeals(message, options.symbol); if (deals.length) { lastActivity = Date.now(); callbacks.current.onStatus("live"); deals.forEach(callbacks.current.onDeal); } };
       current.onerror = reconnect; current.onclose = reconnect;
     };
     const visibility = () => { if (document.visibilityState === "visible") { callbacks.current.onResync(); if (!socket || socket.readyState > WebSocket.OPEN) reconnect(); } };

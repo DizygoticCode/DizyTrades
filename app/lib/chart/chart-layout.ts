@@ -137,14 +137,24 @@ export function patternLabelPosition(bounds: Rect, placement: PatternPlacement, 
   return { x: Math.min(plot.x + plot.width - label.width, Math.max(plot.x, x)), y: Math.min(plot.y + plot.height - label.height, Math.max(plot.y, y)) };
 }
 
-export type BubblePlacement = { id:string; anchorX:number; anchorY:number; width:number; height:number; x:number; y:number; row:number };
-export function placeChartBubbles(items: {id:string;anchorX:number;anchorY:number;width:number;height:number}[], plot:Rect, reservedTop=48, gap=5): BubblePlacement[] {
+export type BubblePlacement = { id:string; anchorX:number; anchorY:number; width:number; height:number; x:number; y:number; row:number; side?:"above"|"below" };
+export function placeChartBubbles(items: {id:string;anchorX:number;anchorY:number;width:number;height:number;side?:"above"|"below"}[], plot:Rect, reservedTop=48, gap=5, tolerance=2): BubblePlacement[] {
   const placed: BubblePlacement[]=[];
-  for (const item of [...items].sort((a,b)=>a.anchorX-b.anchorX||a.id.localeCompare(b.id))) {
-    const x=Math.min(plot.x+plot.width-item.width,Math.max(plot.x,item.anchorX-item.width/2));
-    let row=0, y=Math.max(plot.y+reservedTop,item.anchorY-item.height-12);
-    while (placed.some(other=>x<other.x+other.width+gap&&x+item.width+gap>other.x&&y<other.y+other.height+gap&&y+item.height+gap>other.y)) { row+=1; y=Math.max(plot.y+reservedTop,item.anchorY-item.height-12+row*(item.height+gap)); }
-    y=Math.min(plot.y+plot.height-item.height,Math.max(plot.y+reservedTop,y));
+  const visible=items.filter(item=>item.anchorX>=plot.x-tolerance&&item.anchorX<=plot.x+plot.width+tolerance);
+  for (const item of [...visible].sort((a,b)=>a.anchorX-b.anchorX||a.id.localeCompare(b.id))) {
+    const x=item.anchorX-item.width/2;
+    const below=item.side==="below";
+    const baseY=below?item.anchorY+12:item.anchorY-item.height-12;
+    let row=0, y=baseY;
+    const laneOffset=(lane:number)=>{
+      if(lane===0)return 0;
+      const distance=Math.ceil(lane/2)*(item.height+gap);
+      const preferred=below?1:-1;
+      return distance*(lane%2===1?preferred:-preferred);
+    };
+    const collides=(candidate:number)=>placed.some(other=>x<other.x+other.width+gap&&x+item.width+gap>other.x&&candidate<other.y+other.height+gap&&candidate+item.height+gap>other.y);
+    while(row<24){const candidate=baseY+laneOffset(row);if(candidate>=plot.y+reservedTop&&candidate+item.height<=plot.y+plot.height&&!collides(candidate)){y=candidate;break;}row+=1;}
+    if(row===24)continue;
     placed.push({...item,x,y,row});
   }
   return placed;

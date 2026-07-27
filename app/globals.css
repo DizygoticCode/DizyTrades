@@ -1187,3 +1187,13 @@ button {
   color: #dce5f5;
 }
 .chart-recovery button { justify-self: center; }
+.explorer-mode-tabs { display:flex; gap:8px; padding:10px 14px; background:#0a0f18; border-bottom:1px solid var(--border); }
+.explorer-mode-tabs button { padding:8px 12px; border:1px solid #293448; border-radius:7px; color:#aebbd1; }
+.explorer-mode-tabs button.active { color:#fff; background:#17243a; border-color:#456da8; }
+.explorer-native { height:calc(100vh - 160px); min-height:540px; }
+.explorer-native .chart-tools-grid { height:100%; }
+.explorer-help { padding:8px 16px; color:var(--muted); background:#0d1420; }
+.manual-paper-control { position:relative; }
+.manual-paper-button { padding:5px 9px; border:1px solid #7b6232; border-radius:6px; color:#ffd071; background:#18150d; font-size:10px; font-weight:800; }
+.manual-ticket { position:absolute; z-index:80; top:calc(100% + 10px); right:0; width:min(390px,calc(100vw - 24px)); max-height:80vh; overflow:auto; padding:14px; border:1px solid #35435b; border-radius:10px; background:#0d1420; box-shadow:0 18px 55px #000c; color:#dbe4f3; }
+.manual-ticket header { display:flex; justify-content:space-between; align-items:start; margin-bottom:10px; }.manual-ticket header div { display:flex; flex-direction:column; gap:3px; }.manual-ticket header small { color:#ffd071; font-size:9px; font-weight:800; }.manual-ticket label { display:flex; justify-content:space-between; align-items:center; gap:10px; margin:7px 0; font-size:11px; color:var(--muted); }.manual-ticket input,.manual-ticket select { width:180px; padding:6px; border:1px solid #2d394d; border-radius:5px; background:#111927; color:#e5edf9; }.manual-summary { display:grid; grid-template-columns:repeat(2,1fr); gap:5px; padding:8px; background:#111927; }.manual-summary span { display:flex; justify-content:space-between; font-size:10px; }.manual-actions { display:flex; gap:6px; margin:12px 0; }.manual-actions button { flex:1; padding:8px 4px; border:1px solid #34435b; border-radius:6px; }.manual-actions button:first-child { color:var(--green); }.manual-actions button:nth-child(2) { color:var(--red); }.manual-position { color:#8cb2ff; }.manual-history { max-height:160px; overflow:auto; font-size:10px; color:var(--muted); }
