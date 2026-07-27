@@ -36,10 +36,16 @@ import {
   DEFAULT_RISK,
   DEFAULT_STRATEGY,
   DEFAULT_VIEW,
+  DEFAULT_ORDER_FLOW_SETTINGS,
   type RiskSettings,
   type UserTerminalSettings,
   type ViewSettings,
 } from "./lib/config";
+import type { OrderFlowSettings } from "./lib/order-flow/settings";
+import type { FlowRenderStore } from "./lib/order-flow/render-store";
+import { DizyFlowPrimitive } from "./lib/chart/dizyflow-primitive";
+import { DizyFlowDom } from "./dizyflow-dom";
+import { DizyFlowAlertHistory, DizyFlowToastRail } from "./dizyflow-toast-rail";
 import type { MarketDescriptor } from "./lib/market/types";
 import type { CandleTimeframe } from "./lib/market/types";
 import {
@@ -68,7 +74,6 @@ import {
   extendLineToPlot,
   calculateProfileRowGeometry,
   patternLabelPosition,
-  placeChartBubbles,
   stackLabels,
   type LinePoint,
 } from "./lib/chart/chart-layout";
@@ -91,7 +96,6 @@ import { livePaperSnapshot } from "./lib/paper-performance";
 import { PaperPerformanceToolbar } from "./paper-performance-toolbar";
 import { ManualPaperTicket } from "./manual-paper-ticket";
 import { OrderFlowToolbar } from "./order-flow-toolbar";
-import { OrderFlowAlerts } from "./order-flow-alerts";
 import { useOrderFlow } from "./lib/order-flow/use-order-flow";
 import {
   buildDisplayTimeline,
@@ -913,7 +917,8 @@ function drawChartOverlay(
               ? candle.low
               : candle.high
             : item.price;
-        const x = chart.timeScale().timeToCoordinate(item.time as UTCTimestamp),
+        const logical = indexByTime.get(item.time),
+          x = logical == null ? null : chart.timeScale().logicalToCoordinate(logical as Logical),
           y = candleSeries.priceToCoordinate(anchorPrice);
         const text =
           signal && view.signalDetail === "Direction + confluence"
@@ -934,7 +939,7 @@ function drawChartOverlay(
             };
       })
       .filter((i): i is NonNullable<typeof i> => Boolean(i));
-    const positions = placeChartBubbles(items, layout.candles, 52);
+    const positions = items.map(item => { const lane=stableLabelLane(item.id,signal?11:5,4), gap=item.height+4, y=item.side==="below"?item.anchorY+lane*gap:item.anchorY-item.height-lane*gap; return {...item,x:item.anchorX-item.width/2,y}; }).filter(item=>item.x+item.width>=layout.candles.x&&item.x<=layout.candles.x+layout.candles.width);
     positions.forEach((p) => {
       const meta = items.find((item) => item.id === p.id)!;
       const provisional = meta.status === "forming",
@@ -1008,6 +1013,7 @@ const DizyChart = forwardRef<
     timeframe: string;
     readOnly: boolean;
     applyDefaultsNonce: number;
+    flowStore: FlowRenderStore;
   }
 >(function DizyChart(
   {
@@ -1021,6 +1027,7 @@ const DizyChart = forwardRef<
     timeframe,
     readOnly,
     applyDefaultsNonce,
+    flowStore,
   },
   ref,
 ) {
@@ -1035,6 +1042,7 @@ const DizyChart = forwardRef<
     previousDisplayRef = useRef<Candle[]>([]),
     marketKeyRef = useRef(""),
     redrawFrameRef = useRef<number | null>(null),
+    flowPrimitiveRef = useRef<DizyFlowPrimitive | null>(null),
     latestRef = useRef({ candles: displayCandles, analysis, view });
   useEffect(() => {
     latestRef.current = { candles: displayCandles, analysis, view };
@@ -1141,6 +1149,9 @@ const DizyChart = forwardRef<
         lastValueVisible: false,
         priceLineVisible: false,
       });
+    const flowPrimitive = new DizyFlowPrimitive(flowStore);
+    flowPrimitiveRef.current = flowPrimitive;
+    candles.attachPrimitive(flowPrimitive);
     volume
       .priceScale()
       .applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
@@ -1163,6 +1174,8 @@ const DizyChart = forwardRef<
       element.removeEventListener("pointerup", scheduleRedraw);
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(redraw);
       if (priceLineRef.current) candles.removePriceLine(priceLineRef.current);
+      candles.detachPrimitive(flowPrimitive);
+      flowPrimitiveRef.current = null;
       chart.remove();
       chartRef.current = null;
       candleRef.current = null;
@@ -1171,7 +1184,7 @@ const DizyChart = forwardRef<
       if (redrawFrameRef.current !== null)
         cancelAnimationFrame(redrawFrameRef.current);
     };
-  }, [redraw]);
+  }, [redraw, flowStore]);
   useEffect(() => {
     const chart = chartRef.current,
       c = candleRef.current,
@@ -1218,6 +1231,7 @@ const DizyChart = forwardRef<
       ...item,
       time: item.time as UTCTimestamp,
     }));
+    flowPrimitiveRef.current?.setProjection(displayCandles,timeframe as CandleTimeframe);
     const volumeFor = (item: Candle) => ({
       time: item.time as UTCTimestamp,
       value: item.volume,
@@ -1419,9 +1433,10 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [dataSource, setDataSource] = useState("MEXC PUBLIC DATA");
   const [feedError, setFeedError] = useState("");
   const [markets, setMarkets] = useState<MarketDescriptor[]>([]);
-  const [flowEnabled,setFlowEnabled]=useState(false);
+  const [orderFlowSettings,setOrderFlowSettings]=useState<OrderFlowSettings>(DEFAULT_ORDER_FLOW_SETTINGS);
+  const [flowHistoryOpen,setFlowHistoryOpen]=useState(false);
   const selectedMarket=markets.find((market)=>market.symbol===symbol);
-  const orderFlow=useOrderFlow({enabled:flowEnabled,paused:false,symbol,contractSize:selectedMarket?.contractSize??1});
+  const orderFlow=useOrderFlow({settings:orderFlowSettings,paused:false,symbol,contractSize:selectedMarket?.contractSize??1});
   const [marketQuery, setMarketQuery] = useState("");
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [favourites, setFavourites] = useState<string[]>([]);
@@ -1442,7 +1457,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [resultMarketKey, setResultMarketKey] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(true);
   const [activePanel, setActivePanel] = useState<
-    "visuals" | "strategy" | "risk"
+    "visuals" | "strategy" | "risk" | "dizyflow"
   >("visuals");
   const [visualTab, setVisualTab] = useState<
     "layers" | "layout" | "lines" | "colours"
@@ -1591,7 +1606,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     symbol,
     timeframe: timeframe as CandleTimeframe,
     contractSize:selectedMarket?.contractSize??1,
-    orderFlowEnabled:flowEnabled,
+    orderFlowEnabled:orderFlowSettings.enabled,
     onDepth:orderFlow.onDepth,
     onStatus: setRealtimeStatus,
     onClockOffset: setClockOffset,
@@ -1660,6 +1675,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
         setView(payload.settings.view);
         setStrategy(payload.settings.strategy);
         setRisk(payload.settings.risk);
+        setOrderFlowSettings(payload.settings.orderFlow);
         const stored =
           user.role === "viewer"
             ? JSON.parse(sessionStorage.getItem("dizy-viewer-market") || "null")
@@ -1717,6 +1733,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           view,
           strategy,
           risk,
+          orderFlow: orderFlowSettings,
           market: { exchange: "mexc", symbol, timeframe, favourites },
         }),
       });
@@ -1878,6 +1895,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               resetKey={viewportReset}
               symbol={symbol}
               timeframe={timeframe}
+              flowStore={orderFlow.renderStore}
               view={view}
             />
           }
@@ -2055,7 +2073,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               {backgroundSyncing ? "Syncing…" : "Refresh data"}
             </button>
             <div className="toolbar-spacer" />
-            <OrderFlowToolbar enabled={flowEnabled} onToggle={()=>setFlowEnabled(value=>!value)} summary={orderFlow.summary}/>
+            <OrderFlowToolbar settings={orderFlowSettings} onChange={setOrderFlowSettings} summary={orderFlow.summary} onHistory={()=>setFlowHistoryOpen(true)}/>
             <div className="mode-control" aria-label="Execution mode">
               {(["Off", "Paper"] as const).map((mode) => (
                 <button
@@ -2077,7 +2095,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               </button>
             </div>
           </section>
-          {flowEnabled?<OrderFlowAlerts alerts={orderFlow.summary.alerts} onClear={orderFlow.clear}/>:null}
+          <DizyFlowToastRail alerts={orderFlow.summary.alerts} settings={orderFlowSettings} onHistory={()=>setFlowHistoryOpen(true)}/><DizyFlowAlertHistory alerts={orderFlow.summary.alerts} open={flowHistoryOpen} onClose={()=>setFlowHistoryOpen(false)} onClear={orderFlow.clear}/>
           {view.showSimulationPerformance ? (
             <PaperPerformanceToolbar
               calculating={resultMarketKey !== `${symbol}:${timeframe}`}
@@ -2087,6 +2105,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           ) : null}
 
           <div className={`workspace ${settingsOpen ? "" : "panel-closed"}`}>
+            {orderFlowSettings.enabled&&orderFlowSettings.domVisible?<DizyFlowDom store={orderFlow.renderStore} contractSize={selectedMarket?.contractSize??1} onClose={()=>setOrderFlowSettings(value=>({...value,domVisible:false}))}/>:null}
             <section className="chart-section">
               <div className="chart-status-row">
                 <div>
@@ -2127,6 +2146,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               ) : initialLoading && !closedCandles.length ? (
                 <div className="chart-skeleton">Loading closed candles…</div>
               ) : (
+                <>{orderFlowSettings.enabled && orderFlow.renderStore.getSnapshot().heatmap.length===0?<div className="flow-capturing">DizyFlow capturing live depth — history begins now</div>:null}
                 <ChartErrorBoundary
                   marketKey={marketKey}
                   onReload={() => setViewportReset((value) => value + 1)}
@@ -2143,9 +2163,10 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                     resetKey={viewportReset}
                     symbol={symbol}
                     timeframe={timeframe}
+                    flowStore={orderFlow.renderStore}
                     view={view}
                   />
-                </ChartErrorBoundary>
+                </ChartErrorBoundary></>
               )}
               <div className="signal-dock">
                 <article>
@@ -2217,7 +2238,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                   </button>
                 </div>
                 <div className="panel-tabs">
-                  {(["visuals", "strategy", "risk"] as const).map((panel) => (
+                  {(["visuals", "strategy", "risk", "dizyflow"] as const).map((panel) => (
                     <button
                       className={activePanel === panel ? "active" : ""}
                       key={panel}
@@ -3489,6 +3510,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                       </div>
                     </>
                   ) : null}
+                  {activePanel === "dizyflow" ? <div className="setting-section flow-settings"><h3>DizyFlow · public data</h3><p className="setting-help">Bounded browser-memory depth and executed-trade rendering. Capture begins only when enabled.</p>{[["enabled","Master capture"],["heatmapVisible","Heatmap"],["bubblesVisible","Volume bubbles"],["domVisible","Depth of Market"],["alertsVisible","Large-activity alerts"],["imbalanceVisible","Imbalance"]].map(([key,label])=><IndicatorToggle key={key} checked={orderFlowSettings[key as keyof OrderFlowSettings] as boolean} label={label} colour="#9c78ff" onChange={checked=>setOrderFlowSettings(current=>({...current,[key]:checked}))}/>)}<h3>Heatmap</h3><label className="field-row"><span>Bid colour</span><input type="color" value={orderFlowSettings.heatmap.bidColour} onChange={e=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,bidColour:e.target.value}}))}/></label><label className="field-row"><span>Ask colour</span><input type="color" value={orderFlowSettings.heatmap.askColour} onChange={e=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,askColour:e.target.value}}))}/></label><RangeField label="Opacity" min={0} max={100} suffix="%" value={Math.round(orderFlowSettings.heatmap.opacity*100)} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,opacity:value/100}}))}/><RangeField label="Range" min={10} max={200} suffix="bps" value={orderFlowSettings.heatmap.rangeBps} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,rangeBps:value}}))}/><RangeField label="History" min={5} max={120} suffix="min" value={orderFlowSettings.heatmap.historyMinutes} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,historyMinutes:value}}))}/><h3>Bubbles & alerts</h3><RangeField label="Minimum bubble notional" min={0} max={1000000} suffix="USDT" value={orderFlowSettings.bubbles.minimumNotional} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,minimumNotional:value}}))}/><RangeField label="Large trade threshold" min={0} max={10000000} suffix="USDT" value={orderFlowSettings.alerts.fixedThreshold} onChange={value=>setOrderFlowSettings(v=>({...v,alerts:{...v.alerts,fixedThreshold:value}}))}/><button className="secondary" type="button" onClick={orderFlow.clear}>Clear captured data</button></div> : null}
                 </div>
                 <div className="panel-footer">
                   <button
