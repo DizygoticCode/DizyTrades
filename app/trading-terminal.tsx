@@ -90,6 +90,7 @@ import {
 } from "./lib/chart/toolbar";
 import { ChartToolsLayer } from "./chart-tools-layer";
 import { planSeriesSync } from "./lib/chart/series-sync";
+import {nativeLineData} from "./lib/chart/native-line-series";
 import { type MarketLoadReason } from "./lib/market/reconciliation";
 import {buildPineParityReport} from "./lib/pine-parity";
 import { livePaperSnapshot } from "./lib/paper-performance";
@@ -1319,6 +1320,9 @@ const DizyChart = forwardRef<
         data: analysis.vwap,
         color: view.appearance.indicators.vwap,
       });
+    const addNative=(key:string,points:readonly {time:number;value:number}[],extension:ViewSettings["lrChannelExtension"],color:string)=>desired.set(key,{data:nativeLineData(displayCandles,points,extension),color});
+    if(view.channels&&analysis.activeChannel){addNative("lr-upper",analysis.activeChannel.upper,view.lrChannelExtension,view.appearance.indicators.regressionUpper);addNative("lr-basis",analysis.activeChannel.basis,view.lrChannelExtension,view.appearance.indicators.regressionBasis);addNative("lr-lower",analysis.activeChannel.lower,view.lrChannelExtension,view.appearance.indicators.regressionLower)}
+    if(view.trendlines){addNative("upper-trend",analysis.upperTrendline,view.pivotTrendlineExtension,view.appearance.indicators.bearTrendline);addNative("lower-trend",analysis.lowerTrendline,view.pivotTrendlineExtension,view.appearance.indicators.bullTrendline)}
     indicatorsRef.current.forEach((series, key) => {
       if (!desired.has(key)) {
         chart.removeSeries(series);
@@ -1347,6 +1351,14 @@ const DizyChart = forwardRef<
   }, [
     analysis.trend,
     analysis.vwap,
+    analysis.activeChannel,
+    analysis.upperTrendline,
+    analysis.lowerTrendline,
+    displayCandles,
+    view.channels,
+    view.trendlines,
+    view.lrChannelExtension,
+    view.pivotTrendlineExtension,
     view.vwap,
     view.appearance.indicators,
     redraw,

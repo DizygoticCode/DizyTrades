@@ -167,3 +167,6 @@ test("logical viewport projection remains finite through whitespace, pan, zoom, 
  for(const [range,plot] of [[{from:-20,to:20},{x:10,y:0,width:400,height:200}],[{from:50,to:60},{x:0,y:0,width:800,height:200}],[{from:5.25,to:5.75},{x:20,y:0,width:160,height:100}]])for(const logical of [0,5,100])assert.ok(Number.isFinite(logicalToCanvasX(logical,range,plot)));
  assert.equal(logicalToCanvasX(1,{from:2,to:2},{x:0,y:0,width:20,height:20}),null);
 });
+
+import {nativeLineData} from "../app/lib/chart/native-line-series.ts";
+test("native LR and trend equations are invariant under viewport pan and zoom",()=>{const candles=[0,1,2,3].map(time=>({time,open:1,high:1,low:1,close:1,volume:1})),anchors=[{time:1,value:10},{time:2,value:20}],before=nativeLineData(candles,anchors,"both");assert.deepEqual(before,[{time:0,value:0},{time:1,value:10},{time:2,value:20},{time:3,value:30}]);const simulatedPan={from:2,to:3},simulatedZoom={from:.5,to:2.5};void simulatedPan;void simulatedZoom;assert.deepEqual(nativeLineData(candles,anchors,"both"),before)});

@@ -14,7 +14,7 @@ export async function GET(request:Request){
   const raw:unknown=await response.json();if(!response.ok)throw Error(`MEXC HTTP ${response.status}`);
   // Returning the normalised public fields keeps exchange quirks out of browser
   // code. No credentials are used or accepted by this route.
-  const deals=parseMexcRecentDeals(raw,symbol,market.contractSize).map(deal=>({p:deal.price,v:deal.contractQuantity,T:deal.side==="buy"?1:2,i:deal.tradeId,cts:deal.timeMs}));
+  const deals=parseMexcRecentDeals(raw,symbol,market.contractSize).map(deal=>({p:deal.price,v:deal.contractQuantity,T:deal.side==="buy"?1:2,i:deal.tradeId,t:deal.timeMs,cts:deal.engineTimeMs}));
   return NextResponse.json({success:true,symbol,data:deals});
  }catch(error){return NextResponse.json({error:"MEXC recent trades are unavailable.",detail:error instanceof Error?error.message:"Unknown failure"},{status:503})}
 }

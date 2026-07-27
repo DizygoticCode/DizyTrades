@@ -18,5 +18,6 @@ export function containingCandleIndex(candles:readonly {time:number}[],eventTime
 }
 export function fractionalLogicalIndex(eventTimeMs:number,candleStartSeconds:number,candleIndex:number,timeframe:CandleTimeframe){
   const start=candleStartSeconds*1000,close=candleCloseMs(candleStartSeconds,timeframe);
-  return candleIndex+(eventTimeMs-start)/(close-start);
+  const fraction=Math.max(0,Math.min(.999999,(eventTimeMs-start)/(close-start)));
+  return candleIndex-.5+fraction;
 }
