@@ -1,0 +1,9 @@
+export type FlowStatus = "Off" | "Connecting" | "Warming up" | "Live" | "Recovering" | "Delayed" | "Offline";
+export type DepthSide = "bid" | "ask";
+export type DepthLevel = { price: number; orderCount: number; contractQuantity: number };
+export type DepthUpdate = { symbol: string; version: number; engineTimeMs: number; bids: DepthLevel[]; asks: DepthLevel[] };
+export type DepthSnapshot = DepthUpdate;
+export type BookView = { valid: boolean; version: number; bids: DepthLevel[]; asks: DepthLevel[] };
+export type HeatmapCell = { timeMs: number; price: number; bidNotional: number; askNotional: number; mid: number; spread: number };
+export type VolumeBubble = { timeMs: number; price: number; buyNotional: number; sellNotional: number; tradeCount: number };
+export type FlowAlert = { id: string; type: "Large Market Buy" | "Large Market Sell" | "Large Bid Wall" | "Large Ask Wall" | "Bid Liquidity Pulled" | "Ask Liquidity Pulled"; symbol: string; timeMs: number; price: number; notional: number; message: string };

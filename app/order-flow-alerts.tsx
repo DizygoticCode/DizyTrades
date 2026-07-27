@@ -1,0 +1,2 @@
+"use client";import type { FlowAlert } from "./lib/order-flow/types";
+export function OrderFlowAlerts({alerts,onClear}:{alerts:FlowAlert[];onClear:()=>void}){if(!alerts.length)return null;return <aside className="flow-alerts"><header><strong>Whale Watch</strong><button onClick={onClear} type="button">Clear</button></header><small>Large public market activity; trader identity is unknown.</small>{alerts.slice(0,8).map(a=><p key={a.id}><b>{a.type}</b><span>{a.price.toLocaleString()} · ${a.notional.toLocaleString(undefined,{maximumFractionDigits:0})}</span></p>)}</aside>}
