@@ -1455,7 +1455,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [initialLoading, setInitialLoading] = useState(true);
   const [backgroundSyncing, setBackgroundSyncing] = useState(false);
   const [resultMarketKey, setResultMarketKey] = useState("");
-  const [settingsOpen, setSettingsOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<
     "visuals" | "strategy" | "risk" | "dizyflow"
   >("visuals");
@@ -1936,6 +1936,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                           key={market.symbol}
                           onClick={() => {
                             setSymbol(market.symbol);
+                            setSettingsOpen(false);
                             setRecent((items) =>
                               [
                                 market.symbol,
@@ -2017,7 +2018,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                   aria-pressed={timeframe === item}
                   className={timeframe === item ? "active" : ""}
                   key={item}
-                  onClick={() => setTimeframe(item)}
+                  onClick={() => {setTimeframe(item);setSettingsOpen(false)}}
                   title={TIMEFRAME_TITLES[item]}
                   type="button"
                 >
@@ -2105,7 +2106,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           ) : null}
 
           <div className={`workspace ${settingsOpen ? "" : "panel-closed"}`}>
-            {orderFlowSettings.enabled&&orderFlowSettings.domVisible?<DizyFlowDom store={orderFlow.renderStore} contractSize={selectedMarket?.contractSize??1} onClose={()=>setOrderFlowSettings(value=>({...value,domVisible:false}))}/>:null}
+            {orderFlowSettings.enabled&&orderFlowSettings.domVisible?<DizyFlowDom store={orderFlow.renderStore} contractSize={selectedMarket?.contractSize??1} onWidth={width=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,width}}))} onClose={()=>setOrderFlowSettings(value=>({...value,domVisible:false}))}/>:null}
             <section className="chart-section">
               <div className="chart-status-row">
                 <div>
@@ -2146,8 +2147,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               ) : initialLoading && !closedCandles.length ? (
                 <div className="chart-skeleton">Loading closed candles…</div>
               ) : (
-                <>{orderFlowSettings.enabled && orderFlow.renderStore.getSnapshot().heatmap.length===0?<div className="flow-capturing">DizyFlow capturing live depth — history begins now</div>:null}
-                <ChartErrorBoundary
+                <><ChartErrorBoundary
                   marketKey={marketKey}
                   onReload={() => setViewportReset((value) => value + 1)}
                 >
@@ -2219,7 +2219,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               </div>
             </section>
 
-            {user.role !== "viewer" ? (
+            {settingsOpen && user.role !== "viewer" ? (
               <aside
                 className="settings-panel"
                 aria-label="DizySignals settings"

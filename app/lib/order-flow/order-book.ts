@@ -14,7 +14,9 @@ export class OrderBook {
   }
   update(value: DepthUpdate): "applied" | "ignored" | "buffered" | "gap" {
     if (value.version <= this._version) return "ignored";
-    if (!this._valid || value.version > this._version + 1) { this.future.set(value.version, value); while (this.future.size > this.maxBuffered) this.future.delete(Math.min(...this.future.keys())); this._valid = false; return this._version < 0 ? "buffered" : "gap"; }
+    if (value.version > this._version + 1 || this._version < 0) { this.future.set(value.version, value); while (this.future.size > this.maxBuffered) this.future.delete(Math.min(...this.future.keys())); this._valid = false; return this._version < 0 ? "buffered" : "gap"; }
+    // A commit recovery deliberately supplies localVersion + 1 while invalid.
+    // Applying it and draining the already buffered tail repairs the sequence.
     this.applyLevels(value); this._version = value.version; this.drain(); return "applied";
   }
   private drain() { while (this.future.has(this._version + 1)) { const next = this.future.get(this._version + 1)!; this.future.delete(next.version); this.applyLevels(next); this._version = next.version; } this._valid = this.future.size === 0; }

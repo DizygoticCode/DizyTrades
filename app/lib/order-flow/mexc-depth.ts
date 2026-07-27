@@ -6,9 +6,15 @@ export function parseDepthLevels(value: unknown): DepthLevel[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((tuple) => {
     if (!Array.isArray(tuple) || tuple.length < 3) return [];
-    const price = number(tuple[0]), contractQuantity = number(tuple[1]), orderCount = number(tuple[2]);
+    // MEXC contract depth tuples are [price, orderCount, orderQuantity].
+    const price = number(tuple[0]), orderCount = number(tuple[1]), contractQuantity = number(tuple[2]);
     return price !== null && orderCount !== null && contractQuantity !== null && price > 0 && orderCount >= 0 && contractQuantity >= 0 ? [{ price, orderCount, contractQuantity }] : [];
   });
+}
+export function parseDepthCommits(raw: unknown, symbol: string): DepthUpdate[] {
+  const root=object(raw), data=root?.data, nested=object(data);
+  const values=Array.isArray(data)?data:Array.isArray(nested?.commits)?nested.commits as unknown[]:[];
+  return values.flatMap(value=>{const item=object(value);if(!item)return [];const version=number(item.version),engineTimeMs=number(item.timestamp??item.cts??item.ts??Date.now());if(version===null||engineTimeMs===null||!Number.isInteger(version)||version<0)return [];return [{symbol,version,engineTimeMs,bids:parseDepthLevels(item.bids),asks:parseDepthLevels(item.asks)}]}).sort((a,b)=>a.version-b.version);
 }
 export function parseDepthMessage(raw: unknown, symbol: string): DepthUpdate | null {
   const envelope = object(raw), data = object(envelope?.data);
