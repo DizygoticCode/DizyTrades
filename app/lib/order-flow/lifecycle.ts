@@ -7,3 +7,7 @@ export function stableDepthStatus({hasSnapshot,ageMs,endpointFailed,staleMs=5000
  if(!hasSnapshot)return endpointFailed?"ERROR":"CONNECTING";
  return ageMs>staleMs?"STALE":"LIVE";
 }
+/** DOM polling and heatmap streaming are intentionally controlled separately. */
+export function depthConsumerActivity({enabled,domVisible,heatmapVisible}:{enabled:boolean;domVisible:boolean;heatmapVisible:boolean}){
+ return {dom:enabled&&domVisible,heatmap:enabled&&heatmapVisible};
+}
