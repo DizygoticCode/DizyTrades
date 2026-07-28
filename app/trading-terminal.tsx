@@ -1620,8 +1620,6 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     symbol,
     timeframe: timeframe as CandleTimeframe,
     contractSize:selectedMarket?.contractSize??1,
-    orderFlowEnabled:orderFlowSettings.enabled,
-    onDepth:orderFlow.onDepth,
     onStatus: setRealtimeStatus,
     onClockOffset: setClockOffset,
     onResync: () =>
