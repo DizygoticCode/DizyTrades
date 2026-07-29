@@ -1,4 +1,4 @@
-import type { BookView, LiquidityObservation, RawTrade, VolumeBubble } from "./types.ts";
+import type { BookView, CompactLiquidityChange, LiquidityObservation, RawTrade, VolumeBubble } from "./types.ts";
 import type { MexcDeal } from "../market/realtime.ts";
 import { percentile } from "./normalisation.ts";
 
@@ -6,7 +6,7 @@ export type AggregatorOptions={historyMs:number;maxCells:number;maxBubbles:numbe
 const LOW_MEMORY_MODE=process.env.DIZYFLOW_LOW_MEMORY_MODE!=="false";
 const MAX_LEVELS_PER_SIDE=Math.max(1,Math.floor(Number(process.env.DIZYFLOW_MAX_LEVELS_PER_SIDE)||(LOW_MEMORY_MODE?100:500)));
 const MAX_HEATMAP_RECORDS=Math.max(100,Math.floor(Number(process.env.DIZYFLOW_MAX_HEATMAP_RECORDS)||(LOW_MEMORY_MODE?5_000:50_000)));
-const MAX_HISTORY_MS=Math.max(60_000,(Number(process.env.DIZYFLOW_HISTORY_MINUTES)||(LOW_MEMORY_MODE?5:30))*60_000);
+const MAX_HISTORY_MS=Math.max(60_000,(Number(process.env.DIZYFLOW_HEATMAP_RETENTION_MINUTES)||360)*60_000);
 export function automaticPriceStep(metadata:{priceUnit?:string;priceScale?:number;pricePrecision?:number}){
   const unit=Number(metadata.priceUnit);if(Number.isFinite(unit)&&unit>0)return unit;
   const scale=metadata.priceScale??metadata.pricePrecision;return Number.isInteger(scale)&&scale!>=0?10**(-scale!):1;
@@ -21,6 +21,7 @@ export class FlowAggregator {
   private bounded(options:AggregatorOptions){return{...options,historyMs:Math.min(options.historyMs,MAX_HISTORY_MS),maxCells:Math.min(options.maxCells,MAX_HEATMAP_RECORDS)};}
   get priceStep(){return this.options.priceStep;}
   clear(){this.heatmap=[];this.trades=[];this.captureStarted=null;this.captureEnded=null;this.lastLevels.clear();this.ids.clear();}
+  ingestCompact(changes:readonly CompactLiquidityChange[],capturedPriceStep:number,contractSize:number){if(!Number.isFinite(capturedPriceStep)||capturedPriceStep<=0||!Number.isFinite(contractSize)||contractSize<=0)return;for(const value of changes){if(!Number.isFinite(value.timestampMs)||!Number.isInteger(value.priceTick))continue;const price=value.priceTick*capturedPriceStep,bid=value.bidContracts*contractSize,ask=value.askContracts*contractSize;this.heatmap.push({timestampMs:value.timestampMs,price,priceTick:value.priceTick,capturedPriceStep,bidQuantity:bid,askQuantity:ask});this.captureStarted=this.captureStarted===null?value.timestampMs:Math.min(this.captureStarted,value.timestampMs);this.captureEnded=Math.max(this.captureEnded??0,value.timestampMs);this.lastLevels.set(value.priceTick,{price,bid,ask})}if(this.captureEnded!==null)this.prune(this.captureEnded);globalThis.__dizyFlowHeatmapRecords=this.heatmap.length;}
   captureBook(book:BookView,contractSize:number,timeMs:number,rangeBps=50){
     if(!Number.isFinite(contractSize)||contractSize<=0||!book.bids.length||!book.asks.length)return;
     this.captureStarted??=timeMs;this.captureEnded=timeMs;const midpoint=(book.bids[0].price+book.asks[0].price)/2,span=midpoint*Math.max(0,rangeBps)/10_000,low=midpoint-span,high=midpoint+span,observation=new Map<number,{bid:number;ask:number}>();

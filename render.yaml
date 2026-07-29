@@ -42,7 +42,17 @@ services:
       - key: DIZYFLOW_COLLECTOR_IDLE_MS
         value: "30000"
       - key: DIZYFLOW_MAX_HEATMAP_RECORDS
+        value: "20000"
+      - key: DIZYFLOW_HEATMAP_RETENTION_MINUTES
+        value: "360"
+      - key: DIZYFLOW_HEATMAP_SAMPLE_MS
         value: "5000"
+      - key: DIZYFLOW_HEATMAP_MAX_MEMORY_RECORDS
+        value: "20000"
+      - key: DIZYFLOW_HEATMAP_MAX_DISK_MB
+        value: "64"
+      - key: DIZYFLOW_ARCHIVE_SYMBOLS
+        value: BTC_USDT
       - key: ALLOW_TEST_PLAINTEXT_PASSWORDS
         value: "false"
       - key: SESSION_SECRET

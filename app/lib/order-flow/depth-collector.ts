@@ -2,6 +2,7 @@ import "server-only";
 import {EventEmitter} from "node:events";
 import {parseDepthMessage,parseRawMexcDepthLevels} from "./mexc-depth.ts";
 import type {DepthEnvelope,DepthLevel,DepthSnapshot,DepthUpdate} from "./types.ts";
+import {getLiquidityTape} from "./liquidity-tape.ts";
 
 const enabled=(value:string|undefined,fallback:boolean)=>value==null?fallback:value.toLowerCase()==="true";
 const integer=(value:string|undefined,fallback:number,min:number,max=Number.MAX_SAFE_INTEGER)=>{const parsed=Number(value);return Number.isFinite(parsed)?Math.min(max,Math.max(min,Math.floor(parsed))):fallback};
@@ -45,7 +46,7 @@ export class DepthCollector{
  private snapshot():DepthSnapshot{const max=this.options.maxLevels;return{symbol:this.symbol,version:this.version,engineTimeMs:this.engineTimeMs,bids:[...this.bids.values()].sort((a,b)=>b.price-a.price).slice(0,max),asks:[...this.asks.values()].sort((a,b)=>a.price-b.price).slice(0,max)}}
  private publishCurrent(sample:boolean){const envelope=this.makeEnvelope(this.snapshot(),this.now());this.latest=envelope;if(!sample)this.dirty=false;if(sample)this.appendHistory(envelope);this.emitter.emit(sample?"sample":"envelope",envelope)}
  private makeEnvelope(snapshot:DepthSnapshot,receivedAt:number):DepthEnvelope{return{snapshot,receivedAt,diagnostic:{snapshotAgeMs:0,consecutiveFailures:this.failures,lastError:this.error,...(this.running?{sourceMode:this.sourceMode(),wsMessagesReceived:this.wsMessages,versionGaps:this.gaps,restRecoveries:this.recoveries}:{})}}}
- private appendHistory(envelope:DepthEnvelope){this.lastHistoryAt=envelope.receivedAt;const index=(this.historyStart+this.historyCount)%this.options.maxHistory;this.history[index]=envelope;if(this.historyCount<this.options.maxHistory)this.historyCount++;else this.historyStart=(this.historyStart+1)%this.options.maxHistory}
+ private appendHistory(envelope:DepthEnvelope){this.lastHistoryAt=envelope.receivedAt;getLiquidityTape(this.symbol).capture(envelope.snapshot,envelope.receivedAt);const index=(this.historyStart+this.historyCount)%this.options.maxHistory;this.history[index]=envelope;if(this.historyCount<this.options.maxHistory)this.historyCount++;else this.historyStart=(this.historyStart+1)%this.options.maxHistory}
  private async pollScheduled(){await depthRequestLimiter.acquire();if(!this.running)return;await this.poll(true)}
  async poll(scheduled=false,recovery=false){if(this.inFlight)return false;this.inFlight=true;let delay=this.options.pollMs;try{const response=await this.fetcher(`${REST_BASE}/api/v1/contract/depth/${encodeURIComponent(this.symbol)}?limit=${this.options.maxLevels}`,{cache:"no-store",signal:AbortSignal.timeout(TIMEOUT_MS),headers:{accept:"application/json"}});if(!response.ok)throw Error(`MEXC depth HTTP ${response.status}`);const snapshot=capSnapshot(normalizeMexcSnapshot(await response.json(),this.symbol),this.options.maxLevels),receivedAt=this.now();this.failures=0;this.error=null;if(recovery)this.recoveries++;if(!this.wsLive||recovery||!this.latest){this.version=snapshot.version;this.engineTimeMs=snapshot.engineTimeMs;this.bids=new Map(snapshot.bids.map(v=>[v.price,v]));this.asks=new Map(snapshot.asks.map(v=>[v.price,v]));const envelope=this.makeEnvelope(snapshot,receivedAt);this.latest=envelope;this.emitter.emit("envelope",envelope);if(this.lastHistoryAt===null||receivedAt-this.lastHistoryAt>=this.options.historySampleMs){this.appendHistory(envelope);this.emitter.emit("sample",envelope)}}}catch(error){this.failures++;this.error=safeError(error);delay=Math.min(30_000,this.options.pollMs*2**Math.min(this.failures,5))}finally{this.inFlight=false;if(scheduled&&this.running){const healthyWs=this.options.transport==="ws"&&this.wsLive;this.timer=setTimeout(()=>void this.pollScheduled(),healthyWs?this.options.healthPollMs:delay)}}return true}
  getLatest(){return this.latest&&this.running?{...this.latest,diagnostic:{...this.latest.diagnostic,sourceMode:this.sourceMode(),wsMessagesReceived:this.wsMessages,versionGaps:this.gaps,restRecoveries:this.recoveries}}:this.latest}
@@ -66,6 +67,10 @@ export const collectorRegistryDiagnostic=()=>[...collectors.values()].map(v=>({.
 export const pruneIdleCollectors=pruneIdle;
 // Short-lived depth endpoint compatibility; callers must release immediately.
 export function getDepthCollector(symbol:string){return acquireDepthCollector(symbol)}
+
+let archiveCollectorsStarted=false;
+/** Starts at most MAX_COLLECTORS-1 public collectors, preserving one slot for the actively viewed market. */
+export function startArchiveCollectors(){if(archiveCollectorsStarted)return;archiveCollectorsStarted=true;const symbols=(process.env.DIZYFLOW_ARCHIVE_SYMBOLS??"BTC_USDT").split(",").map(value=>normalizeDepthSymbol(value)).filter((value):value is string=>Boolean(value)).slice(0,Math.max(0,MAX_COLLECTORS-1));for(const symbol of symbols){try{acquireDepthCollector(symbol)}catch{break}}}
 
 const diagnostics=setInterval(()=>{const memory=process.memoryUsage(),details=collectorRegistryDiagnostic(),rssMb=Math.round(memory.rss/1048576);if(rssMb>400){pruneIdle();for(const value of collectors.values())value.collector.halveHistory()}console.info("DizyFlow memory",{rssMb,heapMb:Math.round(memory.heapUsed/1048576),externalMb:Math.round(memory.external/1048576),collectors:details.length,subscribers:details.reduce((n,v)=>n+v.subscribers,0),books:details.map(v=>`${v.symbol}:${v.bids}/${v.asks}`),histories:details.map(v=>`${v.symbol}:${v.historySamples}`),heatmapRecords:globalThis.__dizyFlowHeatmapRecords??0})},30_000);diagnostics.unref();
 
