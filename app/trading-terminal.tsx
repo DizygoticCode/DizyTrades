@@ -80,6 +80,7 @@ import {
 import {
   projectWorldLine,
   stableLabelLane,
+  worldLineLabelPosition,
   type WorldLine,
 } from "./lib/chart/world-projection";
 import {
@@ -90,7 +91,6 @@ import {
 } from "./lib/chart/toolbar";
 import { ChartToolsLayer } from "./chart-tools-layer";
 import { planSeriesSync } from "./lib/chart/series-sync";
-import {nativeLineData} from "./lib/chart/native-line-series";
 import { type MarketLoadReason } from "./lib/market/reconciliation";
 import {buildPineParityReport} from "./lib/pine-parity";
 import { livePaperSnapshot } from "./lib/paper-performance";
@@ -530,7 +530,6 @@ function drawChartOverlay(
   ): {
     model: WorldLine;
     line: { start: LinePoint; end: LinePoint } | null;
-    label: LinePoint | null;
   } | null => {
     if (points.length < 2 || !visible) return null;
     const startIndex = indexByTime.get(points[0].time),
@@ -545,11 +544,6 @@ function drawChartOverlay(
         price: points[0].value,
       },
       end: { index: endIndex, time: points[1].time, price: points[1].value },
-      labelAnchor: {
-        index: endIndex,
-        time: points[1].time,
-        price: points[1].value,
-      },
       createdAt: points[1].time,
       status,
     };
@@ -559,15 +553,9 @@ function drawChartOverlay(
       (index) => chart.timeScale().logicalToCoordinate(index as Logical),
       (price) => candleSeries.priceToCoordinate(price),
       layout.candles,
+      extension(id.startsWith("lr-") ? view.lrChannelExtension : view.pivotTrendlineExtension),
     );
-    const labelX = chart
-        .timeScale()
-        .logicalToCoordinate(model.labelAnchor.index as Logical),
-      labelY = candleSeries.priceToCoordinate(model.labelAnchor.price);
-    const label = labelX == null || labelY == null
-        ? null
-        : { x: Number(labelX), y: Number(labelY) };
-    return { model, line, label };
+    return { model, line };
   };
   if (view.channels && analysis.activeChannel) {
     const projected = [
@@ -653,12 +641,11 @@ function drawChartOverlay(
       stroke(basisLine, a.indicators.regressionBasis, view.lrBasisWidth);
       if (view.showLrChannelLabels)
         projected.forEach((entry, priority) => {
-          const anchor = entry.projected?.label;
-          if (!anchor) return;
+          const segment = entry.projected?.line;
+          if (!segment) return;
           const width = context.measureText(entry.id).width + 12,
             lane = stableLabelLane(entry.projected!.model.id, 5 + priority),
-            y = anchor.y + (lane - 1) * (labelHeight + 3),
-            x = anchor.x - width - 6;
+            {x,y} = worldLineLabelPosition(segment, layout.candles, width, labelHeight, lane);
           context.fillStyle = hexToRgba(entry.colour, 0.88);
           context.beginPath();
           context.roundRect(x, y - labelHeight / 2, width, labelHeight, 5);
@@ -718,12 +705,10 @@ function drawChartOverlay(
       context.moveTo(line.start.x, line.start.y);
       context.lineTo(line.end.x, line.end.y);
       context.stroke();
-      if (view.showTrendlineLabels && item.projected!.label) {
-        const anchor = item.projected!.label!,
-          width = context.measureText(item.id).width + 12,
+      if (view.showTrendlineLabels) {
+        const width = context.measureText(item.id).width + 12,
           lane = stableLabelLane(item.projected!.model.id, 5),
-          y = anchor.y + (lane - 1) * (labelHeight + 3),
-          x = anchor.x - width - 6;
+          {x,y} = worldLineLabelPosition(line, layout.candles, width, labelHeight, lane);
         context.fillStyle = hexToRgba(item.colour, 0.9);
         context.beginPath();
         context.roundRect(x, y - labelHeight / 2, width, labelHeight, 5);
@@ -1320,9 +1305,6 @@ const DizyChart = forwardRef<
         data: analysis.vwap,
         color: view.appearance.indicators.vwap,
       });
-    const addNative=(key:string,points:readonly {time:number;value:number}[],extension:ViewSettings["lrChannelExtension"],color:string)=>desired.set(key,{data:nativeLineData(displayCandles,points,extension),color});
-    if(view.channels&&analysis.activeChannel){addNative("lr-upper",analysis.activeChannel.upper,view.lrChannelExtension,view.appearance.indicators.regressionUpper);addNative("lr-basis",analysis.activeChannel.basis,view.lrChannelExtension,view.appearance.indicators.regressionBasis);addNative("lr-lower",analysis.activeChannel.lower,view.lrChannelExtension,view.appearance.indicators.regressionLower)}
-    if(view.trendlines){addNative("upper-trend",analysis.upperTrendline,view.pivotTrendlineExtension,view.appearance.indicators.bearTrendline);addNative("lower-trend",analysis.lowerTrendline,view.pivotTrendlineExtension,view.appearance.indicators.bullTrendline)}
     indicatorsRef.current.forEach((series, key) => {
       if (!desired.has(key)) {
         chart.removeSeries(series);
@@ -1351,14 +1333,7 @@ const DizyChart = forwardRef<
   }, [
     analysis.trend,
     analysis.vwap,
-    analysis.activeChannel,
-    analysis.upperTrendline,
-    analysis.lowerTrendline,
     displayCandles,
-    view.channels,
-    view.trendlines,
-    view.lrChannelExtension,
-    view.pivotTrendlineExtension,
     view.vwap,
     view.appearance.indicators,
     redraw,
