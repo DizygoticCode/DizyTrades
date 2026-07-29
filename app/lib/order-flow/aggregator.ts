@@ -1,7 +1,12 @@
 import type { BookView, LiquidityObservation, RawTrade, VolumeBubble } from "./types.ts";
 import type { MexcDeal } from "../market/realtime.ts";
+import { percentile } from "./normalisation.ts";
 
 export type AggregatorOptions={historyMs:number;maxCells:number;maxBubbles:number;timeBucketMs:number;priceStep:number};
+export function automaticPriceStep(metadata:{priceUnit?:string;priceScale?:number;pricePrecision?:number}){
+  const unit=Number(metadata.priceUnit);if(Number.isFinite(unit)&&unit>0)return unit;
+  const scale=metadata.priceScale??metadata.pricePrecision;return Number.isInteger(scale)&&scale!>=0?10**(-scale!):1;
+}
 export class FlowAggregator {
   heatmap:LiquidityObservation[]=[]; trades:RawTrade[]=[];
   captureStarted:number|null=null;captureEnded:number|null=null;
@@ -9,6 +14,7 @@ export class FlowAggregator {
   private options:AggregatorOptions;
   constructor(options:Partial<AggregatorOptions>={}){this.options={historyMs:1_800_000,maxCells:50_000,maxBubbles:5_000,timeBucketMs:1_000,priceStep:.1,...options};}
   configure(options:Partial<AggregatorOptions>){this.options={...this.options,...options};}
+  get priceStep(){return this.options.priceStep;}
   clear(){this.heatmap=[];this.trades=[];this.captureStarted=null;this.captureEnded=null;this.lastLevels.clear();this.ids.clear();}
   captureBook(book:BookView,contractSize:number,timeMs:number,rangeBps=50){
     if(!Number.isFinite(contractSize)||contractSize<=0)return;const bid=book.bids[0]?.price,ask=book.asks[0]?.price;if(!bid||!ask)return;
@@ -29,5 +35,6 @@ export class FlowAggregator {
 }
 export function aggregateTrades(trades:readonly RawTrade[],projectX:(time:number)=>number|null,projectY:(price:number)=>number|null,neighbour=3){const groups:VolumeBubble[]=[];for(const trade of trades){const x=projectX(trade.timestampMs),y=projectY(trade.price);if(x==null||y==null)continue;let bubble=groups.find(v=>Math.abs((v as VolumeBubble&{x:number}).x-x)<=1&&Math.abs((v as VolumeBubble&{y:number}).y-y)<=neighbour) as (VolumeBubble&{x:number;y:number})|undefined;if(!bubble){bubble={x,y,timeMs:0,price:0,buyNotional:0,sellNotional:0,buyQuantity:0,sellQuantity:0,tradeCount:0};groups.push(bubble)}const old=bubble.buyNotional+bubble.sellNotional,total=old+trade.notional;bubble.timeMs=(bubble.timeMs*old+trade.timestampMs*trade.notional)/total;bubble.price=(bubble.price*old+trade.price*trade.notional)/total;bubble[trade.side==="buy"?"buyNotional":"sellNotional"]+=trade.notional;bubble[trade.side==="buy"?"buyQuantity":"sellQuantity"]+=trade.quantity;bubble.tradeCount++}return groups}
 export function bubbleRadius(notional:number,threshold:number,min=3,max=24){if(notional<threshold)return 0;return Math.min(max,Math.max(min,min+Math.sqrt(notional-threshold)/Math.max(1,Math.sqrt(threshold))));}
+export function bubbleThreshold(totals:readonly number[],settings:{adaptive:boolean;minimumSamples:number;percentile:number;minimumNotional:number}){const adaptiveThreshold=settings.adaptive&&totals.length>=settings.minimumSamples?percentile([...totals],settings.percentile):0;return Math.max(settings.minimumNotional,adaptiveThreshold)}
 export function bubbleComposition(bubble:VolumeBubble){const total=bubble.buyNotional+bubble.sellNotional;return{total,buyRatio:total?bubble.buyNotional/total:0,sellRatio:total?bubble.sellNotional/total:0,delta:bubble.buyNotional-bubble.sellNotional,aggressorPercent:total?Math.max(bubble.buyNotional,bubble.sellNotional)/total:0,dominant:bubble.buyNotional>=bubble.sellNotional?"buy" as const:"sell" as const};}
 export function mergePixelColumns<T extends {x:number;notional:number}>(items:T[]){const map=new Map<number,T>();for(const item of items){const x=Math.round(item.x),old=map.get(x);if(!old||item.notional>old.notional)map.set(x,{...item,x});}return [...map.values()];}

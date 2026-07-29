@@ -1450,7 +1450,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [orderFlowSettings,setOrderFlowSettings]=useState<OrderFlowSettings>(DEFAULT_ORDER_FLOW_SETTINGS);
   const [flowHistoryOpen,setFlowHistoryOpen]=useState(false);
   const selectedMarket=markets.find((market)=>market.symbol===symbol);
-  const orderFlow=useOrderFlow({settings:orderFlowSettings,paused:false,symbol,contractSize:selectedMarket?.contractSize??1});
+  const orderFlow=useOrderFlow({settings:orderFlowSettings,paused:false,symbol,contractSize:selectedMarket?.contractSize??1,priceUnit:selectedMarket?.priceUnit,priceScale:selectedMarket?.priceScale});
   const [marketQuery, setMarketQuery] = useState("");
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [favourites, setFavourites] = useState<string[]>([]);

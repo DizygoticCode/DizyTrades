@@ -15,6 +15,7 @@ export type MarketDescriptor = {
   settlementCurrency: string;
   state: "enabled";
   pricePrecision: number;
+  priceScale?: number;
   priceUnit?: string;
   depthStepList?: string[];
   contractSize?: number;
