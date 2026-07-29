@@ -39,6 +39,7 @@ export function sanitiseMexcMarkets(input: unknown): MarketDescriptor[] {
       exchange: "mexc", marketType: "perpetual", symbol,
       displayName: `${base} / ${quote}`, base, quote, settlementCurrency: settle,
       state: "enabled", pricePrecision: Number.isInteger(priceScale) && priceScale >= 0 ? priceScale : 8,
+      priceScale: Number.isInteger(priceScale) && priceScale >= 0 ? priceScale : undefined,
       priceUnit: Number.isFinite(Number(priceUnit)) && Number(priceUnit) > 0 ? priceUnit : undefined,
       depthStepList,
       contractSize: Number.isFinite(Number(item.contractSize)) ? Number(item.contractSize) : undefined,

@@ -40,3 +40,6 @@ next-env.d.ts
 /dist/
 /.data/
 /data/
+
+# Local DizyFlow visual-verification captures (generated, never committed)
+/artifacts/dizyflow-fixture*.png

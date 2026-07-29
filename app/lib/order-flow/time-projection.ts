@@ -21,3 +21,28 @@ export function fractionalLogicalIndex(eventTimeMs:number,candleStartSeconds:num
   const fraction=Math.max(0,Math.min(.999999,(eventTimeMs-start)/(close-start)));
   return candleIndex-.5+fraction;
 }
+
+/** Maps an exchange event to the candle interval it belongs to, including the
+ * not-yet-appended live interval after the final confirmed candle. */
+export function timestampToLogicalPosition(candles:readonly {time:number}[],eventTimeMs:number,timeframe:CandleTimeframe,nowMs=Date.now()):number|null{
+  if(!candles.length||!Number.isFinite(eventTimeMs)||eventTimeMs<EARLIEST||eventTimeMs>nowMs+5*60_000)return null;
+  const known=containingCandleIndex(candles,eventTimeMs,timeframe);
+  if(known>=0)return fractionalLogicalIndex(eventTimeMs,candles[known].time,known,timeframe);
+  const lastIndex=candles.length-1,lastOpenMs=candles[lastIndex].time*1000;
+  if(eventTimeMs<lastOpenMs)return null;
+  if(timeframe!=="1M"){
+    const timeframeMs=MEXC_INTERVALS[timeframe].seconds*1000;
+    const intervalOffset=Math.floor((eventTimeMs-lastOpenMs)/timeframeMs);
+    const currentOffset=Math.floor(Math.max(0,nowMs-lastOpenMs)/timeframeMs);
+    if(intervalOffset<0||intervalOffset>currentOffset)return null;
+    const intervalOpen=lastOpenMs+intervalOffset*timeframeMs;
+    return lastIndex+intervalOffset-.5+(eventTimeMs-intervalOpen)/timeframeMs;
+  }
+  const last=new Date(lastOpenMs),event=new Date(eventTimeMs),now=new Date(nowMs);
+  const monthNumber=(date:Date)=>date.getUTCFullYear()*12+date.getUTCMonth();
+  const intervalOffset=monthNumber(event)-monthNumber(last),currentOffset=monthNumber(now)-monthNumber(last);
+  if(intervalOffset<0||intervalOffset>currentOffset)return null;
+  const open=Date.UTC(last.getUTCFullYear(),last.getUTCMonth()+intervalOffset,1),close=Date.UTC(last.getUTCFullYear(),last.getUTCMonth()+intervalOffset+1,1);
+  if(eventTimeMs<open||eventTimeMs>=close)return null;
+  return lastIndex+intervalOffset-.5+(eventTimeMs-open)/(close-open);
+}
