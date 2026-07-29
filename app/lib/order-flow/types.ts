@@ -11,6 +11,7 @@ export type DepthCommitsResponse = { success: true; symbol: string; source: stri
 export type BookView = { valid: boolean; version: number; bids: DepthLevel[]; asks: DepthLevel[] };
 /** A depth transition in exchange coordinates. `price` never depends on a later display setting. */
 export type LiquidityObservation = { timestampMs:number; price:number; priceTick:number; capturedPriceStep:number; bidQuantity:number; askQuantity:number };
+export type CompactLiquidityChange = { timestampMs:number;priceTick:number;bidContracts:number;askContracts:number };
 /** Raw public execution retained in source coordinates until render time. */
 export type RawTrade = { tradeId:string; timestampMs:number; price:number; quantity:number; notional:number; side:"buy"|"sell" };
 /** @deprecated compatibility alias for diagnostics written before the timeline renderer. */

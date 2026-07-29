@@ -37,3 +37,8 @@ test("render-store bubble setting updates are immediate and retain captured bubb
  assert.strictEqual(store.getSnapshot().trades,trades);assert.strictEqual(store.getSnapshot().settings,changed);assert.equal(store.getSnapshot().settings.bubbles.opacity,.75);
  store.destroy();
 });
+
+test("production five-minute capture reproduces the narrow 15-minute stripe",()=>{const chartWidth=1180,visibleCandles=96,candleMs=15*60_000,width=5*60_000/(visibleCandles*candleMs)*chartWidth;assert.ok(width<5,`former stripe was ${width}px`)});
+test("two-hour genuine tape occupies the expected 15-minute chart width",()=>{const width=2*60*60_000/(96*15*60_000)*1180;assert.ok(width>90&&width<110)});
+test("compact changes convert contracts once and preserve removals",()=>{const flow=new FlowAggregator({historyMs:6*60*60_000,maxCells:20_000});flow.ingestCompact([{timestampMs:1000,priceTick:100,bidContracts:5,askContracts:0},{timestampMs:2000,priceTick:100,bidContracts:0,askContracts:0}],.5,.01);assert.deepEqual(flow.heatmap.map(v=>[v.price,v.bidQuantity]),[[50,.05],[50,0]])});
+test("native DizyFlow SVG artifacts reject raster wrappers",async()=>{const fs=await import("node:fs/promises"),path=await import("node:path");for(const dir of ["docs/artifacts/dizyflow-live-retention","docs/artifacts/dizyflow-liquidity-tape"]){const names=await fs.readdir(dir);for(const name of names.filter(v=>v.endsWith(".svg"))){const svg=await fs.readFile(path.join(dir,name),"utf8");assert.doesNotMatch(svg,/<image|data:image|\.png|\.jpe?g/i,name);assert.match(svg,/<(?:rect|line|path|circle)\b/,name)}}});
