@@ -2119,7 +2119,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           ) : null}
 
           <div className={`workspace ${settingsOpen ? "" : "panel-closed"}`}>
-            {orderFlowSettings.enabled&&orderFlowSettings.domVisible?<DizyFlowDom store={orderFlow.renderStore} summary={orderFlow.summary} contractSize={selectedMarket?.contractSize??1} onWidth={width=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,width}}))} onClose={()=>setOrderFlowSettings(value=>({...value,domVisible:false}))}/>:null}
+            {orderFlowSettings.enabled&&orderFlowSettings.domVisible&&selectedMarket?<DizyFlowDom store={orderFlow.renderStore} summary={orderFlow.summary} contractSize={selectedMarket?.contractSize??1} market={selectedMarket!} onGrouping={step=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,groupingBySymbol:{...value.dom.groupingBySymbol,[symbol]:step}}}))} onWidth={width=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,width}}))} onClose={()=>setOrderFlowSettings(value=>({...value,domVisible:false}))}/>:null}
             <section className="chart-section">
               <div className="chart-status-row">
                 <div>

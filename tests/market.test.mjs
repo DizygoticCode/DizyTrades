@@ -13,13 +13,14 @@ test("maps every native MEXC timeframe and distinguishes minute from month", () 
 
 test("market directory keeps enabled perpetuals irrespective of apiAllowed", () => {
   const result = sanitiseMexcMarkets([
-    { symbol: "BTC_USDT", baseCoin: "BTC", quoteCoin: "USDT", settleCoin: "USDT", state: 0, apiAllowed: false, priceScale: 1 },
+    { symbol: "BTC_USDT", baseCoin: "BTC", quoteCoin: "USDT", settleCoin: "USDT", state: 0, apiAllowed: false, priceScale: 1, priceUnit: "0.1", depthStepList: ["0.1", "1", "10", "100"] },
     { symbol: "OFF_USDT", state: 1 },
     { symbol: "HIDDEN_USDT", state: 0, isHidden: true },
     { symbol: "DELIVERY_USDT", state: 0, deliveryTime: 123 },
     { symbol: "../BAD", state: 0 },
   ]);
   assert.deepEqual(result.map((market) => market.symbol), ["BTC_USDT"]);
+  assert.deepEqual({priceUnit:result[0].priceUnit,depthStepList:result[0].depthStepList,pricePrecision:result[0].pricePrecision},{priceUnit:"0.1",depthStepList:["0.1","1","10","100"],pricePrecision:1});
 });
 
 test("candles are finite, unique, sorted, valid and closed", () => {
