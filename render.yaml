@@ -23,6 +23,26 @@ services:
         value: /var/data/dizytrades
       - key: LIVE_TRADING_ENABLED
         value: "false"
+      - key: DIZYFLOW_LOW_MEMORY_MODE
+        value: "true"
+      - key: DIZYFLOW_DEPTH_TRANSPORT
+        value: rest
+      - key: MEXC_DEPTH_POLL_MS
+        value: "2000"
+      - key: DIZYFLOW_HISTORY_MINUTES
+        value: "5"
+      - key: DIZYFLOW_HISTORY_SAMPLE_MS
+        value: "2000"
+      - key: DIZYFLOW_MAX_HISTORY_SAMPLES
+        value: "150"
+      - key: DIZYFLOW_MAX_LEVELS_PER_SIDE
+        value: "100"
+      - key: DIZYFLOW_MAX_COLLECTORS
+        value: "2"
+      - key: DIZYFLOW_COLLECTOR_IDLE_MS
+        value: "30000"
+      - key: DIZYFLOW_MAX_HEATMAP_RECORDS
+        value: "5000"
       - key: ALLOW_TEST_PLAINTEXT_PASSWORDS
         value: "false"
       - key: SESSION_SECRET

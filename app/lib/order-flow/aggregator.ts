@@ -3,6 +3,10 @@ import type { MexcDeal } from "../market/realtime.ts";
 import { percentile } from "./normalisation.ts";
 
 export type AggregatorOptions={historyMs:number;maxCells:number;maxBubbles:number;timeBucketMs:number;priceStep:number};
+const LOW_MEMORY_MODE=process.env.DIZYFLOW_LOW_MEMORY_MODE!=="false";
+const MAX_LEVELS_PER_SIDE=Math.max(1,Math.floor(Number(process.env.DIZYFLOW_MAX_LEVELS_PER_SIDE)||(LOW_MEMORY_MODE?100:500)));
+const MAX_HEATMAP_RECORDS=Math.max(100,Math.floor(Number(process.env.DIZYFLOW_MAX_HEATMAP_RECORDS)||(LOW_MEMORY_MODE?5_000:50_000)));
+const MAX_HISTORY_MS=Math.max(60_000,(Number(process.env.DIZYFLOW_HISTORY_MINUTES)||(LOW_MEMORY_MODE?5:30))*60_000);
 export function automaticPriceStep(metadata:{priceUnit?:string;priceScale?:number;pricePrecision?:number}){
   const unit=Number(metadata.priceUnit);if(Number.isFinite(unit)&&unit>0)return unit;
   const scale=metadata.priceScale??metadata.pricePrecision;return Number.isInteger(scale)&&scale!>=0?10**(-scale!):1;
@@ -12,19 +16,20 @@ export class FlowAggregator {
   captureStarted:number|null=null;captureEnded:number|null=null;
   private lastLevels=new Map<number,{price:number;bid:number;ask:number}>(); private ids=new Set<string>();
   private options:AggregatorOptions;
-  constructor(options:Partial<AggregatorOptions>={}){this.options={historyMs:1_800_000,maxCells:50_000,maxBubbles:5_000,timeBucketMs:1_000,priceStep:.1,...options};}
-  configure(options:Partial<AggregatorOptions>){this.options={...this.options,...options};}
+  constructor(options:Partial<AggregatorOptions>={}){this.options=this.bounded({historyMs:MAX_HISTORY_MS,maxCells:MAX_HEATMAP_RECORDS,maxBubbles:5_000,timeBucketMs:1_000,priceStep:.1,...options});}
+  configure(options:Partial<AggregatorOptions>){this.options=this.bounded({...this.options,...options});}
+  private bounded(options:AggregatorOptions){return{...options,historyMs:Math.min(options.historyMs,MAX_HISTORY_MS),maxCells:Math.min(options.maxCells,MAX_HEATMAP_RECORDS)};}
   get priceStep(){return this.options.priceStep;}
   clear(){this.heatmap=[];this.trades=[];this.captureStarted=null;this.captureEnded=null;this.lastLevels.clear();this.ids.clear();}
   captureBook(book:BookView,contractSize:number,timeMs:number,rangeBps=50){
-    void rangeBps;if(!Number.isFinite(contractSize)||contractSize<=0||!book.bids.length||!book.asks.length)return;
-    this.captureStarted??=timeMs;this.captureEnded=timeMs;const low=-Infinity,high=Infinity,observation=new Map<number,{bid:number;ask:number}>();
-    for(const [side,levels] of [["bid",book.bids],["ask",book.asks]] as const)for(const level of levels){if(level.price<low||level.price>high)continue;const tick=Math.round(level.price/this.options.priceStep),cell=observation.get(tick)??{bid:0,ask:0};cell[side]+=level.contractQuantity*contractSize;observation.set(tick,cell);}
+    if(!Number.isFinite(contractSize)||contractSize<=0||!book.bids.length||!book.asks.length)return;
+    this.captureStarted??=timeMs;this.captureEnded=timeMs;const midpoint=(book.bids[0].price+book.asks[0].price)/2,span=midpoint*Math.max(0,rangeBps)/10_000,low=midpoint-span,high=midpoint+span,observation=new Map<number,{bid:number;ask:number}>();
+    for(const [side,levels] of [["bid",book.bids],["ask",book.asks]] as const)for(const level of levels.slice(0,MAX_LEVELS_PER_SIDE)){if(level.price<low||level.price>high)continue;const tick=Math.round(level.price/this.options.priceStep),cell=observation.get(tick)??{bid:0,ask:0};cell[side]+=level.contractQuantity*contractSize;observation.set(tick,cell);}
     // Only levels inside this snapshot's transmitted active range may be removed.
     // This prevents a narrow update from erasing unrelated last-known depth.
     for(const [tick,previous] of this.lastLevels)if(previous.price>=low&&previous.price<=high&&!observation.has(tick))observation.set(tick,{bid:previous.bid?0:previous.bid,ask:previous.ask?0:previous.ask});
     for(const [priceTick,value] of observation){const previous=this.lastLevels.get(priceTick),price=priceTick*this.options.priceStep;if(!previous||previous.bid!==value.bid||previous.ask!==value.ask)this.heatmap.push({timestampMs:timeMs,price,priceTick,capturedPriceStep:this.options.priceStep,bidQuantity:value.bid,askQuantity:value.ask});this.lastLevels.set(priceTick,{price,...value});}
-    this.prune(timeMs);
+    this.prune(timeMs);globalThis.__dizyFlowHeatmapRecords=this.heatmap.length;
   }
   addDeal(deal:MexcDeal,bucketMs=this.options.timeBucketMs,priceStep=this.options.priceStep){
     void bucketMs;void priceStep;
