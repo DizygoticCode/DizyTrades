@@ -1,0 +1,11 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {buildDomRows,domGroupingOptions} from "../app/lib/order-flow/dom.ts";
+import {depthPresentationStatus} from "../app/lib/order-flow/lifecycle.ts";
+import {sanitiseOrderFlowSettings} from "../app/lib/order-flow/settings.ts";
+const book={valid:true,version:1,bids:[{price:100.029,orderCount:2,contractQuantity:3},{price:100.021,orderCount:4,contractQuantity:5},{price:99.999,orderCount:1,contractQuantity:2}],asks:[{price:100.021,orderCount:3,contractQuantity:2},{price:100.029,orderCount:5,contractQuantity:4},{price:100.101,orderCount:1,contractQuantity:1}]};
+test("DOM floors bids, ceilings asks and aggregates decimal ticks",()=>{const rows=buildDomRows(book,.01,10,"0.01");assert.deepEqual(rows.bids.map(row=>row.price),[100.02,99.99]);assert.deepEqual(rows.asks.map(row=>row.price),[100.03,100.11]);assert.equal(rows.bids[0].contractQuantity,8);assert.equal(rows.bids[0].orderCount,6);assert.equal(rows.bids[0].baseQuantity,.08);assert.ok(rows.bids.every(row=>String(row.price).length<10));});
+test("DOM sorting and cumulative totals happen after grouping",()=>{const {bids,asks}=buildDomRows(book,1,10,"0.01");assert.deepEqual(bids.map(row=>row.price),[100.02,99.99]);assert.deepEqual(asks.map(row=>row.price),[100.03,100.11]);assert.equal(bids[1].cumulativeContractQuantity,10);assert.equal(bids[1].cumulativeNotional,bids[0].notional+bids[1].notional);});
+test("grouping options are symbol metadata specific with a price-unit fallback",()=>{assert.deepEqual(domGroupingOptions(["100","1","10","1"],"0.1"),["1","10","100"]);assert.deepEqual(domGroupingOptions(undefined,"0.0001"),["0.0001","0.001","0.01","0.1"]);});
+test("per-symbol grouping survives settings sanitisation",()=>{const settings=sanitiseOrderFlowSettings({dom:{groupingBySymbol:{BTC_USDT:"10",ETH_USDT:"0.1",bad:"x"}}});assert.deepEqual(settings.dom.groupingBySymbol,{BTC_USDT:"10",ETH_USDT:"0.1"});});
+test("customer status presentation has connecting live delayed and offline states",()=>{assert.equal(depthPresentationStatus(0,false,false),"CONNECTING");assert.equal(depthPresentationStatus(5000,true),"LIVE");assert.equal(depthPresentationStatus(5001,true),"DELAYED");assert.equal(depthPresentationStatus(15001,true),"OFFLINE");assert.equal(depthPresentationStatus(0,false),"OFFLINE");});

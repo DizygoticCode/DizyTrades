@@ -1,4 +1,4 @@
-export type FlowStatus = "Off" | "Connecting" | "Subscribing" | "LoadingSnapshot" | "Bridging" | "Live" | "Delayed" | "Stale" | "Recovering" | "Error";
+export type FlowStatus = "Off" | "Connecting" | "Subscribing" | "LoadingSnapshot" | "Bridging" | "Live" | "Delayed" | "Offline" | "Stale" | "Recovering" | "Error";
 export type DepthSide = "bid" | "ask";
 export type DepthLevel = { price: number; orderCount: number; contractQuantity: number };
 export type DepthUpdate = { symbol: string; version: number; engineTimeMs: number; bids: DepthLevel[]; asks: DepthLevel[] };

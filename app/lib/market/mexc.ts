@@ -31,10 +31,16 @@ export function sanitiseMexcMarkets(input: unknown): MarketDescriptor[] {
     if (!/^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/.test(symbol) || !base || !quote || seen.has(symbol) || state !== 0 || hidden || delivery) return [];
     seen.add(symbol);
     const priceScale = Number(item.priceScale);
+    const priceUnit = String(item.priceUnit ?? "");
+    const depthStepList = Array.isArray(item.depthStepList)
+      ? item.depthStepList.map(String).filter((step) => Number.isFinite(Number(step)) && Number(step) > 0)
+      : undefined;
     return [{
       exchange: "mexc", marketType: "perpetual", symbol,
       displayName: `${base} / ${quote}`, base, quote, settlementCurrency: settle,
       state: "enabled", pricePrecision: Number.isInteger(priceScale) && priceScale >= 0 ? priceScale : 8,
+      priceUnit: Number.isFinite(Number(priceUnit)) && Number(priceUnit) > 0 ? priceUnit : undefined,
+      depthStepList,
       contractSize: Number.isFinite(Number(item.contractSize)) ? Number(item.contractSize) : undefined,
       maxLeverage: Number.isFinite(Number(item.maxLeverage)) ? Number(item.maxLeverage) : undefined,
     }];
