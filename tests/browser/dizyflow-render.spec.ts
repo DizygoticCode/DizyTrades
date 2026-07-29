@@ -1,4 +1,5 @@
 import {expect,test} from "@playwright/test";
+const captureSvg=async(page:import("@playwright/test").Page,path:string,title:string)=>{const jpeg=await page.screenshot({fullPage:true,type:"jpeg",quality:88}),size=page.viewportSize()??{width:1280,height:720},height=await page.evaluate(()=>document.documentElement.scrollHeight),svg=`<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size.width} ${height}" role="img" aria-label="${title}"><image width="${size.width}" height="${height}" href="data:image/jpeg;base64,${jpeg.toString("base64")}"/></svg>\n`;await import("node:fs/promises").then(fs=>fs.writeFile(path,svg,"utf8"));};
 test("the production DizyFlow primitive paints heatmap cells and historical bubbles",async({page},testInfo)=>{
  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
  await page.goto("/dizyflow-fixture");
@@ -12,11 +13,11 @@ test("the production DizyFlow primitive paints heatmap cells and historical bubb
  expect(snapshot.heatmapRowHeightPx).toBeGreaterThanOrEqual(3);expect(snapshot.effectiveHeatmapBinSize).toBeGreaterThan(.1);expect(snapshot.heatmapSegmentsDrawn).toBeGreaterThan(3);
  expect(new Set(snapshot.bubbleXCoordinates.map((x:number)=>Math.round(x))).size).toBeGreaterThan(5);expect(snapshot.bubbleXCoordinates.filter((x:number)=>x>20).length).toBeGreaterThan(5);
  const stableIds=snapshot.bubbleStableIds,originalXs=snapshot.bubbleXCoordinates;
- const before=testInfo.outputPath("dizyflow-before-pan.jpg");await page.screenshot({path:before,fullPage:true,type:"jpeg",quality:88});await testInfo.attach("dizyflow-before-pan",{path:before,contentType:"image/jpeg"});
+ const before=testInfo.outputPath("dizyflow-before-pan.svg");await captureSvg(page,before,"DizyFlow before pan");await testInfo.attach("dizyflow-before-pan",{path:before,contentType:"image/svg+xml"});
  await page.getByTestId("fixture-zoom-in").click();await expect.poll(async()=>((await read()).heatmapCellsDrawn??0)).toBeGreaterThan(0);await expect.poll(async()=>((await read()).bubblesDrawn??0)).toBeGreaterThan(0);
  const box=await chart.boundingBox();if(!box)throw Error("chart bounds unavailable");await page.mouse.move(box.x+box.width*.7,box.y+box.height*.5);await page.mouse.down();await page.mouse.move(box.x+box.width*.55,box.y+box.height*.5,{steps:5});await page.mouse.up();await page.getByTestId("fixture-zoom-out").click();
  await expect.poll(async()=>((await read()).heatmapCellsDrawn??0)).toBeGreaterThan(0);await expect.poll(async()=>((await read()).bubblesDrawn??0)).toBeGreaterThan(5);
  snapshot=await read();console.log("DizyFlow fixture diagnostics",JSON.stringify(snapshot));expect(snapshot.lastRendererError).toBeNull();expect(errors).toEqual([]);
  expect(snapshot.bubbleStableIds).toEqual(stableIds);expect(snapshot.bubbleXCoordinates).not.toEqual(originalXs);
- const screenshot=testInfo.outputPath("dizyflow-after-pan.jpg");await page.screenshot({path:screenshot,fullPage:true,type:"jpeg",quality:88});await testInfo.attach("dizyflow-after-pan",{path:screenshot,contentType:"image/jpeg"});
+ const screenshot=testInfo.outputPath("dizyflow-after-pan.svg");await captureSvg(page,screenshot,"DizyFlow after pan");await testInfo.attach("dizyflow-after-pan",{path:screenshot,contentType:"image/svg+xml"});
 });
