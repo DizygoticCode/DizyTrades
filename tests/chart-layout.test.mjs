@@ -190,3 +190,22 @@ test("world extension direction is enforced without changing its equation",()=>{
  assert.equal(project({from:0,to:5},"right"),null);
  assert.equal(project({from:30,to:40},"none"),null);
 });
+
+test("all extension modes project correctly on either side of off-screen anchors and under zoom",()=>{
+ const line={id:"line",start:{index:10,time:1,price:40},end:{index:20,time:2,price:50},createdAt:2,status:"confirmed"},plot={x:0,y:0,width:200,height:120};
+ const project=(visible,extension,scale={min:0,max:100})=>projectWorldLine(line,visible,index=>(index-visible.from)/(visible.to-visible.from)*plot.width,price=>(scale.max-price)/(scale.max-scale.min)*plot.height,plot,extension);
+ assert.ok(project({from:12,to:18},"none"));
+ assert.equal(project({from:0,to:5},"none"),null);assert.equal(project({from:30,to:35},"none"),null);
+ assert.ok(project({from:0,to:5},"left"));assert.equal(project({from:30,to:35},"left"),null);
+ assert.equal(project({from:0,to:5},"right"),null);assert.ok(project({from:30,to:35},"right"));
+ assert.ok(project({from:0,to:5},"both"));assert.ok(project({from:30,to:35},"both"));
+ assert.ok(project({from:14,to:16},"both"));
+ assert.ok(project({from:12,to:18},"both",{min:35,max:55}));
+});
+
+test("LR fill and labels derive from final visible clipped segments",()=>{
+ const plot={x:0,y:0,width:300,height:160},visible={from:40,to:70},project=(id,startPrice,endPrice)=>projectWorldLine({id,start:{index:10,time:1,price:startPrice},end:{index:20,time:2,price:endPrice},createdAt:2,status:"confirmed"},visible,index=>(index-visible.from)/(visible.to-visible.from)*plot.width,price=>160-price*2,plot,"both");
+ const upper=project("upper",48,50),lower=project("lower",30,32);assert.ok(upper&&lower);
+ const polygon=channelFillPolygon(upper,lower);assert.equal(polygon.length,4);assert.ok(polygon.every(point=>point.x>=plot.x&&point.x<=plot.width&&point.y>=plot.y&&point.y<=plot.height));
+ const label=worldLineLabelPosition(upper,plot,90,20,stableLabelLane("upper",5));assert.ok(label.x>=0&&label.x+90<=300);assert.ok(label.y>=10&&label.y<=150);assert.notEqual(label.x,10);
+});

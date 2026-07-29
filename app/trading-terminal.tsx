@@ -44,6 +44,7 @@ import {
 import type { OrderFlowSettings } from "./lib/order-flow/settings";
 import type { FlowRenderStore } from "./lib/order-flow/render-store";
 import { DizyFlowPrimitive } from "./lib/chart/dizyflow-primitive";
+import { StrategyWorldLinesPrimitive, type StrategyWorldLinesModel, type StrategyWorldLineEntry } from "./lib/chart/strategy-world-lines-primitive";
 import { DizyFlowDom } from "./dizyflow-dom";
 import { DizyFlowAlertHistory, DizyFlowToastRail } from "./dizyflow-toast-rail";
 import type { MarketDescriptor } from "./lib/market/types";
@@ -70,19 +71,11 @@ import {
   calculateFibLabelLayout,
   calculateGoToLive,
   calculateHorizontalLineExtent,
-  channelFillPolygon,
   extendLineToPlot,
   calculateProfileRowGeometry,
   patternLabelPosition,
   stackLabels,
-  type LinePoint,
 } from "./lib/chart/chart-layout";
-import {
-  projectWorldLine,
-  stableLabelLane,
-  worldLineLabelPosition,
-  type WorldLine,
-} from "./lib/chart/world-projection";
 import {
   ALL_TIMEFRAMES,
   PROFILE_BAR_PRESETS,
@@ -93,6 +86,7 @@ import { ChartToolsLayer } from "./chart-tools-layer";
 import { planSeriesSync } from "./lib/chart/series-sync";
 import { type MarketLoadReason } from "./lib/market/reconciliation";
 import {buildPineParityReport} from "./lib/pine-parity";
+import { stableLabelLane } from "./lib/chart/world-projection";
 import { livePaperSnapshot } from "./lib/paper-performance";
 import { PaperPerformanceToolbar } from "./paper-performance-toolbar";
 import { ManualPaperTicket } from "./manual-paper-ticket";
@@ -255,8 +249,20 @@ function ExtensionField({
   );
 }
 
-const dashFor = (style: "solid" | "dashed" | "dotted") =>
-  style === "dashed" ? [8, 5] : style === "dotted" ? [2, 4] : [];
+function strategyWorldLinesModel(candles:Candle[],analysis:StrategyAnalysis,view:ViewSettings):StrategyWorldLinesModel {
+  const indexByTime=new Map(candles.map((candle,index)=>[candle.time,index]));
+  const extension=(individual:ViewSettings["srLineExtension"])=>view.globalLineExtensionOverride==="individual"?individual:view.globalLineExtensionOverride;
+  const fontSize=view.labelSize==="Small"?10:view.labelSize==="Large"?14:12;
+  const make=(id:string,points:{time:number;value:number}[],group:StrategyWorldLineEntry["group"],colour:string,width:number,style:StrategyWorldLineEntry["style"]["style"],halo:boolean,label:boolean,lanePriority:number):StrategyWorldLineEntry|null=>{
+    if(points.length<2)return null;const start=indexByTime.get(points[0].time),end=indexByTime.get(points[1].time);if(start==null||end==null||start===end)return null;
+    return {line:{id,start:{index:start,time:points[0].time,price:points[0].value},end:{index:end,time:points[1].time,price:points[1].value},createdAt:points[1].time,status:"confirmed"},extension:extension(group.startsWith("lr-")?view.lrChannelExtension:view.pivotTrendlineExtension),style:{colour,width,style,halo,haloColour:view.appearance.indicators.trendlineHalo,label,labelText:id,labelTextColour:view.appearance.chart.background},lanePriority,group};
+  };
+  const lines=[
+    ...(view.channels&&analysis.activeChannel?[make("LR Upper",analysis.activeChannel.upper,"lr-upper",view.appearance.indicators.regressionUpper,view.lrBoundaryWidth,view.lrBoundaryStyle,false,view.showLrChannelLabels,5),make("LR Basis",analysis.activeChannel.basis,"lr-basis",view.appearance.indicators.regressionBasis,view.lrBasisWidth,"solid",view.lrBasisHalo,view.showLrChannelLabels,6),make("LR Lower",analysis.activeChannel.lower,"lr-lower",view.appearance.indicators.regressionLower,view.lrBoundaryWidth,view.lrBoundaryStyle,false,view.showLrChannelLabels,7)]:[]),
+    ...(view.trendlines?[make("Upper trend",analysis.upperTrendline,"trend",view.appearance.indicators.bearTrendline,view.pivotTrendlineWidth,view.pivotTrendlineStyle,view.trendlineHalo,view.showTrendlineLabels,8),make("Lower trend",analysis.lowerTrendline,"trend",view.appearance.indicators.bullTrendline,view.pivotTrendlineWidth,view.pivotTrendlineStyle,view.trendlineHalo,view.showTrendlineLabels,9)]:[]),
+  ].filter((line):line is StrategyWorldLineEntry=>line!==null);
+  return {lines,channelFill:{visible:view.channels&&view.showLrChannelFill,colour:view.appearance.indicators.regressionFill,opacity:view.lrChannelFillOpacity},fontSize,labelPadding:view.labelPadding,compactLabels:view.compactLabels};
+}
 
 function drawChartOverlay(
   canvas: HTMLCanvasElement,
@@ -519,206 +525,7 @@ function drawChartOverlay(
     });
     context.restore();
   }
-  const indexByTime = new Map(
-    candles.map((candle, index) => [candle.time, index]),
-  );
-  const visible = chart.timeScale().getVisibleLogicalRange();
-  const worldLine = (
-    id: string,
-    points: { time: number; value: number }[],
-    status: "forming" | "confirmed" = "confirmed",
-  ): {
-    model: WorldLine;
-    line: { start: LinePoint; end: LinePoint } | null;
-  } | null => {
-    if (points.length < 2 || !visible) return null;
-    const startIndex = indexByTime.get(points[0].time),
-      endIndex = indexByTime.get(points[1].time);
-    if (startIndex == null || endIndex == null || startIndex === endIndex)
-      return null;
-    const model: WorldLine = {
-      id,
-      start: {
-        index: startIndex,
-        time: points[0].time,
-        price: points[0].value,
-      },
-      end: { index: endIndex, time: points[1].time, price: points[1].value },
-      createdAt: points[1].time,
-      status,
-    };
-    const line = projectWorldLine(
-      model,
-      visible,
-      (index) => chart.timeScale().logicalToCoordinate(index as Logical),
-      (price) => candleSeries.priceToCoordinate(price),
-      layout.candles,
-      extension(id.startsWith("lr-") ? view.lrChannelExtension : view.pivotTrendlineExtension),
-    );
-    return { model, line };
-  };
-  if (view.channels && analysis.activeChannel) {
-    const projected = [
-      {
-        id: "LR upper",
-        points: analysis.activeChannel.upper,
-        colour: a.indicators.regressionUpper,
-      },
-      {
-        id: "LR basis",
-        points: analysis.activeChannel.basis,
-        colour: a.indicators.regressionBasis,
-      },
-      {
-        id: "LR lower",
-        points: analysis.activeChannel.lower,
-        colour: a.indicators.regressionLower,
-      },
-    ].map((item) => ({
-      ...item,
-      projected: worldLine(
-        `lr-${item.id}-${item.points[1]?.time}`,
-        item.points,
-      ),
-    }));
-    const upperLine = projected[0].projected?.line,
-      basisLine = projected[1].projected?.line,
-      lowerLine = projected[2].projected?.line;
-    if (basisLine && upperLine && lowerLine) {
-      context.save();
-      context.beginPath();
-      context.rect(
-        layout.candles.x,
-        layout.candles.y,
-        layout.candles.width,
-        layout.candles.height,
-      );
-      context.clip();
-      if (view.showLrChannelFill) {
-        const polygon = channelFillPolygon(upperLine, lowerLine);
-        context.fillStyle = hexToRgba(
-          a.indicators.regressionFill,
-          view.lrChannelFillOpacity,
-        );
-        context.beginPath();
-        polygon.forEach((p, i) =>
-          i ? context.lineTo(p.x, p.y) : context.moveTo(p.x, p.y),
-        );
-        context.closePath();
-        context.fill();
-      }
-      const stroke = (
-        line: { start: LinePoint; end: LinePoint },
-        colour: string,
-        width: number,
-        dash: number[] = [],
-      ) => {
-        context.strokeStyle = colour;
-        context.lineWidth = width;
-        context.setLineDash(dash);
-        context.beginPath();
-        context.moveTo(line.start.x, line.start.y);
-        context.lineTo(line.end.x, line.end.y);
-        context.stroke();
-      };
-      stroke(
-        upperLine,
-        a.indicators.regressionUpper,
-        view.lrBoundaryWidth,
-        dashFor(view.lrBoundaryStyle),
-      );
-      stroke(
-        lowerLine,
-        a.indicators.regressionLower,
-        view.lrBoundaryWidth,
-        dashFor(view.lrBoundaryStyle),
-      );
-      if (view.lrBasisHalo) {
-        context.globalAlpha = 0.18;
-        stroke(basisLine, a.indicators.trendlineHalo, view.lrBasisWidth + 4);
-        context.globalAlpha = 1;
-      }
-      stroke(basisLine, a.indicators.regressionBasis, view.lrBasisWidth);
-      if (view.showLrChannelLabels)
-        projected.forEach((entry, priority) => {
-          const segment = entry.projected?.line;
-          if (!segment) return;
-          const width = context.measureText(entry.id).width + 12,
-            lane = stableLabelLane(entry.projected!.model.id, 5 + priority),
-            {x,y} = worldLineLabelPosition(segment, layout.candles, width, labelHeight, lane);
-          context.fillStyle = hexToRgba(entry.colour, 0.88);
-          context.beginPath();
-          context.roundRect(x, y - labelHeight / 2, width, labelHeight, 5);
-          context.fill();
-          context.fillStyle = a.chart.background;
-          context.fillText(entry.id, x + 6, y);
-        });
-      context.restore();
-    }
-  }
-  if (view.trendlines) {
-    const lines = [
-      {
-        id: "Upper trend",
-        points: analysis.upperTrendline,
-        colour: a.indicators.bearTrendline,
-      },
-      {
-        id: "Lower trend",
-        points: analysis.lowerTrendline,
-        colour: a.indicators.bullTrendline,
-      },
-    ]
-      .map((item) => ({
-        ...item,
-        projected: worldLine(
-          `pivot-${item.id}-${item.points[1]?.time}`,
-          item.points,
-        ),
-      }))
-      .filter((item) => item.projected?.line);
-    context.save();
-    context.beginPath();
-    context.rect(
-      layout.candles.x,
-      layout.candles.y,
-      layout.candles.width,
-      layout.candles.height,
-    );
-    context.clip();
-    context.setLineDash(dashFor(view.pivotTrendlineStyle));
-    lines.forEach((item) => {
-      const line = item.projected!.line!;
-      if (view.trendlineHalo) {
-        context.globalAlpha = 0.18;
-        context.strokeStyle = item.colour;
-        context.lineWidth = Math.min(7, view.pivotTrendlineWidth + 2);
-        context.beginPath();
-        context.moveTo(line.start.x, line.start.y);
-        context.lineTo(line.end.x, line.end.y);
-        context.stroke();
-        context.globalAlpha = 1;
-      }
-      context.strokeStyle = item.colour;
-      context.lineWidth = view.pivotTrendlineWidth;
-      context.beginPath();
-      context.moveTo(line.start.x, line.start.y);
-      context.lineTo(line.end.x, line.end.y);
-      context.stroke();
-      if (view.showTrendlineLabels) {
-        const width = context.measureText(item.id).width + 12,
-          lane = stableLabelLane(item.projected!.model.id, 5),
-          {x,y} = worldLineLabelPosition(line, layout.candles, width, labelHeight, lane);
-        context.fillStyle = hexToRgba(item.colour, 0.9);
-        context.beginPath();
-        context.roundRect(x, y - labelHeight / 2, width, labelHeight, 5);
-        context.fill();
-        context.fillStyle = a.chart.background;
-        context.fillText(item.id, x + 6, y);
-      }
-    });
-    context.restore();
-  }
+  const indexByTime = new Map(candles.map((candle,index)=>[candle.time,index]));
   if (view.volumeProfile && candles.length && layout.profileContent.width > 0) {
     const sample = candles.slice(-Math.min(view.volumeBars, candles.length)),
       min = Math.min(...sample.map((c) => c.low)),
@@ -1030,6 +837,7 @@ const DizyChart = forwardRef<
     projectionGenerationRef = useRef(0),
     redrawFrameRef = useRef<number | null>(null),
     flowPrimitiveRef = useRef<DizyFlowPrimitive | null>(null),
+    strategyLinesPrimitiveRef = useRef<StrategyWorldLinesPrimitive | null>(null),
     latestRef = useRef({ candles: displayCandles, analysis, view });
   useEffect(() => {
     latestRef.current = { candles: displayCandles, analysis, view };
@@ -1137,8 +945,12 @@ const DizyChart = forwardRef<
         priceLineVisible: false,
       });
     const flowPrimitive = new DizyFlowPrimitive(flowStore);
+    const strategyLinesPrimitive = new StrategyWorldLinesPrimitive();
     flowPrimitiveRef.current = flowPrimitive;
+    strategyLinesPrimitiveRef.current = strategyLinesPrimitive;
     candles.attachPrimitive(flowPrimitive);
+    candles.attachPrimitive(strategyLinesPrimitive);
+    strategyLinesPrimitive.setModel(strategyWorldLinesModel(latestRef.current.candles,latestRef.current.analysis,latestRef.current.view));
     volume
       .priceScale()
       .applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
@@ -1162,7 +974,9 @@ const DizyChart = forwardRef<
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(redraw);
       if (priceLineRef.current) candles.removePriceLine(priceLineRef.current);
       candles.detachPrimitive(flowPrimitive);
+      candles.detachPrimitive(strategyLinesPrimitive);
       flowPrimitiveRef.current = null;
+      strategyLinesPrimitiveRef.current = null;
       chart.remove();
       chartRef.current = null;
       candleRef.current = null;
@@ -1172,6 +986,9 @@ const DizyChart = forwardRef<
         cancelAnimationFrame(redrawFrameRef.current);
     };
   }, [redraw, flowStore]);
+  useEffect(()=>{
+    strategyLinesPrimitiveRef.current?.setModel(strategyWorldLinesModel(displayCandles,analysis,view));
+  },[displayCandles,analysis,view]);
   useEffect(() => {
     const chart = chartRef.current,
       c = candleRef.current,
