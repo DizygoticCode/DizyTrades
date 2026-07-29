@@ -1,10 +1,11 @@
 import type { Candle } from "../strategy.ts";
 import type { LiquidityObservation,RawTrade } from "./types.ts";
-/** Deterministic browser fixture. Import only from development/test tooling. */
-export function createDizyFlowVisualFixture(baseMs=Date.UTC(2026,0,1)):{candles:Candle[];liquidity:LiquidityObservation[];trades:RawTrade[]}{
- const candles=Array.from({length:24},(_,i)=>{const wave=Math.sin(i/3)*2,open=100+wave,close=open+(i%2?.8:-.6);return{time:baseMs/1000+i*60,open,high:Math.max(open,close)+1,low:Math.min(open,close)-1,close,volume:100+i} as Candle});
- const liquidity:LiquidityObservation[]=[];for(const [priceTick,side] of [[196,"bid"],[198,"bid"],[204,"ask"],[206,"ask"]] as const){liquidity.push({timestampMs:baseMs+60_000,priceTick,bidQuantity:side==="bid"?12:0,askQuantity:side==="ask"?12:0},{timestampMs:baseMs+8*60_000,priceTick,bidQuantity:side==="bid"?30:0,askQuantity:side==="ask"?30:0},{timestampMs:baseMs+19*60_000,priceTick,bidQuantity:0,askQuantity:0})}
- liquidity.push({timestampMs:baseMs+2*60_000,priceTick:202,bidQuantity:10,askQuantity:0},{timestampMs:baseMs+11*60_000,priceTick:202,bidQuantity:28,askQuantity:0},{timestampMs:baseMs+18*60_000,priceTick:202,bidQuantity:0,askQuantity:0});
- const currentTime=baseMs+24.5*60_000;liquidity.push({timestampMs:currentTime,priceTick:202,bidQuantity:24,askQuantity:0});
- const trades:RawTrade[]=[...Array.from({length:5},(_,i)=>({tradeId:`merge-${i}`,timestampMs:baseMs+(10*60+i*4)*1000,price:100+i*.03,quantity:1+i,notional:(1+i)*(100+i*.03),side:(i%2?"sell":"buy") as "buy"|"sell"})),...([2,5,8,12,15,20] as const).map((candle,i)=>({tradeId:`historical-${i}`,timestampMs:baseMs+(candle*60+30)*1000,price:99+(i%4),quantity:4+i,notional:(4+i)*(99+(i%4)),side:(i%2?"sell":"buy") as "buy"|"sell"})),{tradeId:"buy",timestampMs:baseMs+4.5*60_000,price:99,quantity:8,notional:792,side:"buy"},{tradeId:"sell",timestampMs:baseMs+16.5*60_000,price:102,quantity:7,notional:714,side:"sell"},{tradeId:"current",timestampMs:currentTime,price:101,quantity:10,notional:1010,side:"buy"}];return{candles,liquidity,trades};
+/** Recorded-shape, sanitized BTC_USDT fixture: 10-cent source ticks over several 15m intervals. */
+export function createDizyFlowVisualFixture(baseMs=Date.UTC(2026,0,1)):{candles:Candle[];liquidity:LiquidityObservation[];trades:RawTrade[]} {
+ const interval=15*60_000,candles=Array.from({length:24},(_,i)=>{const open=64_000+Math.sin(i/2.7)*420+(i-12)*12,close=open+(i%2?95:-75);return{time:baseMs/1000+i*interval/1000,open,high:Math.max(open,close)+180,low:Math.min(open,close)-170,close,volume:800+i*17} as Candle});
+ const liquidity:LiquidityObservation[]=[],push=(timestampMs:number,price:number,bidQuantity:number,askQuantity:number)=>liquidity.push({timestampMs,price,priceTick:Math.round(price/.1),capturedPriceStep:.1,bidQuantity,askQuantity});
+ for(const [price,side,quantity] of [[63500,"bid",18],[63750,"bid",32],[64000,"bid",45],[64250,"ask",38],[64500,"ask",27],[64750,"ask",16]] as const){push(baseMs+interval,price,side==="bid"?quantity:0,side==="ask"?quantity:0);push(baseMs+7*interval,price,side==="bid"?quantity*1.8:0,side==="ask"?quantity*1.8:0);push(baseMs+15*interval,price,0,0)}
+ push(baseMs+3*interval,64100,20,0);push(baseMs+10*interval,64100,34,0);push(baseMs+19*interval,64100,0,0);push(baseMs+12*interval,64350,0,29);push(baseMs+22*interval,64350,0,41);
+ const tradeCandles=[2,4,6,8,10,12,14,16,18,20,22],trades:RawTrade[]=tradeCandles.flatMap((candle,i)=>Array.from({length:3},(_,j)=>{const price=63_700+(i%6)*170+j*.1,quantity=1.4+i*.15+j*.2;return{tradeId:`btc-${i}-${j}`,timestampMs:baseMs+candle*interval+(j+2)*20_000,price,quantity,notional:price*quantity,side:(i+j)%2?"sell" as const:"buy" as const}}));
+ return{candles,liquidity,trades};
 }

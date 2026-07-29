@@ -8,10 +8,11 @@ export type DepthSnapshotResponse = { success: true; symbol: string; source: str
 /** Canonical response returned by the public depth-commit recovery route. */
 export type DepthCommitsResponse = { success: true; symbol: string; source: string; requestedAt: string; commits: DepthUpdate[] };
 export type BookView = { valid: boolean; version: number; bids: DepthLevel[]; asks: DepthLevel[] };
-export type LiquidityObservation = { timestampMs:number; priceTick:number; bidQuantity:number; askQuantity:number };
+/** A depth transition in exchange coordinates. `price` never depends on a later display setting. */
+export type LiquidityObservation = { timestampMs:number; price:number; priceTick:number; capturedPriceStep:number; bidQuantity:number; askQuantity:number };
 /** Raw public execution retained in source coordinates until render time. */
 export type RawTrade = { tradeId:string; timestampMs:number; price:number; quantity:number; notional:number; side:"buy"|"sell" };
 /** @deprecated compatibility alias for diagnostics written before the timeline renderer. */
 export type HeatmapCell = LiquidityObservation;
-export type VolumeBubble = { timeMs: number; price: number; buyNotional: number; sellNotional: number; buyQuantity:number; sellQuantity:number; tradeCount: number };
+export type VolumeBubble = { id:string; timeBucket:number; priceBucket:number; timeMs: number; price: number; buyNotional: number; sellNotional: number; buyQuantity:number; sellQuantity:number; tradeCount: number };
 export type FlowAlert = { id: string; type: "Large Market Buy" | "Large Market Sell" | "Large Bid Wall" | "Large Ask Wall" | "Bid Liquidity Pulled" | "Ask Liquidity Pulled"; symbol: string; timeMs: number; price: number; notional: number; message: string };
