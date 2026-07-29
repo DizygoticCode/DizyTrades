@@ -43,3 +43,6 @@ next-env.d.ts
 
 # Local DizyFlow visual-verification captures (generated, never committed)
 /artifacts/dizyflow-fixture*.png
+
+/artifacts/playwright/
+/tsconfig.tsbuildinfo
