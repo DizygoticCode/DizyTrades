@@ -5,6 +5,22 @@ import { ALL_TIMEFRAMES, PROFILE_BAR_PRESETS, profileBarPreset } from "../app/li
 import { DEFAULT_APPEARANCE, isHexColour, sanitiseAppearance } from "../app/lib/chart/appearance.ts";
 import { sanitiseTerminalSettings } from "../app/lib/config.ts";
 import { formatPriceLineTitle } from "../app/lib/market/realtime.ts";
+import {calculateStrategyWorldLinesPlots,layoutStrategyWorldLineLabels} from "../app/lib/chart/strategy-world-lines-layout.ts";
+
+const strategyModel=(overrides={})=>({volumeProfile:true,profileWidthPct:20,profileMaxWidth:240,profileInset:6,supportResistance:true,srLabelPlacement:"right-before-profile",...overrides});
+const strategyEntries=["LR Upper","LR Basis","LR Lower","Upper trend","Lower trend"].map((id,index)=>({line:{id,start:{index:10,time:1,price:40+index},end:{index:20,time:2,price:41+index},createdAt:2,status:"confirmed"},extension:"both",style:{label:true,labelText:id},lanePriority:index,group:"trend"}));
+
+test("strategy safe plot excludes profile and right S/R lane at min, default, and max profile widths",()=>{
+ for(const profileWidthPct of [10,20,30]){const plots=calculateStrategyWorldLinesPlots(1000,400,strategyModel({profileWidthPct,profileMaxWidth:profileWidthPct===30?320:240}));assert.ok(plots.safeIndicatorPlot.x+plots.safeIndicatorPlot.width<plots.rightLabels.x);assert.equal(plots.rightLabels.x+plots.rightLabels.width,plots.profile.x);assert.ok(plots.profile.width>0)}
+});
+
+test("strategy safe plot restores width when profile and right labels are disabled",()=>{const reserved=calculateStrategyWorldLinesPlots(1000,400,strategyModel()),free=calculateStrategyWorldLinesPlots(1000,400,strategyModel({volumeProfile:false,supportResistance:false}));assert.ok(free.safeIndicatorPlot.width>reserved.safeIndicatorPlot.width);assert.equal(free.profile.width,0);assert.equal(free.rightLabels.width,0)});
+
+test("five close strategy labels remain bounded, non-overlapping, and near a visible latest candle",()=>{const plots=calculateStrategyWorldLinesPlots(1000,240,strategyModel()),segments=Object.fromEntries(strategyEntries.map((entry,index)=>[entry.line.id,{start:{x:0,y:100+index},end:{x:plots.safeIndicatorPlot.width,y:101+index}}])),widths=Object.fromEntries(strategyEntries.map(entry=>[entry.line.id,90])),latestX=500,labels=layoutStrategyWorldLineLabels({entries:strategyEntries,segments,widths,labelHeight:20,safePlot:plots.safeIndicatorPlot,latestX,labelOffset:10});assert.equal(labels.length,5);assert.ok(labels.every(label=>label.x>latestX&&label.x+label.width<=plots.safeIndicatorPlot.width&&label.x+label.width<plots.rightLabels.x));const sorted=[...labels].sort((a,b)=>a.y-b.y);assert.ok(sorted.every((label,index)=>index===0||label.y-sorted[index-1].y>=24))});
+
+test("historical panning uses visible line portions rather than an off-screen latest candle",()=>{const safePlot={x:0,y:0,width:500,height:200},segments=Object.fromEntries(strategyEntries.map(entry=>[entry.line.id,{start:{x:80,y:80},end:{x:420,y:100}}])),widths=Object.fromEntries(strategyEntries.map(entry=>[entry.line.id,80])),labels=layoutStrategyWorldLineLabels({entries:strategyEntries,segments,widths,labelHeight:18,safePlot,latestX:900,labelOffset:12});assert.ok(labels.every(label=>label.x>=0&&label.x+label.width<=500&&label.x<900))});
+
+test("full-width logical projection remains candle-aligned while every extension clips to safe plot",()=>{const projection={x:0,y:0,width:1000,height:300},safe={x:0,y:0,width:650,height:300},visible={from:0,to:100},line={id:"line",start:{index:20,time:1,price:40},end:{index:40,time:2,price:60},createdAt:2,status:"confirmed"};for(const extension of ["left","right","both","none"]){const segment=projectWorldLine(line,visible,index=>logicalToCanvasX(index,visible,projection),price=>300-price*3,safe,extension);assert.ok(segment);assert.ok(segment.start.x>=safe.x&&segment.end.x<=safe.x+safe.width);if(extension==="none")assert.equal(segment.start.x,200)} });
 
 test("reserved profile and label lanes never overlap", () => {
   const layout = calculateChartLayout({ width: 1000, height: 500, priceScaleWidth: 72, profileEnabled: true, profileWidthPct: 20, profileMaxWidth: 240, profileInset: 8, rightLabels: true });
@@ -158,7 +174,7 @@ test("bubble lanes remain vertical and deterministic", () => {
   assert.ok(result.every(item=>item.x===75));
 });
 
-import {projectWorldLine,stableLabelLane,worldLineLabelPosition} from "../app/lib/chart/world-projection.ts";
+import {logicalToCanvasX,projectWorldLine,stableLabelLane,worldLineLabelPosition} from "../app/lib/chart/world-projection.ts";
 test("world lines remain visible with both original anchors off-screen",()=>{const line={id:"trend",start:{index:0,time:1,price:10},end:{index:10,time:2,price:20},labelAnchor:{index:10,time:2,price:20},createdAt:2,status:"confirmed"};const projected=projectWorldLine(line,{from:50,to:60},i=>i,p=>100-p,{x:50,y:0,width:10,height:100});assert.ok(projected);assert.equal(projected.start.x,50);assert.equal(projected.end.x,60)});
 test("stable label lanes do not depend on viewport",()=>{assert.equal(stableLabelLane("elliott-123",3),stableLabelLane("elliott-123",3));assert.notEqual(stableLabelLane("elliott-123",3,5),undefined)});
 
