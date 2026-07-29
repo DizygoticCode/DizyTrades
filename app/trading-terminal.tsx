@@ -2086,7 +2086,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               {backgroundSyncing ? "Syncing…" : "Refresh data"}
             </button>
             <div className="toolbar-spacer" />
-            <OrderFlowToolbar settings={orderFlowSettings} onChange={setOrderFlowSettings} summary={orderFlow.summary} onRetry={orderFlow.retry} onHistory={()=>setFlowHistoryOpen(true)}/>
+            <OrderFlowToolbar settings={orderFlowSettings} onChange={setOrderFlowSettings} summary={orderFlow.summary} renderStore={orderFlow.renderStore} onRetry={orderFlow.retry} onHistory={()=>setFlowHistoryOpen(true)}/>
             <DizyFlowToastRail alerts={orderFlow.summary.alerts} settings={orderFlowSettings} onHistory={()=>setFlowHistoryOpen(true)}/>
             <div className="mode-control" aria-label="Execution mode">
               {(["Off", "Paper"] as const).map((mode) => (
