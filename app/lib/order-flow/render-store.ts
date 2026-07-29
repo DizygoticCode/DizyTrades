@@ -22,6 +22,7 @@ export class FlowRenderStore {
   subscribe=(listener:Listener)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener)}};
   subscribeDiagnostics=(listener:Listener)=>{this.diagnosticListeners.add(listener);return()=>{this.diagnosticListeners.delete(listener)}};
   update(next:Partial<FlowRenderSnapshot>){this.snapshot={...this.snapshot,...next};this.requestNotification();}
+  updateSettings(settings:OrderFlowSettings){this.update({settings});}
   updateDiagnostics(next:Partial<FlowRenderDiagnostics>){this.diagnostics={...this.diagnostics,...next};if(this.diagnosticTimer===null)this.diagnosticTimer=setTimeout(()=>{this.diagnosticTimer=null;this.diagnosticListeners.forEach(listener=>listener())},250);}
   reset(generation:string,settings=this.snapshot.settings){this.snapshot={generation,enabled:settings.enabled,bookValid:false,captureStarted:settings.enabled?Date.now():null,captureEnded:null,priceStep:this.snapshot.priceStep,heatmap:[],trades:[],book:emptyBook,settings};this.diagnostics={...initialDiagnostics(settings),primitiveAttached:this.diagnostics.primitiveAttached};this.requestNotification();}
   requestNotification(){if(this.frame!==null)return;const flush=()=>{this.frame=null;this.listeners.forEach(listener=>listener())};this.frame=typeof requestAnimationFrame==="function"?requestAnimationFrame(flush):setTimeout(flush,0) as unknown as number;}
