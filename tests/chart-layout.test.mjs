@@ -158,7 +158,7 @@ test("bubble lanes remain vertical and deterministic", () => {
   assert.ok(result.every(item=>item.x===75));
 });
 
-import {projectWorldLine,stableLabelLane} from "../app/lib/chart/world-projection.ts";
+import {projectWorldLine,stableLabelLane,worldLineLabelPosition} from "../app/lib/chart/world-projection.ts";
 test("world lines remain visible with both original anchors off-screen",()=>{const line={id:"trend",start:{index:0,time:1,price:10},end:{index:10,time:2,price:20},labelAnchor:{index:10,time:2,price:20},createdAt:2,status:"confirmed"};const projected=projectWorldLine(line,{from:50,to:60},i=>i,p=>100-p,{x:50,y:0,width:10,height:100});assert.ok(projected);assert.equal(projected.start.x,50);assert.equal(projected.end.x,60)});
 test("stable label lanes do not depend on viewport",()=>{assert.equal(stableLabelLane("elliott-123",3),stableLabelLane("elliott-123",3));assert.notEqual(stableLabelLane("elliott-123",3,5),undefined)});
 
@@ -168,5 +168,25 @@ test("logical viewport projection remains finite through whitespace, pan, zoom, 
  assert.equal(logicalToCanvasX(1,{from:2,to:2},{x:0,y:0,width:20,height:20}),null);
 });
 
-import {nativeLineData} from "../app/lib/chart/native-line-series.ts";
-test("native LR and trend equations are invariant under viewport pan and zoom",()=>{const candles=[0,1,2,3].map(time=>({time,open:1,high:1,low:1,close:1,volume:1})),anchors=[{time:1,value:10},{time:2,value:20}],before=nativeLineData(candles,anchors,"both");assert.deepEqual(before,[{time:0,value:0},{time:1,value:10},{time:2,value:20},{time:3,value:30}]);const simulatedPan={from:2,to:3},simulatedZoom={from:.5,to:2.5};void simulatedPan;void simulatedZoom;assert.deepEqual(nativeLineData(candles,anchors,"both"),before)});
+test("canonical world equations and immutable anchors survive pan, whitespace, and zoom",()=>{
+ const line=Object.freeze({id:"LR upper",start:Object.freeze({index:10,time:100,price:40}),end:Object.freeze({index:20,time:200,price:50}),createdAt:200,status:"confirmed"});
+ const snapshot=structuredClone(line),plot={x:12,y:8,width:600,height:300};
+ for(const visible of [{from:50,to:70},{from:21,to:40},{from:12,to:18},{from:8,to:80}]){
+  const segment=projectWorldLine(line,visible,index=>12+(index-visible.from)/(visible.to-visible.from)*600,price=>308-price*3,plot,"both");
+  assert.ok(segment,JSON.stringify(visible));
+  const label=worldLineLabelPosition(segment,plot,80,20,stableLabelLane(line.id,5));
+  assert.ok(label.x>=plot.x&&label.x+80<=plot.x+plot.width);
+  assert.ok(label.y-10>=plot.y&&label.y+10<=plot.y+plot.height);
+ }
+ assert.deepEqual(line,snapshot);
+});
+
+test("world extension direction is enforced without changing its equation",()=>{
+ const line={id:"trend",start:{index:10,time:1,price:10},end:{index:20,time:2,price:20},createdAt:2,status:"confirmed"},plot={x:0,y:0,width:100,height:100};
+ const project=(range,extension)=>projectWorldLine(line,range,index=>(index-range.from)/(range.to-range.from)*100,price=>100-price,plot,extension);
+ assert.ok(project({from:30,to:40},"right"));
+ assert.equal(project({from:30,to:40},"left"),null);
+ assert.ok(project({from:0,to:5},"left"));
+ assert.equal(project({from:0,to:5},"right"),null);
+ assert.equal(project({from:30,to:40},"none"),null);
+});

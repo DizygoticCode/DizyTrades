@@ -1,0 +1,16 @@
+"use client";
+
+import {useCallback,useEffect,useRef,useState} from "react";
+import {projectWorldLine,stableLabelLane,worldLineLabelPosition,type WorldLine} from "../lib/chart/world-projection";
+
+const anchors: readonly WorldLine[] = Object.freeze([
+  ["Upper trend",42,44],["Lower trend",26,28],["LR upper",48,50],["LR basis",39,41],["LR lower",30,32],
+].map(([id,start,end],i)=>Object.freeze({id:String(id),start:Object.freeze({index:10,time:100,price:Number(start)}),end:Object.freeze({index:20,time:200,price:Number(end)}),createdAt:200+i,status:"confirmed" as const})));
+
+export default function WorldLinesFixture(){
+ const canvas=useRef<HTMLCanvasElement>(null),[range,setRange]=useState({from:0,to:30}),[scale,setScale]=useState({min:0,max:80});
+ const draw=useCallback(()=>{const node=canvas.current;if(!node)return;const dpr=devicePixelRatio||1,rect=node.getBoundingClientRect();node.width=rect.width*dpr;node.height=rect.height*dpr;const c=node.getContext("2d")!;c.scale(dpr,dpr);c.fillStyle="#0b1020";c.fillRect(0,0,rect.width,rect.height);const plot={x:10,y:10,width:rect.width-20,height:rect.height-20},segments=anchors.map((line,i)=>({line,segment:projectWorldLine(line,range,index=>plot.x+(index-range.from)/(range.to-range.from)*plot.width,price=>plot.y+(scale.max-price)/(scale.max-scale.min)*plot.height,plot,"both"),i}));const upper=segments[2].segment,lower=segments[4].segment;if(upper&&lower){c.fillStyle="#4f8cff22";c.beginPath();c.moveTo(upper.start.x,upper.start.y);c.lineTo(upper.end.x,upper.end.y);c.lineTo(lower.end.x,lower.end.y);c.lineTo(lower.start.x,lower.start.y);c.closePath();c.fill()}segments.forEach(({line,segment,i})=>{if(!segment)return;c.strokeStyle=["#ff7b8b","#52d6a0","#6ea8ff","#ffd166","#6ea8ff"][i];c.lineWidth=2;c.beginPath();c.moveTo(segment.start.x,segment.start.y);c.lineTo(segment.end.x,segment.end.y);c.stroke();const width=c.measureText(line.id).width+12,{x,y}=worldLineLabelPosition(segment,plot,width,18,stableLabelLane(line.id,5+i));c.fillStyle=c.strokeStyle;c.fillRect(x,y-9,width,18);c.fillStyle="#07101e";c.fillText(line.id,x+6,y)})},[range,scale]);
+ useEffect(()=>{draw();const observer=new ResizeObserver(draw);if(canvas.current)observer.observe(canvas.current);return()=>observer.disconnect()},[draw]);
+ const diagnostic={range,scale,anchors,anchorSnapshot:JSON.stringify(anchors)};
+ return <main style={{padding:20,background:"#050914",minHeight:"100vh",color:"white"}}><h1>Canonical world-line viewport fixture</h1><div><button data-testid="anchors-left" onClick={()=>setRange({from:30,to:60})}>Anchors left</button><button data-testid="future" onClick={()=>setRange({from:45,to:75})}>Future whitespace</button><button data-testid="zoom-x" onClick={()=>setRange(r=>({from:r.from+5,to:r.to-5}))}>Horizontal zoom</button><button data-testid="zoom-y" onClick={()=>setScale({min:25,max:65})}>Vertical zoom</button><button data-testid="drag-scale" onClick={()=>setScale(s=>({min:s.min+8,max:s.max+8}))}>Drag price scale</button></div><canvas data-testid="world-lines-canvas" ref={canvas} style={{width:"100%",height:520,display:"block",marginTop:12}}/><pre data-testid="world-lines-diagnostics" style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{JSON.stringify(diagnostic)}</pre></main>
+}
