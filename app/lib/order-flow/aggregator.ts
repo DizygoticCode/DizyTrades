@@ -17,8 +17,8 @@ export class FlowAggregator {
   get priceStep(){return this.options.priceStep;}
   clear(){this.heatmap=[];this.trades=[];this.captureStarted=null;this.captureEnded=null;this.lastLevels.clear();this.ids.clear();}
   captureBook(book:BookView,contractSize:number,timeMs:number,rangeBps=50){
-    if(!Number.isFinite(contractSize)||contractSize<=0)return;const bid=book.bids[0]?.price,ask=book.asks[0]?.price;if(!bid||!ask)return;
-    this.captureStarted??=timeMs;this.captureEnded=timeMs;const mid=(bid+ask)/2,low=mid*(1-rangeBps/10_000),high=mid*(1+rangeBps/10_000),observation=new Map<number,{bid:number;ask:number}>();
+    void rangeBps;if(!Number.isFinite(contractSize)||contractSize<=0||!book.bids.length||!book.asks.length)return;
+    this.captureStarted??=timeMs;this.captureEnded=timeMs;const low=-Infinity,high=Infinity,observation=new Map<number,{bid:number;ask:number}>();
     for(const [side,levels] of [["bid",book.bids],["ask",book.asks]] as const)for(const level of levels){if(level.price<low||level.price>high)continue;const tick=Math.round(level.price/this.options.priceStep),cell=observation.get(tick)??{bid:0,ask:0};cell[side]+=level.contractQuantity*contractSize;observation.set(tick,cell);}
     // Only levels inside this snapshot's transmitted active range may be removed.
     // This prevents a narrow update from erasing unrelated last-known depth.
