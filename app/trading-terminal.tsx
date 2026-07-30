@@ -48,6 +48,7 @@ import { StrategyWorldLinesPrimitive, type StrategyWorldLinesModel, type Strateg
 import { DizyFlowDom } from "./dizyflow-dom";
 import { DizyFlowAlertHistory, DizyFlowToastRail } from "./dizyflow-toast-rail";
 import type { MarketDescriptor } from "./lib/market/types";
+import { marketBadge, marketSubtitle, searchMarkets, type MarketTab } from "./lib/market/catalogue";
 import type { CandleTimeframe } from "./lib/market/types";
 import {
   useMexcRealtime,
@@ -1210,7 +1211,8 @@ const DizyChart = forwardRef<
 export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [timeframe, setTimeframe] = useState("15m");
   const [symbol, setSymbol] = useState("BTC_USDT");
-  const marketKey = `${symbol}:${timeframe}`;
+  const [selectedMarketKey, setSelectedMarketKey] = useState("mexc:futures:BTC_USDT");
+  const marketKey = `${selectedMarketKey}:${timeframe}`;
   const [timeline, dispatchTimeline] = useReducer(
     marketTimelineReducer,
     undefined,
@@ -1242,11 +1244,16 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [markets, setMarkets] = useState<MarketDescriptor[]>([]);
   const [orderFlowSettings,setOrderFlowSettings]=useState<OrderFlowSettings>(DEFAULT_ORDER_FLOW_SETTINGS);
   const [flowHistoryOpen,setFlowHistoryOpen]=useState(false);
-  const selectedMarket=markets.find((market)=>market.symbol===symbol);
-  const orderFlow=useOrderFlow({settings:orderFlowSettings,paused:false,symbol,contractSize:selectedMarket?.contractSize??1,priceUnit:selectedMarket?.priceUnit,priceScale:selectedMarket?.priceScale});
+  const selectedMarket=markets.find((market)=>market.key===selectedMarketKey);
+  const futuresSelected=selectedMarket?.marketType!=="spot";
+  const orderFlow=useOrderFlow({settings:orderFlowSettings,paused:!futuresSelected,symbol,contractSize:selectedMarket?.contractSize??1,priceUnit:selectedMarket?.priceUnit,priceScale:selectedMarket?.priceScale});
   const [marketQuery, setMarketQuery] = useState("");
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [favourites, setFavourites] = useState<string[]>([]);
+  const [marketTab, setMarketTab] = useState<MarketTab>("all");
+  const [quoteFilter, setQuoteFilter] = useState("All");
+  const [marketLimit, setMarketLimit] = useState(100);
+  const visibleMarkets = useMemo(() => searchMarkets(markets, marketQuery, marketTab, quoteFilter, new Set(favourites)).slice(0, marketLimit), [markets, marketQuery, marketTab, quoteFilter, favourites, marketLimit]);
   const [recent, setRecent] = useState<string[]>([]);
   const [terminalTab, setTerminalTab] = useState<"charts" | "explorer">(
     "charts",
@@ -1342,7 +1349,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       resetView: boolean;
     }) => {
       const requestId = ++marketRequest.current,
-        requestKey = `${symbol}:${timeframe}`;
+        requestKey = `${selectedMarketKey}:${timeframe}`;
       marketAbort.current?.abort();
       const controller = new AbortController();
       marketAbort.current = controller;
@@ -1354,7 +1361,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       if (blocking) setFeedError("");
       try {
         const response = await fetch(
-          `/api/market?exchange=mexc&symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&limit=${historyCapacity}`,
+          `/api/market?exchange=mexc&marketType=${selectedMarket?.marketType ?? "futures"}&symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&limit=${historyCapacity}`,
           { signal: controller.signal },
         );
         if (!response.ok) throw new Error("Feed unavailable");
@@ -1366,7 +1373,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           throw new Error("Insufficient candle history");
         if (
           requestId !== marketRequest.current ||
-          requestKey !== `${symbol}:${timeframe}`
+          requestKey !== `${selectedMarketKey}:${timeframe}`
         )
           return;
         dispatchTimeline(
@@ -1404,13 +1411,14 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
         }
       }
     },
-    [symbol, timeframe, view.autoFitOnMarketChange, historyCapacity],
+    [symbol, selectedMarketKey, selectedMarket, timeframe, view.autoFitOnMarketChange, historyCapacity],
   );
 
   const demo = dataSource === "DEMONSTRATION DATA";
   useMexcRealtime({
     enabled: terminalTab === "charts" && !demo && view.realtimeChartUpdates,
     symbol,
+    marketType: selectedMarket?.marketType ?? "futures",
     timeframe: timeframe as CandleTimeframe,
     contractSize:selectedMarket?.contractSize??1,
     onStatus: setRealtimeStatus,
@@ -1486,7 +1494,9 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
             ? JSON.parse(sessionStorage.getItem("dizy-viewer-market") || "null")
             : payload.settings.market;
         if (stored) {
-          setSymbol(stored.symbol || "BTC_USDT");
+          const storedKey = stored.marketKey || (String(stored.symbol).startsWith("mexc:") ? stored.symbol : `mexc:futures:${stored.symbol || "BTC_USDT"}`);
+          setSelectedMarketKey(storedKey);
+          setSymbol(storedKey.split(":").at(-1) || "BTC_USDT");
           setTimeframe(stored.timeframe || "15m");
           setFavourites(stored.favourites || []);
         }
@@ -1503,7 +1513,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       void fetch(
-        `/api/markets?exchange=mexc&query=${encodeURIComponent(marketQuery)}&favourites=${encodeURIComponent(favourites.join(","))}`,
+        `/api/markets?exchange=mexc`,
         { signal: controller.signal },
       )
         .then((response) => (response.ok ? response.json() : Promise.reject()))
@@ -1518,15 +1528,15 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [marketQuery, favourites]);
+  }, []);
 
   useEffect(() => {
     if (user.role === "viewer")
       sessionStorage.setItem(
         "dizy-viewer-market",
-        JSON.stringify({ symbol, timeframe, favourites }),
+        JSON.stringify({ symbol, marketKey: selectedMarketKey, timeframe, favourites }),
       );
-  }, [favourites, symbol, timeframe, user.role]);
+  }, [favourites, symbol, selectedMarketKey, timeframe, user.role]);
 
   const applyPaperSettings = async () => {
     setSaveState("saving");
@@ -1539,7 +1549,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           strategy,
           risk,
           orderFlow: orderFlowSettings,
-          market: { exchange: "mexc", symbol, timeframe, favourites },
+          market: { exchange: "mexc", symbol, marketKey: selectedMarketKey, timeframe, favourites },
         }),
       });
       if (!profileResponse.ok) throw new Error("Could not save settings");
@@ -1548,7 +1558,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            symbol,
+            symbol: selectedMarketKey,
             timeframe,
             summary: backtest,
           }),
@@ -1717,15 +1727,15 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
             <div className="symbol-block">
               <button
                 aria-expanded={selectorOpen}
-                aria-label="Search MEXC perpetual markets"
+                aria-label="Search MEXC Spot and Futures markets"
                 className="symbol-selector"
                 onClick={() => setSelectorOpen((value) => !value)}
                 type="button"
               >
-                <span className="coin">{symbol.split("_")[0].slice(0, 1)}</span>
+                <span className="coin">{(selectedMarket?.baseAsset ?? symbol.split("_")[0]).slice(0, 1)}</span>
                 <span>
-                  <strong>{symbol.replace("_", " / ")}</strong>
-                  <small>MEXC · perpetual ▾</small>
+                  <strong>{selectedMarket?.displayName ?? symbol.replace("_", " / ")}</strong>
+                  <small>MEXC · {selectedMarket ? marketBadge(selectedMarket) : "PERP"} ▾</small>
                 </span>
               </button>
               {selectorOpen ? (
@@ -1735,23 +1745,30 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                     autoFocus
                     aria-label="Search symbol, base or quote"
                     onChange={(event) => setMarketQuery(event.target.value)}
-                    placeholder="Search every MEXC perpetual…"
+                    placeholder="Search every MEXC market…"
                     value={marketQuery}
                   />
-                  <div className="market-results">
-                    {markets.length ? (
-                      markets.map((market) => (
+                  <div className="market-tabs" role="tablist">
+                    {(["favorites","all","spot","futures","perpetual","delivery","pre-market","new","hot"] as MarketTab[]).map(tab=><button aria-selected={marketTab===tab} key={tab} onClick={()=>{setMarketTab(tab);setMarketLimit(100)}} role="tab" type="button">{tab.replace("-"," ")}</button>)}
+                  </div>
+                  <div className="quote-tabs">
+                    {["All","USDT","USDC","BTC","ETH","MX","Other"].map(quote=><button className={quoteFilter===quote?"active":""} key={quote} onClick={()=>setQuoteFilter(quote)} type="button">{quote}</button>)}
+                  </div>
+                  <div className="market-results" onScroll={event=>{const node=event.currentTarget;if(node.scrollTop+node.clientHeight>=node.scrollHeight-80)setMarketLimit(value=>Math.min(value+100,1000))}}>
+                    {visibleMarkets.length ? (
+                      visibleMarkets.map((market) => (
                         <button
-                          className={market.symbol === symbol ? "active" : ""}
-                          key={market.symbol}
+                          className={market.key === selectedMarketKey ? "active" : ""}
+                          key={market.key}
                           onClick={() => {
-                            setSymbol(market.symbol);
+                            setSymbol(market.sourceSymbol);
+                            setSelectedMarketKey(market.key);
                             setSettingsOpen(false);
                             setRecent((items) =>
                               [
-                                market.symbol,
+                                market.key,
                                 ...items.filter(
-                                  (item) => item !== market.symbol,
+                                  (item) => item !== market.key,
                                 ),
                               ].slice(0, 8),
                             );
@@ -1760,31 +1777,29 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                           type="button"
                         >
                           <span>
-                            <b>{market.displayName}</b>
-                            <small>
-                              MEXC perpetual · settle{" "}
-                              {market.settlementCurrency}
-                            </small>
+                            <b><span className="market-initials">{market.baseAsset.slice(0,2)}</span>{market.displayName} <em className={`market-badge ${market.contractType}`}>{marketBadge(market)}</em></b>
+                            <small>{marketSubtitle(market)}</small>
+                            <small className="market-stats"><span>{market.lastPrice?.toLocaleString() ?? "—"}</span><span className={(market.change24h??0)>=0?"positive":"negative"}>{market.change24h===undefined?"—":signed(market.change24h)}</span><span>Vol {market.volume24h?.toLocaleString(undefined,{notation:"compact"}) ?? "—"}</span></small>
                           </span>
                           <i
                             aria-label="Favourite"
                             onClick={(event) => {
                               event.stopPropagation();
                               setFavourites((items) =>
-                                items.includes(market.symbol)
+                                items.includes(market.key)
                                   ? items.filter(
-                                      (item) => item !== market.symbol,
+                                      (item) => item !== market.key,
                                     )
-                                  : [...items, market.symbol],
+                                  : [...items, market.key],
                               );
                             }}
                           >
-                            {favourites.includes(market.symbol) ? "★" : "☆"}
+                            {favourites.includes(market.key) ? "★" : "☆"}
                           </i>
                         </button>
                       ))
                     ) : (
-                      <p>No enabled markets found.</p>
+                      <p>No active markets match these filters.</p>
                     )}
                   </div>
                   {recent.length ? (
@@ -1793,7 +1808,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                 </div>
               ) : null}
             </div>
-            {user.role!=="viewer"?<div className="manual-quick"><span>MANUAL PAPER</span><button className="sell" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"short"}))}>SELL</button><b>{last?currency.format(liveLastPrice??last.close):"—"}</b><button className="buy" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"long"}))}>BUY</button></div>:null}
+            {user.role!=="viewer" && futuresSelected?<div className="manual-quick"><span>MANUAL PAPER</span><button className="sell" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"short"}))}>SELL</button><b>{last?currency.format(liveLastPrice??last.close):"—"}</b><button className="buy" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"long"}))}>BUY</button></div>:null}
         <div className="quote-block">
               <strong>
                 {last ? currency.format(liveLastPrice ?? last.close) : "—"}
@@ -3321,7 +3336,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                       </div>
                     </>
                   ) : null}
-                  {activePanel === "dizyflow" ? <div className="setting-section flow-settings"><h3>DizyFlow · public data</h3><p className="setting-help">Bounded browser-memory depth and executed-trade rendering. Capture begins only when enabled.</p>{[["enabled","Master capture"],["heatmapVisible","Heatmap"],["bubblesVisible","Volume bubbles"],["domVisible","Depth of Market"],["alertsVisible","Large-activity alerts"],["imbalanceVisible","Imbalance"]].map(([key,label])=><IndicatorToggle key={key} checked={orderFlowSettings[key as keyof OrderFlowSettings] as boolean} label={label} colour="#9c78ff" onChange={checked=>setOrderFlowSettings(current=>({...current,[key]:checked}))}/>)}<h3>Heatmap</h3><label className="field-row"><span>Colour map</span><select value={orderFlowSettings.heatmap.colourMap} onChange={()=>{}}><option value="bookmap">Bookmap inspired</option></select></label><RangeField label="Overall opacity" min={0} max={100} suffix="%" value={Math.round(orderFlowSettings.heatmap.opacity*100)} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,opacity:value/100}}))}/><RangeField label="Brightness" min={25} max={300} suffix="%" value={Math.round(orderFlowSettings.heatmap.brightness*100)} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,brightness:value/100}}))}/><RangeField label="Contrast" min={25} max={300} suffix="%" value={Math.round(orderFlowSettings.heatmap.contrast*100)} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,contrast:value/100}}))}/><RangeField label="Gamma" min={20} max={300} suffix="%" value={Math.round(orderFlowSettings.heatmap.gamma*100)} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,gamma:value/100}}))}/><RangeField label="Lower cut-off" min={0} max={49} suffix="%" value={Math.round(orderFlowSettings.heatmap.lowerPercentile*100)} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,lowerPercentile:value/100}}))}/><RangeField label="Upper cut-off" min={51} max={100} suffix="%" value={Math.round(orderFlowSettings.heatmap.upperPercentile*100)} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,upperPercentile:value/100}}))}/><label className="field-row"><span>Intensity</span><select value={orderFlowSettings.heatmap.intensity} onChange={e=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,intensity:e.target.value as "log"|"linear"}}))}><option value="log">Logarithmic</option><option value="linear">Linear</option></select></label><label className="field-row"><span>Vertical smoothing</span><select value={orderFlowSettings.heatmap.priceMode} onChange={e=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,priceMode:e.target.value as "auto"|"manual"|"none"}}))}><option value="auto">Auto</option><option value="manual">Manual</option><option value="none">None</option></select></label><label className="field-row"><span>Manual price-bin size</span><input type="number" min="0.00000001" step="any" value={orderFlowSettings.heatmap.fixedPriceStep} onChange={e=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,fixedPriceStep:Number(e.target.value)}}))}/></label><RangeField label="History duration" min={5} max={360} suffix="min" value={orderFlowSettings.heatmap.historyMinutes} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,historyMinutes:value}}))}/><label className="field-row"><span>Book side</span><select value={orderFlowSettings.heatmap.side} onChange={e=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,side:e.target.value as "both"|"bids"|"asks"}}))}><option value="both">Both</option><option value="bids">Bid only</option><option value="asks">Ask only</option></select></label><label className="field-row"><span>Minimum order notional</span><input type="number" min="0" value={orderFlowSettings.heatmap.minimumNotional} onChange={e=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,minimumNotional:Number(e.target.value)}}))}/></label><h3>Volume bubbles</h3><label className="field-row"><span>Buy colour</span><input aria-label="Buy colour" type="color" value={orderFlowSettings.bubbles.buyColour} onChange={e=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,buyColour:e.target.value}}))}/></label><label className="field-row"><span>Sell colour</span><input aria-label="Sell colour" type="color" value={orderFlowSettings.bubbles.sellColour} onChange={e=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,sellColour:e.target.value}}))}/></label><label className="field-row"><span>Outline colour</span><input aria-label="Outline colour" type="color" value={orderFlowSettings.bubbles.outlineColour} onChange={e=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,outlineColour:e.target.value}}))}/></label><RangeField label="Fill opacity" min={0} max={100} suffix="%" value={Math.round(orderFlowSettings.bubbles.opacity*100)} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,opacity:value/100}}))}/><RangeField label="Outline opacity" min={0} max={100} suffix="%" value={Math.round(orderFlowSettings.bubbles.outlineOpacity*100)} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,outlineOpacity:value/100}}))}/><RangeField label="Minimum radius" min={1} max={20} suffix="px" value={orderFlowSettings.bubbles.minimumRadius} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,minimumRadius:value}}))}/><RangeField label="Maximum radius" min={3} max={40} suffix="px" value={orderFlowSettings.bubbles.maximumRadius} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,maximumRadius:value}}))}/><RangeField label="Minimum notional" min={0} max={1000000000} suffix="USDT" value={orderFlowSettings.bubbles.minimumNotional} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,minimumNotional:value}}))}/><IndicatorToggle checked={orderFlowSettings.bubbles.adaptive} label="Adaptive filtering" colour="#9c78ff" onChange={checked=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,adaptive:checked}}))}/><RangeField label="Adaptive percentile" min={50} max={100} suffix="%" value={Math.round(orderFlowSettings.bubbles.percentile*100)} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,percentile:value/100}}))}/><label className="field-row"><span>Time aggregation bucket</span><select value={orderFlowSettings.bubbles.timeBucketMs} onChange={e=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,timeBucketMs:Number(e.target.value) as OrderFlowSettings["bubbles"]["timeBucketMs"]}}))}>{[250,500,1000,2000,5000].map(value=><option key={value} value={value}>{value<1000?`${value} ms`:`${value/1000} s`}</option>)}</select></label><label className="field-row"><span>Price aggregation</span><select value={orderFlowSettings.bubbles.priceMode} onChange={e=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,priceMode:e.target.value as "auto"|"fixed"}}))}><option value="auto">Auto</option><option value="fixed">Fixed</option></select></label><label className="field-row"><span>Fixed price step</span><input aria-label="Fixed price step" type="number" min="0.00000001" max="100000" step="any" disabled={orderFlowSettings.bubbles.priceMode!=="fixed"} value={orderFlowSettings.bubbles.fixedPriceStep} onChange={e=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,fixedPriceStep:Number(e.target.value)}}))}/></label><RangeField label="Maximum retained bubbles" min={100} max={20000} value={orderFlowSettings.bubbles.maximumRetained} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,maximumRetained:value}}))}/><h3>Alerts</h3><RangeField label="Large trade threshold" min={0} max={10000000} suffix="USDT" value={orderFlowSettings.alerts.fixedThreshold} onChange={value=>setOrderFlowSettings(v=>({...v,alerts:{...v.alerts,fixedThreshold:value}}))}/><button className="secondary" type="button" onClick={orderFlow.clear}>Clear captured data</button></div> : null}
+                  {activePanel === "dizyflow" && !futuresSelected ? <div className="setting-section market-unavailable"><h3>DizyFlow</h3><p>Unavailable for this market</p></div> : null}{activePanel === "dizyflow" && futuresSelected ? <div className="setting-section flow-settings"><h3>DizyFlow · public data</h3><p className="setting-help">Bounded browser-memory depth and executed-trade rendering. Capture begins only when enabled.</p>{[["enabled","Master capture"],["heatmapVisible","Heatmap"],["bubblesVisible","Volume bubbles"],["domVisible","Depth of Market"],["alertsVisible","Large-activity alerts"],["imbalanceVisible","Imbalance"]].map(([key,label])=><IndicatorToggle key={key} checked={orderFlowSettings[key as keyof OrderFlowSettings] as boolean} label={label} colour="#9c78ff" onChange={checked=>setOrderFlowSettings(current=>({...current,[key]:checked}))}/>)}<h3>Heatmap</h3><label className="field-row"><span>Colour map</span><select value={orderFlowSettings.heatmap.colourMap} onChange={()=>{}}><option value="bookmap">Bookmap inspired</option></select></label><RangeField label="Overall opacity" min={0} max={100} suffix="%" value={Math.round(orderFlowSettings.heatmap.opacity*100)} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,opacity:value/100}}))}/><RangeField label="Brightness" min={25} max={300} suffix="%" value={Math.round(orderFlowSettings.heatmap.brightness*100)} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,brightness:value/100}}))}/><RangeField label="Contrast" min={25} max={300} suffix="%" value={Math.round(orderFlowSettings.heatmap.contrast*100)} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,contrast:value/100}}))}/><RangeField label="Gamma" min={20} max={300} suffix="%" value={Math.round(orderFlowSettings.heatmap.gamma*100)} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,gamma:value/100}}))}/><RangeField label="Lower cut-off" min={0} max={49} suffix="%" value={Math.round(orderFlowSettings.heatmap.lowerPercentile*100)} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,lowerPercentile:value/100}}))}/><RangeField label="Upper cut-off" min={51} max={100} suffix="%" value={Math.round(orderFlowSettings.heatmap.upperPercentile*100)} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,upperPercentile:value/100}}))}/><label className="field-row"><span>Intensity</span><select value={orderFlowSettings.heatmap.intensity} onChange={e=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,intensity:e.target.value as "log"|"linear"}}))}><option value="log">Logarithmic</option><option value="linear">Linear</option></select></label><label className="field-row"><span>Vertical smoothing</span><select value={orderFlowSettings.heatmap.priceMode} onChange={e=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,priceMode:e.target.value as "auto"|"manual"|"none"}}))}><option value="auto">Auto</option><option value="manual">Manual</option><option value="none">None</option></select></label><label className="field-row"><span>Manual price-bin size</span><input type="number" min="0.00000001" step="any" value={orderFlowSettings.heatmap.fixedPriceStep} onChange={e=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,fixedPriceStep:Number(e.target.value)}}))}/></label><RangeField label="History duration" min={5} max={360} suffix="min" value={orderFlowSettings.heatmap.historyMinutes} onChange={value=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,historyMinutes:value}}))}/><label className="field-row"><span>Book side</span><select value={orderFlowSettings.heatmap.side} onChange={e=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,side:e.target.value as "both"|"bids"|"asks"}}))}><option value="both">Both</option><option value="bids">Bid only</option><option value="asks">Ask only</option></select></label><label className="field-row"><span>Minimum order notional</span><input type="number" min="0" value={orderFlowSettings.heatmap.minimumNotional} onChange={e=>setOrderFlowSettings(v=>({...v,heatmap:{...v.heatmap,minimumNotional:Number(e.target.value)}}))}/></label><h3>Volume bubbles</h3><label className="field-row"><span>Buy colour</span><input aria-label="Buy colour" type="color" value={orderFlowSettings.bubbles.buyColour} onChange={e=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,buyColour:e.target.value}}))}/></label><label className="field-row"><span>Sell colour</span><input aria-label="Sell colour" type="color" value={orderFlowSettings.bubbles.sellColour} onChange={e=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,sellColour:e.target.value}}))}/></label><label className="field-row"><span>Outline colour</span><input aria-label="Outline colour" type="color" value={orderFlowSettings.bubbles.outlineColour} onChange={e=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,outlineColour:e.target.value}}))}/></label><RangeField label="Fill opacity" min={0} max={100} suffix="%" value={Math.round(orderFlowSettings.bubbles.opacity*100)} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,opacity:value/100}}))}/><RangeField label="Outline opacity" min={0} max={100} suffix="%" value={Math.round(orderFlowSettings.bubbles.outlineOpacity*100)} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,outlineOpacity:value/100}}))}/><RangeField label="Minimum radius" min={1} max={20} suffix="px" value={orderFlowSettings.bubbles.minimumRadius} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,minimumRadius:value}}))}/><RangeField label="Maximum radius" min={3} max={40} suffix="px" value={orderFlowSettings.bubbles.maximumRadius} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,maximumRadius:value}}))}/><RangeField label="Minimum notional" min={0} max={1000000000} suffix="USDT" value={orderFlowSettings.bubbles.minimumNotional} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,minimumNotional:value}}))}/><IndicatorToggle checked={orderFlowSettings.bubbles.adaptive} label="Adaptive filtering" colour="#9c78ff" onChange={checked=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,adaptive:checked}}))}/><RangeField label="Adaptive percentile" min={50} max={100} suffix="%" value={Math.round(orderFlowSettings.bubbles.percentile*100)} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,percentile:value/100}}))}/><label className="field-row"><span>Time aggregation bucket</span><select value={orderFlowSettings.bubbles.timeBucketMs} onChange={e=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,timeBucketMs:Number(e.target.value) as OrderFlowSettings["bubbles"]["timeBucketMs"]}}))}>{[250,500,1000,2000,5000].map(value=><option key={value} value={value}>{value<1000?`${value} ms`:`${value/1000} s`}</option>)}</select></label><label className="field-row"><span>Price aggregation</span><select value={orderFlowSettings.bubbles.priceMode} onChange={e=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,priceMode:e.target.value as "auto"|"fixed"}}))}><option value="auto">Auto</option><option value="fixed">Fixed</option></select></label><label className="field-row"><span>Fixed price step</span><input aria-label="Fixed price step" type="number" min="0.00000001" max="100000" step="any" disabled={orderFlowSettings.bubbles.priceMode!=="fixed"} value={orderFlowSettings.bubbles.fixedPriceStep} onChange={e=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,fixedPriceStep:Number(e.target.value)}}))}/></label><RangeField label="Maximum retained bubbles" min={100} max={20000} value={orderFlowSettings.bubbles.maximumRetained} onChange={value=>setOrderFlowSettings(v=>({...v,bubbles:{...v.bubbles,maximumRetained:value}}))}/><h3>Alerts</h3><RangeField label="Large trade threshold" min={0} max={10000000} suffix="USDT" value={orderFlowSettings.alerts.fixedThreshold} onChange={value=>setOrderFlowSettings(v=>({...v,alerts:{...v.alerts,fixedThreshold:value}}))}/><button className="secondary" type="button" onClick={orderFlow.clear}>Clear captured data</button></div> : null}
                 </div>
                 <div className="panel-footer">
                   <button
@@ -3349,7 +3364,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               </aside>
             ) : null}
           </div>
-          <ManualPaperTicket publicPrice={liveLastPrice ?? liveCandle?.close ?? null} readOnly={user.role === "viewer"} symbol={symbol} />
+          {futuresSelected ? <ManualPaperTicket publicPrice={liveLastPrice ?? liveCandle?.close ?? null} readOnly={user.role === "viewer"} symbol={symbol} /> : null}
         </>
       )}
     </main>
