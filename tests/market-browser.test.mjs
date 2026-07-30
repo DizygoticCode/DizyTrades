@@ -13,9 +13,28 @@ test("GeckoTerminal URLs preserve the documented API v2 path", () => {
 
 test("market browser exposes one source switch and source-aware searches", () => {
   assert.match(browser, /MEXC Markets","DizyDEX/);
-  assert.match(browser, /source==="mexc"\?<><Chips/);
+  assert.match(browser, /market-browser-source-tabs/);
   assert.match(browser, /Search MEXC symbol or asset…/);
   assert.match(browser, /Search token, contract, mint or pool…/);
+});
+
+test("market browser reserves its flexible region for aligned results", () => {
+  assert.match(browser, /market-browser-column-header/);
+  assert.match(browser, /market-browser-result-row/);
+  assert.match(browser, /Quote asset/);
+  assert.match(browser, /All quotes/);
+  assert.match(styles, /width:min\(720px,calc\(100vw - 24px\)\)/);
+  assert.match(styles, /height:min\(720px,calc\(100vh - 40px\)\)/);
+  assert.match(styles, /grid-template-rows:auto auto minmax\(300px,1fr\) auto/);
+  assert.match(styles, /\.market-browser-results\{min-height:0;overflow-y:auto/);
+  assert.match(styles, /\.market-browser-result-row\{min-height:54px/);
+});
+
+test("compact controls cannot inherit full-width button styling", () => {
+  assert.match(styles, /market-browser-source-tabs\{display:grid;grid-template-columns:1fr 1fr/);
+  assert.match(styles, /market-browser-primary-tabs,.market-browser-instrument-tabs\{display:flex/);
+  assert.match(styles, /market-browser-filter-chip,.filters-toggle\{width:auto;flex:0 0 auto/);
+  assert.match(styles, /market-browser-primary-tabs::-webkit-scrollbar/);
 });
 
 test("market browser retains DEX rows on provider degradation", () => {
@@ -30,6 +49,6 @@ test("favorites, selected rows, Escape closing, filters and responsive sheet rem
   assert.match(browser, /aria-selected=\{active\}/);
   assert.match(browser, /onFavourite/);
   assert.match(browser, /Minimum liquidity/);
-  assert.match(styles, /@media\(max-width:760px\)\{\.market-browser/);
-  assert.match(styles, /\.browser-chips\{display:flex;flex-wrap:wrap/);
+  assert.match(styles, /@media\(max-width:640px\)\{\.market-browser/);
+  assert.match(styles, /width:calc\(100vw - 16px\)/);
 });
