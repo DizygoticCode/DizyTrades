@@ -69,9 +69,10 @@ export default function LoginForm() {
       <button disabled={loading} type="submit">
         {loading ? "Signing in…" : "Open trading terminal"}
       </button>
-      <button className="viewer-login" disabled={loading} onClick={continueAsViewer} type="button">
+      <button className="viewer-login" disabled={loading} id="view-only" onClick={continueAsViewer} type="button">
         Continue as Viewer
       </button>
+      <a className="school-login-link" href="/school">Explore DizySchool — free learning centre</a>
       <div className="login-safety">
         <b>TEST MODE</b>
         <span>No exchange credentials or live-order route is enabled.</span>
