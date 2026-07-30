@@ -1640,6 +1640,9 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           >
             TradingView Explorer
           </button>
+          <a className="nav-tab school-terminal-link" href="/school" target="_blank" rel="noopener noreferrer" title="Open DizySchool in a new tab">
+            DizySchool <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span>
+          </a>
           <span
             className={`connection realtime-${demo ? "demo" : realtimeStatus}`}
           >

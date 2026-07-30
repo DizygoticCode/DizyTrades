@@ -73,6 +73,7 @@ export default function LoginForm() {
       <button className="viewer-login" disabled={loading} onClick={continueAsViewer} type="button">
         Continue as Viewer
       </button>
+      <a className="school-login-link" href="/school">Explore DizySchool — free learning centre</a>
       <div className="login-safety">
         <b>TEST MODE</b>
         <span>No exchange credentials or live-order route is enabled.</span>
