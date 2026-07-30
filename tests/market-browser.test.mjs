@@ -11,45 +11,43 @@ test("GeckoTerminal URLs preserve the documented API v2 path", () => {
   assert.equal(geckoUrl("/networks/bsc/pools/address/ohlcv/minute").pathname, "/api/v2/networks/bsc/pools/address/ohlcv/minute");
 });
 
-test("market browser exposes one source switch and source-aware searches", () => {
-  assert.match(browser, /items=\{\["MEXC", "DizyDEX"\]\}/);
-  assert.match(browser, /market-browser-source-tabs/);
-  assert.match(browser, /Search symbol or asset…/);
+test("market browser exposes unified navigation and source-aware searches", () => {
+  assert.match(browser, /"Favorites", "Spot", "Futures", "DizyDEX", "Movers"/);
+  assert.doesNotMatch(browser, /market-browser-source-tabs/);
+  assert.match(browser, /Search symbol, asset or contract…/);
   assert.match(browser, /Search token, mint, contract or pool…/);
 });
 
 test("market browser reserves its flexible region for aligned results", () => {
-  assert.match(browser, /market-browser-column-header/);
-  assert.match(browser, /market-browser-result-row/);
-  assert.match(browser, /Quote asset/);
-  assert.match(browser, /All quotes/);
-  assert.match(styles, /width: min\(520px, calc\(100vw - 24px\)\)/);
-  assert.match(styles, /height: min\(590px, calc\(100vh - 80px\)\)/);
-  assert.match(styles, /grid-template-rows: 44px auto minmax\(320px, 1fr\) auto/);
-  assert.match(styles, /\.market-browser-results \{[\s\S]*?min-height: 320px;[\s\S]*?overflow-y: auto/);
-  assert.match(styles, /\.market-browser-result-row \{[\s\S]*?height: 50px;[\s\S]*?min-height: 50px/);
-  assert.doesNotMatch(styles, /width: min\(7[0-9]{2}px/);
+  assert.match(browser, /mb-columns/);
+  assert.match(browser, /mb-row/);
+  assert.match(styles, /width:420px;height:520px/);
+  assert.match(styles, /grid-template-rows:38px 38px 30px 28px 24px minmax\(0,1fr\)/);
+  assert.match(styles, /\.mb-results\{[\s\S]*?overflow-y:auto/);
+  assert.match(styles, /\.mb-row\{[\s\S]*?height:46px;min-height:46px/);
+  assert.match(styles, /grid-template-columns:minmax\(0,1fr\) 70px 56px 48px/);
 });
 
-test("compact controls cannot inherit full-width button styling", () => {
-  assert.match(styles, /\.market-browser-source-tabs \{[\s\S]*?display: flex;[\s\S]*?flex: 0 0 auto/);
-  assert.match(styles, /\.market-browser-primary-tabs \{[\s\S]*?display: flex/);
-  assert.match(styles, /\.filters-toggle \{[\s\S]*?width: auto;[\s\S]*?flex: 0 0 auto/);
-  assert.match(styles, /market-browser-primary-tabs::-webkit-scrollbar/);
+test("compact controls and rows are collision-proof by construction", () => {
+  assert.match(styles, /\.mb-primary,.mb-secondary-tabs\{display:flex;min-width:0/);
+  assert.match(styles, /\.mb-identity strong>span,.mb-identity small\{overflow:hidden;text-overflow:ellipsis;white-space:nowrap/);
+  assert.match(styles, /\.mb-number,.mb-change,.mb-volume\{min-width:0;overflow:hidden;text-align:right/);
+  assert.doesNotMatch(styles, /\.mb-row\{[^}]*position:absolute/);
 });
 
 test("market browser retains DEX rows on provider degradation", () => {
   const catchBody = browser.slice(browser.indexOf("catch(error)"), browser.indexOf("finally", browser.indexOf("catch(error)")));
   assert.doesNotMatch(catchBody, /setDexItems/);
-  assert.match(browser, /Cached results available/);
+  assert.match(browser, /Cached results unavailable/);
   assert.match(browser, /⚠ Degraded/);
 });
 
 test("favorites, selected rows, Escape closing, filters and responsive sheet remain explicit", () => {
   assert.match(browser, /event\.key === "Escape"/);
-  assert.match(browser, /aria-selected=\{active\}/);
+  assert.match(browser, /aria-selected=\{selected\}/);
   assert.match(browser, /onFavourite/);
   assert.match(browser, /Minimum liquidity/);
-  assert.match(styles, /@media \(max-width: 560px\)/);
-  assert.match(styles, /width: calc\(100vw - 16px\)/);
+  assert.match(styles, /@media\(max-width:520px\)/);
+  assert.match(styles, /width:calc\(100vw - 12px\)/);
+  assert.match(styles, /height:min\(540px,calc\(100dvh - 24px\)\)/);
 });
