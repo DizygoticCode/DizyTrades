@@ -34,7 +34,7 @@ services:
       - key: DIZYFLOW_HISTORY_SAMPLE_MS
         value: "2000"
       - key: DIZYFLOW_MAX_HISTORY_SAMPLES
-        value: "150"
+        value: "60"
       - key: DIZYFLOW_MAX_LEVELS_PER_SIDE
         value: "100"
       - key: DIZYFLOW_MAX_COLLECTORS
@@ -48,11 +48,23 @@ services:
       - key: DIZYFLOW_HEATMAP_SAMPLE_MS
         value: "5000"
       - key: DIZYFLOW_HEATMAP_MAX_MEMORY_RECORDS
-        value: "20000"
+        value: "10000"
       - key: DIZYFLOW_HEATMAP_MAX_DISK_MB
         value: "64"
       - key: DIZYFLOW_ARCHIVE_SYMBOLS
         value: BTC_USDT
+      - key: DIZYFLOW_MAX_TAPES
+        value: "2"
+      - key: DIZYFLOW_HEATMAP_TOTAL_DISK_MB
+        value: "512"
+      - key: DIZYFLOW_MEMORY_WARN_MB
+        value: "300"
+      - key: DIZYFLOW_MEMORY_SHED_MB
+        value: "340"
+      - key: DIZYFLOW_MEMORY_HARD_MB
+        value: "380"
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=300
       - key: ALLOW_TEST_PLAINTEXT_PASSWORDS
         value: "false"
       - key: SESSION_SECRET
