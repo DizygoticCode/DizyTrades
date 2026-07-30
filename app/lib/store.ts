@@ -32,17 +32,10 @@ async function ensureDirectories() {
   await mkdir(join(root(), "audit"), { recursive: true });
 }
 
-const initialRecord = (userId: string): UserRecord => ({
+const initialRecord = (): UserRecord => ({
   version: 1,
   updatedAt: new Date(0).toISOString(),
-  settings: {
-    ...DEFAULT_TERMINAL_SETTINGS,
-    risk: {
-      ...DEFAULT_TERMINAL_SETTINGS.risk,
-      riskPct: userId === "friend" ? 0.5 : DEFAULT_TERMINAL_SETTINGS.risk.riskPct,
-      maxNotional: userId === "friend" ? 500 : DEFAULT_TERMINAL_SETTINGS.risk.maxNotional,
-    },
-  },
+  settings: structuredClone(DEFAULT_TERMINAL_SETTINGS),
   paperRuns: [],
 });
 
@@ -61,7 +54,7 @@ export async function readUserRecord(userId: string): Promise<UserRecord> {
         : [],
     };
   } catch {
-    return initialRecord(userId);
+    return initialRecord();
   }
 }
 
