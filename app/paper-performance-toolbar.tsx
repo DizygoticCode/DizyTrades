@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { LivePaperSnapshot } from "./lib/paper-performance";
 import { formatSignedMoney, tradeExitLabel } from "./lib/paper-performance";
+import type { SimulationStatus } from "./lib/paper-simulation";
 
 export const finiteNumber = (value: number, digits = 2) => Number.isFinite(value) ? value.toFixed(digits) : "—";
 const pct = (value: number) => Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${value.toFixed(2)}%` : "—";
 const tone = (value: number) => value > 0 ? "positive" : value < 0 ? "negative" : "neutral";
 
-export function PaperPerformanceToolbar({ snapshot, enabled, calculating }: { snapshot: LivePaperSnapshot; enabled: boolean; calculating: boolean }) {
+export function PaperPerformanceToolbar({ snapshot, enabled, status, error, onRetry }: { snapshot: LivePaperSnapshot | null; enabled: boolean; status: SimulationStatus; error: string | null; onRetry: () => void }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -20,12 +21,13 @@ export function PaperPerformanceToolbar({ snapshot, enabled, calculating }: { sn
     document.addEventListener("pointerdown", close);
     return () => { document.removeEventListener("keydown", close); document.removeEventListener("pointerdown", close); };
   }, [open]);
-  const trades = snapshot.closedTrades.slice(-30).reverse();
+  const trades = snapshot?.closedTrades.slice(-30).reverse() ?? [];
+  const initial = !snapshot && (status === "idle" || status === "calculating" || status === "updating");
   return <div className="paper-performance" ref={root}>
     <div aria-label="Paper simulation performance" className="paper-metrics">
       <span className={enabled ? "paper-badge" : "paper-badge off"}>{enabled ? "PAPER" : "SIM OFF"}</span>
       <span className="paper-label">Paper simulation</span>
-      {calculating ? <span className="calculating">Calculating…</span> : <>
+      {initial ? <span className="calculating">Calculating…</span> : snapshot ? <>
         <strong className={tone(snapshot.returnPct)}>{pct(snapshot.returnPct)}</strong>
         <span>Equity <b>{Number.isFinite(snapshot.endingEquity) ? `$${finiteNumber(snapshot.endingEquity)}` : "—"}</b></span>
         <span className={tone(snapshot.pnl)}>P/L <b>{formatSignedMoney(snapshot.pnl)}</b></span>
@@ -34,7 +36,10 @@ export function PaperPerformanceToolbar({ snapshot, enabled, calculating }: { sn
         <span className="paper-detail">DD <b>{Number.isFinite(snapshot.maxDrawdownPct) ? `${finiteNumber(snapshot.maxDrawdownPct, 1)}%` : "—"}</b></span>
         <span className="paper-detail">PF <b>{snapshot.profitFactor == null ? "—" : finiteNumber(snapshot.profitFactor)}</b></span>
         <span className="mtm-badge">{enabled && snapshot.liveMtm ? "LIVE MTM" : "CONFIRMED"}</span>
-      </>}
+      </> : null}
+      {snapshot && status === "updating" ? <span className="calculating">Updating…</span> : null}
+      {status === "insufficient-history" ? <span className="paper-status-error">Insufficient confirmed candle history.</span> : null}
+      {status === "error" ? <><span className="paper-status-error">{error || "Simulation failed."}</span><button className="paper-retry" onClick={onRetry} type="button">Retry</button></> : null}
       <button aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(value => !value)} type="button">History</button>
     </div>
     {open ? <div aria-label="Recent simulated trades" aria-modal="false" className="paper-history" role="dialog">

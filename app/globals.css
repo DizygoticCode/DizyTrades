@@ -1262,6 +1262,8 @@ button {
 .mtm-badge { color: #8cbcff; border-color: #315786; }
 .paper-label { color: #d9e1f0; font-weight: 700; }
 .paper-metrics button { margin-left: auto; min-width: 58px; height: 26px; border: 1px solid #293448; border-radius: 6px; color: #cad5e9; background: #111927; }
+.paper-metrics .paper-retry { margin-left: 0; min-width: auto; height: 23px; padding: 0 7px; color: #ffcf78; border-color: #765b2d; }
+.paper-status-error { color: #ff9ca8; }
 .calculating { color: #8cbcff; }
 .paper-history { position: absolute; z-index: 40; top: calc(100% + 6px); right: 14px; width: min(900px, calc(100vw - 28px)); max-height: min(480px, 70vh); overflow: hidden; border: 1px solid #303b51; border-radius: 10px; background: #0d1420; box-shadow: 0 18px 50px #000b; }
 .paper-history-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); }
