@@ -15,8 +15,8 @@ This repository is intentionally unable to place live exchange orders.
 
 ## Test features
 
-- authenticated Dizygotic and Friend workspaces
-- signed HTTP-only sessions and salted scrypt password hashes
+- isolated public, owner and admin workspaces
+- opaque revocable HTTP-only sessions and versioned salted scrypt password hashes
 - public MEXC BTC/USDT perpetual candle adapter with deterministic demo fallback
 - 5m, 15m, 1h and 4h charts
 - full-width labelled support/resistance and Fibonacci levels
@@ -141,3 +141,9 @@ fixed candle set for deterministic tests.
 DizyCharts uses the public Lightweight Charts API with visible attribution. The
 manual-tool implementation and interface are original; no TradingView proprietary
 runtime, source, assets, Pine scripts, or UI code are included.
+
+## Public test accounts
+
+Public registration is controlled by `PUBLIC_SIGNUP_ENABLED` and stores accounts and hashed, revocable sessions in `${DATA_DIR}/auth.sqlite` (on Render, `/var/data/dizytrades/auth.sqlite`). Accounts may use a username, an email, or both. Email verification and self-service password reset are intentionally unavailable in this test deployment.
+
+The existing Rob (`owner`) and Nick (`admin`, legacy ID `friend`) environment-variable accounts remain an emergency fallback while `LEGACY_AUTH_FALLBACK_ENABLED=true`, including if SQLite cannot be opened. Keep `SESSION_SECRET` and all password hashes configured as Render secrets. To roll back, deploy the prior release; the additive SQLite file may remain on disk and no existing per-user JSON data needs migration.

@@ -98,6 +98,7 @@ import {
   marketTimelineReducer,
 } from "./lib/market/timeline";
 import { ChartErrorBoundary } from "./chart-error-boundary";
+import { DizyDexBrowser } from "./dizydex-browser";
 import {
   resolveStrategySettings,
   strategyHistoryCapacity,
@@ -1280,8 +1281,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [strategy, setStrategy] = useState(DEFAULT_STRATEGY);
   const [risk, setRisk] = useState<RiskSettings>(() => ({
     ...DEFAULT_RISK,
-    riskPct: user.id === "friend" ? 0.5 : DEFAULT_RISK.riskPct,
-    maxNotional: user.id === "friend" ? 500 : DEFAULT_RISK.maxNotional,
+    riskPct: DEFAULT_RISK.riskPct,
+    maxNotional: DEFAULT_RISK.maxNotional,
   }));
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
@@ -1576,8 +1577,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     setStrategy(DEFAULT_STRATEGY);
     setRisk({
       ...DEFAULT_RISK,
-      riskPct: user.id === "friend" ? 0.5 : DEFAULT_RISK.riskPct,
-      maxNotional: user.id === "friend" ? 500 : DEFAULT_RISK.maxNotional,
+      riskPct: DEFAULT_RISK.riskPct,
+      maxNotional: DEFAULT_RISK.maxNotional,
     });
     setOrderFlowSettings(DEFAULT_ORDER_FLOW_SETTINGS);
     setSaveState("idle");
@@ -1649,6 +1650,9 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           >
             TradingView Explorer
           </button>
+          <a className="nav-tab school-terminal-link" href="/school" target="_blank" rel="noopener noreferrer" title="Open DizySchool in a new tab">
+            DizySchool <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span>
+          </a>
           <span
             className={`connection realtime-${demo ? "demo" : realtimeStatus}`}
           >
@@ -1736,6 +1740,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               </button>
               {selectorOpen ? (
                 <div className="market-menu">
+                  <DizyDexBrowser />
                   <input
                     autoFocus
                     aria-label="Search symbol, base or quote"

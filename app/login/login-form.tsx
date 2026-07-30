@@ -18,7 +18,7 @@ export default function LoginForm() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          email: data.get("email"),
+          identifier: data.get("identifier"),
           password: data.get("password"),
         }),
       });
@@ -58,8 +58,8 @@ export default function LoginForm() {
       <h1>Welcome to DizyTrades</h1>
       <p>Sign in to your isolated signal, paper-test and risk workspace.</p>
       <label>
-        <span>Email</span>
-        <input autoComplete="email" name="email" placeholder="you@example.com" required type="email" />
+        <span>Username or email</span>
+        <input autoComplete="username" name="identifier" required />
       </label>
       <label>
         <span>Password</span>
@@ -69,9 +69,11 @@ export default function LoginForm() {
       <button disabled={loading} type="submit">
         {loading ? "Signing in…" : "Open trading terminal"}
       </button>
+      <a className="signup-link" href="/signup">Create a public test account</a>
       <button className="viewer-login" disabled={loading} onClick={continueAsViewer} type="button">
         Continue as Viewer
       </button>
+      <a className="school-login-link" href="/school">Explore DizySchool — free learning centre</a>
       <div className="login-safety">
         <b>TEST MODE</b>
         <span>No exchange credentials or live-order route is enabled.</span>
