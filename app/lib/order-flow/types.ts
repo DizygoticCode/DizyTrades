@@ -12,6 +12,8 @@ export type BookView = { valid: boolean; version: number; bids: DepthLevel[]; as
 /** A depth transition in exchange coordinates. `price` never depends on a later display setting. */
 export type LiquidityObservation = { timestampMs:number; price:number; priceTick:number; capturedPriceStep:number; bidQuantity:number; askQuantity:number };
 export type CompactLiquidityChange = { timestampMs:number;priceTick:number;bidContracts:number;askContracts:number };
+export type LiquidityTileCell = { fromMs:number;toMs:number;price:number;bidQuantity:number;askQuantity:number };
+export type LiquidityTileResponse = { symbol:string;requestedFromMs:number;requestedToMs:number;capturedFromMs:number|null;capturedToMs:number|null;timeBucketMs:number;priceStep:number;cells:LiquidityTileCell[];endState:CompactLiquidityChange[];hasGaps:boolean };
 /** Raw public execution retained in source coordinates until render time. */
 export type RawTrade = { tradeId:string; timestampMs:number; price:number; quantity:number; notional:number; side:"buy"|"sell" };
 /** @deprecated compatibility alias for diagnostics written before the timeline renderer. */
