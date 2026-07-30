@@ -34,6 +34,8 @@ import {
 } from "./lib/strategy";
 import type { AuthUser } from "./lib/auth";
 import { simulateConfirmedSignals } from "./lib/backtest";
+import type { BacktestSummary } from "./lib/backtest";
+import { initialSimulationState, simulationFingerprint, simulationReducer } from "./lib/paper-simulation";
 import {
   DEFAULT_RISK,
   DEFAULT_STRATEGY,
@@ -107,6 +109,8 @@ import {
   strategyModeLabel,
   type StrategyMode,
 } from "./lib/strategy-presets";
+
+const EMPTY_BACKTEST: BacktestSummary = { initialEquity: 1000, endingEquity: 1000, returnPct: 0, maxDrawdownPct: 0, trades: 0, wins: 0, winRatePct: 0, profitFactor: null, closedTrades: [] };
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -1257,15 +1261,14 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   );
   const marketRequest = useRef(0);
   const marketAbort = useRef<AbortController | null>(null);
-  const hasCandles = useRef(closedCandles.length > 0);
-  useEffect(() => {
-    hasCandles.current = closedCandles.length > 0;
-  }, [closedCandles.length]);
   const chartControls = useRef<ChartControls>(null);
   const timeframeStrip = useRef<HTMLDivElement>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [backgroundSyncing, setBackgroundSyncing] = useState(false);
   const [resultMarketKey, setResultMarketKey] = useState("");
+  const [simulation, dispatchSimulation] = useReducer(simulationReducer, initialSimulationState);
+  const simulationRequest = useRef(0);
+  const [simulationRetry, setSimulationRetry] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<
     "visuals" | "strategy" | "risk" | "dizyflow"
@@ -1302,10 +1305,35 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     () => strategyHistoryCapacity(strategy),
     [strategy],
   );
-  const backtest = useMemo(
-    () => simulateConfirmedSignals(closedCandles, analysis, risk),
-    [analysis, closedCandles, risk],
-  );
+  const simulationInput = useMemo(() => {
+    if (timeline.marketKey !== marketKey || resultMarketKey !== marketKey) return null;
+    return simulationFingerprint({ marketKey: selectedMarketKey, timeframe, strategy, risk, candles: closedCandles });
+  }, [timeline.marketKey, marketKey, resultMarketKey, selectedMarketKey, timeframe, strategy, risk, closedCandles]);
+  useEffect(() => {
+    if (!simulationInput) {
+      dispatchSimulation({ type: "awaiting-input" });
+      return;
+    }
+    const requestId = ++simulationRequest.current;
+    dispatchSimulation({ type: "start", requestId, fingerprint: simulationInput });
+    if (closedCandles.length < 40) {
+      dispatchSimulation({ type: "insufficient", requestId });
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      try {
+        const result = simulateConfirmedSignals(closedCandles, analysis, risk);
+        dispatchSimulation({ type: "success", requestId, fingerprint: simulationInput, result });
+      } catch (error) {
+        dispatchSimulation({ type: "failure", requestId, message: error instanceof Error ? error.message : "Simulation failed." });
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // The fingerprint represents these values. Object identity changes with the same
+    // confirmed inputs must not restart a historical simulation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simulationInput, simulationRetry]);
+  const backtest: BacktestSummary = simulation.result ?? EMPTY_BACKTEST;
   const parityReport=useMemo(()=>buildPineParityReport({candles:closedCandles,analysis,datasetSource:dataSource,symbol,timeframe,backtest,compatibilityMode:strategyModeLabel(strategy.mode)}),[closedCandles,analysis,dataSource,symbol,timeframe,backtest,strategy.mode]);
   const [paperMark, setPaperMark] = useState<number | null>(null);
   useEffect(() => {
@@ -1350,9 +1378,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       marketAbort.current?.abort();
       const controller = new AbortController();
       marketAbort.current = controller;
-      const blocking =
-        (reason === "initial" || reason === "market-change") &&
-        !hasCandles.current;
+      const blocking = reason === "initial" || reason === "market-change";
       if (blocking) setInitialLoading(true);
       else setBackgroundSyncing(true);
       if (blocking) setFeedError("");
@@ -1396,10 +1422,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
         if (error instanceof DOMException && error.name === "AbortError")
           return;
         if (requestId !== marketRequest.current) return;
-        if (blocking) {
-          setFeedError("MEXC candle data is currently unavailable.");
-          setDataSource("MEXC UNAVAILABLE");
-        }
+        setFeedError(error instanceof Error && error.message === "Insufficient candle history" ? "Insufficient confirmed candle history." : "MEXC candle data is currently unavailable.");
+        if (blocking) setDataSource("MEXC UNAVAILABLE");
       } finally {
         if (requestId === marketRequest.current) {
           setInitialLoading(false);
@@ -1863,9 +1887,14 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           <DizyFlowAlertHistory alerts={orderFlow.summary.alerts} open={flowHistoryOpen} onClose={()=>setFlowHistoryOpen(false)} onClear={orderFlow.clear}/>
           {view.showSimulationPerformance ? (
             <PaperPerformanceToolbar
-              calculating={resultMarketKey !== `${symbol}:${timeframe}`}
               enabled={executionMode === "Paper"}
-              snapshot={paperSnapshot}
+              error={resultMarketKey !== marketKey ? feedError : null}
+              onRetry={() => {
+                if (resultMarketKey !== marketKey) void loadMarketData({ reason: "reconnect", resetView: false });
+                else setSimulationRetry(value => value + 1);
+              }}
+              snapshot={simulation.result ? paperSnapshot : null}
+              status={resultMarketKey !== marketKey && feedError === "Insufficient confirmed candle history." ? "insufficient-history" : resultMarketKey !== marketKey && feedError ? "error" : simulation.status}
             />
           ) : null}
 
