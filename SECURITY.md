@@ -12,8 +12,8 @@ This repository contains a test terminal, not a live exchange executor.
 
 - Never commit passwords, session secrets, API keys or `.env` files.
 - Render credentials are supplied only through secret environment variables.
-- Passwords are stored as salted scrypt hashes.
-- Sessions use signed, HTTP-only, same-site cookies with a 12-hour lifetime.
+- Passwords are stored as versioned, salted scrypt hashes.
+- Account sessions are opaque and revocable; viewer and legacy compatibility sessions remain signed. Cookies are HTTP-only, same-site and expire after at most 12 hours.
 - Per-user settings and paper snapshots are written under `DATA_DIR`.
 - The health endpoint always reports `liveTradingEnabled: false`.
 - The repository contains no MEXC private API client and no order route.
@@ -46,3 +46,9 @@ text or drawing content.
 Workspace versions prevent confirmed stale-tab overwrites with HTTP 409. Chart
 indicators remain display-only and cannot enter strategy, confluence, backtest,
 risk, paper-trading, or live-execution paths.
+
+## Account authentication
+
+Public accounts use asynchronously derived, explicitly versioned scrypt password hashes. Login sessions use random opaque tokens whose SHA-256 digests are stored in SQLite; raw tokens and passwords must never be logged. Authentication requests are origin checked and rate limited by IP and normalized identifier. The SQLite database contains authentication data only—never exchange credentials—and public users always receive the `user` role.
+
+Rob and Nick retain environment-backed emergency access behind `LEGACY_AUTH_FALLBACK_ENABLED`. Their stable IDs (`rob` and `friend`) preserve access to existing isolated settings and paper history. `LIVE_TRADING_ENABLED` must remain `false`.

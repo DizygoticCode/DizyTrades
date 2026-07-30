@@ -23,6 +23,10 @@ services:
         value: /var/data/dizytrades
       - key: LIVE_TRADING_ENABLED
         value: "false"
+      - key: PUBLIC_SIGNUP_ENABLED
+        value: "true"
+      - key: LEGACY_AUTH_FALLBACK_ENABLED
+        value: "true"
       - key: DIZYFLOW_LOW_MEMORY_MODE
         value: "true"
       - key: DIZYFLOW_DEPTH_TRANSPORT
@@ -78,7 +82,7 @@ services:
       - key: ROB_PASSWORD
         sync: false
       - key: FRIEND_NAME
-        value: Friend
+        value: Nick
       - key: FRIEND_EMAIL
         sync: false
       - key: FRIEND_PASSWORD_HASH

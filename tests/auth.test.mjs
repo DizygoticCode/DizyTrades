@@ -39,7 +39,7 @@ test.after(() => {
   }
 });
 
-test("allows an explicitly enabled test plaintext password and strips secrets", () => {
+test("allows an explicitly enabled test plaintext password and strips secrets", async () => {
   process.env.ALLOW_TEST_PLAINTEXT_PASSWORDS = "true";
   process.env.LIVE_TRADING_ENABLED = "false";
   process.env.ROB_EMAIL = "owner@example.test";
@@ -47,7 +47,7 @@ test("allows an explicitly enabled test plaintext password and strips secrets", 
   process.env.ROB_PASSWORD_HASH = passwordHash("different-hashed-password");
 
   assert.equal(authIsConfigured(), true);
-  const user = authenticateUser(
+  const user = await authenticateUser(
     "OWNER@example.test",
     "unique-throwaway-owner-password",
   );
@@ -59,10 +59,10 @@ test("allows an explicitly enabled test plaintext password and strips secrets", 
   });
   assert.equal(Object.hasOwn(user, "passwordHash"), false);
   assert.equal(Object.hasOwn(user, "plaintextPassword"), false);
-  assert.equal(authenticateUser("owner@example.test", "different-hashed-password"), null);
+  assert.equal(await authenticateUser("owner@example.test", "different-hashed-password"), null);
 });
 
-test("blocks plaintext mode during live trading", () => {
+test("blocks plaintext mode during live trading", async () => {
   process.env.ALLOW_TEST_PLAINTEXT_PASSWORDS = "true";
   process.env.LIVE_TRADING_ENABLED = "true";
   process.env.ROB_EMAIL = "owner@example.test";
@@ -70,12 +70,12 @@ test("blocks plaintext mode during live trading", () => {
 
   assert.equal(authIsConfigured(), false);
   assert.equal(
-    authenticateUser("owner@example.test", "unique-throwaway-owner-password"),
+    await authenticateUser("owner@example.test", "unique-throwaway-owner-password"),
     null,
   );
 });
 
-test("uses scrypt hashes when plaintext mode is disabled", () => {
+test("uses scrypt hashes when plaintext mode is disabled", async () => {
   process.env.ALLOW_TEST_PLAINTEXT_PASSWORDS = "false";
   process.env.FRIEND_EMAIL = "friend@example.test";
   process.env.FRIEND_PASSWORD = "unused-throwaway-password";
@@ -83,11 +83,11 @@ test("uses scrypt hashes when plaintext mode is disabled", () => {
 
   assert.equal(authIsConfigured(), true);
   assert.equal(
-    authenticateUser("friend@example.test", "hashed-friend-password")?.id,
+    (await authenticateUser("friend@example.test", "hashed-friend-password"))?.id,
     "friend",
   );
   assert.equal(
-    authenticateUser("friend@example.test", "unused-throwaway-password"),
+    await authenticateUser("friend@example.test", "unused-throwaway-password"),
     null,
   );
 });
