@@ -86,7 +86,7 @@ export type UserTerminalSettings = {
   view: ViewSettings;
   strategy: StrategySettings;
   risk: RiskSettings;
-  market: { exchange: "mexc"; symbol: string; timeframe: string; favourites: string[] };
+  market: { exchange: "mexc"; symbol: string; marketKey?: string; timeframe: string; favourites: string[] };
   orderFlow: OrderFlowSettings;
 };
 
@@ -229,6 +229,7 @@ export function sanitiseTerminalSettings(
     : {};
   const marketInput = object.market && typeof object.market === "object" ? object.market as Record<string, unknown> : {};
   const validSymbol = (value: unknown) => /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/.test(String(value));
+  const validMarketKey = (value: unknown) => /^mexc:(spot|futures):[A-Z0-9_]{2,60}$/.test(String(value));
   const validTimeframes = ["1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "1w", "1M"];
   const labelSize = ["Small", "Medium", "Large"].includes(
     String(viewInput.labelSize),
@@ -347,8 +348,9 @@ export function sanitiseTerminalSettings(
     market: {
       exchange: "mexc",
       symbol: validSymbol(marketInput.symbol) ? String(marketInput.symbol) : "BTC_USDT",
+      ...(validMarketKey(marketInput.marketKey) ? { marketKey: String(marketInput.marketKey) } : {}),
       timeframe: validTimeframes.includes(String(marketInput.timeframe)) ? String(marketInput.timeframe) : "15m",
-      favourites: Array.isArray(marketInput.favourites) ? [...new Set(marketInput.favourites.filter(validSymbol).map(String))].slice(0, 50) : [],
+      favourites: Array.isArray(marketInput.favourites) ? [...new Set(marketInput.favourites.filter((value) => validSymbol(value) || validMarketKey(value)).map(String))].slice(0, 100) : [],
     },
   };
 }

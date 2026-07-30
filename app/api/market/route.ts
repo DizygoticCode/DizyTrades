@@ -10,6 +10,7 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const exchange = params.get("exchange") ?? "mexc";
   const symbol = params.get("symbol") ?? "BTC_USDT";
+  const marketType = params.get("marketType") === "spot" ? "spot" : "futures";
   const timeframe = params.get("timeframe") ?? "15m";
   const limitRaw = params.get("limit") ?? "800";
   const endRaw = params.get("end");
@@ -20,9 +21,9 @@ export async function GET(request: Request) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 2000) return NextResponse.json({ error: "Limit must be between 1 and 2,000." }, { status: 400 });
   if (end !== undefined && (!Number.isInteger(end) || end < 1 || end > Math.floor(Date.now() / 1000))) return NextResponse.json({ error: "Invalid end cursor." }, { status: 400 });
   try {
-    const allowed = (await getMexcMarkets(AbortSignal.timeout(5_500))).some((market) => market.symbol === symbol);
-    if (!allowed) return NextResponse.json({ error: "Unknown or unavailable symbol." }, { status: 400 });
-    const result = await getMarketProvider("mexc").getCandles({ exchange: "mexc", symbol, timeframe, limit, end }, AbortSignal.timeout(6_500));
+    const instrument = (await getMexcMarkets(AbortSignal.timeout(5_500))).find((market) => market.sourceSymbol === symbol && market.marketType === marketType);
+    if (!instrument) return NextResponse.json({ error: "Unknown or unavailable market." }, { status: 400 });
+    const result = await getMarketProvider("mexc").getCandles({ exchange: "mexc", instrument, timeframe, limit, end }, AbortSignal.timeout(6_500));
     return NextResponse.json(result);
   } catch {
     return NextResponse.json({ source: "unavailable", exchange: "mexc", symbol, timeframe, candles: [], receivedAt: Date.now(), error: "MEXC public candle feed is unavailable." }, { status: 503 });

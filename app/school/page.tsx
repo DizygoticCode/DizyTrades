@@ -1,3 +1,5 @@
-import PublicRoute from "../marketing/public-route";
-export const metadata = { title: "DizySchool | DizyTrades", description: "Approachable trading and DizyTrades lessons." };
-export default function SchoolPage() { return <PublicRoute eyebrow="DIZYSCHOOL" title="Learn the market. Then learn the workspace." copy="Approachable lessons cover trading foundations, chart structure, confirmed-candle analysis, order flow, on-chain discovery and every DizyTrades feature."><div className="topic-list"><span>Market foundations</span><span>DizyCharts</span><span>DizySignals</span><span>Risk & simulation</span></div></PublicRoute>; }
+import type { Metadata } from "next";
+import SchoolClient from "./school-client";
+
+export const metadata: Metadata = { title: "DizySchool — Learn trading concepts safely", description: "A free learning centre for DizyCharts, DizySignals, market structure, risk and paper simulation." };
+export default function SchoolPage() { return <SchoolClient/>; }

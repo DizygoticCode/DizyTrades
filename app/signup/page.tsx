@@ -1,3 +1,9 @@
-import PublicRoute from "../marketing/public-route";
-export const metadata = { title: "Create Account | DizyTrades", description: "Create your DizyTrades test workspace." };
-export default function SignupPage() { return <PublicRoute eyebrow="PRIVATE TEST ACCESS" title="Create your DizyTrades workspace." copy="Public self-service registration is being prepared for this private test. Until it opens, you can explore every public area in read-only mode without sharing personal information."><div className="status-pill"><i/> Account creation · opening soon</div></PublicRoute>; }
+import { redirect } from "next/navigation";
+import { currentUser } from "../lib/auth";
+import SignupForm from "./signup-form";
+
+export const dynamic = "force-dynamic";
+export default async function SignupPage() {
+  if (await currentUser()) redirect("/");
+  return <main className="login-shell"><SignupForm enabled={process.env.PUBLIC_SIGNUP_ENABLED !== "false"} /></main>;
+}
