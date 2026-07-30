@@ -16,7 +16,9 @@ test("landing calls to action target the public route map", async () => {
 test("login enters the protected terminal and logout stays on the public origin", async () => {
   assert.match(await source("app/login/login-form.tsx"), /router\.replace\("\/terminal"\)/);
   const logout = await source("app/api/auth/logout/route.ts");
-  assert.match(logout, /Location: "\/login"/);
+  assert.match(logout, /NextResponse\.redirect\(\s*new URL\(\s*["']\/login["'],\s*request\.url\s*\),\s*303\s*\)/);
+  assert.match(logout, /response\.cookies\.set\(\s*SESSION_COOKIE,\s*["']{2},\s*\{[^}]*maxAge:\s*0[^}]*\}\s*\)/s);
+  assert.match(await source("app/lib/auth.ts"), /SESSION_COOKIE\s*=\s*["']dizytrades_session["']/);
   assert.doesNotMatch(logout, /0\.0\.0\.0|https?:\/\//);
 });
 test("developer links are safely isolated external links", async () => {
