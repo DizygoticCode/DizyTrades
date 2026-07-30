@@ -1031,6 +1031,10 @@ button {
   font-size: 9px;
 }
 
+.signup-link { color: #a99bff; text-align: center; font-size: 13px; }
+.signup-honeypot { position: absolute !important; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.login-card .recovery-notice { color: #9299aa; font-size: 12px; line-height: 1.45; margin: 0; }
+
 .config-warning {
   position: fixed;
   right: 20px;

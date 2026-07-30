@@ -9,7 +9,7 @@ export default async function LoginPage() {
   return (
     <main className="login-shell">
       <LoginForm />
-      {!authIsConfigured() ? (
+      {process.env.PUBLIC_SIGNUP_ENABLED === "false" && !authIsConfigured() ? (
         <p className="config-warning">
           Test users are not configured. Add the required secret environment variables on Render.
         </p>
