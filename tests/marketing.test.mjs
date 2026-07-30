@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { SCHOOL_DISPLAY_NAME } from "../app/lib/branding.ts";
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 test("all intended public and protected routes exist", async () => {
   const routes = ["app/page.tsx", "app/explore/page.tsx", "app/login/page.tsx", "app/signup/page.tsx", "app/school/page.tsx", "app/dex/page.tsx", "app/terminal/page.tsx"];
@@ -11,7 +12,10 @@ test("all intended public and protected routes exist", async () => {
 test("landing calls to action target the public route map", async () => {
   const page = await source("app/marketing/marketing-page.tsx");
   for (const target of ["/explore", "/signup", "/login", "/school", "/dex"]) assert.match(page, new RegExp(`href=\\"${target}\\"`));
-  for (const product of ["DizyCharts", "DizySignals", "DizyFlow", "DizyDEX", "DizySchool", "DizyPaper", "DizyTrade"]) assert.match(page, new RegExp(product));
+  for (const product of ["DizyCharts", "DizySignals", "DizyFlow", "DizyDEX", "DizyPaper", "DizyTrade"]) assert.match(page, new RegExp(product));
+  assert.equal(SCHOOL_DISPLAY_NAME, "Dizy Learing Center");
+  assert.match(page, /SCHOOL_DISPLAY_NAME/);
+  assert.match(page, /href="\/school"/);
 });
 test("login enters the protected terminal and logout stays on the public origin", async () => {
   assert.match(await source("app/login/login-form.tsx"), /router\.replace\("\/terminal"\)/);

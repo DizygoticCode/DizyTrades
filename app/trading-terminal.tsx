@@ -1,5 +1,7 @@
 "use client";
 
+import { SCHOOL_DISPLAY_NAME } from "@/app/lib/branding";
+
 import {
   CandlestickSeries,
   ColorType,
@@ -1645,8 +1647,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           >
             TradingView Explorer
           </button>
-          <a className="nav-tab school-terminal-link" href="/school" target="_blank" rel="noopener noreferrer" title="Open DizySchool in a new tab">
-            DizySchool <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span>
+          <a className="nav-tab school-terminal-link" href="/school" target="_blank" rel="noopener noreferrer" title={`Open ${SCHOOL_DISPLAY_NAME} in a new tab`}>
+            {SCHOOL_DISPLAY_NAME} <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span>
           </a>
           <span
             className={`connection realtime-${demo ? "demo" : realtimeStatus}`}

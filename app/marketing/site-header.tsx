@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { SCHOOL_DISPLAY_NAME } from "@/app/lib/branding";
 
 export function Brand() {
   return <Link className="site-brand" href="/" aria-label="DizyTrades home"><span className="brand-mark" aria-hidden="true"><span /><span /><span /></span><span><b>DizyTrades</b><small>Everything Dizy™</small></span></Link>;
@@ -10,7 +11,7 @@ export function Brand() {
 export default function SiteHeader() {
   const [open, setOpen] = useState(false);
   return <header className="site-header"><Brand /><button className="nav-toggle" type="button" aria-expanded={open} aria-controls="site-navigation" onClick={() => setOpen(!open)}><span className="sr-only">Toggle navigation</span><i /><i /><i /></button><nav id="site-navigation" className={open ? "site-nav open" : "site-nav"} aria-label="Main navigation">
-    <Link href="/explore" onClick={() => setOpen(false)}>Explore</Link><Link href="/school" onClick={() => setOpen(false)}>DizySchool</Link><Link href="/dex" onClick={() => setOpen(false)}>DizyDEX</Link><a href="https://github.com/DizygoticCode/DizyTrades" target="_blank" rel="noopener noreferrer"><GitHubIcon /> Developers</a><Link className="nav-signin" href="/login" onClick={() => setOpen(false)}>Sign In</Link><Link className="nav-primary" href="/signup" onClick={() => setOpen(false)}>Create Account</Link>
+    <Link href="/explore" onClick={() => setOpen(false)}>Explore</Link><Link href="/school" onClick={() => setOpen(false)}>{SCHOOL_DISPLAY_NAME}</Link><Link href="/dex" onClick={() => setOpen(false)}>DizyDEX</Link><a href="https://github.com/DizygoticCode/DizyTrades" target="_blank" rel="noopener noreferrer"><GitHubIcon /> Developers</a><Link className="nav-signin" href="/login" onClick={() => setOpen(false)}>Sign In</Link><Link className="nav-primary" href="/signup" onClick={() => setOpen(false)}>Create Account</Link>
   </nav></header>;
 }
 

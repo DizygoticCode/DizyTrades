@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { SCHOOL_DISPLAY_NAME } from "@/app/lib/branding";
 import ConceptDiagram from "./concept-diagram";
 import { filterLessons, glossary, lessonGroups, lessons, readProgress, writeProgress } from "./lessons";
 
@@ -24,7 +25,7 @@ export default function SchoolClient() {
   const choose = (slug: string) => { setSelected(slug); setMenuOpen(false); document.querySelector("#lesson")?.scrollIntoView({ behavior: "smooth" }); };
   return <main className="school-shell">
     <header className="school-header">
-      <Link className="school-brand" href="/login"><span className="brand-mark" aria-hidden="true"><i/><i/><i/></span><span><b>DizySchool</b><small>by DizyTrades</small></span></Link>
+      <Link className="school-brand" href="/login"><span className="brand-mark" aria-hidden="true"><i/><i/><i/></span><span><b>{SCHOOL_DISPLAY_NAME}</b><small>Quality education. Questionable spelling.</small></span></Link>
       <nav aria-label="DizyTrades links"><Link href="/login">Public site</Link><Link href="/login#view-only">View-only chart</Link><Link className="primary-link" href="/">Open terminal</Link></nav>
     </header>
     <div className="school-notice" role="note"><b>Learn safely.</b> Educational content only—not financial advice. Markets can cause total loss. Live trading remains disabled.</div>
@@ -36,8 +37,8 @@ export default function SchoolClient() {
         {lessonGroups.map((group) => <section className="course-group" key={group}><h2>{group}</h2><ol>{visible.filter((item) => item.group === group).map((item) => <li key={item.slug}><button className={item.slug === lesson.slug ? "active" : ""} aria-current={item.slug === lesson.slug ? "page" : undefined} onClick={() => choose(item.slug)}><span className={completed.includes(item.slug) ? "lesson-check done" : "lesson-check"} aria-hidden="true">{completed.includes(item.slug) ? "✓" : lessons.indexOf(item) + 1}</span><span>{item.title}</span></button></li>)}</ol></section>)}
         {visible.length === 0 ? <p className="no-results">No lessons match “{query}”.</p> : null}
       </aside>
-      <article className="lesson" id="lesson" tabIndex={-1}>
-        <div className="lesson-kicker"><span>{lesson.group}</span><span>Lesson {index + 1} of {lessons.length}</span></div><h1>{lesson.title}</h1><p className="lesson-lead">{lesson.summary}</p>
+      <article className="lesson" id="lesson" tabIndex={-1} aria-label={`${SCHOOL_DISPLAY_NAME} lesson: ${lesson.title}`}>
+        <div className="lesson-kicker"><span>{SCHOOL_DISPLAY_NAME} · {lesson.group}</span><span>Lesson {index + 1} of {lessons.length}</span></div><h1>{lesson.title}</h1><p className="lesson-lead">{lesson.summary}</p>
         {lesson.diagram ? <ConceptDiagram type={lesson.diagram}/> : null}
         {lesson.sections.map((section) => <section key={section.heading}><h2>{section.heading}</h2>{section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}{section.bullets ? <ul>{section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul> : null}</section>)}
         {lesson.chartQuery ? <Link className="try-link" href={`/?school=${lesson.chartQuery}`} target="_blank" rel="noopener noreferrer"><span>↗</span><span><b>Try this in DizyCharts</b><small>Opens the terminal in a new tab</small></span></Link> : null}
@@ -46,6 +47,6 @@ export default function SchoolClient() {
         <section className="glossary" id="glossary"><div><span className="eyebrow">Reference</span><h2>Searchable glossary</h2></div><label><span className="sr-only">Search glossary</span><input type="search" placeholder="Search terms…" value={glossaryQuery} onChange={(event) => setGlossaryQuery(event.target.value)}/></label><dl>{glossaryItems.map(([term, definition]) => <div key={term}><dt>{term}</dt><dd>{definition}</dd></div>)}</dl></section>
       </article>
     </div>
-    <footer className="school-footer"><b>DizySchool</b><span>Education, confirmed-candle discipline and simulation—not financial advice.</span><Link href="/login">Back to DizyTrades</Link></footer>
+    <footer className="school-footer"><b>{SCHOOL_DISPLAY_NAME}</b><span>Education, confirmed-candle discipline and simulation—not financial advice.</span><Link href="/login">Back to DizyTrades</Link></footer>
   </main>;
 }
