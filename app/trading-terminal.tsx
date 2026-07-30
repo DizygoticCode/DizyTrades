@@ -1761,7 +1761,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                 </span>
               </button>
               {selectorOpen ? (
-                <MarketBrowser markets={markets} selectedMarketKey={selectedMarketKey} favourites={favourites} onFavourite={(key)=>setFavourites(items=>items.includes(key)?items.filter(item=>item!==key):[...items,key])} onClose={()=>{setSelectorOpen(false);requestAnimationFrame(()=>marketTrigger.current?.focus())}} onSelect={(market)=>{
+                <MarketBrowser anchorRef={marketTrigger} markets={markets} selectedMarketKey={selectedMarketKey} favourites={favourites} onFavourite={(key)=>setFavourites(items=>items.includes(key)?items.filter(item=>item!==key):[...items,key])} onClose={()=>{setSelectorOpen(false);requestAnimationFrame(()=>marketTrigger.current?.focus())}} onSelect={(market)=>{
                             setSymbol(market.sourceSymbol);
                             setSelectedMarketKey(market.key);
                             setSettingsOpen(false);
