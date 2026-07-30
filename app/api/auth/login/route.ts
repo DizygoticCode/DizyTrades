@@ -45,7 +45,7 @@ export async function POST(request: Request) {
         : now + 15 * 60 * 1000,
     });
     return NextResponse.json(
-      { error: "Email or password was not recognised." },
+      { error: "Username, email or password was not recognised." },
       { status: 401 },
     );
   }

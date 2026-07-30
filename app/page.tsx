@@ -1,9 +1,16 @@
-import { requireUser } from "./lib/auth";
-import TradingTerminal from "./trading-terminal";
+import type { Metadata } from "next";
+import MarketingPage from "./marketing/marketing-page";
 
-export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Everything Dizy™ | DizyTrades",
+  description: "Chart, analyse, follow, learn and test crypto markets in one simulation-first workspace.",
+  openGraph: {
+    title: "Everything Dizy™ | DizyTrades",
+    description: "One crypto workspace for centralised markets, on-chain discovery, confirmed-candle signals, order flow, education and paper trading.",
+    type: "website",
+  },
+};
 
-export default async function Home() {
-  const user = await requireUser();
-  return <TradingTerminal user={user} />;
+export default function Home() {
+  return <MarketingPage />;
 }

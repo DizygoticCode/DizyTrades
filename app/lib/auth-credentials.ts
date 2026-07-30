@@ -84,11 +84,13 @@ export function withoutSecrets(user: ConfiguredUser): AuthUser {
 }
 
 export function authenticateUser(
-  email: string,
+  identifier: string,
   password: string,
 ): AuthUser | null {
   const user = configuredUsers().find(
-    (candidate) => candidate.email === cleanEmail(email),
+    (candidate) =>
+      candidate.email === cleanEmail(identifier) ||
+      candidate.name.toLowerCase() === identifier.trim().toLowerCase(),
   );
   if (!user) return null;
   const usePlaintextPassword =

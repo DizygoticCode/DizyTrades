@@ -1,0 +1,8 @@
+import Link from "next/link";
+import TerminalPreview from "../marketing/terminal-preview";
+
+export const metadata = { title: "View-Only Terminal | DizyTrades", description: "Explore the DizyTrades workspace without an account." };
+
+export default function ExplorePage() {
+  return <main className="explore-public"><header><Link className="site-brand" href="/" aria-label="DizyTrades home"><span className="brand-mark" aria-hidden="true"><span/><span/><span/></span><span><b>DizyTrades</b><small>View-only terminal</small></span></Link><div><span className="viewer-badge">VIEW ONLY</span><Link href="/login">Sign In</Link><Link className="button primary" href="/signup">Create Account</Link></div></header><section className="explore-stage"><div className="explore-notice"><span><i/> Public preview</span><p>This read-only workspace uses an illustrative market state. It does not load a user profile, write settings or execute paper orders.</p></div><TerminalPreview/><div className="explore-panels"><article><span>DizySignals</span><b>Confirmed-candle context</b><p>Signals wait for candle close. Any simulated entry is modelled on the following bar.</p></article><article><span>DizyPaper</span><b>Order entry locked</b><p>Sign in to use isolated simulation tools. Live trading remains disabled.</p></article><article><span>DizyFlow</span><b>Public preview</b><p>Depth, liquidity and market-activity modules are demonstrated without a background feed.</p></article></div></section><footer><span>Illustrative data · Simulation only</span><Link href="/">Return to Everything Dizy™</Link><span>Live execution locked</span></footer></main>;
+}

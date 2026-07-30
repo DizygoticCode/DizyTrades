@@ -18,13 +18,13 @@ export default function LoginForm() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          email: data.get("email"),
+          email: data.get("identifier"),
           password: data.get("password"),
         }),
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error || "Sign-in failed.");
-      router.replace("/");
+      router.replace("/terminal");
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Sign-in failed.");
@@ -39,7 +39,7 @@ export default function LoginForm() {
     try {
       const response = await fetch("/api/auth/viewer", { method: "POST" });
       if (!response.ok) throw new Error("Viewer session unavailable.");
-      router.replace("/");
+      router.replace("/explore");
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Viewer session unavailable.");
@@ -58,8 +58,8 @@ export default function LoginForm() {
       <h1>Welcome to DizyTrades</h1>
       <p>Sign in to your isolated signal, paper-test and risk workspace.</p>
       <label>
-        <span>Email</span>
-        <input autoComplete="email" name="email" placeholder="you@example.com" required type="email" />
+        <span>Username or email</span>
+        <input autoComplete="username" name="identifier" placeholder="you@example.com" required type="text" />
       </label>
       <label>
         <span>Password</span>
