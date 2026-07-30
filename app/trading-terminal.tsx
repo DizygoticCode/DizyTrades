@@ -97,6 +97,7 @@ import {
   marketTimelineReducer,
 } from "./lib/market/timeline";
 import { ChartErrorBoundary } from "./chart-error-boundary";
+import { DizyDexBrowser } from "./dizydex-browser";
 import {
   resolveStrategySettings,
   strategyHistoryCapacity,
@@ -1726,6 +1727,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               </button>
               {selectorOpen ? (
                 <div className="market-menu">
+                  <DizyDexBrowser />
                   <input
                     autoFocus
                     aria-label="Search symbol, base or quote"

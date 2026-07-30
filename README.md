@@ -141,3 +141,18 @@ fixed candle set for deterministic tests.
 DizyCharts uses the public Lightweight Charts API with visible attribution. The
 manual-tool implementation and interface are original; no TradingView proprietary
 runtime, source, assets, Pine scripts, or UI code are included.
+# DizyDEX provider notes
+
+DizyDEX is a simulation-only, high-risk on-chain discovery slice. It uses the
+documented DEX Screener search API (documented 300 requests/minute for pair
+search) and GeckoTerminal public API (documented public-beta limit of 30
+requests/minute) for paged pool discovery and pool OHLCV. Discovery responses
+are held in a bounded 80-entry, 30-second server cache; no global token or trade
+stream is retained. Provider base URLs and the optional
+`GECKOTERMINAL_API_KEY` stay server-side. Provider security fields are not
+treated as successful checks when absent. Pump graduation and security badges
+are intentionally omitted until a documented provider supplies reliable data.
+
+Limitations: provider taxonomy can lag migrations, OHLCV availability varies by
+pool, exact contract search depends on provider indexing, and this slice never
+connects a wallet, submits swaps/orders, or enables live trading.
