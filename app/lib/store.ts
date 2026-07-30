@@ -109,7 +109,7 @@ export async function savePaperRun(
       {
         id: randomUUID(),
         createdAt: new Date().toISOString(),
-        symbol: input.symbol.slice(0, 30),
+        symbol: input.symbol.slice(0, 80),
         timeframe: input.timeframe.slice(0, 10),
         summary,
       },
