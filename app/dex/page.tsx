@@ -1,0 +1,3 @@
+import PublicRoute from "../marketing/public-route";
+export const metadata = { title: "DizyDEX | DizyTrades", description: "On-chain discovery for Solana, BNB Chain and more." };
+export default function DexPage() { return <PublicRoute eyebrow="DIZYDEX" title="On-chain discovery, connected to your research flow." copy="Discover and analyse pools across Solana, BNB Chain and other networks. DizyDEX brings chain, pair and liquidity context into the Everything Dizy™ workspace."><div className="topic-list"><span>Solana</span><span>BNB Chain</span><span>Pool discovery</span><span>Liquidity context</span></div></PublicRoute>; }

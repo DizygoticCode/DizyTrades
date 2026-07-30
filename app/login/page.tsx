@@ -5,7 +5,7 @@ import LoginForm from "./login-form";
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
-  if (await currentUser()) redirect("/");
+  if (await currentUser()) redirect("/terminal");
   return (
     <main className="login-shell">
       <LoginForm />

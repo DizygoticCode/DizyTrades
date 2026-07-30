@@ -24,7 +24,7 @@ export default function LoginForm() {
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error || "Sign-in failed.");
-      router.replace("/");
+      router.replace("/terminal");
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Sign-in failed.");
@@ -39,7 +39,7 @@ export default function LoginForm() {
     try {
       const response = await fetch("/api/auth/viewer", { method: "POST" });
       if (!response.ok) throw new Error("Viewer session unavailable.");
-      router.replace("/");
+      router.replace("/explore");
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Viewer session unavailable.");
