@@ -8,7 +8,7 @@ export type DexMarket = {
   marketCap?: number; fdv?: number; changes: Partial<Record<"m5"|"h1"|"h6"|"h24", number>>;
   buys24h?: number; sells24h?: number; labels: string[];
 };
-export type DexPage = { markets: DexMarket[]; nextCursor?: string; provider: string; degraded?: string };
+export type DexPage = { markets: DexMarket[]; nextCursor?: string; provider: string; degraded?: string; cached?: boolean; receivedAt?: number };
 export interface DexProvider {
   readonly id: string;
   discover(input: { query?: string; chain?: DexChain; cursor?: string }, signal?: AbortSignal): Promise<DexPage>;

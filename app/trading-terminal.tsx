@@ -48,7 +48,7 @@ import { StrategyWorldLinesPrimitive, type StrategyWorldLinesModel, type Strateg
 import { DizyFlowDom } from "./dizyflow-dom";
 import { DizyFlowAlertHistory, DizyFlowToastRail } from "./dizyflow-toast-rail";
 import type { MarketDescriptor } from "./lib/market/types";
-import { marketBadge, marketSubtitle, searchMarkets, type MarketTab } from "./lib/market/catalogue";
+import { marketBadge } from "./lib/market/catalogue";
 import type { CandleTimeframe } from "./lib/market/types";
 import {
   useMexcRealtime,
@@ -98,7 +98,7 @@ import {
   marketTimelineReducer,
 } from "./lib/market/timeline";
 import { ChartErrorBoundary } from "./chart-error-boundary";
-import { DizyDexBrowser } from "./dizydex-browser";
+import { MarketBrowser } from "./market-browser";
 import {
   resolveStrategySettings,
   strategyHistoryCapacity,
@@ -1247,14 +1247,9 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const selectedMarket=markets.find((market)=>market.key===selectedMarketKey);
   const futuresSelected=selectedMarket?.marketType!=="spot";
   const orderFlow=useOrderFlow({settings:orderFlowSettings,paused:!futuresSelected,symbol,contractSize:selectedMarket?.contractSize??1,priceUnit:selectedMarket?.priceUnit,priceScale:selectedMarket?.priceScale});
-  const [marketQuery, setMarketQuery] = useState("");
   const [selectorOpen, setSelectorOpen] = useState(false);
+  const marketTrigger = useRef<HTMLButtonElement>(null);
   const [favourites, setFavourites] = useState<string[]>([]);
-  const [marketTab, setMarketTab] = useState<MarketTab>("all");
-  const [quoteFilter, setQuoteFilter] = useState("All");
-  const [marketLimit, setMarketLimit] = useState(100);
-  const visibleMarkets = useMemo(() => searchMarkets(markets, marketQuery, marketTab, quoteFilter, new Set(favourites)).slice(0, marketLimit), [markets, marketQuery, marketTab, quoteFilter, favourites, marketLimit]);
-  const [recent, setRecent] = useState<string[]>([]);
   const [terminalTab, setTerminalTab] = useState<"charts" | "explorer">(
     "charts",
   );
@@ -1729,6 +1724,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                 aria-expanded={selectorOpen}
                 aria-label="Search MEXC Spot and Futures markets"
                 className="symbol-selector"
+                ref={marketTrigger}
                 onClick={() => setSelectorOpen((value) => !value)}
                 type="button"
               >
@@ -1739,73 +1735,13 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                 </span>
               </button>
               {selectorOpen ? (
-                <div className="market-menu">
-                  <DizyDexBrowser />
-                  <input
-                    autoFocus
-                    aria-label="Search symbol, base or quote"
-                    onChange={(event) => setMarketQuery(event.target.value)}
-                    placeholder="Search every MEXC market…"
-                    value={marketQuery}
-                  />
-                  <div className="market-tabs" role="tablist">
-                    {(["favorites","all","spot","futures","perpetual","delivery","pre-market","new","hot"] as MarketTab[]).map(tab=><button aria-selected={marketTab===tab} key={tab} onClick={()=>{setMarketTab(tab);setMarketLimit(100)}} role="tab" type="button">{tab.replace("-"," ")}</button>)}
-                  </div>
-                  <div className="quote-tabs">
-                    {["All","USDT","USDC","BTC","ETH","MX","Other"].map(quote=><button className={quoteFilter===quote?"active":""} key={quote} onClick={()=>setQuoteFilter(quote)} type="button">{quote}</button>)}
-                  </div>
-                  <div className="market-results" onScroll={event=>{const node=event.currentTarget;if(node.scrollTop+node.clientHeight>=node.scrollHeight-80)setMarketLimit(value=>Math.min(value+100,1000))}}>
-                    {visibleMarkets.length ? (
-                      visibleMarkets.map((market) => (
-                        <button
-                          className={market.key === selectedMarketKey ? "active" : ""}
-                          key={market.key}
-                          onClick={() => {
+                <MarketBrowser markets={markets} selectedMarketKey={selectedMarketKey} favourites={favourites} onFavourite={(key)=>setFavourites(items=>items.includes(key)?items.filter(item=>item!==key):[...items,key])} onClose={()=>{setSelectorOpen(false);requestAnimationFrame(()=>marketTrigger.current?.focus())}} onSelect={(market)=>{
                             setSymbol(market.sourceSymbol);
                             setSelectedMarketKey(market.key);
                             setSettingsOpen(false);
-                            setRecent((items) =>
-                              [
-                                market.key,
-                                ...items.filter(
-                                  (item) => item !== market.key,
-                                ),
-                              ].slice(0, 8),
-                            );
                             setSelectorOpen(false);
-                          }}
-                          type="button"
-                        >
-                          <span>
-                            <b><span className="market-initials">{market.baseAsset.slice(0,2)}</span>{market.displayName} <em className={`market-badge ${market.contractType}`}>{marketBadge(market)}</em></b>
-                            <small>{marketSubtitle(market)}</small>
-                            <small className="market-stats"><span>{market.lastPrice?.toLocaleString() ?? "—"}</span><span className={(market.change24h??0)>=0?"positive":"negative"}>{market.change24h===undefined?"—":signed(market.change24h)}</span><span>Vol {market.volume24h?.toLocaleString(undefined,{notation:"compact"}) ?? "—"}</span></small>
-                          </span>
-                          <i
-                            aria-label="Favourite"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setFavourites((items) =>
-                                items.includes(market.key)
-                                  ? items.filter(
-                                      (item) => item !== market.key,
-                                    )
-                                  : [...items, market.key],
-                              );
-                            }}
-                          >
-                            {favourites.includes(market.key) ? "★" : "☆"}
-                          </i>
-                        </button>
-                      ))
-                    ) : (
-                      <p>No active markets match these filters.</p>
-                    )}
-                  </div>
-                  {recent.length ? (
-                    <small>Recent: {recent.join(" · ")}</small>
-                  ) : null}
-                </div>
+                            requestAnimationFrame(()=>marketTrigger.current?.focus());
+                          }}/>
               ) : null}
             </div>
             {user.role!=="viewer" && futuresSelected?<div className="manual-quick"><span>MANUAL PAPER</span><button className="sell" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"short"}))}>SELL</button><b>{last?currency.format(liveLastPrice??last.close):"—"}</b><button className="buy" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"long"}))}>BUY</button></div>:null}

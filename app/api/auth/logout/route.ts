@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   const token = request.headers.get("cookie")?.match(/(?:^|;\s*)dizytrades_session=([^;]+)/)?.[1];
   const user = await currentUser(); if (token) revokeDatabaseSession(token);
   if (user && user.role !== "viewer") await appendAudit(user.id, "auth.logout");
-  const response = NextResponse.redirect(new URL("/login", request.url), 303);
+  const response = new NextResponse(null, { status: 303, headers: { Location: "/login" } });
   response.cookies.set(SESSION_COOKIE, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 0 });
   return response;
 }
