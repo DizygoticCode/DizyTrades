@@ -1,6 +1,12 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { authIsConfigured, currentUser } from "../lib/auth";
 import LoginForm from "./login-form";
+
+export const metadata: Metadata = {
+  title: "Sign In | DizyTrades",
+  description: "Sign in to your isolated DizyTrades charting, signals and paper-testing workspace.",
+};
 
 export const dynamic = "force-dynamic";
 
