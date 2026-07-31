@@ -4,7 +4,7 @@ import test from "node:test";
 import { SCHOOL_DISPLAY_NAME } from "../app/lib/branding.ts";
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 test("all intended public and protected routes exist", async () => {
-  const routes = ["app/page.tsx", "app/explore/page.tsx", "app/login/page.tsx", "app/signup/page.tsx", "app/school/page.tsx", "app/dex/page.tsx", "app/not-found.tsx", "app/terminal/page.tsx"];
+  const routes = ["app/page.tsx", "app/explore/page.tsx", "app/login/page.tsx", "app/signup/page.tsx", "app/school/page.tsx", "app/dex/page.tsx", "app/not-found.tsx", "app/loading.tsx", "app/error.tsx", "app/terminal/page.tsx"];
   await Promise.all(routes.map(source));
   assert.match(await source("app/terminal/page.tsx"), /requireUser\(\)/);
   for (const route of routes.filter((route) => !route.includes("terminal"))) assert.doesNotMatch(await source(route), /requireUser\(\)/);
@@ -53,6 +53,19 @@ test("public navigation labels and fallback routes are explicit", async () => {
   assert.match(nav, /View-Only Terminal/);
   for (const target of ["/", "/explore", "/school"]) assert.match(notFound, new RegExp(`href=\\"${target}\\"`));
   assert.match(notFound, /earlier DizyTrades preview/);
+});
+test("production-facing account, loading and recovery states avoid stale test copy", async () => {
+  const login = await source("app/login/login-form.tsx");
+  const signup = await source("app/signup/signup-form.tsx");
+  const loading = await source("app/loading.tsx");
+  const error = await source("app/error.tsx");
+  assert.doesNotMatch(login, /PRIVATE TEST TERMINAL|public test account/i);
+  assert.doesNotMatch(signup, /PUBLIC TEST REGISTRATION|disabled for this test/i);
+  assert.match(login, /SIMULATION WORKSPACE/);
+  assert.match(signup, /CREATE YOUR WORKSPACE/);
+  assert.match(loading, /PREPARING WORKSPACE/);
+  assert.match(error, /Retry this page/);
+  assert.match(error, /NO ORDER SENT/);
 });
 test("navigation is responsive and motion honours user preferences", async () => {
   const nav = await source("app/marketing/site-header.tsx");
