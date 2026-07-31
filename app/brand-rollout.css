@@ -1,0 +1,41 @@
+.brand-mark {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent url("/brand/dizy-mark.svg") center / contain no-repeat;
+  box-shadow: none;
+}
+
+.brand-mark > span,
+.brand-mark > i {
+  display: none !important;
+}
+
+.login-brand .brand-mark {
+  width: 38px;
+  height: 38px;
+}
+
+.school-brand .brand-mark {
+  width: 36px;
+  height: 36px;
+}
+
+.site-brand .brand-mark {
+  width: 34px;
+  height: 34px;
+}
+
+@media (max-width: 640px) {
+  .login-brand .brand-mark,
+  .school-brand .brand-mark,
+  .site-brand .brand-mark {
+    width: 32px;
+    height: 32px;
+  }
+}
