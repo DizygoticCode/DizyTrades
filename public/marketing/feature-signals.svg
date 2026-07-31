@@ -1,0 +1,26 @@
+<svg version="1.1" viewBox="0 0 569 75" xmlns="http://www.w3.org/2000/svg">
+<path transform="translate(0)" d="m0 0h569v75h-569v-75z" fill="#0F121C"/>
+<path transform="translate(0)" d="m0 0h569v75h-569v-75zm2 1v73h187v-73h-187zm188 0v73h188v-73h-188zm189 0v73h187v-73h-187z" fill="#222937"/>
+<path transform="translate(378)" d="m0 0h191v75h-193l2-1v-74zm1 1v73h187v-73h-187z" fill="#1B2231"/>
+<path transform="translate(33,16)" d="m0 0h13l-1 5-1-3h-2v3h-9v-5z" fill="#373E50"/>
+<path transform="translate(14,51)" d="m0 0c0.99 0.33 1.98 0.66 3 1l1-1c1.9996-0.040808 4.0005-0.042544 6 0v4l2 1h-13l1-5z" fill="#4B5363"/>
+<path transform="translate(14,33)" d="m0 0h5c0.9812 3.0526 0.9812 4.9474 0 8h-5v-8z" fill="#BF4759"/>
+<path transform="translate(54,16)" d="m0 0c1.7916-0.026964 3.5833-0.046379 5.375-0.0625 0.99773-0.011602 1.9955-0.023203 3.0234-0.035156 2.6016 0.097656 2.6016 0.097656 4.6016 1.0977v4l-4-1v-2h-2l-1 3v-3l-3 2c-0.99 0.33-1.98 0.66-3 1v-5z" fill="#363D4F"/>
+<path transform="translate(393,35)" d="m0 0h3l1 7c-3.1335 1.0445-3.9897 0.93424-7 0 1.875-5.875 1.875-5.875 3-7z" fill="#C8D3DB"/>
+<path transform="translate(446,19)" d="m0 0c5.75-0.125 5.75-0.125 8 1l-1 4h-7v-5z" fill="#313F4F"/>
+<path transform="translate(218,35)" d="m0 0h5v7l-5 1-1-2h4v-2h-3v-4z" fill="#C9C9CB"/>
+<path transform="translate(417,20)" d="m0 0h9v4h-9v-4z" fill="#323C4B"/>
+<path transform="translate(48,33)" d="m0 0h2v2h4v6h-2v-4h-2v4h-2v-8z" fill="#C4495B"/>
+<path transform="translate(253,19)" d="m0 0 8 1v4h-8v-5z" fill="#36404D"/>
+<path transform="translate(14,17)" d="m0 0h9l-1 4h-8v-4z" fill="#343B4D"/>
+<path transform="translate(408,35)" d="m0 0h5v8h-5v-2l4 1-1-2c-0.99-0.33-1.98-0.66-3-1v-4z" fill="#CED2D1"/>
+<path transform="translate(43,35)" d="m0 0h4v6h-5c-0.042721-1.6661-0.040638-3.3338 0-5l1-1z" fill="#BC4658"/>
+<path transform="translate(456,20)" d="m0 0h7l1 4h-8v-4z" fill="#343E4E"/>
+<path transform="translate(33,16)" d="m0 0h6l-1 5h-5v-5z" fill="#2D3444"/>
+<path transform="translate(239,19)" d="m0 0c2.97 0.495 2.97 0.495 6 1l1 4h-3v-2h-3l-1 2v-5z" fill="#2F3B51"/>
+<path transform="translate(24,51)" d="m0 0v4l2 1c-2.31-0.33-4.62-0.66-7-1v-3c2-1 2-1 5-1z" fill="#313744"/>
+<path transform="translate(403,34)" d="m0 0c1.4673 3.8149 0.43336 6.2901-1 10h-2c0.30798-1.4801 0.62152-2.9591 0.9375-4.4375 0.17402-0.82371 0.34805-1.6474 0.52734-2.4961 0.53516-2.0664 0.53516-2.0664 1.5352-3.0664z" fill="#A7C4CE"/>
+<path transform="translate(203,35)" d="m0 0h3v8h-2c-0.59733-2.7626-1-5.1603-1-8z" fill="#D9DED2"/>
+<path transform="translate(262,20)" d="m0 0h5l-1 4-4-1v-3z" fill="#2F3746"/>
+<path transform="translate(216,20)" d="m0 0h5l-1 4-4-1v-3z" fill="#333C4C"/>
+</svg>
