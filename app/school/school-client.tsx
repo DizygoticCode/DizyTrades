@@ -39,7 +39,7 @@ export default function SchoolClient() {
       </aside>
       <article className="lesson" id="lesson" tabIndex={-1} aria-label={`${SCHOOL_DISPLAY_NAME} lesson: ${lesson.title}`}>
         <div className="lesson-kicker"><span>{SCHOOL_DISPLAY_NAME} · {lesson.group}</span><span>Lesson {index + 1} of {lessons.length}</span></div><h1>{lesson.title}</h1><p className="lesson-lead">{lesson.summary}</p>
-        {lesson.diagram ? <ConceptDiagram type={lesson.diagram}/> : null}
+        <ConceptDiagram type={lesson.diagram} lessonSlug={lesson.slug}/>
         {lesson.sections.map((section) => <section key={section.heading}><h2>{section.heading}</h2>{section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}{section.bullets ? <ul>{section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul> : null}</section>)}
         {lesson.chartQuery ? <Link className="try-link" href="/login" target="_blank" rel="noopener noreferrer"><span>↗</span><span><b>Try this in DizyCharts</b><small>Sign in or continue in view-only mode</small></span></Link> : null}
         <label className="complete-control"><input checked={completed.includes(lesson.slug)} onChange={() => setCompleted((current) => current.includes(lesson.slug) ? current.filter((slug) => slug !== lesson.slug) : [...current, lesson.slug])} type="checkbox"/><span><b>Mark lesson complete</b><small>Progress is stored only in this browser.</small></span></label>
