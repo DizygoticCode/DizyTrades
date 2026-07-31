@@ -5,7 +5,7 @@
   position: relative;
   width: 100%;
   min-height: 220px;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid #273146;
   border-radius: 14px;
   background-color: #090c13;
@@ -27,50 +27,67 @@
 
 .feature-visual .visual-signals {
   aspect-ratio: 569 / 75;
-  min-height: 126px;
+  min-height: 0;
   background-image: url('/marketing/feature-signals.svg');
-  background-size: cover;
 }
 
 .feature-visual .visual-flow {
-  aspect-ratio: 659 / 240;
-  min-height: 240px;
-  padding-right: 27%;
+  min-height: 610px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.feature-visual .visual-flow::before,
+.feature-visual .visual-flow::after {
+  position: absolute;
+  left: 50%;
+  border: 1px solid #273146;
+  border-radius: 14px;
+  background-color: #090c13;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  box-shadow:
+    0 22px 70px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(154, 131, 255, 0.05);
+  content: '';
+  transform: translateX(-50%);
+}
+
+.feature-visual .visual-flow::before {
+  top: 0;
+  width: 100%;
+  aspect-ratio: 659 / 71;
   background-image: url('/marketing/feature-flow.svg');
-  background-position: left center;
-  background-size: 73% auto;
 }
 
 .feature-visual .visual-flow::after {
-  position: absolute;
-  inset: 10px 10px 10px auto;
-  width: 25%;
-  border-left: 1px solid #273146;
-  background: #0c0f18 url('/marketing/feature-dom.svg') center / contain no-repeat;
-  content: '';
+  top: 150px;
+  width: min(44%, 250px);
+  aspect-ratio: 184 / 443;
+  background-image: url('/marketing/feature-dom.svg');
 }
 
 .feature-visual .visual-paper {
   aspect-ratio: 1021 / 314;
+  min-height: 0;
   background-image: url('/marketing/feature-paper.svg');
 }
 
 .feature-visual .visual-school {
   aspect-ratio: 730 / 953;
-  min-height: 430px;
+  min-height: 0;
   background-image: url('/marketing/feature-learning.svg');
 }
 
 @media (max-width: 760px) {
-  .feature-visual .visual-signals {
-    min-height: 96px;
-  }
-
   .feature-visual .visual-flow {
-    min-height: 190px;
+    min-height: 500px;
   }
 
-  .feature-visual .visual-school {
-    min-height: 340px;
+  .feature-visual .visual-flow::after {
+    top: 115px;
+    width: min(52%, 220px);
   }
 }
