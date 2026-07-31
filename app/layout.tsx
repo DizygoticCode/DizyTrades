@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./brand-rollout.css";
+import "./marketing/real-feature-visuals.css";
 
 export const metadata: Metadata = {
   title: "DizyTrades — DizyCharts & DizySignals",
