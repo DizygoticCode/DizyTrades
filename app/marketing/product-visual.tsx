@@ -10,12 +10,7 @@ type ProductVisualProps = {
   contain?: boolean;
 };
 
-/**
- * Shared presentation frame for real DizyTrades product screenshots.
- *
- * This component is intentionally independent from the current marketing page
- * so screenshot adoption can happen in small, reviewable follow-up changes.
- */
+/** Shared presentation frame for real DizyTrades product screenshots. */
 export default function ProductVisual({
   src,
   alt,
@@ -25,14 +20,17 @@ export default function ProductVisual({
   contain = false,
 }: ProductVisualProps) {
   return (
-    <figure className={styles.frame} style={{ aspectRatio }}>
+    <figure className={styles.frame}>
       <div className={styles.chrome} aria-hidden="true">
         <span />
         <span />
         <span />
         {label ? <b>{label}</b> : null}
       </div>
-      <div className={contain ? `${styles.viewport} ${styles.contain}` : styles.viewport}>
+      <div
+        className={contain ? `${styles.viewport} ${styles.contain}` : styles.viewport}
+        style={{ aspectRatio }}
+      >
         <Image
           alt={alt}
           fill
