@@ -11,7 +11,7 @@ export function Brand() {
 export default function SiteHeader() {
   const [open, setOpen] = useState(false);
   return <header className="site-header"><Brand /><button className="nav-toggle" type="button" aria-expanded={open} aria-controls="site-navigation" onClick={() => setOpen(!open)}><span className="sr-only">Toggle navigation</span><i /><i /><i /></button><nav id="site-navigation" className={open ? "site-nav open" : "site-nav"} aria-label="Main navigation">
-    <Link href="/explore" onClick={() => setOpen(false)}>Explore</Link><Link href="/school" onClick={() => setOpen(false)}>{SCHOOL_DISPLAY_NAME}</Link><Link href="/dex" onClick={() => setOpen(false)}>DizyDEX</Link><a href="https://github.com/DizygoticCode/DizyTrades" target="_blank" rel="noopener noreferrer"><GitHubIcon /> Developers</a><Link className="nav-signin" href="/login" onClick={() => setOpen(false)}>Sign In</Link><Link className="nav-primary" href="/signup" onClick={() => setOpen(false)}>Create Account</Link>
+    <Link href="/explore" onClick={() => setOpen(false)}>View-Only Terminal</Link><Link href="/school" onClick={() => setOpen(false)}>{SCHOOL_DISPLAY_NAME}</Link><Link href="/dex" onClick={() => setOpen(false)}>DizyDEX</Link><a href="https://github.com/DizygoticCode/DizyTrades" target="_blank" rel="noopener noreferrer"><GitHubIcon /> Developers</a><Link className="nav-signin" href="/login" onClick={() => setOpen(false)}>Sign In</Link><Link className="nav-primary" href="/signup" onClick={() => setOpen(false)}>Create Account</Link>
   </nav></header>;
 }
 
