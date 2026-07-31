@@ -40,7 +40,7 @@ export default function LoginForm() {
     try {
       const response = await fetch("/api/auth/viewer", { method: "POST" });
       if (!response.ok) throw new Error("Viewer session unavailable.");
-      router.replace("/explore");
+      router.replace("/terminal");
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Viewer session unavailable.");
