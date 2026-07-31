@@ -1,11 +1,32 @@
+/* Real product screenshots must not inherit the fixed placeholder geometry. */
+.feature-row#signals .feature-visual,
+.feature-row#flow .feature-visual,
+.feature-row#paper .feature-visual,
+.feature-row#school .feature-visual {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.feature-row#signals .feature-visual > span,
+.feature-row#flow .feature-visual > span,
+.feature-row#paper .feature-visual > span,
+.feature-row#school .feature-visual > span {
+  display: none;
+}
+
 .feature-visual .visual-signals,
 .feature-visual .visual-flow,
 .feature-visual .visual-paper,
 .feature-visual .visual-school {
   position: relative;
+  inset: auto;
   width: 100%;
-  min-height: 220px;
-  overflow: visible;
+  min-height: 0;
+  overflow: hidden;
   border: 1px solid #273146;
   border-radius: 14px;
   background-color: #090c13;
@@ -27,12 +48,16 @@
 
 .feature-visual .visual-signals {
   aspect-ratio: 569 / 75;
-  min-height: 0;
   background-image: url('/marketing/feature-signals.svg');
 }
 
+/* DizyFlow toolbar and DOM are two separate, complete screenshots. */
 .feature-visual .visual-flow {
-  min-height: 610px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  overflow: visible;
   border: 0;
   background: none;
   box-shadow: none;
@@ -40,8 +65,10 @@
 
 .feature-visual .visual-flow::before,
 .feature-visual .visual-flow::after {
-  position: absolute;
-  left: 50%;
+  position: relative;
+  inset: auto;
+  display: block;
+  flex: 0 0 auto;
   border: 1px solid #273146;
   border-radius: 14px;
   background-color: #090c13;
@@ -52,18 +79,16 @@
     0 22px 70px rgba(0, 0, 0, 0.38),
     0 0 0 1px rgba(154, 131, 255, 0.05);
   content: '';
-  transform: translateX(-50%);
+  transform: none;
 }
 
 .feature-visual .visual-flow::before {
-  top: 0;
   width: 100%;
   aspect-ratio: 659 / 71;
   background-image: url('/marketing/feature-flow.svg');
 }
 
 .feature-visual .visual-flow::after {
-  top: 150px;
   width: min(44%, 250px);
   aspect-ratio: 184 / 443;
   background-image: url('/marketing/feature-dom.svg');
@@ -71,23 +96,20 @@
 
 .feature-visual .visual-paper {
   aspect-ratio: 1021 / 314;
-  min-height: 0;
   background-image: url('/marketing/feature-paper.svg');
 }
 
 .feature-visual .visual-school {
   aspect-ratio: 730 / 953;
-  min-height: 0;
   background-image: url('/marketing/feature-learning.svg');
 }
 
 @media (max-width: 760px) {
   .feature-visual .visual-flow {
-    min-height: 500px;
+    gap: 18px;
   }
 
   .feature-visual .visual-flow::after {
-    top: 115px;
-    width: min(52%, 220px);
+    width: min(58%, 220px);
   }
 }
