@@ -48,10 +48,16 @@ test("developer links are safely isolated external links", async () => {
   assert.ok(links.length >= 7);
   for (const link of links) { assert.match(link, /target="_blank"/); assert.match(link, /rel="noopener noreferrer"/); }
 });
-test("public view-only terminal has no network or user persistence path", async () => {
+test("public view-only terminal launches a temporary restricted viewer session", async () => {
   const explore = await source("app/explore/page.tsx");
-  assert.doesNotMatch(explore, /fetch\(|currentUser|requireUser|TradingTerminal|\/api\//);
-  assert.match(explore, /does not load a user profile, write settings or execute paper orders/);
+  const launcher = await source("app/explore/viewer-launcher.tsx");
+  assert.match(explore, /ViewerLauncher/);
+  assert.doesNotMatch(explore, /currentUser|requireUser|TradingTerminal/);
+  assert.match(explore, /temporary read-only viewer session/);
+  assert.match(launcher, /fetch\("\/api\/auth\/viewer",\s*\{\s*method:\s*"POST"\s*\}\)/);
+  assert.match(launcher, /router\.replace\("\/terminal"\)/);
+  assert.match(launcher, /No profile, exchange credentials or live-order route is used/);
+  assert.match(launcher, /Live execution remains disabled/);
   for (const route of ["app/api/profile/route.ts", "app/api/paper/route.ts", "app/api/manual-paper/route.ts", "app/api/chart-workspace/route.ts"]) assert.match(await source(route), /viewer[\s\S]*403|403[\s\S]*viewer/i);
 });
 test("navigation is responsive and motion honours user preferences", async () => {
