@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -10,11 +11,11 @@ export default function SignupForm({ enabled }: { enabled: boolean }) {
     try {
       const response = await fetch("/api/auth/signup", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const payload = await response.json() as { error?: string }; if (!response.ok) throw new Error(payload.error || "Registration failed.");
-      router.replace("/"); router.refresh();
+      router.replace("/terminal"); router.refresh();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Registration failed."); } finally { setLoading(false); }
   }
   return <form className="login-card" onSubmit={submit}>
-    <div className="login-brand"><div className="brand-mark" aria-hidden="true"><span /><span /><span /></div><div><strong>DizyCharts</strong><small>&amp; DizySignals</small></div></div>
+    <div className="login-brand"><div className="brand-mark" aria-hidden="true"><span /><span /><span /></div><div><strong>DizyTrades</strong><small>Everything Dizy™</small></div></div>
     <div className="test-chip"><i /> PUBLIC TEST REGISTRATION</div><h1>Create your account</h1>
     <p>Choose a username, add an email, or provide both. Email verification is disabled for this test.</p>
     <label><span>Username (optional)</span><input autoComplete="username" maxLength={32} minLength={3} name="username" pattern="[A-Za-z0-9_.-]{3,32}" /></label>
@@ -25,6 +26,7 @@ export default function SignupForm({ enabled }: { enabled: boolean }) {
     {error ? <div className="login-error" role="alert">{error}</div> : null}
     <button disabled={loading || !enabled} type="submit">{enabled ? loading ? "Creating account…" : "Create account" : "Registration disabled"}</button>
     <p className="recovery-notice">Self-service password reset is not currently available, including for accounts without email.</p>
-    <a className="signup-link" href="/login">Back to sign in</a>
+    <Link className="signup-link" href="/login">Back to sign in</Link>
+    <Link className="school-login-link" href="/">Return to DizyTrades</Link>
   </form>;
 }
