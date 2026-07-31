@@ -1,7 +1,6 @@
 .frame {
   position: relative;
   width: 100%;
-  min-height: 180px;
   margin: 0;
   overflow: hidden;
   border: 1px solid #273146;
@@ -51,8 +50,8 @@
 }
 
 .viewport {
-  position: absolute;
-  inset: 34px 0 0;
+  position: relative;
+  width: 100%;
   overflow: hidden;
   background:
     radial-gradient(circle at 50% 20%, rgba(95, 77, 255, 0.08), transparent 48%),
@@ -83,9 +82,5 @@
   .chrome span {
     width: 6px;
     height: 6px;
-  }
-
-  .viewport {
-    inset-block-start: 29px;
   }
 }
