@@ -95,7 +95,7 @@ import { type MarketLoadReason } from "./lib/market/reconciliation";
 import {buildPineParityReport} from "./lib/pine-parity";
 import { stableLabelLane } from "./lib/chart/world-projection";
 import { livePaperSnapshot } from "./lib/paper-performance";
-import { createReplaySession, createReplaySnapshot, jumpReplay, progressReplay, replayDelayMs, replayPrefix, stepReplay, type ReplaySession, type ReplaySpeed } from "./lib/replay";
+import { createReplaySession, createReplaySnapshot, jumpReplay, progressReplay, replayDelayMs, replayIdentityChanged, replayPrefix, replayRangeForCandles, stepReplay, type ReplaySession, type ReplaySpeed } from "./lib/replay";
 import { PaperPerformanceToolbar } from "./paper-performance-toolbar";
 import { ManualPaperTicket } from "./manual-paper-ticket";
 import { OrderFlowToolbar } from "./order-flow-toolbar";
@@ -1242,8 +1242,9 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   } = timeline;
   const [replayCandles,setReplayCandles]=useState<ReadonlyArray<Candle>>([]);
   const [replaySession,setReplaySession]=useState<ReplaySession|null>(null);
-  const replayActive=replaySession!==null;
-  const replayClosedCandles=useMemo(()=>replaySession?[...replayPrefix(replayCandles,replaySession.cursorIndex)]:closedCandles,[replayCandles,replaySession,closedCandles]);
+  const activeReplaySession=replaySession&&!replayIdentityChanged(replaySession,symbol,timeframe as CandleTimeframe)?replaySession:null;
+  const replayActive=activeReplaySession!==null;
+  const replayClosedCandles=useMemo(()=>activeReplaySession?[...replayPrefix(replayCandles,activeReplaySession.cursorIndex)]:closedCandles,[replayCandles,activeReplaySession,closedCandles]);
   const displayCandles = useMemo(
     () => replayActive ? replayClosedCandles : buildDisplayTimeline(closedCandles, liveCandle),
     [replayActive,replayClosedCandles,closedCandles, liveCandle],
@@ -1302,29 +1303,28 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       ?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [timeframe]);
 
-  const analysis = useMemo(
-    () => analyzeStrategy(replayClosedCandles, strategy),
-    [replayClosedCandles, strategy],
-  );
+  const liveAnalysis = useMemo(() => analyzeStrategy(closedCandles, strategy), [closedCandles, strategy]);
   const effectiveStrategy = useMemo(
     () => resolveStrategySettings(strategy),
     [strategy],
   );
-  const replaySnapshot=useMemo(()=>replaySession?createReplaySnapshot({session:replaySession,candles:replayCandles,strategy,risk}):null,[replaySession,replayCandles,strategy,risk]);
+  const replaySnapshot=useMemo(()=>activeReplaySession?createReplaySnapshot({session:activeReplaySession,candles:replayCandles,strategy,risk}):null,[activeReplaySession,replayCandles,strategy,risk]);
+  const analysis = replaySnapshot?.signalAnalysis ?? liveAnalysis;
   const dizyBrainSnapshot = replaySnapshot?.dizyBrainSnapshot ?? createDizyBrainSnapshot({analysis,strategy,risk,latestClosedCandleTime:closedCandles.at(-1)?.time??null});
   const replayTimer=useRef<number|null>(null);
   useEffect(()=>{
-    if(!replaySession||replaySession.status!=="playing")return;
-    const delay=replayDelayMs(replaySession.speed); if(delay===null)return;
+    if(!activeReplaySession||activeReplaySession.status!=="playing")return;
+    const delay=replayDelayMs(activeReplaySession.speed); if(delay===null)return;
     replayTimer.current=window.setInterval(()=>setReplaySession(current=>current?progressReplay(current,replayCandles):null),delay);
     return()=>{if(replayTimer.current!==null)window.clearInterval(replayTimer.current);replayTimer.current=null;};
   // Session identity is intentionally represented by status/speed; cursor ticks must not restart the interval.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[replaySession?.status,replaySession?.speed,replayCandles]);
+  },[activeReplaySession?.status,activeReplaySession?.speed,replayCandles,symbol,timeframe]);
   useEffect(()=>{const pause=()=>{if(document.visibilityState==="hidden")setReplaySession(current=>current?.status==="playing"?{...current,status:"paused"}:current);};document.addEventListener("visibilitychange",pause);return()=>document.removeEventListener("visibilitychange",pause);},[]);
   useEffect(()=>()=>{if(replayTimer.current!==null)window.clearInterval(replayTimer.current);},[]);
-  const enterReplay=()=>{const candles=Object.freeze(closedCandles.map(c=>Object.freeze({...c})));if(!candles.length)return;const now=Date.now();setReplayCandles(candles);setReplaySession(createReplaySession({id:`replay-${now}`,symbol,timeframe:timeframe as CandleTimeframe,rangeStartMs:candles[0].time*1000,rangeEndMs:candles.at(-1)!.time*1000,startedAt:now,candles,speed:1}));setViewportReset(v=>v+1);};
-  const exitReplay=()=>{setReplaySession(null);setReplayCandles([]);setViewportReset(v=>v+1);};
+  const enterReplay=()=>{const candles=Object.freeze(closedCandles.map(c=>Object.freeze({...c})));if(!candles.length)return;const now=Date.now(),range=replayRangeForCandles(candles,timeframe as CandleTimeframe);setReplayCandles(candles);setReplaySession(createReplaySession({id:`replay-${now}`,symbol,timeframe:timeframe as CandleTimeframe,...range,startedAt:now,candles,speed:1}));setViewportReset(v=>v+1);};
+  const exitReplay=useCallback(()=>{setReplaySession(null);setReplayCandles([]);setViewportReset(v=>v+1);},[]);
+  useEffect(()=>{if(!replaySession||!replayIdentityChanged(replaySession,symbol,timeframe as CandleTimeframe))return;const cleanup=window.setTimeout(exitReplay,0);return()=>window.clearTimeout(cleanup);},[replaySession,symbol,timeframe,exitReplay]);
   const historyCapacity = useMemo(
     () => strategyHistoryCapacity(strategy),
     [strategy],
@@ -1748,17 +1748,17 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       </header>
 
       <section className={`replay-controls ${replayActive?"active":""}`} aria-label="Replay controls" aria-live="polite">
-        {!replaySession?<button type="button" onClick={enterReplay} disabled={!closedCandles.length}>Enter Replay</button>:<>
-          <strong>REPLAY MODE</strong><span>{symbol} · {timeframe}</span>
+        {!activeReplaySession?<button type="button" onClick={enterReplay} disabled={!closedCandles.length}>Enter Replay</button>:<>
+          <strong>REPLAY MODE</strong><span>{activeReplaySession.symbol} · {activeReplaySession.timeframe}</span>
           <button aria-label="Jump to beginning" type="button" onClick={()=>setReplaySession(s=>s?jumpReplay(s,replayCandles,0):s)}>⏮</button>
           <button aria-label="Step back" type="button" onClick={()=>setReplaySession(s=>s?stepReplay(s,replayCandles,-1):s)}>◀</button>
-          <button aria-label={replaySession.status==="playing"?"Pause replay":"Play replay"} aria-pressed={replaySession.status==="playing"} type="button" onClick={()=>setReplaySession(s=>s?{...s,status:s.status==="playing"?"paused":s.cursorIndex===replayCandles.length-1?"ended":"playing"}:s)}>{replaySession.status==="playing"?"Pause":"Play"}</button>
+          <button aria-label={activeReplaySession.status==="playing"?"Pause replay":"Play replay"} aria-pressed={activeReplaySession.status==="playing"} type="button" onClick={()=>setReplaySession(s=>s?{...s,status:s.status==="playing"?"paused":s.cursorIndex===replayCandles.length-1?"ended":"playing"}:s)}>{activeReplaySession.status==="playing"?"Pause":"Play"}</button>
           <button aria-label="Step forward" type="button" onClick={()=>setReplaySession(s=>s?stepReplay(s,replayCandles,1):s)}>▶</button>
           <button aria-label="Jump to end" type="button" onClick={()=>setReplaySession(s=>s?jumpReplay(s,replayCandles,replayCandles.length-1):s)}>⏭</button>
-          <label>Speed <select value={String(replaySession.speed)} onChange={event=>setReplaySession(s=>s?{...s,speed:event.target.value==="step"?"step":Number(event.target.value) as ReplaySpeed,status:"paused"}:s)}><option value="step">Step</option>{[1,2,5,10].map(speed=><option value={speed} key={speed}>{speed}×</option>)}</select></label>
-          <progress aria-label="Replay progress" max={replayCandles.length} value={replaySession.visibleCandles}/>
-          <time dateTime={replaySession.cursorTimeMs?new Date(replaySession.cursorTimeMs).toISOString():undefined}>{replaySession.cursorTimeMs?new Date(replaySession.cursorTimeMs).toLocaleString():"No candles"}</time>
-          <span>{replaySession.visibleCandles} / {replaySession.candlesLoaded}</span>
+          <label>Speed <select value={String(activeReplaySession.speed)} onChange={event=>setReplaySession(s=>s?{...s,speed:event.target.value==="step"?"step":Number(event.target.value) as ReplaySpeed,status:"paused"}:s)}><option value="step">Step</option>{[1,2,5,10].map(speed=><option value={speed} key={speed}>{speed}×</option>)}</select></label>
+          <progress aria-label="Replay progress" max={replayCandles.length} value={activeReplaySession.visibleCandles}/>
+          <time dateTime={activeReplaySession.cursorTimeMs?new Date(activeReplaySession.cursorTimeMs).toISOString():undefined}>{activeReplaySession.cursorTimeMs?new Date(activeReplaySession.cursorTimeMs).toLocaleString():"No candles"}</time>
+          <span>{activeReplaySession.visibleCandles} / {activeReplaySession.candlesLoaded}</span>
           <span className="replay-flow-note">Historical DizyFlow data is unavailable for this replay range.</span>
           <button type="button" onClick={exitReplay}>Exit Replay</button>
         </>}

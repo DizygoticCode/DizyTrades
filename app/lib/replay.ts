@@ -15,6 +15,14 @@ const intervalSeconds: Record<CandleTimeframe, number> = {"1m":60,"5m":300,"15m"
 export const replayDelayMs = (speed:ReplaySpeed) => speed === "step" ? null : 1_000 / speed;
 export function validateReplayRange(startMs:number,endMs:number) { return Number.isSafeInteger(startMs)&&Number.isSafeInteger(endMs)&&startMs>=0&&endMs>startMs; }
 export function clampReplayCursor(index:number,count:number) { return count ? Math.max(0,Math.min(Math.trunc(index),count-1)) : -1; }
+export function replayRangeForCandles(candles:ReadonlyArray<Candle>,timeframe:CandleTimeframe){
+  if(!candles.length)throw new Error("Replay history is empty.");
+  const rangeStartMs=candles[0].time*1_000;
+  const rangeEndMs=candles.at(-1)!.time*1_000+intervalSeconds[timeframe]*1_000;
+  if(!validateReplayRange(rangeStartMs,rangeEndMs))throw new Error("Invalid replay range.");
+  return Object.freeze({rangeStartMs,rangeEndMs});
+}
+export const replayIdentityChanged=(session:ReplaySession,symbol:string,timeframe:CandleTimeframe)=>session.symbol!==symbol||session.timeframe!==timeframe;
 
 export function prepareReplayCandles(input:unknown, identity:{symbol:string;timeframe:CandleTimeframe}, received?:{symbol?:string;timeframe?:string}):ReadonlyArray<Candle> {
   if (!identity.symbol || !CANDLE_TIMEFRAMES.includes(identity.timeframe)) throw new Error("Invalid replay identity.");
