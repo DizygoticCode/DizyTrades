@@ -1,4 +1,7 @@
-export const JOURNAL_SCHEMA_VERSION = 1 as const;
+export const JOURNAL_SCHEMA_VERSION = 2 as const;
+export const JOURNAL_TITLE_MAX = 120;
+export const JOURNAL_TAG_MAX = 20;
+export const JOURNAL_TAG_LENGTH_MAX = 40;
 export type JournalEntryType = "trade-review" | "market-note" | "general";
 export type TradeQuality = "good" | "mixed" | "poor";
 export type PlanDiscipline = "completely" | "mostly" | "no";
@@ -20,23 +23,27 @@ export type TradeSnapshot = Readonly<{
 
 export type JournalEntry = Readonly<{
   id: string; schemaVersion: typeof JOURNAL_SCHEMA_VERSION; type: JournalEntryType; createdAt: string; editedAt: string;
-  notes: string; tags: readonly string[]; dismissedPrompts: readonly string[]; quality: TradeQuality | null;
-  planDiscipline: PlanDiscipline | null; mood: Mood | null; trade: TradeSnapshot | null;
-  marketContext: Readonly<{ symbol: string; timeframe: string }> | null;
+  title: string; archived: boolean; archivedAt: string | null; notes: string; tags: readonly string[];
+  dismissedPrompts: readonly string[]; quality: TradeQuality | null; planDiscipline: PlanDiscipline | null;
+  mood: Mood | null; trade: TradeSnapshot | null; marketContext: Readonly<{ symbol: string; timeframe: string }> | null;
 }>;
 
-export const REFLECTION_PROMPTS = Object.freeze([
-  "Why did you enter?", "Did you follow your plan?", "Would you take this trade again?",
-  "Did emotions affect this trade?", "What worked well?", "What would you improve?", "One lesson learned?",
-]);
+export const REFLECTION_PROMPTS = Object.freeze(["Why did you enter?", "Did you follow your plan?", "Would you take this trade again?", "Did emotions affect this trade?", "What worked well?", "What would you improve?", "One lesson learned?"]);
 
-export type JournalListItem = Pick<JournalEntry, "id" | "type" | "createdAt" | "editedAt" | "tags" | "quality" | "planDiscipline" | "mood" | "marketContext"> & Readonly<{
+export type JournalListItem = Pick<JournalEntry, "id" | "type" | "title" | "archived" | "archivedAt" | "createdAt" | "editedAt" | "tags" | "quality" | "planDiscipline" | "mood" | "marketContext"> & Readonly<{
   trade: null | Pick<TradeSnapshot, "symbol" | "timeframe" | "direction" | "pnl" | "pnlPct" | "closeReason"> & { replayAvailable: boolean; brainAvailable: boolean };
   notesPreview: string;
 }>;
 
+export function journalEntryLabel(entry: {title:string;trade:null|{symbol:string;direction:string};marketContext:null|{symbol:string;timeframe:string}}): string {
+  if (entry.title) return entry.title;
+  if (entry.trade) return `${entry.trade.symbol} · ${entry.trade.direction}`;
+  if (entry.marketContext) return `${entry.marketContext.symbol} · ${entry.marketContext.timeframe}`;
+  return "General Entry";
+}
+
 export function toJournalListItem(entry: JournalEntry): JournalListItem {
-  return { id: entry.id, type: entry.type, createdAt: entry.createdAt, editedAt: entry.editedAt, tags: entry.tags,
+  return { id: entry.id, type: entry.type, title: entry.title, archived: entry.archived, archivedAt: entry.archivedAt, createdAt: entry.createdAt, editedAt: entry.editedAt, tags: entry.tags,
     quality: entry.quality, planDiscipline: entry.planDiscipline, mood: entry.mood, marketContext: entry.marketContext,
     notesPreview: entry.notes.slice(0, 140), trade: entry.trade ? { symbol: entry.trade.symbol, timeframe: entry.trade.timeframe,
       direction: entry.trade.direction, pnl: entry.trade.pnl, pnlPct: entry.trade.pnlPct, closeReason: entry.trade.closeReason,
