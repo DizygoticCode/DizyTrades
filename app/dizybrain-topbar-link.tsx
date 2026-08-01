@@ -1,14 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
-export function DizyBrainTopbarLink() {
-  const [target, setTarget] = useState<HTMLElement | null>(null);
+const selector = ".topbar .system-strip";
 
-  useEffect(() => {
-    setTarget(document.querySelector<HTMLElement>(".topbar .system-strip"));
-  }, []);
+function subscribe(onStoreChange: () => void) {
+  const observer = new MutationObserver(onStoreChange);
+  observer.observe(document.body, { childList: true, subtree: true });
+  return () => observer.disconnect();
+}
+
+function getSnapshot() {
+  return document.querySelector<HTMLElement>(selector);
+}
+
+function getServerSnapshot() {
+  return null;
+}
+
+export function DizyBrainTopbarLink() {
+  const target = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   if (!target) return null;
 
