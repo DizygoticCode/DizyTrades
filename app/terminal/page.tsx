@@ -1,5 +1,6 @@
 import { requireUser } from "../lib/auth";
 import { DizyBrainShell } from "../dizybrain-shell";
+import { DizyBrainSignalContextFix } from "../dizybrain-signal-context-fix";
 import { DizyBrainTopbarLink } from "../dizybrain-topbar-link";
 import TradingTerminal from "../trading-terminal";
 
@@ -9,6 +10,7 @@ export default async function TerminalPage() {
   const user = await requireUser();
   return (
     <DizyBrainShell>
+      <DizyBrainSignalContextFix />
       <DizyBrainTopbarLink />
       <TradingTerminal user={user} />
     </DizyBrainShell>
