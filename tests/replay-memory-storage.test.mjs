@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import { captureHistoricalReplayMemory, MAX_REPLAY_MEMORY_BYTES } from "../app/lib/historical-replay-memory.ts";
+const root=await mkdtemp(join(tmpdir(),"dizy-replay-memory-"));process.env.DATA_DIR=root;
+const {createReplayMemory,deleteReplayMemory,readReplayMemory}=await import("../app/lib/replay-memory-store.ts");
+const interval=60,start=Math.floor(1_700_000_000/60)*60,candles=Array.from({length:130},(_,i)=>({time:start+i*interval,open:100,high:102,low:99,close:101,volume:10}));
+const input={tradeId:"trade-store",replaySessionId:"journal-replay|trade-store",marketKey:"mexc:spot:BTC_USDT",symbol:"BTCUSDT",timeframe:"1m",signalTimeMs:candles[99].time*1000,entryTimeMs:candles[100].time*1000,exitTimeMs:candles[110].time*1000,entryPrice:100,exitPrice:101,direction:"long",strategyVersion:null,candles,capturedAtMs:(candles.at(-1).time+interval)*1000};
+const memory=captureHistoricalReplayMemory(input);
+test.after(async()=>rm(root,{recursive:true,force:true}));
+test("atomic create and same-content retry are idempotent",async()=>{const first=await createReplayMemory("owner-a",memory),second=await createReplayMemory("owner-a",memory);assert.equal(first.created,true);assert.equal(second.created,false);const files=await readdir(join(root,"replay-memory","owner-a"));assert.deepEqual(files,[`${memory.id}.json`]);assert.doesNotMatch(files[0],/tmp/);});
+test("same deterministic ID with different valid content is rejected",async()=>{const changed=candles.map((c,i)=>i===105?{...c,volume:11}:c),other=captureHistoricalReplayMemory({...input,candles:changed});assert.equal(other.id,memory.id);await assert.rejects(createReplayMemory("owner-a",other),/different candle content/i);});
+test("per-user reads and deletes are isolated and missing files are honest",async()=>{assert.equal(await readReplayMemory("owner-b",memory.id),null);assert.equal(await deleteReplayMemory("owner-b",memory.id),false);assert.ok(await readReplayMemory("owner-a",memory.id));assert.equal(await deleteReplayMemory("owner-a",memory.id),true);assert.equal(await readReplayMemory("owner-a",memory.id),null);});
+test("malformed and oversized files are rejected safely",async()=>{const dir=join(root,"replay-memory","owner-c");await mkdir(dir,{recursive:true});await writeFile(join(dir,`${memory.id}.json`),"{broken");await assert.rejects(readReplayMemory("owner-c",memory.id));await writeFile(join(dir,`${memory.id}.json`),"x".repeat(MAX_REPLAY_MEMORY_BYTES+1));await assert.rejects(readReplayMemory("owner-c",memory.id),/oversized/i);});
+test("stored file is private JSON and contains no journal payload",async()=>{await createReplayMemory("owner-d",memory);const raw=await readFile(join(root,"replay-memory","owner-d",`${memory.id}.json`),"utf8");assert.equal(JSON.parse(raw).integrity.contentHash,memory.integrity.contentHash);assert.doesNotMatch(raw,/notes|credentials|privateKey/);});

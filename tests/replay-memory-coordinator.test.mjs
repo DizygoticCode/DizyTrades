@@ -1,0 +1,9 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { coordinateJournalReplayLaunch } from "../app/lib/journal-trade-import.ts";
+const candle=time=>({time,open:1,high:2,low:1,close:2,volume:1});const rolling=[candle(120),candle(180)],retained=[candle(60),candle(120)];
+const base={request:{marketKey:"mexc:spot:BTC_USDT",symbol:"BTCUSDT",timeframe:"1m",timestampMs:120000},identity:{marketKey:"mexc:spot:BTC_USDT",symbol:"BTCUSDT",timeframe:"1m"}};
+test("retained memory is selected before rolling history exactly once",async()=>{let loads=0;const result=await coordinateJournalReplayLaunch({...base,signal:new AbortController().signal,rollingCandles:rolling,loadRetained:async()=>{loads+=1;return retained;}});assert.equal(result.source,"retained-memory");assert.equal(loads,1);assert.equal(result.candles,retained);});
+test("retained failure falls through directly to rolling history",async()=>{const result=await coordinateJournalReplayLaunch({...base,signal:new AbortController().signal,rollingCandles:rolling,loadRetained:async()=>{throw new Error("bad memory");}});assert.equal(result.source,"rolling-history");assert.equal(result.candles,rolling);});
+test("both unavailable returns unavailable without clamping",async()=>{const result=await coordinateJournalReplayLaunch({...base,request:{...base.request,timestampMs:999000},signal:new AbortController().signal,rollingCandles:rolling,loadRetained:async()=>[]});assert.equal(result.source,"unavailable");});
+test("cancellation never falls back or launches",async()=>{const controller=new AbortController();let rollingTouched=false;const pending=coordinateJournalReplayLaunch({...base,signal:controller.signal,get rollingCandles(){rollingTouched=true;return rolling;},loadRetained:async()=>{controller.abort();return retained;}});const result=await pending;assert.equal(result.source,"cancelled");assert.equal(rollingTouched,false);});

@@ -46,3 +46,12 @@ export function tradeSnapshotFromPaper(trade: PaperTrade, context: JournalTradeC
     closeReason:trade.exitReason,strategyVersion:null,replay:replayReferenceForTrade(trade,context),brain:null,
     signal:Number.isFinite(trade.signalTime)?Object.freeze({direction:trade.direction,signalTime:new Date(trade.signalTime*1_000).toISOString(),label:`DizySignals confirmed-candle ${trade.direction}`}):null});
 }
+
+export type JournalReplaySource = "retained-memory"|"rolling-history"|"unavailable"|"cancelled";
+export type JournalReplayCandidate = Readonly<{source:Exclude<JournalReplaySource,"unavailable"|"cancelled">;candles:ReadonlyArray<Candle>;cursor:number}>;
+/** One-shot source coordinator. Retained validation failure falls through directly; cancellation never launches. */
+export async function coordinateJournalReplayLaunch(input:{signal:AbortSignal;loadRetained?:()=>Promise<ReadonlyArray<Candle>>;rollingCandles:ReadonlyArray<Candle>;request:JournalReplayLaunch;identity:{marketKey:string;symbol:string;timeframe:CandleTimeframe}}):Promise<JournalReplayCandidate|Readonly<{source:"unavailable"}>|Readonly<{source:"cancelled"}>> {
+  if(input.signal.aborted)return Object.freeze({source:"cancelled"});
+  if(input.loadRetained){try{const candles=await input.loadRetained();if(input.signal.aborted)return Object.freeze({source:"cancelled"});const cursor=journalReplayCursor(input.request,{...input.identity,candles});if(cursor!==null)return Object.freeze({source:"retained-memory",candles,cursor});}catch(reason){if(input.signal.aborted||(reason as Error).name==="AbortError")return Object.freeze({source:"cancelled"});}}
+  if(input.signal.aborted)return Object.freeze({source:"cancelled"});const cursor=journalReplayCursor(input.request,{...input.identity,candles:input.rollingCandles});return cursor===null?Object.freeze({source:"unavailable"}):Object.freeze({source:"rolling-history",candles:input.rollingCandles,cursor});
+}
