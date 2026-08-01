@@ -8,7 +8,7 @@ test("DizyBrain explains live setup progression without inventing historical eve
   assert.match(source, /Current setup timeline/);
   assert.match(source, /Why this is not qualified yet/);
   assert.match(source, /Historical per-candle rule events will require a dedicated rule ledger/);
-  assert.match(source, /Confluence is \$\{activeScore\}\/5/);
-  assert.match(source, /No confirmed-candle signal is present/);
+  assert.match(source, /snapshot\?\.explanation\.timeline/);
+  assert.doesNotMatch(source, /MutationObserver|querySelector|textContent/);
   assert.doesNotMatch(source, /13:45|14:05|14:15|14:30/);
 });
