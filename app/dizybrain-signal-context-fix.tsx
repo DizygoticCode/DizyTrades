@@ -8,12 +8,8 @@ const scoreFrom = (value: string | null | undefined) => {
 };
 
 /**
- * Compatibility correction for the first DizyBrain release.
- *
- * The original panel combined current confluence direction with the most recent
- * historical signal and also invented a fixed 4/5 qualification threshold.
- * Until DizyBrain receives typed engine data directly, this guard keeps those
- * concepts separate and refuses to infer qualification from an unknown rule.
+ * Keeps DizyBrain's current setup view focused on the live confluence direction.
+ * Historical signals must not be mixed into the current BUY/SELL explanation.
  */
 export function DizyBrainSignalContextFix() {
   useEffect(() => {
@@ -24,66 +20,105 @@ export function DizyBrainSignalContextFix() {
       const panel = document.querySelector<HTMLElement>(".dizybrain-panel");
       if (!panel) return;
 
-      const direction = panel.querySelector<HTMLElement>(".dizybrain-direction")?.textContent?.trim() || "NEUTRAL";
-      const confluenceHeading = [...panel.querySelectorAll<HTMLElement>(".dizybrain-section-title")]
-        .find((heading) => heading.textContent?.includes("Confluence"));
-      const activeScore = scoreFrom(confluenceHeading?.querySelector("strong")?.textContent);
+      const direction =
+        panel
+          .querySelector<HTMLElement>(".dizybrain-direction")
+          ?.textContent?.trim() || "NEUTRAL";
+      const confluenceHeading = [
+        ...panel.querySelectorAll<HTMLElement>(".dizybrain-section-title"),
+      ].find((heading) => heading.textContent?.includes("Confluence"));
+      const activeScore = scoreFrom(
+        confluenceHeading?.querySelector("strong")?.textContent,
+      );
 
-      const summaryDetail = panel.querySelector<HTMLElement>(".dizybrain-summary > div > span");
+      const summaryDetail = panel.querySelector<HTMLElement>(
+        ".dizybrain-summary > div > span",
+      );
       if (summaryDetail) {
-        const raw = summaryDetail.dataset.lastConfirmed || summaryDetail.textContent?.trim() || "No confirmed signal yet";
-        summaryDetail.dataset.lastConfirmed = raw.replace(/^Last confirmed signal:\s*/i, "");
-        const next = `Current setup: ${direction}-leaning · Last confirmed signal: ${summaryDetail.dataset.lastConfirmed}`;
-        if (summaryDetail.textContent !== next) summaryDetail.textContent = next;
+        summaryDetail.textContent = `${direction}-leaning current setup`;
       }
 
-      for (const item of panel.querySelectorAll<HTMLElement>(".dizybrain-checks li")) {
+      for (const item of panel.querySelectorAll<HTMLElement>(
+        ".dizybrain-checks li",
+      )) {
         if (/confirmed-candle signal context/i.test(item.textContent || "")) {
           const marker = item.querySelector("b")?.outerHTML || "<b>✓</b>";
-          const next = `${marker}Historical confirmed signal available`;
-          if (item.innerHTML !== next) item.innerHTML = next;
+          item.innerHTML = `${marker}Current confirmed-candle context available`;
         }
       }
 
-      const timelineItems = [...panel.querySelectorAll<HTMLElement>(".dizybrain-timeline li")];
-      const confluenceItem = timelineItems.find((item) => item.querySelector("b")?.textContent === "Confluence build");
+      const timelineItems = [
+        ...panel.querySelectorAll<HTMLElement>(".dizybrain-timeline li"),
+      ];
+      const confluenceItem = timelineItems.find(
+        (item) => item.querySelector("b")?.textContent === "Confluence build",
+      );
       if (confluenceItem) {
         const label = confluenceItem.querySelector("b");
         const detail = confluenceItem.querySelector("span");
         if (label) label.textContent = "Current confluence";
-        if (detail) detail.textContent = `${activeScore} of 5 current confluence inputs`;
+        if (detail)
+          detail.textContent = `${activeScore} of 5 current confluence inputs`;
         confluenceItem.classList.remove("complete", "waiting");
         confluenceItem.classList.add(activeScore > 0 ? "active" : "waiting");
         const icon = confluenceItem.querySelector("i");
         if (icon) icon.textContent = activeScore > 0 ? "•" : "·";
       }
 
-      const signalItem = timelineItems.find((item) => item.querySelector("b")?.textContent === "Confirmed signal");
+      const signalItem = timelineItems.find((item) =>
+        /confirmed signal|last confirmed signal/i.test(
+          item.querySelector("b")?.textContent || "",
+        ),
+      );
       if (signalItem) {
         const label = signalItem.querySelector("b");
         const detail = signalItem.querySelector("span");
-        if (label) label.textContent = "Last confirmed signal";
-        if (detail && !/^Historical:/i.test(detail.textContent || "")) detail.textContent = `Historical: ${detail.textContent}`;
+        if (label) label.textContent = "Current setup direction";
+        if (detail) detail.textContent = `${direction}-leaning`;
+        signalItem.classList.remove("waiting");
+        signalItem.classList.add(activeScore > 0 ? "complete" : "active");
+        const icon = signalItem.querySelector("i");
+        if (icon) icon.textContent = activeScore > 0 ? "✓" : "•";
       }
 
-      const result = panel.querySelector<HTMLElement>(".dizybrain-rejections");
+      const result = panel.querySelector<HTMLElement>(
+        ".dizybrain-rejections",
+      );
       if (result) {
-        const title = result.querySelector<HTMLElement>(".dizybrain-section-title span");
+        const title = result.querySelector<HTMLElement>(
+          ".dizybrain-section-title span",
+        );
         const list = result.querySelector("ul");
         list?.querySelectorAll("li").forEach((item) => {
-          if (/qualification threshold/i.test(item.textContent || "")) item.remove();
+          if (
+            /qualification threshold|confirmed-candle signal/i.test(
+              item.textContent || "",
+            )
+          )
+            item.remove();
         });
 
-        let note = result.querySelector<HTMLElement>(".dizybrain-context-note");
+        const qualified = result.querySelector<HTMLElement>(
+          ".dizybrain-qualified span",
+        );
+        if (qualified)
+          qualified.textContent = `${direction}-leaning current setup with ${activeScore}/5 confluence. Historical signals are intentionally excluded from this view.`;
+
+        let note = result.querySelector<HTMLElement>(
+          ".dizybrain-context-note",
+        );
         if (!note) {
           note = document.createElement("div");
           note.className = "dizybrain-context-note";
           result.append(note);
         }
-        note.textContent = `Current setup is ${direction}-leaning at ${activeScore}/5. Qualification is not inferred because DizyBrain does not yet receive the active strategy threshold directly.`;
+        note.textContent = `Current setup: ${direction}-leaning at ${activeScore}/5. Qualification is not inferred until DizyBrain receives the active strategy threshold directly.`;
 
         const remaining = list?.querySelectorAll("li").length ?? 0;
-        if (title) title.textContent = remaining ? "Unavailable current context" : "Current setup status";
+        if (title)
+          title.textContent = remaining
+            ? "Unavailable current context"
+            : "Current setup status";
         if (list) list.toggleAttribute("hidden", remaining === 0);
       }
     };
@@ -93,7 +128,11 @@ export function DizyBrainSignalContextFix() {
       frame = window.requestAnimationFrame(apply);
     };
     const observer = new MutationObserver(schedule);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
     schedule();
     return () => {
       observer.disconnect();
