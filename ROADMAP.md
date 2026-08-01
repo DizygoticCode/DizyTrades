@@ -1,36 +1,32 @@
 # DizyTrades Roadmap
 
-DizyTrades is being built as a transparent, deterministic crypto market-analysis platform that combines charting, confirmed-candle signals, order flow, education and realistic simulation.
+DizyTrades is being built as a transparent, deterministic crypto market-analysis platform combining charting, confirmed-candle signals, order flow, education and realistic simulation.
+
+This document tracks **what is planned and in what order**. The enduring product mission and research philosophy live in [VISION.md](VISION.md). Technical boundaries live in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 This roadmap is directional rather than a promise of dates. Items move only when they are tested, reviewable and safe enough to merge.
 
-## Vision
+## Development queue
 
-DizyTrades is a unified trading platform composed of professional modules that share a consistent interface, deterministic reasoning and integrated learning. Each module should feel like part of one coherent product while helping traders understand not only what the market is doing, but why.
+### In progress
 
-## Development Queue
-
-### In Progress
-
-- DizyAcademy refresh
-- Product branding consistency
+- DizyFlow DOM ladder professional-mode deployment review
+- Documentation split between Vision, Roadmap and Architecture
 
 ### Next
 
-1. Product Launcher & Unified Navigation
-2. Manual Paper Trading v2
-3. Market Depth Histogram
-4. Replay Engine
-5. Replay Controls
-6. Watchlists
-7. Multi-Workspace
-8. Alerts
-9. Trading Journal
-10. Performance Dashboard
-11. Correlation Dashboard
-12. Market Scanner
-13. Institutional Dashboard
-14. Risk Centre
+1. Replay Engine foundation
+2. Replay controls and deterministic playback
+3. Product Launcher and unified navigation
+4. Watchlists and favourites
+5. Persistent multi-workspace support
+6. Alerts foundation
+7. DizyJournal
+8. Performance analytics
+9. Correlation and regime dashboard
+10. Market scanner
+11. Risk Centre
+12. DizyQuant research foundations
 
 ## Completed highlights
 
@@ -38,273 +34,164 @@ DizyTrades is a unified trading platform composed of professional modules that s
 - Account authentication, isolated profiles and saved workspaces
 - DizyCharts multi-timeframe terminal and manual drawing tools
 - DizySignals confirmed-candle confluence engine
-- DizyPaper manual and signal-driven simulation
-- DizyFlow DOM, liquidity-history and trade-bubble foundations
+- Typed DizyBrain snapshot and direct strategy-threshold qualification
+- DizyPaper margin, leverage, fee and liquidation simulation
+- DizyFlow DOM, retained liquidity, public trade bubbles and diagnostics
+- Live Market Depth histogram, imbalance and large-cluster display
+- Professional DOM ladder, navigation, queue estimate and recent-trade context
 - DizyDEX unified market discovery
-- DizyAcademy curriculum and progress tracking
-- DizyBrain transparent signal-reasoning panel
+- DizyAcademy curriculum, current-product lessons and progress tracking
 - Automated lint, test and production-build validation
+- Public architecture, principles, release notes and roadmap documentation
 
-## Current delivery pipeline
-
-1. MEXC Last, Fair and Index price sources with a display selector
-2. Manual Paper Simulator leverage, margin, liquidation and fair-price marking
-3. Market Depth histogram beside the price scale
-4. DizyAcademy refresh for the current product
-5. Typed DizyBrain data contract and direct strategy-threshold integration
-
-## Phase 1 — Complete and stabilise the platform
+## Phase 1 — Platform foundation and stabilisation
 
 - [x] Authentication and account isolation
 - [x] Public marketing and viewer mode
 - [x] DizyCharts terminal
 - [x] DizySignals confirmed-candle analysis
 - [x] DizyPaper foundations
+- [x] DizyPaper margin, leverage and liquidation simulation
 - [x] DizyFlow foundations
+- [x] Live Market Depth histogram
+- [x] Professional DOM ladder
 - [x] DizyDEX discovery
-- [x] DizyAcademy
-- [x] DizyBrain v1
-- [ ] MEXC Last, Fair and Index price sources
-- [ ] Manual Paper Simulator v2
-- [ ] Market Depth histogram
-- [ ] Typed DizyBrain state contract
-- [ ] DizyBrain qualification using the active strategy threshold
-- [ ] DizyAcademy product refresh
+- [x] DizyAcademy and current-product refresh
+- [x] DizyBrain v1 and typed snapshot contract
+- [x] DizyBrain qualification using the active strategy threshold
+- [ ] MEXC Last, Fair and Index price sources with a display selector
 - [ ] Accessibility, mobile and terminal-collision audit
 - [ ] Stable customer-facing DizyFlow layout
+- [ ] Reproducible visual harness for complex chart primitives
 
-## Phase 2 — Professional trader tools
+## Phase 2 — Replay and professional workflow
 
-- [ ] Trade Replay foundation
-- [ ] Replay controls and DizyBrain integration
-- [ ] Watchlists and favourites workspace
+- [ ] Replay Engine foundation
+- [ ] Deterministic candle-by-candle playback
+- [ ] Replay controls, speed and navigation
+- [ ] Replay DizySignals evidence
+- [ ] Replay DizyBrain snapshots
+- [ ] Replay DizyFlow market context where retained data exists
+- [ ] Link paper trades to entry and exit replay positions
+- [ ] Watchlists and favourites
 - [ ] Persistent multi-panel workspaces
 - [ ] Multi-chart layouts
-- [ ] Server-side and browser alerts foundation
-- [ ] Performance analytics
-- [ ] Trade journal and review workflow
-- [ ] Exportable DizyBrain analysis
-- [ ] Public roadmap and release presentation
+- [ ] Browser and server-side alerts foundation
 
-## Phase 3 – Unified Product Experience
+## Phase 3 — Unified product experience
 
-### Objectives
+### Product Launcher
 
-- Present every DizyTrades product through a consistent, professional interface.
-- Make movement between analysis, learning, order flow and paper trading immediate and intuitive.
-- Carry deterministic reasoning and relevant learning context across product boundaries.
-- Establish shared navigation patterns that can expand without fragmenting the platform.
+- [ ] Shared launcher/sidebar for the DizyTrades product family
+- [ ] Consistent icons, module names and navigation patterns
+- [ ] Preserve active market and workspace context between modules
+- [ ] Recent activity and favourite modules
+- [ ] Continue-learning shortcut for DizyAcademy
+- [ ] Replay and journal reminders
+- [ ] Responsive desktop-first layout
+- [ ] Eliminate duplicate navigation systems
 
-### Product Suite
+### Product suite
+
+Current modules:
 
 - DizyCharts
+- DizySignals
 - DizyBrain
 - DizyFlow
-- DizyAcademy
 - DizyPaper
+- DizyAcademy
+- DizyDEX
 
-### Planned Modules
+Planned modules:
 
 - DizyReplay
 - DizyJournal
+- DizyQuant
 - Watchlists
 - Alerts
 - Workspaces
 
-### Product Launcher vision
+## Phase 4 — Journal, review and analytics
 
-The future Product Launcher will be the unified navigation experience for the entire DizyTrades platform. It will provide a clear, consistent way to discover modules, move between workflows and return to active market context without treating each product as a separate application.
+### DizyJournal
 
-### Future enhancements
+- [ ] Automatic simulated-trade capture
+- [ ] DizyBrain explanation snapshot at entry
+- [ ] Trader notes, tags and screenshots
+- [ ] Rule-compliance review
+- [ ] Emotional and process notes
+- [ ] Search and filtering
+- [ ] Link every eligible trade to Replay
 
-- User-configurable launcher favourites and recent products
-- Context-aware transitions between charts, signals, replay, learning and journals
-- Shared search and command access across modules
-- Role-appropriate layouts and workspace presets
-- Cross-module notifications, progress and activity summaries
+### Performance analytics
 
-## Phase 6 – Professional Trading Workflow
+- [ ] Win rate and expectancy
+- [ ] Average win, loss and R multiple
+- [ ] Drawdown and recovery
+- [ ] Results by symbol, timeframe and strategy preset
+- [ ] Fees and slippage impact
+- [ ] Rule-followed versus rule-broken outcomes
+- [ ] Exportable review data
 
-### Vision
+### Cross-market context
 
-Transform DizyPaper from a simple paper-trading ticket into a complete trading workflow centred around review, discipline and continuous improvement.
+- [ ] Correlation dashboard
+- [ ] Volatility and regime dashboard
+- [ ] Market scanner
+- [ ] Portfolio and concentration views
+- [ ] Risk Centre
 
-### Planned features
+## Phase 5 — DizyQuant research foundations
 
-#### Professional Paper Account
+DizyQuant begins as an informational research layer. No metric may influence DizySignals until Replay and statistical validation demonstrate a measurable net improvement. See [VISION.md](VISION.md) for the research framework.
 
-- Futures account overview
-- Equity
-- Available balance
-- Used margin
-- Margin health
-- Daily P&L
-- Unrealised P&L
-- Realised P&L
-- Open positions
-- Risk utilisation
+### Liquidity ladder research
 
-#### Professional Trade History
+- [ ] Ladder balance, skew, symmetry and density
+- [ ] Upward and downward liquidity migration
+- [ ] Cluster persistence, retreat and reinforcement
+- [ ] Liquidity compression and expansion
 
-Every simulated trade records:
+### Replenishment and consumption
 
-- symbol
-- side
-- leverage
-- margin mode
-- sizing mode
-- entry
-- exit
-- stop
-- target
-- estimated liquidation
-- fees
-- slippage
-- close reason
-- net P&L
-- timestamps
+- [ ] Refill rate and consistency
+- [ ] Replenishment imbalance
+- [ ] Aggressive buy and sell consumption
+- [ ] Consumption efficiency
+- [ ] Absorption and exhaustion candidates
 
-#### DizyJournal
+### Queue and spread behaviour
 
-Introduce a dedicated trading journal.
+- [ ] Queue depletion, refill and turnover
+- [ ] Spread compression, expansion and stability
+- [ ] Acceptance and rejection research
+- [ ] Session and volatility regimes
 
-Future capabilities:
+### Validation
 
-- automatic trade capture
-- screenshots
-- DizyBrain explanation snapshots
-- trader notes
-- emotions
-- rule compliance
-- tags
-- filtering
-- search
-- statistics
+- [ ] Replay-compatible typed microstructure snapshots
+- [ ] Candidate-metric registry
+- [ ] False-positive and false-negative analysis
+- [ ] Out-of-sample or walk-forward checks where practical
+- [ ] Explicit informational/experimental/validated status
+- [ ] Promotion gate before any DizySignals integration
 
-## Phase 7 – Replay & Review
-
-### Vision
-
-Allow every paper trade to be replayed using the original market context.
-
-### Future features
-
-- replay historical candles
-- replay DizySignals
-- replay DizyBrain
-- replay DizyFlow
-- replay indicators
-- replay DOM
-- replay Volume Profile
-- replay trade lifecycle
-- adjustable playback speed
-- jump to entry
-- jump to exit
-
-## Phase 8 – Intelligent Review
-
-### Vision
-
-Help traders understand WHY trades succeeded or failed.
-
-### Future DizyBrain Review
-
-Examples include:
-
-- rule followed
-- qualified setup
-- trend context
-- structure quality
-- confluence score
-- volatility
-- liquidity context
-- discipline score
-
-The objective is educational review rather than prediction.
-
-## Phase 9 – Workspace Experience
-
-### Vision
-
-Make DizyTrades feel like a unified professional desktop platform.
-
-### Future Product Launcher
-
-#### Modules
-
-- DizyCharts
-- DizyBrain
-- DizyFlow
-- DizyAcademy
-- DizyPaper
-- DizyReplay
-- DizyJournal
-
-#### Workspace improvements
-
-- recent activity
-- favourite modules
-- continue learning
-- journal reminders
-- replay shortcuts
-- workspace presets
-- multi-monitor layouts
-- saved layouts
-- shared navigation
-- contextual notifications
-
-## Long-Term Vision
-
-The intended learning loop is:
-
-Observe Market
-
-↓
-
-Understand with DizyBrain
-
-↓
-
-Practise in DizyPaper
-
-↓
-
-Review in DizyJournal
-
-↓
-
-Replay decisions
-
-↓
-
-Learn in DizyAcademy
-
-↓
-
-Improve discipline
-
-↓
-
-Repeat
-
-The platform should evolve into a complete trading operating system focused on transparency, education, deterministic reasoning and continuous improvement rather than prediction.
-
-## Phase 4 — Institutional-style analysis
+## Phase 6 — Institutional-style analysis
 
 - [ ] Footprint data model
 - [ ] Footprint visualisation
 - [ ] Bid/ask delta and cumulative delta
-- [ ] DOM ladder improvements
 - [ ] Liquidity absorption and exhaustion analytics
-- [ ] Correlation and market-regime dashboard
-- [ ] Portfolio and cross-market risk views
 - [ ] Heatmap renderer isolation and reproducible visual harness
-- [ ] Stable Bookmap-style heatmap presentation
+- [ ] Stable Bookmap-style historical heatmap presentation
+- [ ] Correlation and market-regime analytics
+- [ ] Portfolio and cross-market risk views
 - [ ] Visual strategy builder
 
-## Phase 5 — Guarded exchange connectivity
+## Phase 7 — Guarded exchange connectivity
 
-This phase starts only after a separate security milestone.
+This phase starts only after a separate security milestone and independent review.
 
 - [ ] Exchange abstraction layer
 - [ ] Encrypted credential storage
@@ -315,295 +202,39 @@ This phase starts only after a separate security milestone.
 - [ ] MEXC guarded execution
 - [ ] Idempotent routing and exchange reconciliation
 - [ ] Loss limits, symbol limits and emergency kill switch
-- [ ] Complete audit log
+- [ ] Complete immutable audit log
 - [ ] Multi-exchange support
 - [ ] Mobile companion experience
 
 ## Milestones
 
-### Beta 1.0
-
-The intended public beta brings together the unified Product Launcher and navigation, consistent product branding, refreshed DizyAcademy learning, DizyCharts and DizyBrain analysis, DizyFlow market context, Manual Paper Trading v2, market depth, replay and replay controls, watchlists, multi-workspace support, alerts, a trading journal, performance and correlation dashboards, market scanning, institutional analysis and a dedicated Risk Centre. Live execution remains disabled.
-
 ### Active Beta
 
-The platform is useful for public charting, market study, deterministic signals, simulation and education, while live execution remains disabled.
+The platform is useful for public charting, market study, deterministic signals, simulation and education while live execution remains disabled.
 
 ### Professional Trading Terminal
 
-Complete when price sources, Paper v2, market depth, replay, watchlists, workspaces, alerts and analytics are stable.
+Complete when price sources, Replay, watchlists, workspaces, alerts, journal and core analytics are stable.
+
+### Research and Review Platform
+
+Complete when Replay can validate typed DizyQuant observations and connect them to DizySignals, DizyBrain, DizyPaper and DizyJournal without hidden weighting.
 
 ### Institutional Analysis Workspace
 
-Complete when footprint, delta, liquidity, correlation and portfolio-risk tools are reliable and clearly explained.
+Complete when footprint, delta, liquidity, correlation and portfolio-risk tools are reliable, replayable and clearly explained.
 
 ### Guarded Trading Platform
 
-Complete only after the security, risk, reconciliation and audit requirements for live connectivity are independently satisfied.
+Complete only after security, risk, reconciliation, credential and audit requirements for live connectivity are independently satisfied.
 
 ## Delivery rules
 
-- One focused feature per pull request.
+- One focused concern per pull request.
 - Work from current `main`.
 - Run lint, tests and production build before merge.
 - Keep display preferences separate from trading logic.
 - Do not infer unavailable exchange, strategy or risk data.
 - Prefer deterministic and explainable behaviour over black-box output.
-- Live trading remains disabled until Phase 5 requirements are complete.
-
-# DizyTrades Research Framework
-
-## Vision
-
-DizyTrades should evolve beyond a traditional charting platform into a transparent research platform for understanding market behaviour.
-
-Every future market concept must be:
-
-- observable
-- measurable
-- replayable
-- statistically testable
-- explainable
-
-No feature should become part of DizySignals until it demonstrates measurable improvement through historical replay.
-
-## Research Pipeline
-
-Every future market idea follows the same process.
-
-Observe
-
-↓
-
-Measure
-
-↓
-
-Replay
-
-↓
-
-Validate
-
-↓
-
-Statistics
-
-↓
-
-Improve
-
-↓
-
-Only then
-
-↓
-
-DizySignals
-
-Ideas begin as research, become measurable observations and only graduate into deterministic trade qualification after sufficient validation.
-
-# DizyQuant
-
-## Vision
-
-DizyQuant is the dedicated market microstructure research engine.
-
-## Purpose
-
-Measure observable market behaviour rather than attempting to predict price.
-
-Future research modules include:
-
-### Liquidity Ladder
-
-- ladder balance
-- ladder skew
-- ladder symmetry
-- ladder density
-- ladder migration
-- ladder persistence
-
-### Liquidity Replenishment
-
-- refill rate
-- refill consistency
-- replenishment imbalance
-- replenishment persistence
-
-### Liquidity Consumption
-
-- aggressive buying
-- aggressive selling
-- absorption
-- exhaustion
-- consumption efficiency
-
-### Liquidity Migration
-
-- upward migration
-- downward migration
-- retreat
-- expansion
-- contraction
-
-### Queue Dynamics
-
-- estimated visible queue
-- queue depletion
-- queue refill
-- queue turnover
-
-### Spread Behaviour
-
-- spread compression
-- spread expansion
-- spread stability
-
-### Cluster Persistence
-
-- lifetime
-- movement
-- reinforcement
-- disappearance
-
-### Auction Behaviour
-
-Future research.
-
-### Session Behaviour
-
-Future research.
-
-### Volatility Regimes
-
-Future research.
-
-# Replay Validation
-
-Replay is the validation engine.
-
-Every proposed metric should answer one question:
-
-> Did this improve trading decisions?
-
-Replay records:
-
-- DizySignals
-- DizyBrain
-- DizyFlow
-- Market Depth
-- DOM
-- Heatmap
-- DizyPaper
-- DizyQuant observations
-- Trade outcome
-
-# Statistical Validation
-
-Every candidate metric progresses through:
-
-Candidate Observation
-
-↓
-
-Replay
-
-↓
-
-Historical Statistics
-
-↓
-
-False Positive Analysis
-
-↓
-
-False Negative Analysis
-
-↓
-
-Net Improvement
-
-↓
-
-Accepted
-
-Otherwise, it remains informational only.
-
-# Explainable Intelligence
-
-DizyBrain should always explain:
-
-WHY
-
-rather than predict
-
-WHAT.
-
-Every explanation should be traceable back to measurable observations.
-
-Reject:
-
-- black-box scoring
-- hidden weighting
-- secret algorithms
-- unverifiable institutional claims
-
-# Product Mission
-
-Build the most transparent trading platform possible.
-
-The objective is not to predict markets.
-
-The objective is to help traders understand them.
-
-# Long-Term Product Vision
-
-The future DizySuite is:
-
-DizyCharts
-
-↓
-
-DizySignals
-
-↓
-
-DizyBrain
-
-↓
-
-DizyFlow
-
-↓
-
-DizyPaper
-
-↓
-
-DizyReplay
-
-↓
-
-DizyJournal
-
-↓
-
-DizyAcademy
-
-↓
-
-DizyQuant
-
-Every module contributes to one continuous learning loop.
-
-# Guiding Principle
-
-Every feature must make DizyTrades more understandable, not more mysterious.
-
-Transparency always takes priority over complexity.
-
-Evidence always takes priority over assumptions.
-
-Deterministic reasoning always takes priority over black-box predictions.
+- Research observations remain informational until validated.
+- Live trading remains disabled until Phase 7 requirements are complete.
