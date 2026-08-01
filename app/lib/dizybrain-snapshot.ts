@@ -22,6 +22,7 @@ export type DizyBrainExplanationMetadata = {
 };
 
 export type DizyBrainSnapshot = {
+  provenance: { source: "live" | "replay"; sessionId?: string; replayTimestampMs?: number };
   timestamp: string;
   currentDirection: DizyBrainDirection;
   marketBias: StrategyAnalysis["bias"];
@@ -43,6 +44,7 @@ export function createDizyBrainSnapshot(input: {
   strategy: StrategySettings;
   risk: RiskSettings;
   latestClosedCandleTime: number | null;
+  provenance?: DizyBrainSnapshot["provenance"];
 }): DizyBrainSnapshot {
   const { analysis, strategy, risk } = input;
   const currentDirection: DizyBrainDirection = analysis.scoreLong > analysis.scoreShort
@@ -74,6 +76,7 @@ export function createDizyBrainSnapshot(input: {
   if (!directionConsistent) rejectionReasons.push("No direction-consistent signal exists on the current confirmed candle.");
 
   return {
+    provenance: input.provenance ?? { source: "live" },
     timestamp: input.latestClosedCandleTime === null ? new Date(0).toISOString() : new Date(input.latestClosedCandleTime * 1000).toISOString(),
     currentDirection,
     marketBias: analysis.bias,

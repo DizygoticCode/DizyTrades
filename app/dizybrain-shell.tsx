@@ -46,7 +46,7 @@ export function DizyBrainShell({ children }: { children: ReactNode }) {
       </button>
       <aside className={`dizybrain-panel ${open ? "open" : ""}`} aria-hidden={!open} aria-label="DizyBrain transparent signal reasoning">
         <button className="dizybrain-close" onClick={() => setOpen(false)} type="button" aria-label="Close DizyBrain">×</button>
-        <header><BrainMark /><div><strong>DIZY<span>BRAIN</span></strong><small>Transparent Signal Reasoning</small></div></header>
+        <header><BrainMark /><div><strong>DIZY<span>BRAIN</span></strong><small>{snapshot?.provenance.source === "replay" ? "Replay Signal Reasoning" : "Transparent Signal Reasoning"}</small></div></header>
         <div className="dizybrain-ghost"><BrainMark /></div>
         <section className="dizybrain-summary">
           <span className={`dizybrain-direction ${direction.toLowerCase()}`}>{direction}</span>
@@ -80,7 +80,7 @@ export function DizyBrainShell({ children }: { children: ReactNode }) {
               </li>
             ))}
           </ol>
-          <small className="dizybrain-caption">This is the live deterministic progression available from the current terminal state. Historical per-candle rule events will require a dedicated rule ledger.</small>
+          <small className="dizybrain-caption">This is the deterministic progression available from the current {snapshot?.provenance.source === "replay" ? "replay prefix" : "terminal state"}. Historical per-candle rule events will require a dedicated rule ledger.</small>
         </section>
         <section className="dizybrain-rejections">
           <div className="dizybrain-section-title"><span>{rejectionReasons.length ? "Why this is not qualified yet" : "Qualification result"}</span></div>

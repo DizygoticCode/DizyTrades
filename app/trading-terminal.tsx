@@ -95,6 +95,7 @@ import { type MarketLoadReason } from "./lib/market/reconciliation";
 import {buildPineParityReport} from "./lib/pine-parity";
 import { stableLabelLane } from "./lib/chart/world-projection";
 import { livePaperSnapshot } from "./lib/paper-performance";
+import { createReplaySession, createReplaySnapshot, jumpReplay, progressReplay, replayDelayMs, replayPrefix, stepReplay, type ReplaySession, type ReplaySpeed } from "./lib/replay";
 import { PaperPerformanceToolbar } from "./paper-performance-toolbar";
 import { ManualPaperTicket } from "./manual-paper-ticket";
 import { OrderFlowToolbar } from "./order-flow-toolbar";
@@ -817,6 +818,7 @@ const DizyChart = forwardRef<
     readOnly: boolean;
     applyDefaultsNonce: number;
     flowStore: FlowRenderStore;
+    replayMode?: boolean;
   }
 >(function DizyChart(
   {
@@ -831,6 +833,7 @@ const DizyChart = forwardRef<
     readOnly,
     applyDefaultsNonce,
     flowStore,
+    replayMode=false,
   },
   ref,
 ) {
@@ -958,7 +961,7 @@ const DizyChart = forwardRef<
     const strategyLinesPrimitive = new StrategyWorldLinesPrimitive();
     flowPrimitiveRef.current = flowPrimitive;
     strategyLinesPrimitiveRef.current = strategyLinesPrimitive;
-    candles.attachPrimitive(flowPrimitive);
+    if(!replayMode)candles.attachPrimitive(flowPrimitive);
     candles.attachPrimitive(strategyLinesPrimitive);
     strategyLinesPrimitive.setModel(strategyWorldLinesModel(latestRef.current.candles,latestRef.current.analysis,latestRef.current.view));
     volume
@@ -983,7 +986,7 @@ const DizyChart = forwardRef<
       element.removeEventListener("pointerup", scheduleRedraw);
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(redraw);
       if (priceLineRef.current) candles.removePriceLine(priceLineRef.current);
-      candles.detachPrimitive(flowPrimitive);
+      if(!replayMode)candles.detachPrimitive(flowPrimitive);
       candles.detachPrimitive(strategyLinesPrimitive);
       flowPrimitiveRef.current = null;
       strategyLinesPrimitiveRef.current = null;
@@ -995,7 +998,7 @@ const DizyChart = forwardRef<
       if (redrawFrameRef.current !== null)
         cancelAnimationFrame(redrawFrameRef.current);
     };
-  }, [redraw, flowStore]);
+  }, [redraw, flowStore, replayMode]);
   useEffect(()=>{
     strategyLinesPrimitiveRef.current?.setModel(strategyWorldLinesModel(displayCandles,analysis,view));
   },[displayCandles,analysis,view]);
@@ -1237,9 +1240,13 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     live: liveCandle,
     lastPrice: liveLastPrice,
   } = timeline;
+  const [replayCandles,setReplayCandles]=useState<ReadonlyArray<Candle>>([]);
+  const [replaySession,setReplaySession]=useState<ReplaySession|null>(null);
+  const replayActive=replaySession!==null;
+  const replayClosedCandles=useMemo(()=>replaySession?[...replayPrefix(replayCandles,replaySession.cursorIndex)]:closedCandles,[replayCandles,replaySession,closedCandles]);
   const displayCandles = useMemo(
-    () => buildDisplayTimeline(closedCandles, liveCandle),
-    [closedCandles, liveCandle],
+    () => replayActive ? replayClosedCandles : buildDisplayTimeline(closedCandles, liveCandle),
+    [replayActive,replayClosedCandles,closedCandles, liveCandle],
   );
   const [realtimeStatus, setRealtimeStatus] =
     useState<RealtimeStatus>("connecting");
@@ -1296,19 +1303,28 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   }, [timeframe]);
 
   const analysis = useMemo(
-    () => analyzeStrategy(closedCandles, strategy),
-    [closedCandles, strategy],
+    () => analyzeStrategy(replayClosedCandles, strategy),
+    [replayClosedCandles, strategy],
   );
   const effectiveStrategy = useMemo(
     () => resolveStrategySettings(strategy),
     [strategy],
   );
-  const dizyBrainSnapshot = useMemo(() => createDizyBrainSnapshot({
-    analysis,
-    strategy,
-    risk,
-    latestClosedCandleTime: closedCandles.at(-1)?.time ?? null,
-  }), [analysis, closedCandles, risk, strategy]);
+  const replaySnapshot=useMemo(()=>replaySession?createReplaySnapshot({session:replaySession,candles:replayCandles,strategy,risk}):null,[replaySession,replayCandles,strategy,risk]);
+  const dizyBrainSnapshot = replaySnapshot?.dizyBrainSnapshot ?? createDizyBrainSnapshot({analysis,strategy,risk,latestClosedCandleTime:closedCandles.at(-1)?.time??null});
+  const replayTimer=useRef<number|null>(null);
+  useEffect(()=>{
+    if(!replaySession||replaySession.status!=="playing")return;
+    const delay=replayDelayMs(replaySession.speed); if(delay===null)return;
+    replayTimer.current=window.setInterval(()=>setReplaySession(current=>current?progressReplay(current,replayCandles):null),delay);
+    return()=>{if(replayTimer.current!==null)window.clearInterval(replayTimer.current);replayTimer.current=null;};
+  // Session identity is intentionally represented by status/speed; cursor ticks must not restart the interval.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[replaySession?.status,replaySession?.speed,replayCandles]);
+  useEffect(()=>{const pause=()=>{if(document.visibilityState==="hidden")setReplaySession(current=>current?.status==="playing"?{...current,status:"paused"}:current);};document.addEventListener("visibilitychange",pause);return()=>document.removeEventListener("visibilitychange",pause);},[]);
+  useEffect(()=>()=>{if(replayTimer.current!==null)window.clearInterval(replayTimer.current);},[]);
+  const enterReplay=()=>{const candles=Object.freeze(closedCandles.map(c=>Object.freeze({...c})));if(!candles.length)return;const now=Date.now();setReplayCandles(candles);setReplaySession(createReplaySession({id:`replay-${now}`,symbol,timeframe:timeframe as CandleTimeframe,rangeStartMs:candles[0].time*1000,rangeEndMs:candles.at(-1)!.time*1000,startedAt:now,candles,speed:1}));setViewportReset(v=>v+1);};
+  const exitReplay=()=>{setReplaySession(null);setReplayCandles([]);setViewportReset(v=>v+1);};
   const historyCapacity = useMemo(
     () => strategyHistoryCapacity(strategy),
     [strategy],
@@ -1445,7 +1461,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
 
   const demo = dataSource === "DEMONSTRATION DATA";
   useMexcRealtime({
-    enabled: terminalTab === "charts" && !demo && view.realtimeChartUpdates,
+    enabled: terminalTab === "charts" && !demo && !replayActive && view.realtimeChartUpdates,
     symbol,
     marketType: selectedMarket?.marketType ?? "futures",
     timeframe: timeframe as CandleTimeframe,
@@ -1482,7 +1498,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
 
   useEffect(() => () => marketAbort.current?.abort(), []);
 
-  const countdownActive =
+  const countdownActive = !replayActive &&
     view.candleCountdown &&
     liveCandle !== null &&
     (view.countdownToolbar || view.countdownPriceMarker);
@@ -1731,6 +1747,23 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
         </div>
       </header>
 
+      <section className={`replay-controls ${replayActive?"active":""}`} aria-label="Replay controls" aria-live="polite">
+        {!replaySession?<button type="button" onClick={enterReplay} disabled={!closedCandles.length}>Enter Replay</button>:<>
+          <strong>REPLAY MODE</strong><span>{symbol} · {timeframe}</span>
+          <button aria-label="Jump to beginning" type="button" onClick={()=>setReplaySession(s=>s?jumpReplay(s,replayCandles,0):s)}>⏮</button>
+          <button aria-label="Step back" type="button" onClick={()=>setReplaySession(s=>s?stepReplay(s,replayCandles,-1):s)}>◀</button>
+          <button aria-label={replaySession.status==="playing"?"Pause replay":"Play replay"} aria-pressed={replaySession.status==="playing"} type="button" onClick={()=>setReplaySession(s=>s?{...s,status:s.status==="playing"?"paused":s.cursorIndex===replayCandles.length-1?"ended":"playing"}:s)}>{replaySession.status==="playing"?"Pause":"Play"}</button>
+          <button aria-label="Step forward" type="button" onClick={()=>setReplaySession(s=>s?stepReplay(s,replayCandles,1):s)}>▶</button>
+          <button aria-label="Jump to end" type="button" onClick={()=>setReplaySession(s=>s?jumpReplay(s,replayCandles,replayCandles.length-1):s)}>⏭</button>
+          <label>Speed <select value={String(replaySession.speed)} onChange={event=>setReplaySession(s=>s?{...s,speed:event.target.value==="step"?"step":Number(event.target.value) as ReplaySpeed,status:"paused"}:s)}><option value="step">Step</option>{[1,2,5,10].map(speed=><option value={speed} key={speed}>{speed}×</option>)}</select></label>
+          <progress aria-label="Replay progress" max={replayCandles.length} value={replaySession.visibleCandles}/>
+          <time dateTime={replaySession.cursorTimeMs?new Date(replaySession.cursorTimeMs).toISOString():undefined}>{replaySession.cursorTimeMs?new Date(replaySession.cursorTimeMs).toLocaleString():"No candles"}</time>
+          <span>{replaySession.visibleCandles} / {replaySession.candlesLoaded}</span>
+          <span className="replay-flow-note">Historical DizyFlow data is unavailable for this replay range.</span>
+          <button type="button" onClick={exitReplay}>Exit Replay</button>
+        </>}
+      </section>
+
       {terminalTab === "explorer" ? (
         <TradingViewExplorer
           nativeChart={
@@ -1745,6 +1778,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               symbol={symbol}
               timeframe={timeframe}
               flowStore={orderFlow.renderStore}
+              replayMode={replayActive}
               view={view}
             />
           }
@@ -1870,8 +1904,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               {backgroundSyncing ? "Syncing…" : "Refresh data"}
             </button>
             <div className="toolbar-spacer" />
-            <OrderFlowToolbar settings={orderFlowSettings} onChange={setOrderFlowSettings} summary={orderFlow.summary} renderStore={orderFlow.renderStore} onRetry={orderFlow.retry} onHistory={()=>setFlowHistoryOpen(true)}/>
-            <DizyFlowToastRail alerts={orderFlow.summary.alerts} settings={orderFlowSettings} onHistory={()=>setFlowHistoryOpen(true)}/>
+            {!replayActive ? <OrderFlowToolbar settings={orderFlowSettings} onChange={setOrderFlowSettings} summary={orderFlow.summary} renderStore={orderFlow.renderStore} onRetry={orderFlow.retry} onHistory={()=>setFlowHistoryOpen(true)} /> : null}
+            {!replayActive ? <DizyFlowToastRail alerts={orderFlow.summary.alerts} settings={orderFlowSettings} onHistory={()=>setFlowHistoryOpen(true)} /> : null}
             <div className="mode-control" aria-label="Execution mode">
               {(["Off", "Paper"] as const).map((mode) => (
                 <button
@@ -1908,7 +1942,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           ) : null}
 
           <div className={`workspace ${settingsOpen ? "" : "panel-closed"}`}>
-            {orderFlowSettings.enabled&&orderFlowSettings.domVisible&&selectedMarket?<DizyFlowDom store={orderFlow.renderStore} summary={orderFlow.summary} contractSize={selectedMarket?.contractSize??1} market={selectedMarket!} onGrouping={step=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,groupingBySymbol:{...value.dom.groupingBySymbol,[symbol]:step}}}))} onWidth={width=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,width}}))} onDomSettings={patch=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,...patch}}))} onClose={()=>setOrderFlowSettings(value=>({...value,domVisible:false}))}/>:null}
+            {!replayActive&&orderFlowSettings.enabled&&orderFlowSettings.domVisible&&selectedMarket?<DizyFlowDom store={orderFlow.renderStore} summary={orderFlow.summary} contractSize={selectedMarket?.contractSize??1} market={selectedMarket!} onGrouping={step=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,groupingBySymbol:{...value.dom.groupingBySymbol,[symbol]:step}}}))} onWidth={width=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,width}}))} onDomSettings={patch=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,...patch}}))} onClose={()=>setOrderFlowSettings(value=>({...value,domVisible:false}))}/>:null}
             <section className="chart-section">
               <div className="chart-status-row">
                 <div>
@@ -1966,6 +2000,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                     symbol={symbol}
                     timeframe={timeframe}
                     flowStore={orderFlow.renderStore}
+                    replayMode={replayActive}
                     view={view}
                   />
                 </ChartErrorBoundary></>
@@ -3141,6 +3176,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                       </div>
                       <div className="setting-section">
                         <h3>Signal diagnostics</h3>
+                        {replaySession?<small>Replay {replaySession.status} · session {replaySession.id} · {replaySession.symbol} {replaySession.timeframe} · range {new Date(replaySession.rangeStartMs).toISOString()}—{new Date(replaySession.rangeEndMs).toISOString()} · cursor {replaySession.cursorIndex} ({replaySession.cursorTimeMs?new Date(replaySession.cursorTimeMs).toISOString():"none"}) · candles {replaySession.candlesLoaded} · prefix {replaySession.visibleCandles} · speed {replaySession.speed} · signals {analysis.tradeSignals.length} · brain {dizyBrainSnapshot.timestamp} · flow unavailable · timer {replaySession.status==="playing"?"active":"stopped"} · stale requests 0 · last error {replaySession.error??"none"}</small>:<small>Replay idle · timer stopped</small>}
                         <div className="paper-summary">
                           <small>
                             Preset: {strategyModeLabel(strategy.mode)} ·

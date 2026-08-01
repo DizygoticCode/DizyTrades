@@ -342,6 +342,7 @@ button {
   border-bottom: 1px solid var(--border);
   background: #0c1019;
 }
+.replay-controls{min-height:38px;display:flex;align-items:center;gap:8px;padding:5px 16px;border-bottom:1px solid var(--border);background:#0c1019;font-size:11px}.replay-controls.active{background:#20182d;border-color:#8f6ad8}.replay-controls strong{color:#d9c2ff;letter-spacing:.12em}.replay-controls button,.replay-controls select{border:1px solid #45506a;border-radius:5px;background:#151b29;color:#edf1fa;padding:5px 8px}.replay-controls button:focus-visible,.replay-controls select:focus-visible{outline:2px solid #b99cff;outline-offset:2px}.replay-controls progress{width:120px}.replay-flow-note{color:#d8c8a5;margin-left:auto}
 
 .symbol-block {
   min-width: 180px;
