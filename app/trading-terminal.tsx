@@ -1267,7 +1267,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [flowHistoryOpen,setFlowHistoryOpen]=useState(false);
   const selectedMarket=markets.find((market)=>market.key===selectedMarketKey);
   const futuresSelected=selectedMarket?.marketType!=="spot";
-  const orderFlow=useOrderFlow({settings:orderFlowSettings,paused:!futuresSelected,symbol,contractSize:selectedMarket?.contractSize??1,priceUnit:selectedMarket?.priceUnit,priceScale:selectedMarket?.priceScale,marketKey:selectedMarket?.key,marketType:selectedMarket?.marketType});
+  const orderFlow=useOrderFlow({settings:orderFlowSettings,paused:!futuresSelected,symbol,contractSize:selectedMarket?.contractSize??1,priceUnit:selectedMarket?.priceUnit,priceScale:selectedMarket?.priceScale,marketKey:selectedMarket?.key,marketType:selectedMarket?.marketType,reference:liveCandle?.close?{price:liveCandle.close,source:"last"}:undefined});
   const [selectorOpen, setSelectorOpen] = useState(false);
   const marketTrigger = useRef<HTMLButtonElement>(null);
   const [favourites, setFavourites] = useState<string[]>([]);

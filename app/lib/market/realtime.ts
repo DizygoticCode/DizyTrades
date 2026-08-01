@@ -46,6 +46,8 @@ export function parseMexcDeals(message: unknown, symbol: string, contractSize = 
     if (price === null || eventTime === null || volume === null || price <= 0 || eventTime <= 0 || volume < 0 || ![1, 2].includes(sideCode ?? 0) || !Number.isFinite(contractSize) || contractSize <= 0) return [];
     const selfTradeRaw = data.M;
     const baseQuantity = volume * contractSize;
+    // MEXC public contract deal field T is the taker/aggressor direction:
+    // 1 = buy-aggressor and 2 = sell-aggressor. Unknown codes are rejected above.
     return [{ symbol: receivedSymbol, price, timeMs:eventTime, volume, tradeId: String(data.i ?? `${receivedSymbol}:${eventTime}:${price}:${volume}:${sideCode}`), contractQuantity: volume, side: sideCode === 1 ? "buy" : "sell", openClose: data.O == null ? null : String(data.O), engineTimeMs: engineTime ?? eventTime, selfTrade: selfTradeRaw == null ? null : Boolean(selfTradeRaw), baseQuantity, notional: price * baseQuantity }];
   });
 }
