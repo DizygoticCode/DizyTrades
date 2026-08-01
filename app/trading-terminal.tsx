@@ -95,7 +95,7 @@ import { type MarketLoadReason } from "./lib/market/reconciliation";
 import {buildPineParityReport} from "./lib/pine-parity";
 import { stableLabelLane } from "./lib/chart/world-projection";
 import { livePaperSnapshot } from "./lib/paper-performance";
-import { createReplaySession, createReplaySnapshot, jumpReplay, progressReplay, replayDelayMs, replayIdentityChanged, replayPrefix, replayRangeForCandles, stepReplay, type ReplaySession, type ReplaySpeed } from "./lib/replay";
+import { createReplaySession, createReplaySnapshot, jumpReplay, jumpReplayToTimestamp, progressReplay, replayDelayMs, replayIdentityChanged, replayPrefix, replayRangeForCandles, stepReplay, type ReplaySession, type ReplaySpeed } from "./lib/replay";
 import { PaperPerformanceToolbar } from "./paper-performance-toolbar";
 import { ManualPaperTicket } from "./manual-paper-ticket";
 import { OrderFlowToolbar } from "./order-flow-toolbar";
@@ -1223,6 +1223,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [timeframe, setTimeframe] = useState("15m");
   const [symbol, setSymbol] = useState("BTC_USDT");
   const [selectedMarketKey, setSelectedMarketKey] = useState("mexc:futures:BTC_USDT");
+  const replayLaunchHandled=useRef(false);
   const marketKey = `${selectedMarketKey}:${timeframe}`;
   const [timeline, dispatchTimeline] = useReducer(
     marketTimelineReducer,
@@ -1323,6 +1324,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   useEffect(()=>{const pause=()=>{if(document.visibilityState==="hidden")setReplaySession(current=>current?.status==="playing"?{...current,status:"paused"}:current);};document.addEventListener("visibilitychange",pause);return()=>document.removeEventListener("visibilitychange",pause);},[]);
   useEffect(()=>()=>{if(replayTimer.current!==null)window.clearInterval(replayTimer.current);},[]);
   const enterReplay=()=>{const candles=Object.freeze(closedCandles.map(c=>Object.freeze({...c})));if(!candles.length)return;const now=Date.now(),range=replayRangeForCandles(candles,timeframe as CandleTimeframe);setReplayCandles(candles);setReplaySession(createReplaySession({id:`replay-${now}`,symbol,timeframe:timeframe as CandleTimeframe,...range,startedAt:now,candles,speed:1}));setViewportReset(v=>v+1);};
+  useEffect(()=>{if(replayLaunchHandled.current)return;const query=new URLSearchParams(window.location.search),requestedSymbol=query.get("replaySymbol"),requestedTimeframe=query.get("replayTimeframe"),at=Number(query.get("replayAt"));if(!requestedSymbol||!requestedTimeframe)return;const timer=window.setTimeout(()=>{if(symbol!==requestedSymbol||timeframe!==requestedTimeframe){setSymbol(requestedSymbol);setSelectedMarketKey(`mexc:futures:${requestedSymbol}`);setTimeframe(requestedTimeframe);return;}if(!closedCandles.length||resultMarketKey!==marketKey)return;replayLaunchHandled.current=true;const candles=Object.freeze(closedCandles.map(c=>Object.freeze({...c}))),range=replayRangeForCandles(candles,timeframe as CandleTimeframe),session=createReplaySession({id:`journal-replay-${Date.now()}`,symbol,timeframe:timeframe as CandleTimeframe,...range,startedAt:Date.now(),candles,speed:1});setReplayCandles(candles);setReplaySession(Number.isFinite(at)?jumpReplayToTimestamp(session,candles,at):session);setViewportReset(v=>v+1);},0);return()=>window.clearTimeout(timer);},[symbol,timeframe,closedCandles,resultMarketKey,marketKey]);
   const exitReplay=useCallback(()=>{setReplaySession(null);setReplayCandles([]);setViewportReset(v=>v+1);},[]);
   useEffect(()=>{if(!replaySession||!replayIdentityChanged(replaySession,symbol,timeframe as CandleTimeframe))return;const cleanup=window.setTimeout(exitReplay,0);return()=>window.clearTimeout(cleanup);},[replaySession,symbol,timeframe,exitReplay]);
   const historyCapacity = useMemo(
@@ -1931,6 +1933,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           {view.showSimulationPerformance ? (
             <PaperPerformanceToolbar
               enabled={executionMode === "Paper"}
+              readOnly={user.role === "viewer"}
+              journalContext={{symbol,market:selectedMarket?.displayName??symbol,timeframe,riskPct:risk.riskPct,leverage:risk.leverage,strategyVersion:`dizysignals-${strategy.mode}-v1`,brainSummary:dizyBrainSnapshot?`${dizyBrainSnapshot.currentDirection} · ${dizyBrainSnapshot.marketBias} bias · ${dizyBrainSnapshot.activeConfluence}/5 confluence`:null,replayAvailable:closedCandles.length>0}}
               error={resultMarketKey !== marketKey ? feedError : null}
               onRetry={() => {
                 if (resultMarketKey !== marketKey) void loadMarketData({ reason: "reconnect", resetView: false });

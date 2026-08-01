@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { LivePaperSnapshot } from "./lib/paper-performance";
+import type { PaperTrade } from "./lib/backtest";
 import { formatSignedMoney, tradeExitLabel } from "./lib/paper-performance";
 import type { SimulationStatus } from "./lib/paper-simulation";
 
@@ -9,8 +10,15 @@ export const finiteNumber = (value: number, digits = 2) => Number.isFinite(value
 const pct = (value: number) => Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${value.toFixed(2)}%` : "—";
 const tone = (value: number) => value > 0 ? "positive" : value < 0 ? "negative" : "neutral";
 
-export function PaperPerformanceToolbar({ snapshot, enabled, status, error, onRetry }: { snapshot: LivePaperSnapshot | null; enabled: boolean; status: SimulationStatus; error: string | null; onRetry: () => void }) {
+type JournalContext={symbol:string;market:string;timeframe:string;riskPct:number;leverage:number;strategyVersion:string;brainSummary:string|null;replayAvailable:boolean};
+export function PaperPerformanceToolbar({ snapshot, enabled, status, error, onRetry, journalContext, readOnly=false }: { snapshot: LivePaperSnapshot | null; enabled: boolean; status: SimulationStatus; error: string | null; onRetry: () => void; journalContext?:JournalContext;readOnly?:boolean }) {
   const [open, setOpen] = useState(false);
+  const [completed,setCompleted]=useState<PaperTrade|null>(null),[notice,setNotice]=useState("");
+  const lastCompleted=snapshot?.closedTrades.findLast(trade=>trade.exitReason!=="MARK")??null;
+  const seen=useRef<string|null>(null);
+  useEffect(()=>{if(!lastCompleted||seen.current===lastCompleted.id)return;seen.current=lastCompleted.id;setCompleted(lastCompleted);},[lastCompleted]);
+  async function addToJournal(trade:PaperTrade){if(!journalContext)return;const riskDistance=Math.abs(trade.entry-trade.stop),positionSize=riskDistance>0?Math.abs(trade.pnl)/(riskDistance||1):0;const body={type:"trade-review",notes:"",tags:[],trade:{tradeId:trade.id,symbol:journalContext.symbol,market:journalContext.market,timeframe:journalContext.timeframe,direction:trade.direction,entry:trade.entry,exit:trade.exit,stop:trade.stop,target:null,positionSize,riskPct:journalContext.riskPct,leverage:journalContext.leverage,marginMode:"simulated",fees:0,pnl:trade.pnl,pnlPct:trade.pnlPct,rMultiple:riskDistance?trade.pnl/(riskDistance*Math.max(positionSize,Number.EPSILON)):null,openTime:new Date(trade.entryTime*1000).toISOString(),closeTime:new Date(trade.exitTime*1000).toISOString(),closeReason:trade.exitReason,strategyVersion:journalContext.strategyVersion,replay:journalContext.replayAvailable?{sessionId:`paper-${trade.id}`,symbol:journalContext.symbol,timeframe:journalContext.timeframe,entryTimeMs:trade.entryTime*1000,available:true}:null,brain:journalContext.brainSummary?{id:`brain-${trade.signalTime}`,capturedAt:new Date(trade.signalTime*1000).toISOString(),summary:journalContext.brainSummary}:null,signal:{direction:trade.direction,signalTime:new Date(trade.signalTime*1000).toISOString(),label:`Confirmed ${trade.direction} signal`}}};const response=await fetch("/api/journal",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const payload=await response.json();if(response.ok){location.href=`/journal?entry=${payload.entry.id}`;return;}setNotice(payload.error?.message??"Trade review could not be created.");}
+  function openReplay(trade:PaperTrade){if(!journalContext?.replayAvailable){setNotice("Replay data is unavailable for this trade.");return;}location.href=`/terminal?replaySymbol=${encodeURIComponent(journalContext.symbol)}&replayTimeframe=${journalContext.timeframe}&replayAt=${trade.entryTime*1000}`;}
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -42,9 +50,10 @@ export function PaperPerformanceToolbar({ snapshot, enabled, status, error, onRe
       {status === "error" ? <><span className="paper-status-error">{error || "Simulation failed."}</span><button className="paper-retry" onClick={onRetry} type="button">Retry</button></> : null}
       <button aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(value => !value)} type="button">History</button>
     </div>
+    {completed&&!readOnly?<div aria-label="Trade complete" aria-modal="false" className="trade-complete" role="dialog"><strong>Trade Complete</strong><b>{journalContext?.symbol} {completed.direction==="long"?"Long":"Short"}</b><span className={tone(completed.pnlPct)}>{pct(completed.pnlPct)}</span><p>What would you like to do?</p><div><button onClick={()=>openReplay(completed)}>Open Replay</button><button onClick={()=>void addToJournal(completed)}>Add to DizyJournal</button><button onClick={()=>setCompleted(null)}>Close</button></div>{notice?<small role="status">{notice}</small>:null}</div>:null}
     {open ? <div aria-label="Recent simulated trades" aria-modal="false" className="paper-history" role="dialog">
       <div className="paper-history-head"><div><strong>Paper simulation history</strong><small>Most recent {trades.length} · simulation only</small></div><button aria-label="Close trade history" onClick={() => setOpen(false)} type="button">×</button></div>
-      <div className="paper-table-wrap"><table><thead><tr><th>Entry time</th><th>Side</th><th>Entry</th><th>Exit / mark</th><th>P/L</th><th>P/L %</th><th>Result</th><th>Exit reason</th></tr></thead><tbody>{trades.length ? trades.map(trade => <tr key={trade.id}><td>{new Date(trade.entryTime * 1000).toLocaleString()}</td><td>{trade.direction === "long" ? "Long" : "Short"}</td><td>{finiteNumber(trade.entry)}</td><td>{finiteNumber(trade.exit)}</td><td className={tone(trade.pnl)}>{formatSignedMoney(trade.pnl)}</td><td className={tone(trade.pnlPct)}>{pct(trade.pnlPct)}</td><td>{trade.exitReason === "MARK" ? "Open" : trade.result}</td><td>{tradeExitLabel(trade.exitReason)}</td></tr>) : <tr><td colSpan={8}>No simulated trades yet.</td></tr>}</tbody></table></div>
+      <div className="paper-table-wrap"><table><thead><tr><th>Entry time</th><th>Side</th><th>Entry</th><th>Exit / mark</th><th>P/L</th><th>P/L %</th><th>Result</th><th>Exit reason</th><th>Journal</th></tr></thead><tbody>{trades.length ? trades.map(trade => <tr key={trade.id}><td>{new Date(trade.entryTime * 1000).toLocaleString()}</td><td>{trade.direction === "long" ? "Long" : "Short"}</td><td>{finiteNumber(trade.entry)}</td><td>{finiteNumber(trade.exit)}</td><td className={tone(trade.pnl)}>{formatSignedMoney(trade.pnl)}</td><td className={tone(trade.pnlPct)}>{pct(trade.pnlPct)}</td><td>{trade.exitReason === "MARK" ? "Open" : trade.result}</td><td>{tradeExitLabel(trade.exitReason)}</td><td>{trade.exitReason!=="MARK"&&!readOnly?<button onClick={()=>void addToJournal(trade)}>Add to DizyJournal</button>:"—"}</td></tr>) : <tr><td colSpan={9}>No simulated trades yet.</td></tr>}</tbody></table></div>
     </div> : null}
   </div>;
 }
