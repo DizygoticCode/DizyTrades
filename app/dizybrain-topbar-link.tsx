@@ -25,7 +25,7 @@ export function DizyBrainTopbarLink() {
   if (!target) return null;
 
   return createPortal(
-    <button
+    <><button
       className="nav-tab dizybrain-topbar-link"
       onClick={() =>
         document
@@ -50,7 +50,8 @@ export function DizyBrainTopbarLink() {
           box-shadow: 0 0 14px #13d8d12b;
         }
       `}</style>
-    </button>,
+    </button>
+    <a className="nav-tab dizyjournal-topbar-link" href="/journal" title="Open DizyJournal">📓 DizyJournal</a></>,
     target,
   );
 }

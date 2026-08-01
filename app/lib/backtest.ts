@@ -10,6 +10,11 @@ export type PaperTrade = {
   entry: number;
   exit: number;
   stop: number;
+  target?: number;
+  positionSize?: number;
+  riskPct?: number;
+  leverage?: number;
+  rMultiple?: number;
   pnl: number;
   pnlPct: number;
   result: "win" | "loss" | "flat";
@@ -179,6 +184,11 @@ export function simulateConfirmedSignals(
       entry,
       exit,
       stop,
+      target: tp2,
+      positionSize: quantity,
+      riskPct: risk.riskPct,
+      leverage: risk.leverage,
+      rMultiple: riskCash > 0 ? realised / riskCash : 0,
       pnl: realised,
       pnlPct: equityBefore > 0 ? (realised / equityBefore) * 100 : 0,
       result: realised > 0 ? "win" : realised < 0 ? "loss" : "flat",
