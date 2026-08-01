@@ -1,4 +1,4 @@
-export const JOURNAL_SCHEMA_VERSION = 4 as const;
+export const JOURNAL_SCHEMA_VERSION = 5 as const;
 export const JOURNAL_TITLE_MAX = 120;
 export const JOURNAL_TAG_MAX = 20;
 export const JOURNAL_TAG_LENGTH_MAX = 40;
@@ -11,6 +11,8 @@ export type ReplayReference = Readonly<{ sessionId: string; marketKey: string; s
 export type SnapshotReference = Readonly<{ id: string; capturedAt: string; summary: string }>;
 export type SignalSummary = Readonly<{ direction: "long" | "short"; signalTime: string; label: string }>;
 export type DizyBrainReviewReference = Readonly<{available:boolean;reviewId:string|null;engineVersion:string|null;generatedAt:string|null;generatedFromHash:string|null;reviewConfidence:number|null}>;
+export type HistoricalDizyFlowReference = Readonly<{available:boolean;memoryId:string|null;captureStartMs:number|null;captureEndMs:number|null;sampleCount:number;eventCount:number;averageConfidence:number|null;coveragePct:number|null;limitations:readonly string[]}>;
+export const unavailableHistoricalDizyFlowReference=():HistoricalDizyFlowReference=>Object.freeze({available:false,memoryId:null,captureStartMs:null,captureEndMs:null,sampleCount:0,eventCount:0,averageConfidence:null,coveragePct:null,limitations:Object.freeze(["capture-unavailable"])});
 
 /** Small, immutable execution facts copied at completion. Replay candles and Brain datasets are references, never embedded. */
 export type TradeSnapshot = Readonly<{
@@ -19,7 +21,7 @@ export type TradeSnapshot = Readonly<{
   riskPct: number | null; leverage: number | null; marginMode: "isolated" | "cross" | null; fees: number | null;
   pnl: number; pnlPct: number; rMultiple: number | null; openTime: string; closeTime: string;
   closeReason: string; strategyVersion: string | null; replay: ReplayReference | null;
-  brain: SnapshotReference | null; signal: SignalSummary | null; dizyBrainReview:DizyBrainReviewReference;
+  brain: SnapshotReference | null; signal: SignalSummary | null; dizyBrainReview:DizyBrainReviewReference; historicalDizyFlow:HistoricalDizyFlowReference;
 }>;
 
 export type JournalEntry = Readonly<{
