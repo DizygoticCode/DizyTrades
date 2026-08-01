@@ -33,7 +33,7 @@ export class DizyFlowPrimitive implements ISeriesPrimitive<Time> {
    if(visiblePrices)this.store.requestHistory({from:start,to:end,minPrice:visiblePrices.min,maxPrice:visiblePrices.max,effectiveTimeBucketMs:Math.max(5000,Math.ceil((end-start)/Math.max(1,width)/5000)*5000),effectivePriceStep:displayStep});
    const projectX=(timestampMs:number)=>{const logical=timestampToLogicalPosition(this.candles,timestampMs,this.timeframe);if(logical===null||logical<range.from-1||logical>range.to+1)return null;const span=Number(range.to)-Number(range.from);return span>0?(logical-Number(range.from))/span*width:null};
    context.save();try{context.beginPath();context.rect(0,0,width,height);context.clip();
-    const staticSignature=JSON.stringify([width,height,Number(range.from).toFixed(3),Number(range.to).toFixed(3),visiblePrices?.min.toPrecision(8),visiblePrices?.max.toPrecision(8),displayStep,settings.heatmap]);
+    const staticSignature=JSON.stringify([width,height,Number(range.from).toFixed(3),Number(range.to).toFixed(3),visiblePrices?.min.toPrecision(8),visiblePrices?.max.toPrecision(8),displayStep,settings.heatmapVisible,settings.heatmap]);
     const heatSignature=`${staticSignature}:${s.generation}:${s.heatmapTiles.length}:${s.captureEnded}`;
     const canRetain=typeof document!=="undefined";if(canRetain&&(!this.heatSurface||this.heatSurface.width!==Math.ceil(width)||this.heatSurface.height!==Math.ceil(height))){this.heatSurface=document.createElement("canvas");this.heatSurface.width=Math.ceil(width);this.heatSurface.height=Math.ceil(height);this.heatSignature=""}
     const rebuildHeatmap=!canRetain||heatSignature!==this.heatSignature;const liveOnly=this.heatStaticSignature===staticSignature&&this.heatSignature!=="";
