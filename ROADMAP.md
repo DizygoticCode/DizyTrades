@@ -350,3 +350,260 @@ Complete only after the security, risk, reconciliation and audit requirements fo
 - Do not infer unavailable exchange, strategy or risk data.
 - Prefer deterministic and explainable behaviour over black-box output.
 - Live trading remains disabled until Phase 5 requirements are complete.
+
+# DizyTrades Research Framework
+
+## Vision
+
+DizyTrades should evolve beyond a traditional charting platform into a transparent research platform for understanding market behaviour.
+
+Every future market concept must be:
+
+- observable
+- measurable
+- replayable
+- statistically testable
+- explainable
+
+No feature should become part of DizySignals until it demonstrates measurable improvement through historical replay.
+
+## Research Pipeline
+
+Every future market idea follows the same process.
+
+Observe
+
+↓
+
+Measure
+
+↓
+
+Replay
+
+↓
+
+Validate
+
+↓
+
+Statistics
+
+↓
+
+Improve
+
+↓
+
+Only then
+
+↓
+
+DizySignals
+
+Ideas begin as research, become measurable observations and only graduate into deterministic trade qualification after sufficient validation.
+
+# DizyQuant
+
+## Vision
+
+DizyQuant is the dedicated market microstructure research engine.
+
+## Purpose
+
+Measure observable market behaviour rather than attempting to predict price.
+
+Future research modules include:
+
+### Liquidity Ladder
+
+- ladder balance
+- ladder skew
+- ladder symmetry
+- ladder density
+- ladder migration
+- ladder persistence
+
+### Liquidity Replenishment
+
+- refill rate
+- refill consistency
+- replenishment imbalance
+- replenishment persistence
+
+### Liquidity Consumption
+
+- aggressive buying
+- aggressive selling
+- absorption
+- exhaustion
+- consumption efficiency
+
+### Liquidity Migration
+
+- upward migration
+- downward migration
+- retreat
+- expansion
+- contraction
+
+### Queue Dynamics
+
+- estimated visible queue
+- queue depletion
+- queue refill
+- queue turnover
+
+### Spread Behaviour
+
+- spread compression
+- spread expansion
+- spread stability
+
+### Cluster Persistence
+
+- lifetime
+- movement
+- reinforcement
+- disappearance
+
+### Auction Behaviour
+
+Future research.
+
+### Session Behaviour
+
+Future research.
+
+### Volatility Regimes
+
+Future research.
+
+# Replay Validation
+
+Replay is the validation engine.
+
+Every proposed metric should answer one question:
+
+> Did this improve trading decisions?
+
+Replay records:
+
+- DizySignals
+- DizyBrain
+- DizyFlow
+- Market Depth
+- DOM
+- Heatmap
+- DizyPaper
+- DizyQuant observations
+- Trade outcome
+
+# Statistical Validation
+
+Every candidate metric progresses through:
+
+Candidate Observation
+
+↓
+
+Replay
+
+↓
+
+Historical Statistics
+
+↓
+
+False Positive Analysis
+
+↓
+
+False Negative Analysis
+
+↓
+
+Net Improvement
+
+↓
+
+Accepted
+
+Otherwise, it remains informational only.
+
+# Explainable Intelligence
+
+DizyBrain should always explain:
+
+WHY
+
+rather than predict
+
+WHAT.
+
+Every explanation should be traceable back to measurable observations.
+
+Reject:
+
+- black-box scoring
+- hidden weighting
+- secret algorithms
+- unverifiable institutional claims
+
+# Product Mission
+
+Build the most transparent trading platform possible.
+
+The objective is not to predict markets.
+
+The objective is to help traders understand them.
+
+# Long-Term Product Vision
+
+The future DizySuite is:
+
+DizyCharts
+
+↓
+
+DizySignals
+
+↓
+
+DizyBrain
+
+↓
+
+DizyFlow
+
+↓
+
+DizyPaper
+
+↓
+
+DizyReplay
+
+↓
+
+DizyJournal
+
+↓
+
+DizyAcademy
+
+↓
+
+DizyQuant
+
+Every module contributes to one continuous learning loop.
+
+# Guiding Principle
+
+Every feature must make DizyTrades more understandable, not more mysterious.
+
+Transparency always takes priority over complexity.
+
+Evidence always takes priority over assumptions.
+
+Deterministic reasoning always takes priority over black-box predictions.
