@@ -12,6 +12,12 @@ export type JournalTradeContext = Readonly<{
   replay: Readonly<{ marketKey: string; symbol: string; timeframe: CandleTimeframe; candles: ReadonlyArray<Candle> }>;
 }>;
 
+const identityPart=(value:string)=>`${value.length}:${value}`;
+/** Length-prefixed components make the identifier deterministic without delimiter ambiguity. */
+export function journalTradeId(trade:PaperTrade,context:Pick<JournalTradeContext,"marketKey"|"symbol"|"timeframe">):string {
+  return `jt1|${[context.marketKey,context.symbol,context.timeframe,trade.id].map(identityPart).join("|")}`;
+}
+
 /** Availability describes the exact loaded identity and timestamp coverage; it never predicts fetchable history. */
 export function replayReferenceForTrade(trade: PaperTrade, context: JournalTradeContext): ReplayReference {
   const identityMatches=context.marketKey===context.replay.marketKey&&context.symbol===context.replay.symbol&&context.timeframe===context.replay.timeframe;
@@ -19,7 +25,7 @@ export function replayReferenceForTrade(trade: PaperTrade, context: JournalTrade
   if(identityMatches&&context.replay.candles.length){
     try { const range=replayRangeForCandles(context.replay.candles,context.timeframe); const entryTimeMs=trade.entryTime*1_000; available=entryTimeMs>=range.rangeStartMs&&entryTimeMs<range.rangeEndMs&&context.replay.candles.some(c=>c.time===trade.entryTime); } catch { available=false; }
   }
-  return Object.freeze({sessionId:`paper-${trade.id}`,marketKey:context.marketKey,symbol:context.symbol,timeframe:context.timeframe,entryTimeMs:trade.entryTime*1_000,available});
+  return Object.freeze({sessionId:`journal-replay|${journalTradeId(trade,context)}`,marketKey:context.marketKey,symbol:context.symbol,timeframe:context.timeframe,entryTimeMs:trade.entryTime*1_000,available});
 }
 
 export type JournalReplayLaunch = Readonly<{marketKey:string;symbol:string;timeframe:CandleTimeframe;timestampMs:number}>;
@@ -33,7 +39,7 @@ export function journalReplayCursor(request:JournalReplayLaunch,loaded:{marketKe
 
 /** Maps authoritative completed-trade fields only. Facts not recorded by DizyPaper remain null. */
 export function tradeSnapshotFromPaper(trade: PaperTrade, context: JournalTradeContext): TradeSnapshot {
-  return Object.freeze({tradeId:trade.id,symbol:context.symbol,market:context.market,timeframe:context.timeframe,direction:trade.direction,
+  return Object.freeze({tradeId:journalTradeId(trade,context),symbol:context.symbol,market:context.market,timeframe:context.timeframe,direction:trade.direction,
     entry:trade.entry,exit:trade.exit,stop:trade.stop,target:trade.target??null,positionSize:trade.positionSize??null,
     riskPct:trade.riskPct??null,leverage:trade.leverage??null,marginMode:null,fees:null,pnl:trade.pnl,pnlPct:trade.pnlPct,
     rMultiple:trade.rMultiple??null,openTime:new Date(trade.entryTime*1_000).toISOString(),closeTime:new Date(trade.exitTime*1_000).toISOString(),
