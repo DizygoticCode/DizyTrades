@@ -207,12 +207,16 @@ export function tradeReviewId(input: {journalEntryId: string; tradeId: string; r
   }).slice(0, 40)}`;
 }
 export function tradeReviewInputHash(entry: JournalEntry, memory: HistoricalReplayMemory) {
+  return tradeReviewInputHashFromMemoryMetadata(entry,{id:memory.id,contentHash:memory.integrity.contentHash});
+}
+/** Rechecks review freshness without loading retained candle arrays. */
+export function tradeReviewInputHashFromMemoryMetadata(entry:JournalEntry,memory:{id:string;contentHash:string}) {
   const trade = entry.trade ?? fail("TRADE_REQUIRED", "Only completed Trade Review entries can be reviewed.");
   return sha({
     engineVersion: DIZYBRAIN_TRADE_REVIEW_ENGINE_VERSION,
     configVersion: DIZYBRAIN_TRADE_REVIEW_CONFIG_VERSION,
     memoryId: memory.id,
-    memoryContentHash: memory.integrity.contentHash,
+    memoryContentHash: memory.contentHash,
     trade: {
       tradeId: trade.tradeId, symbol: trade.symbol, market: trade.market, timeframe: trade.timeframe,
       direction: trade.direction, entry: trade.entry, exit: trade.exit, stop: trade.stop, target: trade.target,
