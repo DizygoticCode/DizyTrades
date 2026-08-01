@@ -158,6 +158,11 @@ export function OrderFlowToolbar({
           <span>Heatmap / bubbles visible <b>{String(renderer.heatmapVisible)} / {String(renderer.bubblesVisible)}</b></span>
           <span>Paint calls / candles <b>{renderer.paintCallCount} / {renderer.candleCount}</b></span>
           <span>Market Depth bids / asks <b>{renderer.marketDepthVisibleBids} / {renderer.marketDepthVisibleAsks}</b></span><span>Depth totals bid / ask <b>{renderer.marketDepthBidTotal.toFixed(2)} / {renderer.marketDepthAskTotal.toFixed(2)}</b></span><span>Depth scaling / maximum <b>{renderer.marketDepthScaling} / {renderer.marketDepthMaximumSize}</b></span><span>Large liquidity clusters <b>{renderer.marketDepthClusters}</b></span><span>Depth paint / skipped <b>{renderer.marketDepthPaintCalls} / {renderer.marketDepthSkippedRedraws}</b></span><span>Depth age / symbol <b>{renderer.marketDepthLastUpdateAgeMs === null ? "—" : `${renderer.marketDepthLastUpdateAgeMs}ms`} / {renderer.marketDepthSymbol}</b></span>
+          <span>DOM visible / generated / overscan <b>{renderer.domVisibleRows} / {renderer.domTotalRows} / {renderer.domOverscan}</b></span>
+          <span>DOM centre / navigation <b>{renderer.domCentrePrice ?? "—"} / {renderer.domNavigation}</b></span>
+          <span>DOM age / renders <b>{renderer.domBookAgeMs === null ? "—" : `${renderer.domBookAgeMs}ms`} / {renderer.domRenderCount}</b></span>
+          <span>DOM flashes / clusters / queue <b>{renderer.domRecentFlashes} / {renderer.domClusterRows} / {renderer.domQueueCalculations}</b></span>
+          <span>DOM symbol / grouping / state <b>{renderer.domSymbol || "—"} / {renderer.domGroupingStep || "—"} / {renderer.domBookState}</b></span>
           <span>Logical range <b>{renderer.visibleLogicalRange ? `${renderer.visibleLogicalRange.from.toFixed(1)}–${renderer.visibleLogicalRange.to.toFixed(1)}` : "—"}</b></span>
           <span>Tile cells / visible / projected / drawn <b>{renderer.heatmapObservationsRetained} / {renderer.heatmapCandidateCells} / {renderer.heatmapProjectedCells} / {renderer.heatmapCellsDrawn}</b></span>
           <span>Trades / groups / drawn <b>{renderer.rawTradesRetained} / {renderer.bubbleGroupsProduced} / {renderer.bubblesDrawn}</b></span>
