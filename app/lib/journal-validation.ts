@@ -10,13 +10,13 @@ export const sanitiseTags=(value:unknown)=>Array.isArray(value)?[...new Set(valu
 export function validateTradeSnapshot(input:unknown):TradeSnapshot {
   if(!input||typeof input!=="object")fail("trade","Completed trade data is required."); const v=input as Record<string,unknown>;
   const direction=oneOf(v.direction,"direction",["long","short"] as const,false)!;
-  const marginMode=oneOf(v.marginMode,"marginMode",["isolated","cross","simulated"] as const,false)!;
+  const marginMode=oneOf(v.marginMode,"marginMode",["isolated","cross"] as const);
   const replay=v.replay&&typeof v.replay==="object"?v.replay as Record<string,unknown>:null;
   const brain=v.brain&&typeof v.brain==="object"?v.brain as Record<string,unknown>:null;
   const signal=v.signal&&typeof v.signal==="object"?v.signal as Record<string,unknown>:null;
   return Object.freeze({tradeId:text(v.tradeId,"tradeId",120),symbol:text(v.symbol,"symbol",40),market:text(v.market,"market",80),timeframe:text(v.timeframe,"timeframe",10),direction,
-    entry:finite(v.entry,"entry")!,exit:finite(v.exit,"exit")!,stop:finite(v.stop,"stop",true),target:finite(v.target,"target",true),positionSize:finite(v.positionSize,"positionSize")!,riskPct:finite(v.riskPct,"riskPct")!,leverage:finite(v.leverage,"leverage")!,marginMode,
-    fees:finite(v.fees,"fees")!,pnl:finite(v.pnl,"pnl")!,pnlPct:finite(v.pnlPct,"pnlPct")!,rMultiple:finite(v.rMultiple,"rMultiple",true),openTime:new Date(text(v.openTime,"openTime",40)).toISOString(),closeTime:new Date(text(v.closeTime,"closeTime",40)).toISOString(),closeReason:text(v.closeReason,"closeReason",80),strategyVersion:text(v.strategyVersion,"strategyVersion",80),
+    entry:finite(v.entry,"entry")!,exit:finite(v.exit,"exit")!,stop:finite(v.stop,"stop",true),target:finite(v.target,"target",true),positionSize:finite(v.positionSize,"positionSize",true),riskPct:finite(v.riskPct,"riskPct",true),leverage:finite(v.leverage,"leverage",true),marginMode,
+    fees:finite(v.fees,"fees",true),pnl:finite(v.pnl,"pnl")!,pnlPct:finite(v.pnlPct,"pnlPct")!,rMultiple:finite(v.rMultiple,"rMultiple",true),openTime:new Date(text(v.openTime,"openTime",40)).toISOString(),closeTime:new Date(text(v.closeTime,"closeTime",40)).toISOString(),closeReason:text(v.closeReason,"closeReason",80),strategyVersion:v.strategyVersion===null?null:text(v.strategyVersion,"strategyVersion",80),
     replay:replay?Object.freeze({sessionId:text(replay.sessionId,"replay.sessionId",120),symbol:text(replay.symbol,"replay.symbol",40),timeframe:text(replay.timeframe,"replay.timeframe",10),entryTimeMs:finite(replay.entryTimeMs,"replay.entryTimeMs")!,available:Boolean(replay.available)}):null,
     brain:brain?Object.freeze({id:text(brain.id,"brain.id",120),capturedAt:new Date(text(brain.capturedAt,"brain.capturedAt",40)).toISOString(),summary:text(brain.summary,"brain.summary",500)}):null,
     signal:signal?Object.freeze({direction:oneOf(signal.direction,"signal.direction",["long","short"] as const,false)!,signalTime:new Date(text(signal.signalTime,"signal.signalTime",40)).toISOString(),label:text(signal.label,"signal.label",200)}):null});

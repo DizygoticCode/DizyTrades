@@ -5,20 +5,20 @@ import type { LivePaperSnapshot } from "./lib/paper-performance";
 import type { PaperTrade } from "./lib/backtest";
 import { formatSignedMoney, tradeExitLabel } from "./lib/paper-performance";
 import type { SimulationStatus } from "./lib/paper-simulation";
+import { tradeSnapshotFromPaper, type JournalTradeContext } from "./lib/journal-trade-import";
 
 export const finiteNumber = (value: number, digits = 2) => Number.isFinite(value) ? value.toFixed(digits) : "—";
 const pct = (value: number) => Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${value.toFixed(2)}%` : "—";
 const tone = (value: number) => value > 0 ? "positive" : value < 0 ? "negative" : "neutral";
 
-type JournalContext={symbol:string;market:string;timeframe:string;riskPct:number;leverage:number;strategyVersion:string;brainSummary:string|null;replayAvailable:boolean};
-export function PaperPerformanceToolbar({ snapshot, enabled, status, error, onRetry, journalContext, readOnly=false }: { snapshot: LivePaperSnapshot | null; enabled: boolean; status: SimulationStatus; error: string | null; onRetry: () => void; journalContext?:JournalContext;readOnly?:boolean }) {
+export function PaperPerformanceToolbar({ snapshot, enabled, status, error, onRetry, journalContext, readOnly=false }: { snapshot: LivePaperSnapshot | null; enabled: boolean; status: SimulationStatus; error: string | null; onRetry: () => void; journalContext?:JournalTradeContext;readOnly?:boolean }) {
   const [open, setOpen] = useState(false);
   const [completed,setCompleted]=useState<PaperTrade|null>(null),[notice,setNotice]=useState("");
   const lastCompleted=snapshot?.closedTrades.findLast(trade=>trade.exitReason!=="MARK")??null;
   const seen=useRef<string|null>(null);
   useEffect(()=>{if(!lastCompleted||seen.current===lastCompleted.id)return;seen.current=lastCompleted.id;setCompleted(lastCompleted);},[lastCompleted]);
-  async function addToJournal(trade:PaperTrade){if(!journalContext)return;const riskDistance=Math.abs(trade.entry-trade.stop),positionSize=riskDistance>0?Math.abs(trade.pnl)/(riskDistance||1):0;const body={type:"trade-review",notes:"",tags:[],trade:{tradeId:trade.id,symbol:journalContext.symbol,market:journalContext.market,timeframe:journalContext.timeframe,direction:trade.direction,entry:trade.entry,exit:trade.exit,stop:trade.stop,target:null,positionSize,riskPct:journalContext.riskPct,leverage:journalContext.leverage,marginMode:"simulated",fees:0,pnl:trade.pnl,pnlPct:trade.pnlPct,rMultiple:riskDistance?trade.pnl/(riskDistance*Math.max(positionSize,Number.EPSILON)):null,openTime:new Date(trade.entryTime*1000).toISOString(),closeTime:new Date(trade.exitTime*1000).toISOString(),closeReason:trade.exitReason,strategyVersion:journalContext.strategyVersion,replay:journalContext.replayAvailable?{sessionId:`paper-${trade.id}`,symbol:journalContext.symbol,timeframe:journalContext.timeframe,entryTimeMs:trade.entryTime*1000,available:true}:null,brain:journalContext.brainSummary?{id:`brain-${trade.signalTime}`,capturedAt:new Date(trade.signalTime*1000).toISOString(),summary:journalContext.brainSummary}:null,signal:{direction:trade.direction,signalTime:new Date(trade.signalTime*1000).toISOString(),label:`Confirmed ${trade.direction} signal`}}};const response=await fetch("/api/journal",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const payload=await response.json();if(response.ok){location.href=`/journal?entry=${payload.entry.id}`;return;}setNotice(payload.error?.message??"Trade review could not be created.");}
-  function openReplay(trade:PaperTrade){if(!journalContext?.replayAvailable){setNotice("Replay data is unavailable for this trade.");return;}location.href=`/terminal?replaySymbol=${encodeURIComponent(journalContext.symbol)}&replayTimeframe=${journalContext.timeframe}&replayAt=${trade.entryTime*1000}`;}
+  async function addToJournal(trade:PaperTrade){if(!journalContext)return;const body={type:"trade-review",notes:"",tags:[],trade:tradeSnapshotFromPaper(trade,journalContext)};const response=await fetch("/api/journal",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const payload=await response.json();if(response.ok){location.href=`/journal?entry=${payload.entry.id}`;return;}setNotice(payload.error?.message??"Trade review could not be created.");}
+  function openReplay(trade:PaperTrade){if(!journalContext||!tradeSnapshotFromPaper(trade,journalContext).replay?.available){setNotice("Replay data is unavailable for this trade.");return;}location.href=`/terminal?replaySymbol=${encodeURIComponent(journalContext.symbol)}&replayTimeframe=${journalContext.timeframe}&replayAt=${trade.entryTime*1000}`;}
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;

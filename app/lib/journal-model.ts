@@ -11,10 +11,10 @@ export type SignalSummary = Readonly<{ direction: "long" | "short"; signalTime: 
 /** Small, immutable execution facts copied at completion. Replay candles and Brain datasets are references, never embedded. */
 export type TradeSnapshot = Readonly<{
   tradeId: string; symbol: string; market: string; timeframe: string; direction: "long" | "short";
-  entry: number; exit: number; stop: number | null; target: number | null; positionSize: number;
-  riskPct: number; leverage: number; marginMode: "isolated" | "cross" | "simulated"; fees: number;
+  entry: number; exit: number; stop: number | null; target: number | null; positionSize: number | null;
+  riskPct: number | null; leverage: number | null; marginMode: "isolated" | "cross" | null; fees: number | null;
   pnl: number; pnlPct: number; rMultiple: number | null; openTime: string; closeTime: string;
-  closeReason: string; strategyVersion: string; replay: ReplayReference | null;
+  closeReason: string; strategyVersion: string | null; replay: ReplayReference | null;
   brain: SnapshotReference | null; signal: SignalSummary | null;
 }>;
 
@@ -42,3 +42,5 @@ export function toJournalListItem(entry: JournalEntry): JournalListItem {
       direction: entry.trade.direction, pnl: entry.trade.pnl, pnlPct: entry.trade.pnlPct, closeReason: entry.trade.closeReason,
       replayAvailable: Boolean(entry.trade.replay?.available), brainAvailable: Boolean(entry.trade.brain) } : null };
 }
+
+export const journalWritesAllowed = (role: string) => role !== "viewer";

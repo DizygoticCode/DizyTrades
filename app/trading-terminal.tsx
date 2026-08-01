@@ -1934,7 +1934,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
             <PaperPerformanceToolbar
               enabled={executionMode === "Paper"}
               readOnly={user.role === "viewer"}
-              journalContext={{symbol,market:selectedMarket?.displayName??symbol,timeframe,riskPct:risk.riskPct,leverage:risk.leverage,strategyVersion:`dizysignals-${strategy.mode}-v1`,brainSummary:dizyBrainSnapshot?`${dizyBrainSnapshot.currentDirection} · ${dizyBrainSnapshot.marketBias} bias · ${dizyBrainSnapshot.activeConfluence}/5 confluence`:null,replayAvailable:closedCandles.length>0}}
+              journalContext={{symbol,market:selectedMarket?.displayName??symbol,timeframe:timeframe as CandleTimeframe,replay:{symbol,timeframe:timeframe as CandleTimeframe,candles:closedCandles}}}
               error={resultMarketKey !== marketKey ? feedError : null}
               onRetry={() => {
                 if (resultMarketKey !== marketKey) void loadMarketData({ reason: "reconnect", resetView: false });
