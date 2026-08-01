@@ -11,6 +11,6 @@ export function stableDepthStatus({hasSnapshot,ageMs,endpointFailed,staleMs=5000
  return ageMs>staleMs?"STALE":"LIVE";
 }
 /** DOM polling and heatmap streaming are intentionally controlled separately. */
-export function depthConsumerActivity({enabled,domVisible,heatmapVisible}:{enabled:boolean;domVisible:boolean;heatmapVisible:boolean}){
- return {dom:enabled&&domVisible,heatmap:enabled&&heatmapVisible};
+export function depthConsumerActivity({enabled,domVisible,heatmapVisible,marketDepthVisible=false}:{enabled:boolean;domVisible:boolean;heatmapVisible:boolean;marketDepthVisible?:boolean}){
+ return {dom:enabled&&(domVisible||marketDepthVisible),heatmap:enabled&&heatmapVisible};
 }

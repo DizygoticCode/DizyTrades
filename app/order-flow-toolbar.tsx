@@ -59,6 +59,7 @@ export function OrderFlowToolbar({
   const toggle = (
     key:
       | "enabled"
+      | "marketDepthVisible"
       | "heatmapVisible"
       | "bubblesVisible"
       | "domVisible"
@@ -88,6 +89,7 @@ export function OrderFlowToolbar({
         role="group"
       >
         {[
+          ["marketDepthVisible", "Market Depth"],
           ["heatmapVisible", "Heatmap"],
           ["bubblesVisible", "Bubbles"],
           ["domVisible", "DOM"],
@@ -124,6 +126,8 @@ export function OrderFlowToolbar({
         </small>
       ) : null}
 
+      {settings.enabled && settings.marketDepthVisible ? <div className="market-depth-summary" aria-label="Market Depth summary"><strong>Market Depth · Current resting liquidity</strong><span>Bid depth {renderer.marketDepthBidTotal.toLocaleString()} · {renderer.marketDepthBidTotal+renderer.marketDepthAskTotal?Math.round(renderer.marketDepthBidTotal/(renderer.marketDepthBidTotal+renderer.marketDepthAskTotal)*100):0}%</span><span>Ask depth {renderer.marketDepthAskTotal.toLocaleString()} · {renderer.marketDepthBidTotal+renderer.marketDepthAskTotal?Math.round(renderer.marketDepthAskTotal/(renderer.marketDepthBidTotal+renderer.marketDepthAskTotal)*100):0}%</span>{renderer.marketDepthClusters ? <span>Large liquidity cluster × {renderer.marketDepthClusters}</span> : null}<span>Depth imbalance {renderer.marketDepthBidTotal+renderer.marketDepthAskTotal?((renderer.marketDepthBidTotal-renderer.marketDepthAskTotal)/(renderer.marketDepthBidTotal+renderer.marketDepthAskTotal)*100).toFixed(1):"0.0"}% · {settings.marketDepth.scaling === "logarithmic" ? "Logarithmic" : "Linear"} · {settings.marketDepth.displayMode === "absolute" ? "Absolute size" : settings.marketDepth.displayMode === "side-percentage" ? "Percentage of visible side" : "Percentage of visible total book"}</span><small>Resting orders can be cancelled, moved or consumed and do not predict future price.</small></div> : null}
+
       <small>
         {settings.imbalanceVisible && summary.imbalance !== null
           ? `${summary.imbalance > 0 ? "+" : ""}${summary.imbalance.toFixed(0)}% · `
@@ -153,6 +157,7 @@ export function OrderFlowToolbar({
           <span>Primitive / enabled <b>{String(renderer.primitiveAttached)} / {String(renderer.renderEnabled)}</b></span>
           <span>Heatmap / bubbles visible <b>{String(renderer.heatmapVisible)} / {String(renderer.bubblesVisible)}</b></span>
           <span>Paint calls / candles <b>{renderer.paintCallCount} / {renderer.candleCount}</b></span>
+          <span>Market Depth bids / asks <b>{renderer.marketDepthVisibleBids} / {renderer.marketDepthVisibleAsks}</b></span><span>Depth totals bid / ask <b>{renderer.marketDepthBidTotal.toFixed(2)} / {renderer.marketDepthAskTotal.toFixed(2)}</b></span><span>Depth scaling / maximum <b>{renderer.marketDepthScaling} / {renderer.marketDepthMaximumSize}</b></span><span>Large liquidity clusters <b>{renderer.marketDepthClusters}</b></span><span>Depth paint / skipped <b>{renderer.marketDepthPaintCalls} / {renderer.marketDepthSkippedRedraws}</b></span><span>Depth age / symbol <b>{renderer.marketDepthLastUpdateAgeMs === null ? "—" : `${renderer.marketDepthLastUpdateAgeMs}ms`} / {renderer.marketDepthSymbol}</b></span>
           <span>Logical range <b>{renderer.visibleLogicalRange ? `${renderer.visibleLogicalRange.from.toFixed(1)}–${renderer.visibleLogicalRange.to.toFixed(1)}` : "—"}</b></span>
           <span>Tile cells / visible / projected / drawn <b>{renderer.heatmapObservationsRetained} / {renderer.heatmapCandidateCells} / {renderer.heatmapProjectedCells} / {renderer.heatmapCellsDrawn}</b></span>
           <span>Trades / groups / drawn <b>{renderer.rawTradesRetained} / {renderer.bubbleGroupsProduced} / {renderer.bubblesDrawn}</b></span>
