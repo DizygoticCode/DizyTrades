@@ -388,6 +388,10 @@ button {
   height: 27px;
   background: var(--border);
 }
+.price-source-selector { display:flex;align-items:center;gap:3px;padding:3px;border:1px solid #263149;border-radius:8px;background:#080c13; }
+.price-source-selector button { height:28px;padding:0 8px;border:0;border-radius:5px;background:transparent;color:var(--muted);font-size:9px;font-weight:800;cursor:pointer; }
+.price-source-selector button[aria-pressed="true"] { color:#fff;background:#294064;box-shadow:0 0 0 1px #48648f inset; }
+.price-source-selector button:disabled { opacity:.35;cursor:not-allowed; }
 
 .timeframes,
 .mode-control {

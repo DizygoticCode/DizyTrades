@@ -2,10 +2,12 @@ import type { StrategySettings } from "./strategy";
 import { DEFAULT_APPEARANCE, sanitiseAppearance, type ChartAppearanceSettings } from "./chart/appearance.ts";
 import type { LineExtension, PatternPlacement, SidePlacement } from "./chart/chart-layout.ts";
 import { DEFAULT_ORDER_FLOW_SETTINGS, sanitiseOrderFlowSettings, type OrderFlowSettings } from "./order-flow/settings.ts";
+import { sanitiseDisplayPriceSource, type DisplayPriceSource } from "./market/price-sources.ts";
 export { DEFAULT_ORDER_FLOW_SETTINGS } from "./order-flow/settings.ts";
 
 export type ViewSettings = {
   settingsSchemaVersion: number;
+  selectedDisplayPriceSource: DisplayPriceSource;
   indicatorPackage: boolean;
   supportResistance: boolean;
   vwap: boolean;
@@ -115,6 +117,7 @@ export const DEFAULT_STRATEGY: StrategySettings = {
 
 export const DEFAULT_VIEW: ViewSettings = {
   settingsSchemaVersion: 3,
+  selectedDisplayPriceSource: "last",
   indicatorPackage: true,
   supportResistance: true,
   vwap: true,
@@ -244,6 +247,7 @@ export function sanitiseTerminalSettings(
   return {
     view: {
       settingsSchemaVersion: 3,
+      selectedDisplayPriceSource: sanitiseDisplayPriceSource(viewInput.selectedDisplayPriceSource),
       indicatorPackage: boolean(viewInput.indicatorPackage, DEFAULT_VIEW.indicatorPackage),
       supportResistance: boolean(viewInput.supportResistance, DEFAULT_VIEW.supportResistance),
       vwap: boolean(viewInput.vwap, DEFAULT_VIEW.vwap),

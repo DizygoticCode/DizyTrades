@@ -57,11 +57,15 @@ const money = (value: number) =>
 const leverageStops = [1, 2, 3, 5, 10, 20];
 export function ManualPaperTicket({
   symbol,
-  publicPrice,
+  fillPrice,
+  riskPrice,
+  riskPriceSource,
   readOnly,
 }: {
   symbol: string;
-  publicPrice: number | null;
+  fillPrice: number | null;
+  riskPrice: number | null;
+  riskPriceSource: "fair" | "last";
   readOnly: boolean;
 }) {
   const [account, setAccount] = useState<Account | null>(null),
@@ -109,7 +113,7 @@ export function ManualPaperTicket({
     }
   }, []);
   const position = account?.positions[symbol],
-    mark = publicPrice ?? position?.entryPrice ?? 0,
+    mark = riskPrice ?? position?.entryPrice ?? 0,
     unrealised = position
       ? (mark - position.entryPrice) *
         position.quantity *
@@ -134,7 +138,7 @@ export function ManualPaperTicket({
       0,
       mode === "fixed-notional" ? amountNumber : margin * leverageNumber,
     ),
-    quantity = publicPrice && publicPrice > 0 ? notional / publicPrice : 0,
+    quantity = fillPrice && fillPrice > 0 ? notional / fillPrice : 0,
     fee = Math.max(
       0,
       (notional * (account?.settings.commissionPct ?? 0)) / 100,
@@ -154,7 +158,7 @@ export function ManualPaperTicket({
       if (
         readOnly ||
         !account?.settings.enabled ||
-        !publicPrice ||
+        !fillPrice ||
         invalidAmount
       )
         return;
@@ -181,7 +185,7 @@ export function ManualPaperTicket({
     [
       readOnly,
       account,
-      publicPrice,
+      fillPrice,
       invalidAmount,
       post,
       symbol,
@@ -224,7 +228,7 @@ export function ManualPaperTicket({
       busy ||
       readOnly ||
       !account?.settings.enabled ||
-      !publicPrice ||
+      !fillPrice ||
       invalidAmount;
   if (hidden)
     return (
@@ -443,7 +447,7 @@ export function ManualPaperTicket({
             <div className={styles.preview}>
               <h4>Order estimate</h4>
               {[
-                ["Mark price", money(mark)],
+                [`Risk mark · ${riskPriceSource === "fair" ? "Fair Price" : "Last fallback"}`, money(mark)],
                 ["Quantity", quantity.toFixed(8)],
                 ["Margin", money(margin)],
                 ["Notional", money(notional)],

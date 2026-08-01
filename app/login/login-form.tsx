@@ -40,7 +40,7 @@ export default function LoginForm() {
     try {
       const response = await fetch("/api/auth/viewer", { method: "POST" });
       if (!response.ok) throw new Error("Viewer session unavailable.");
-      router.replace("/explore");
+      router.replace("/terminal");
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Viewer session unavailable.");
@@ -53,11 +53,11 @@ export default function LoginForm() {
     <form className="login-card" onSubmit={submit}>
       <div className="login-brand">
         <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
-        <div><strong>DizyCharts</strong><small>&amp; DizySignals</small></div>
+        <div><strong>DizyTrades</strong><small>Everything Dizy™</small></div>
       </div>
-      <div className="test-chip"><i /> PRIVATE TEST TERMINAL</div>
-      <h1>Welcome to DizyTrades</h1>
-      <p>Sign in to your isolated signal, paper-test and risk workspace.</p>
+      <div className="test-chip"><i /> SIMULATION WORKSPACE</div>
+      <h1>Welcome back</h1>
+      <p>Sign in to your charting, signals, order-flow and paper-trading workspace.</p>
       <label>
         <span>Username or email</span>
         <input autoComplete="username" name="identifier" required />
@@ -68,15 +68,15 @@ export default function LoginForm() {
       </label>
       {error ? <div className="login-error" role="alert">{error}</div> : null}
       <button disabled={loading} type="submit">
-        {loading ? "Signing in…" : "Open trading terminal"}
+        {loading ? "Opening workspace…" : "Open DizyTrades"}
       </button>
-      <a className="signup-link" href="/signup">Create a public test account</a>
+      <a className="signup-link" href="/signup">Create an account</a>
       <button className="viewer-login" disabled={loading} onClick={continueAsViewer} type="button">
-        Continue as Viewer
+        Open View-Only Terminal
       </button>
-      <a className="school-login-link" href="/school">Explore {SCHOOL_DISPLAY_NAME} — free learning centre</a>
+      <a className="school-login-link" href="/school">Explore {SCHOOL_DISPLAY_NAME}</a>
       <div className="login-safety">
-        <b>TEST MODE</b>
+        <b>SIMULATION ONLY</b>
         <span>No exchange credentials or live-order route is enabled.</span>
       </div>
     </form>

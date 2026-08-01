@@ -103,6 +103,7 @@ import {
 } from "./lib/market/timeline";
 import { ChartErrorBoundary } from "./chart-error-boundary";
 import { MarketBrowser } from "./market-browser";
+import { authoritativeRiskPrice, displayPrice, emptyPriceSnapshot, markPriceFreshness, mergePriceSnapshot, type DisplayPriceSource, type MexcPriceSnapshot } from "./lib/market/price-sources";
 import {
   resolveStrategySettings,
   strategyHistoryCapacity,
@@ -815,6 +816,8 @@ const DizyChart = forwardRef<
     readOnly: boolean;
     applyDefaultsNonce: number;
     flowStore: FlowRenderStore;
+    displayedPrice: number | null;
+    displayedPriceLabel: string;
   }
 >(function DizyChart(
   {
@@ -829,6 +832,8 @@ const DizyChart = forwardRef<
     readOnly,
     applyDefaultsNonce,
     flowStore,
+    displayedPrice,
+    displayedPriceLabel,
   },
   ref,
 ) {
@@ -1085,7 +1090,7 @@ const DizyChart = forwardRef<
       );
     }
   }, [displayCandles, symbol, timeframe, view.appearance, redraw]);
-  const livePrice = liveCandle?.close ?? null;
+  const livePrice = displayedPrice ?? liveCandle?.close ?? null;
   useEffect(() => {
     const series = candleRef.current;
     if (!series) return;
@@ -1194,7 +1199,7 @@ const DizyChart = forwardRef<
       <div className="chart-wrap">
         <div className="chart-canvas" ref={containerRef} />
         <canvas aria-hidden="true" className="chart-overlay" ref={overlayRef} />
-          {livePrice!==null&&view.countdownPriceMarker?<div className={`live-price-marker ${liveCandle&&liveCandle.close>liveCandle.open?"up":liveCandle&&liveCandle.close<liveCandle.open?"down":"neutral"}`} ref={markerRef}><strong>{currency.format(livePrice)}</strong><small>{countdownSeconds===null?"—":formatCountdown(countdownSeconds,timeframe as CandleTimeframe)}</small></div>:null}
+          {livePrice!==null&&view.countdownPriceMarker?<div className={`live-price-marker ${liveCandle&&liveCandle.close>liveCandle.open?"up":liveCandle&&liveCandle.close<liveCandle.open?"down":"neutral"}`} ref={markerRef}><strong>{displayedPriceLabel} · {currency.format(livePrice)}</strong><small>{countdownSeconds===null?"—":formatCountdown(countdownSeconds,timeframe as CandleTimeframe)}</small></div>:null}
         <div className="chart-legend">
           <span>
             <i className="legend-vwap" />
@@ -1246,6 +1251,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [viewportReset, setViewportReset] = useState(0);
   const [applyDrawingDefaultsNonce, setApplyDrawingDefaultsNonce] = useState(0);
   const [dataSource, setDataSource] = useState("MEXC PUBLIC DATA");
+  const [priceSnapshot,setPriceSnapshot]=useState<MexcPriceSnapshot>(()=>emptyPriceSnapshot(selectedMarketKey));
   const [feedError, setFeedError] = useState("");
   const [markets, setMarkets] = useState<MarketDescriptor[]>([]);
   const [orderFlowSettings,setOrderFlowSettings]=useState<OrderFlowSettings>(DEFAULT_ORDER_FLOW_SETTINGS);
@@ -1278,6 +1284,9 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   >("layers");
   const [executionMode, setExecutionMode] = useState<"Off" | "Paper">("Paper");
   const [view, setView] = useState<ViewSettings>(DEFAULT_VIEW);
+  const selectedDisplayPriceSource:DisplayPriceSource=futuresSelected?view.selectedDisplayPriceSource:"last";
+  const selectedDisplayPrice=displayPrice(priceSnapshot,selectedDisplayPriceSource);
+  const riskPrice=authoritativeRiskPrice(priceSnapshot);
   const [strategy, setStrategy] = useState(DEFAULT_STRATEGY);
   const [risk, setRisk] = useState<RiskSettings>(() => ({
     ...DEFAULT_RISK,
@@ -1341,13 +1350,13 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       () =>
         setPaperMark(
           executionMode === "Paper"
-            ? (liveLastPrice ?? liveCandle?.close ?? null)
+            ? (riskPrice.value ?? liveLastPrice ?? liveCandle?.close ?? null)
             : null,
         ),
       225,
     );
     return () => window.clearTimeout(timer);
-  }, [executionMode, liveLastPrice, liveCandle?.close]);
+  }, [executionMode, riskPrice.value, liveLastPrice, liveCandle?.close]);
   const paperSnapshot = useMemo(
     () => livePaperSnapshot(backtest, paperMark, executionMode === "Paper"),
     [backtest, paperMark, executionMode],
@@ -1439,6 +1448,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   useMexcRealtime({
     enabled: terminalTab === "charts" && !demo && view.realtimeChartUpdates,
     symbol,
+    instrumentKey:selectedMarketKey,
     marketType: selectedMarket?.marketType ?? "futures",
     timeframe: timeframe as CandleTimeframe,
     contractSize:selectedMarket?.contractSize??1,
@@ -1447,8 +1457,10 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     onResync: () =>
       void loadMarketData({ reason: "reconnect", resetView: false }),
     onKline: (incoming) =>
-      dispatchTimeline({ type: "kline", marketKey, candle: incoming }),
+      {setPriceSnapshot(current=>mergePriceSnapshot(current,{instrumentKey:selectedMarketKey,lastPrice:{value:incoming.close,exchangeTimestampMs:incoming.time*1000,state:"live"}}));dispatchTimeline({ type: "kline", marketKey, candle: incoming });},
+    onPrice:(patch)=>setPriceSnapshot(current=>mergePriceSnapshot(current,patch)),
     onDeal: (deal) => {
+      setPriceSnapshot(current=>mergePriceSnapshot(current,{instrumentKey:selectedMarketKey,lastPrice:{value:deal.price,exchangeTimestampMs:deal.timeMs,state:"live"}}));
       orderFlow.onDeal(deal);
       dispatchTimeline({
         type: "deal",
@@ -1457,6 +1469,9 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
         timeframe: timeframe as CandleTimeframe,
       });},
   });
+
+  useEffect(()=>{const controller=new AbortController();const timer=window.setTimeout(()=>{setPriceSnapshot(emptyPriceSnapshot(selectedMarketKey));void fetch(`/api/market-prices?marketType=${selectedMarket?.marketType??"futures"}&symbol=${encodeURIComponent(symbol)}`,{signal:controller.signal}).then(response=>response.ok?response.json():Promise.reject()).then((snapshot:MexcPriceSnapshot)=>setPriceSnapshot(current=>mergePriceSnapshot(current,snapshot))).catch(()=>{});},0);return()=>{controller.abort();window.clearTimeout(timer);};},[selectedMarketKey,selectedMarket?.marketType,symbol]);
+  useEffect(()=>{const timer=window.setInterval(()=>setPriceSnapshot(current=>markPriceFreshness(current)),5_000);return()=>window.clearInterval(timer);},[]);
 
   useEffect(() => {
     if (!timeline.rolloverSequence || timeline.marketKey !== marketKey) return;
@@ -1591,6 +1606,11 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     } catch {
       setSaveState("error");
     }
+  };
+  const selectDisplayPriceSource=(source:DisplayPriceSource)=>{
+    const nextView={...view,selectedDisplayPriceSource:source};setView(nextView);
+    if(user.role==="viewer")return;
+    void fetch("/api/profile",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({view:nextView,strategy,risk,orderFlow:orderFlowSettings,market:{exchange:"mexc",symbol,marketKey:selectedMarketKey,timeframe,favourites}})}).then(response=>{if(!response.ok)setSaveState("error");});
   };
 
   const resetPreset = () => {
@@ -1736,6 +1756,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               symbol={symbol}
               timeframe={timeframe}
               flowStore={orderFlow.renderStore}
+              displayedPrice={selectedDisplayPrice.value}
+              displayedPriceLabel={selectedDisplayPriceSource==="fair"?"FAIR PRICE":selectedDisplayPriceSource.toUpperCase()}
               view={view}
             />
           }
@@ -1772,9 +1794,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
             </div>
             {user.role!=="viewer" && futuresSelected?<div className="manual-quick"><span>MANUAL PAPER</span><button className="sell" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"short"}))}>SELL</button><b>{last?currency.format(liveLastPrice??last.close):"—"}</b><button className="buy" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"long"}))}>BUY</button></div>:null}
         <div className="quote-block">
-              <strong>
-                {last ? currency.format(liveLastPrice ?? last.close) : "—"}
-              </strong>
+              <strong>{selectedDisplayPrice.value!==null?currency.format(selectedDisplayPrice.value):"—"}</strong>
+              <small>{selectedDisplayPriceSource==="fair"?"FAIR PRICE":selectedDisplayPriceSource.toUpperCase()} · {selectedDisplayPrice.state.toUpperCase()}</small>
               <span className={change >= 0 ? "positive" : "negative"}>
                 {signed(change)}
               </span>
@@ -1791,6 +1812,10 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                   )}
                 </small>
               ) : null}
+            </div>
+            <div className="toolbar-divider" />
+            <div className="price-source-selector" aria-label="Displayed chart price" role="group">
+              {(["last","fair","index"] as const).map(source=><button aria-pressed={selectedDisplayPriceSource===source} disabled={!futuresSelected&&source!=="last"} key={source} onClick={()=>selectDisplayPriceSource(source)} title={source==="fair"?"MEXC Fair Price (also called Mark Price)":`${source[0].toUpperCase()}${source.slice(1)} Price`} type="button">{source==="fair"?"FAIR":source.toUpperCase()}</button>)}
             </div>
             <div className="toolbar-divider" />
             <div
@@ -1957,6 +1982,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                     symbol={symbol}
                     timeframe={timeframe}
                     flowStore={orderFlow.renderStore}
+                    displayedPrice={selectedDisplayPrice.value}
+                    displayedPriceLabel={selectedDisplayPriceSource==="fair"?"FAIR PRICE":selectedDisplayPriceSource.toUpperCase()}
                     view={view}
                   />
                 </ChartErrorBoundary></>
@@ -3331,7 +3358,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               </aside>
             ) : null}
           </div>
-          {futuresSelected ? <ManualPaperTicket publicPrice={liveLastPrice ?? liveCandle?.close ?? null} readOnly={user.role === "viewer"} symbol={symbol} /> : null}
+          {futuresSelected ? <ManualPaperTicket fillPrice={liveLastPrice ?? liveCandle?.close ?? null} riskPrice={riskPrice.value} riskPriceSource={riskPrice.source} readOnly={user.role === "viewer"} symbol={symbol} /> : null}
         </>
       )}
     </main>

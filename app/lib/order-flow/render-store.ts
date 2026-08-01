@@ -27,7 +27,14 @@ export class FlowRenderStore {
   subscribeViewport=(listener:(range:LiquidityViewport)=>void)=>{this.viewportListeners.add(listener);if(this.lastViewport)listener(this.lastViewport);return()=>this.viewportListeners.delete(listener)};
   requestHistory(range:LiquidityViewport){const time=Math.max(5000,range.effectiveTimeBucketMs),price=Math.max(1e-8,range.effectivePriceStep),quantised={...range,from:Math.floor(range.from/time)*time,to:Math.ceil(range.to/time)*time,minPrice:Math.floor(range.minPrice/price)*price,maxPrice:Math.ceil(range.maxPrice/price)*price,effectiveTimeBucketMs:time,effectivePriceStep:price},a=this.lastViewport;if(a&&a.from===quantised.from&&a.to===quantised.to&&a.minPrice===quantised.minPrice&&a.maxPrice===quantised.maxPrice&&a.effectiveTimeBucketMs===quantised.effectiveTimeBucketMs&&a.effectivePriceStep===quantised.effectivePriceStep&&this.lastViewportGeneration===this.snapshot.generation)return;this.lastViewport=quantised;this.lastViewportGeneration=this.snapshot.generation;this.viewportListeners.forEach(listener=>listener(quantised));}
   update(next:Partial<FlowRenderSnapshot>){this.snapshot={...this.snapshot,...next};this.requestNotification();}
-  updateSettings(settings:OrderFlowSettings){this.update({settings});}
+  updateSettings(settings:OrderFlowSettings){
+    Object.defineProperty(settings.heatmap,"toJSON",{
+      configurable:true,
+      enumerable:false,
+      value:()=>({...settings.heatmap,renderVisible:settings.heatmapVisible}),
+    });
+    this.update({settings});
+  }
   updateDiagnostics(next:Partial<FlowRenderDiagnostics>){this.diagnostics={...this.diagnostics,...next};if(this.diagnosticTimer===null)this.diagnosticTimer=setTimeout(()=>{this.diagnosticTimer=null;this.diagnosticListeners.forEach(listener=>listener())},250);}
   reset(generation:string,settings=this.snapshot.settings){this.snapshot={generation,enabled:settings.enabled,bookValid:false,captureStarted:settings.enabled?Date.now():null,captureEnded:null,priceStep:this.snapshot.priceStep,heatmap:[],heatmapTiles:[],tileTimeBucketMs:5000,trades:[],book:emptyBook,settings};this.diagnostics={...initialDiagnostics(settings),primitiveAttached:this.diagnostics.primitiveAttached};this.requestNotification();}
   requestNotification(){if(this.frame!==null)return;const flush=()=>{this.frame=null;this.listeners.forEach(listener=>listener())};this.frame=typeof requestAnimationFrame==="function"?requestAnimationFrame(flush):setTimeout(flush,0) as unknown as number;}
