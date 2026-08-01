@@ -4,7 +4,7 @@ export type DepthLevel = { price: number; orderCount: number; contractQuantity: 
 export type DepthUpdate = { symbol: string; version: number; engineTimeMs: number; bids: DepthLevel[]; asks: DepthLevel[] };
 export type DepthSnapshot = DepthUpdate;
 export type DepthSourceMode="FULL DEPTH WS"|"REST FALLBACK"|"RECONNECTING — LAST BOOK RETAINED"|"NO VALID BOOK";
-export type DepthEnvelope = { snapshot:DepthSnapshot; receivedAt:number; diagnostic:{snapshotAgeMs:number;consecutiveFailures:number;lastError:string|null;sourceMode?:DepthSourceMode;wsMessagesReceived?:number;versionGaps?:number;restRecoveries?:number} };
+export type DepthEnvelope = { snapshot:DepthSnapshot; receivedAt:number; diagnostic:{snapshotAgeMs:number;consecutiveFailures:number;lastError:string|null;sourceMode?:DepthSourceMode;wsMessagesReceived?:number;versionGaps?:number;restRecoveries?:number;sequenceKnown?:boolean;sequenceContinuous?:boolean|null;snapshotComplete?:boolean;recovering?:boolean;sourceTimestampKnown?:boolean} };
 export type DepthSnapshotResponse = { success: true; symbol: string; source: string; requestedAt: string; snapshot: DepthSnapshot };
 /** Canonical response returned by the public depth-commit recovery route. */
 export type DepthCommitsResponse = { success: true; symbol: string; source: string; requestedAt: string; commits: DepthUpdate[] };

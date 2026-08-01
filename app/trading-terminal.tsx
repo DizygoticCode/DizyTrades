@@ -53,6 +53,7 @@ import { DizyFlowDom } from "./dizyflow-dom";
 import { DizyFlowAlertHistory, DizyFlowToastRail } from "./dizyflow-toast-rail";
 import { DizyBrainSnapshotPublisher } from "./dizybrain-shell";
 import { createDizyBrainSnapshot } from "./lib/dizybrain-snapshot";
+import { toDizyFlowEvidenceReference } from "./lib/order-flow/intelligence";
 import type { MarketDescriptor } from "./lib/market/types";
 import { marketBadge } from "./lib/market/catalogue";
 import type { CandleTimeframe } from "./lib/market/types";
@@ -1266,7 +1267,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [flowHistoryOpen,setFlowHistoryOpen]=useState(false);
   const selectedMarket=markets.find((market)=>market.key===selectedMarketKey);
   const futuresSelected=selectedMarket?.marketType!=="spot";
-  const orderFlow=useOrderFlow({settings:orderFlowSettings,paused:!futuresSelected,symbol,contractSize:selectedMarket?.contractSize??1,priceUnit:selectedMarket?.priceUnit,priceScale:selectedMarket?.priceScale});
+  const orderFlow=useOrderFlow({settings:orderFlowSettings,paused:!futuresSelected,symbol,contractSize:selectedMarket?.contractSize??1,priceUnit:selectedMarket?.priceUnit,priceScale:selectedMarket?.priceScale,marketKey:selectedMarket?.key,marketType:selectedMarket?.marketType,reference:liveCandle?.close?{price:liveCandle.close,source:"last"}:undefined});
   const [selectorOpen, setSelectorOpen] = useState(false);
   const marketTrigger = useRef<HTMLButtonElement>(null);
   const [favourites, setFavourites] = useState<string[]>([]);
@@ -1314,7 +1315,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   );
   const replaySnapshot=useMemo(()=>activeReplaySession?createReplaySnapshot({session:activeReplaySession,candles:replayCandles,strategy,risk}):null,[activeReplaySession,replayCandles,strategy,risk]);
   const analysis = replaySnapshot?.signalAnalysis ?? liveAnalysis;
-  const dizyBrainSnapshot = replaySnapshot?.dizyBrainSnapshot ?? createDizyBrainSnapshot({analysis,strategy,risk,latestClosedCandleTime:closedCandles.at(-1)?.time??null});
+  const dizyBrainSnapshot = replaySnapshot?.dizyBrainSnapshot ?? createDizyBrainSnapshot({analysis,strategy,risk,latestClosedCandleTime:closedCandles.at(-1)?.time??null,dizyFlowEvidence:toDizyFlowEvidenceReference(orderFlow.intelligence)});
   const replayTimer=useRef<number|null>(null);
   useEffect(()=>{
     if(!activeReplaySession||activeReplaySession.status!=="playing")return;
@@ -1911,7 +1912,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               {backgroundSyncing ? "Syncing…" : "Refresh data"}
             </button>
             <div className="toolbar-spacer" />
-            {!replayActive ? <OrderFlowToolbar settings={orderFlowSettings} onChange={setOrderFlowSettings} summary={orderFlow.summary} renderStore={orderFlow.renderStore} onRetry={orderFlow.retry} onHistory={()=>setFlowHistoryOpen(true)} /> : null}
+            {!replayActive ? <OrderFlowToolbar settings={orderFlowSettings} onChange={setOrderFlowSettings} summary={orderFlow.summary} intelligence={orderFlow.intelligence} renderStore={orderFlow.renderStore} onRetry={orderFlow.retry} onHistory={()=>setFlowHistoryOpen(true)} /> : null}
             {!replayActive ? <DizyFlowToastRail alerts={orderFlow.summary.alerts} settings={orderFlowSettings} onHistory={()=>setFlowHistoryOpen(true)} /> : null}
             <div className="mode-control" aria-label="Execution mode">
               {(["Off", "Paper"] as const).map((mode) => (

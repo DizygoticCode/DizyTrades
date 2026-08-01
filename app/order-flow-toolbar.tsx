@@ -5,6 +5,7 @@ import { useState, useSyncExternalStore } from "react";
 import type { OrderFlowSettings } from "./lib/order-flow/settings";
 import type { FlowRenderStore } from "./lib/order-flow/render-store";
 import type { FlowSummary } from "./lib/order-flow/use-order-flow";
+import type { DizyFlowIntelligenceSnapshot } from "./lib/order-flow/intelligence";
 
 const clock = (value: number | null) =>
   value ? `${new Date(value).toISOString().slice(11, 19)} UTC` : "—";
@@ -42,6 +43,7 @@ export function OrderFlowToolbar({
   onHistory,
   onRetry,
   renderStore,
+  intelligence,
 }: {
   settings: OrderFlowSettings;
   onChange: (settings: OrderFlowSettings) => void;
@@ -49,6 +51,7 @@ export function OrderFlowToolbar({
   onHistory: () => void;
   onRetry: () => void;
   renderStore: FlowRenderStore;
+  intelligence: DizyFlowIntelligenceSnapshot | null;
 }) {
   const [diagnostics, setDiagnostics] = useState(false);
   const renderer = useSyncExternalStore(
@@ -127,6 +130,21 @@ export function OrderFlowToolbar({
       ) : null}
 
       {settings.enabled && settings.marketDepthVisible ? <div className="market-depth-summary" aria-label="Market Depth summary"><strong>Market Depth · Current resting liquidity</strong><span>Bid depth {renderer.marketDepthBidTotal.toLocaleString()} · {renderer.marketDepthBidTotal+renderer.marketDepthAskTotal?Math.round(renderer.marketDepthBidTotal/(renderer.marketDepthBidTotal+renderer.marketDepthAskTotal)*100):0}%</span><span>Ask depth {renderer.marketDepthAskTotal.toLocaleString()} · {renderer.marketDepthBidTotal+renderer.marketDepthAskTotal?Math.round(renderer.marketDepthAskTotal/(renderer.marketDepthBidTotal+renderer.marketDepthAskTotal)*100):0}%</span>{renderer.marketDepthClusters ? <span>Large liquidity cluster × {renderer.marketDepthClusters}</span> : null}<span>Depth imbalance {renderer.marketDepthBidTotal+renderer.marketDepthAskTotal?((renderer.marketDepthBidTotal-renderer.marketDepthAskTotal)/(renderer.marketDepthBidTotal+renderer.marketDepthAskTotal)*100).toFixed(1):"0.0"}% · {settings.marketDepth.scaling === "logarithmic" ? "Logarithmic" : "Linear"} · {settings.marketDepth.displayMode === "absolute" ? "Absolute size" : settings.marketDepth.displayMode === "side-percentage" ? "Percentage of visible side" : "Percentage of visible total book"}</span><small>Resting orders can be cancelled, moved or consumed and do not predict future price.</small></div> : null}
+
+      {settings.enabled ? <section className="dizyflow-intelligence" aria-label="DizyFlow Intelligence" aria-live="polite">
+        <strong>DizyFlow Intelligence</strong>
+        <small>Deterministic observations from currently visible market-depth and trade-flow data.</small>
+        {!intelligence ? <span>Waiting for a valid public depth snapshot…</span> : <>
+          <span>Feed: <b>{intelligence.availability}</b> · evidence confidence <b>{intelligence.intelligenceConfidence}% ({intelligence.confidenceBand})</b></span>
+          <small>Confidence describes evidence quality, not the probability of price direction.</small>
+          <span>Spread: {intelligence.spread.percentage === null ? "unavailable" : `${intelligence.spread.percentage.toFixed(4)}% (${intelligence.spread.classification})`} · reference: {intelligence.referencePriceSource} {intelligence.referencePrice}</span>
+          <div className="dizyflow-intelligence-table" role="region" aria-label="Visible depth bands" tabIndex={0}><table><thead><tr><th>Band</th><th>Bid notional</th><th>Ask notional</th><th>Imbalance</th></tr></thead><tbody>{intelligence.depth.bands.map((band,index)=><tr key={band.bandPct}><th>{band.bandPct}%</th><td>{band.bidNotional.toLocaleString()}</td><td>{band.askNotional.toLocaleString()}</td><td>{intelligence.imbalance.bands[index].value===null?"—":`${(intelligence.imbalance.bands[index].value!*100).toFixed(1)}%`}</td></tr>)}</tbody></table></div>
+          <span>Visible wall candidates: {intelligence.walls.candidates.length} · withdrawals: {intelligence.walls.withdrawals.length} · replenishment candidates: {intelligence.walls.replenishment.length}</span>
+          <span>Public trades: {intelligence.trades.available?`${intelligence.trades.tradeCount} sampled · aggressor imbalance ${intelligence.trades.aggressorImbalance===null?"unavailable":`${(intelligence.trades.aggressorImbalance*100).toFixed(1)}%`}`:"unavailable"} · absorption candidates: {intelligence.absorption.candidates.length} · sweep candidates: {intelligence.sweeps.candidates.length}</span>
+          {intelligence.findings.slice(0,4).map(finding=><span key={finding.code}><b>{finding.title}:</b> {finding.summary}</span>)}
+          <details><summary>Limitations ({intelligence.limitations.length})</summary><ul>{intelligence.limitations.map(item=><li key={item.code}>{item.message}</li>)}</ul></details>
+        </>}
+      </section> : null}
 
       <small>
         {settings.imbalanceVisible && summary.imbalance !== null
