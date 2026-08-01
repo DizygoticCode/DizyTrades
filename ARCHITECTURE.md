@@ -29,7 +29,7 @@ Authentication, profiles, workspaces and audit storage sit beside this data path
 
 - Marketing site
 - View-only terminal launcher
-- Dizy Learing Center
+- DizyAcademy
 - Market discovery
 - Sign-in and signup
 - Loading, recovery and not-found states

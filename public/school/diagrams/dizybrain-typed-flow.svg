@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+<title id="title">DizyBrain typed explanation flow</title><desc id="desc">A confirmed candle passes through strategy analysis into a typed DizyBrain snapshot, which explains current setup direction and qualification or rejection.</desc>
+<rect width="1200" height="420" rx="24" fill="#0b0f19"/><g font-family="Inter,Arial,sans-serif">
+<text x="60" y="62" fill="#71809d" font-size="18" letter-spacing="3">DETERMINISTIC CLOSED-CANDLE FLOW</text>
+<g fill="#111827" stroke="#38445e" stroke-width="2"><rect x="55" y="115" width="230" height="190" rx="16"/><rect x="335" y="115" width="230" height="190" rx="16"/><rect x="615" y="115" width="250" height="190" rx="16"/><rect x="915" y="115" width="230" height="190" rx="16"/></g>
+<g fill="#eef2ff" font-size="22" font-weight="700"><text x="82" y="165">Confirmed candle</text><text x="364" y="165">Strategy analysis</text><text x="642" y="165">Typed DizyBrain</text><text x="942" y="165">Explanation</text></g>
+<g fill="#9ba8c2" font-size="16"><text x="82" y="205">Latest closed bar only</text><text x="82" y="237">No forming-candle claim</text><text x="364" y="205">Long and short scores</text><text x="364" y="237">Configured threshold</text><text x="642" y="205">Direction + confluence</text><text x="642" y="237">Matching signal or null</text><text x="942" y="205">Current setup</text><text x="942" y="237">Qualified / rejected</text><text x="942" y="269">Reasons, not forecasts</text></g>
+<g stroke="#9a83ff" stroke-width="4" fill="none"><path d="M285 210h42"/><path d="m316 198 12 12-12 12"/><path d="M565 210h42"/><path d="m596 198 12 12-12 12"/><path d="M865 210h42"/><path d="m896 198 12 12-12 12"/></g>
+<rect x="330" y="340" width="540" height="44" rx="22" fill="#14231f" stroke="#2ee6a6"/><text x="600" y="368" text-anchor="middle" fill="#baf7df" font-size="16">Confidence presents confluence — never profit probability</text>
+</g></svg>

@@ -6,7 +6,7 @@ Approved screenshot slots for the landing-page visual refresh:
 - `feature-signals.webp` — confirmed-candle confluence summary
 - `feature-paper.webp` — manual DizyPaper controls
 - `feature-flow.webp` — DizyFlow toolbar and large-order activity
-- `feature-learning.webp` — Dizy Learing Center lesson view
+- `feature-learning.webp` — DizyAcademy lesson view
 
 Use these assets with `app/marketing/product-visual.tsx` so every product image receives the same browser frame, border, shadow and responsive behaviour.
 

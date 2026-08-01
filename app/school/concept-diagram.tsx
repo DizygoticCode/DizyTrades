@@ -10,6 +10,7 @@ const lessonDiagrams: Record<string, DiagramAsset> = {
   fibonacci: { src: "/school/diagrams/fibonacci.svg", alt: "Fibonacci retracement levels between a measured swing low and swing high with a hypothetical reaction zone" },
   "volume-profile": { src: "/school/diagrams/volume-profile.svg", alt: "Volume Profile rows by price with the point of control and high and low volume areas" },
   dizysignals: { src: "/school/diagrams/dizysignals-confluence.svg", alt: "Trend, structure, pattern and participation evidence combining after candle close before a hypothetical next-bar signal" },
+  dizybrain: { src: "/school/diagrams/dizybrain-typed-flow.svg", alt: "Confirmed candle flowing through strategy analysis into a typed DizyBrain snapshot and deterministic setup qualification explanation" },
   "scalping-vs-swing": { src: "/school/diagrams/timeframes.svg", alt: "Fifteen-minute scalping compared with one-hour and four-hour swing analysis" },
   dizypaper: { src: "/school/diagrams/paper-simulation.svg", alt: "Manual paper planning compared with confirmed-signal simulation and next-bar entry modelling" },
   "order-flow-foundations": { src: "/school/diagrams/order-flow-foundations.svg", alt: "Resting bids and asks, aggressive orders, spread and the reasons trading moves to another price level" },

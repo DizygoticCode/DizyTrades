@@ -6,7 +6,7 @@
 
 **A transparent crypto market-analysis workspace for charting, order flow, confirmed-candle signals, education and paper trading.**
 
-[Open DizyTrades](https://dizytrades.onrender.com) · [View-only terminal](https://dizytrades.onrender.com/explore) · [Dizy Learing Center](https://dizytrades.onrender.com/school) · [Report an issue](https://github.com/DizygoticCode/DizyTrades/issues)
+[Open DizyTrades](https://dizytrades.onrender.com) · [View-only terminal](https://dizytrades.onrender.com/explore) · [DizyAcademy](https://dizytrades.onrender.com/school) · [Report an issue](https://github.com/DizygoticCode/DizyTrades/issues)
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
 ![React](https://img.shields.io/badge/React-19-149ECA?logo=react)
@@ -84,9 +84,9 @@ Practice and review without risking real funds.
 - fees, mark-to-market P&L and impossible-liquidity rejection
 - saved paper snapshots and per-user isolation
 
-### Dizy Learing Center
+### DizyAcademy
 
-A built-in academy that teaches the platform and the market concepts behind it.
+DizyAcademy teaches the platform and the market concepts behind it.
 
 - beginner trading foundations
 - chart structure, VWAP, Volume Profile, Fibonacci, Elliott and Wyckoff
@@ -119,7 +119,7 @@ DizyTrades follows a few simple principles:
 - [x] DizyPaper manual and signal simulations
 - [x] DizyFlow DOM, heatmap and trade-bubble foundations
 - [x] DizyDEX unified market discovery
-- [x] Dizy Learing Center beginner through professional curriculum
+- [x] DizyAcademy beginner through professional curriculum
 - [x] Branded loading, recovery and not-found states
 - [x] Automated lint, test and production-build checks
 
@@ -150,7 +150,7 @@ Live trading is deliberately **not** part of the current beta.
 Public site
 ├── Landing page
 ├── View-only session launcher
-├── Dizy Learing Center
+├── DizyAcademy
 └── DizyDEX discovery
 
 Authentication and storage

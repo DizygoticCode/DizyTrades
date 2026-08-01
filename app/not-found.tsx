@@ -15,7 +15,7 @@ export default function NotFound() {
         <Link className="button primary" href="/">Return to DizyTrades</Link>
         <Link className="signup-link" href="/explore">Open the view-only terminal</Link>
         <Link className="school-login-link" href="/school">Explore {SCHOOL_DISPLAY_NAME}</Link>
-        <div className="login-safety"><b>SAFE ROUTES</b><span>Use the homepage, terminal, DizyDEX or learning centre navigation.</span></div>
+        <div className="login-safety"><b>SAFE ROUTES</b><span>Use the homepage, terminal, DizyDEX or DizyAcademy navigation.</span></div>
       </section>
     </main>
   );

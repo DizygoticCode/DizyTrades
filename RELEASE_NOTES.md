@@ -51,7 +51,7 @@ This is a living high-level history of user-facing milestones. Pull requests rem
 - Added on-chain pool discovery through public providers.
 - Added quote filters, source-aware searches, favourites and graceful provider degradation.
 
-### Dizy Learing Center
+### DizyAcademy
 
 - Added beginner, intermediate and advanced lesson groups.
 - Added DizySignals, DizyFlow, DOM, heatmap, order-flow and institutional concepts.
@@ -73,7 +73,7 @@ This is a living high-level history of user-facing milestones. Pull requests rem
 - Manual Paper Simulator v2 with exchange-style leverage and liquidation
 - Market Depth histogram beside the price scale
 - DizyBrain typed state contract
-- Dizy Learing Center product refresh
+- DizyAcademy product refresh
 
 ## Release-note policy
 

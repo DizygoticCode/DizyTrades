@@ -13,7 +13,7 @@ This roadmap is directional rather than a promise of dates. Items move only when
 - DizyPaper manual and signal-driven simulation
 - DizyFlow DOM, liquidity-history and trade-bubble foundations
 - DizyDEX unified market discovery
-- Dizy Learing Center curriculum and progress tracking
+- DizyAcademy curriculum and progress tracking
 - DizyBrain transparent signal-reasoning panel
 - Automated lint, test and production-build validation
 
@@ -22,7 +22,7 @@ This roadmap is directional rather than a promise of dates. Items move only when
 1. MEXC Last, Fair and Index price sources with a display selector
 2. Manual Paper Simulator leverage, margin, liquidation and fair-price marking
 3. Market Depth histogram beside the price scale
-4. Dizy Learing Center refresh for the current product
+4. DizyAcademy refresh for the current product
 5. Typed DizyBrain data contract and direct strategy-threshold integration
 
 ## Phase 1 — Complete and stabilise the platform
@@ -34,14 +34,14 @@ This roadmap is directional rather than a promise of dates. Items move only when
 - [x] DizyPaper foundations
 - [x] DizyFlow foundations
 - [x] DizyDEX discovery
-- [x] Dizy Learing Center
+- [x] DizyAcademy
 - [x] DizyBrain v1
 - [ ] MEXC Last, Fair and Index price sources
 - [ ] Manual Paper Simulator v2
 - [ ] Market Depth histogram
 - [ ] Typed DizyBrain state contract
 - [ ] DizyBrain qualification using the active strategy threshold
-- [ ] Learning Center product refresh
+- [ ] DizyAcademy product refresh
 - [ ] Accessibility, mobile and terminal-collision audit
 - [ ] Stable customer-facing DizyFlow layout
 

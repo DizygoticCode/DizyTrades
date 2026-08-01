@@ -36,7 +36,7 @@ Signal and structure logic should prefer completed candles. Forming candles may 
 
 ## 7. Teach, do not merely signal
 
-The Dizy Learing Center and DizyBrain are first-class product systems. The platform should help users understand structure, order flow, confluence, invalidation and risk.
+DizyAcademy and DizyBrain are first-class product systems. The platform should help users understand structure, order flow, confluence, invalidation and risk.
 
 ## 8. Independent evidence beats duplicated evidence
 
@@ -76,4 +76,4 @@ Names, status labels and errors should describe what the user can actually see. 
 
 ## 15. Preserve product coherence
 
-DizyCharts, DizySignals, DizyFlow, DizyPaper, DizyDEX, DizyBrain and the Dizy Learing Center should behave like one connected platform rather than unrelated tools.
+DizyCharts, DizySignals, DizyFlow, DizyPaper, DizyDEX, DizyBrain and DizyAcademy should behave like one connected platform rather than unrelated tools.

@@ -13,7 +13,7 @@ test("landing calls to action target the public route map", async () => {
   const page = await source("app/marketing/marketing-page.tsx");
   for (const target of ["/explore", "/signup", "/login", "/school", "/dex"]) assert.match(page, new RegExp(`href=\\"${target}\\"`));
   for (const product of ["DizyCharts", "DizySignals", "DizyFlow", "DizyDEX", "DizyPaper", "DizyTrade"]) assert.match(page, new RegExp(product));
-  assert.equal(SCHOOL_DISPLAY_NAME, "Dizy Learing Center");
+  assert.equal(SCHOOL_DISPLAY_NAME, "DizyAcademy");
   assert.match(page, /SCHOOL_DISPLAY_NAME/);
   assert.match(page, /href="\/school"/);
 });
