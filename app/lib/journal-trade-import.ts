@@ -7,18 +7,28 @@ import type { CandleTimeframe } from "./market/types";
 export type JournalTradeContext = Readonly<{
   symbol: string;
   market: string;
+  marketKey: string;
   timeframe: CandleTimeframe;
-  replay: Readonly<{ symbol: string; timeframe: CandleTimeframe; candles: ReadonlyArray<Candle> }>;
+  replay: Readonly<{ marketKey: string; symbol: string; timeframe: CandleTimeframe; candles: ReadonlyArray<Candle> }>;
 }>;
 
 /** Availability describes the exact loaded identity and timestamp coverage; it never predicts fetchable history. */
 export function replayReferenceForTrade(trade: PaperTrade, context: JournalTradeContext): ReplayReference {
-  const identityMatches=context.symbol===context.replay.symbol&&context.timeframe===context.replay.timeframe;
+  const identityMatches=context.marketKey===context.replay.marketKey&&context.symbol===context.replay.symbol&&context.timeframe===context.replay.timeframe;
   let available=false;
   if(identityMatches&&context.replay.candles.length){
     try { const range=replayRangeForCandles(context.replay.candles,context.timeframe); const entryTimeMs=trade.entryTime*1_000; available=entryTimeMs>=range.rangeStartMs&&entryTimeMs<range.rangeEndMs&&context.replay.candles.some(c=>c.time===trade.entryTime); } catch { available=false; }
   }
-  return Object.freeze({sessionId:`paper-${trade.id}`,symbol:context.symbol,timeframe:context.timeframe,entryTimeMs:trade.entryTime*1_000,available});
+  return Object.freeze({sessionId:`paper-${trade.id}`,marketKey:context.marketKey,symbol:context.symbol,timeframe:context.timeframe,entryTimeMs:trade.entryTime*1_000,available});
+}
+
+export type JournalReplayLaunch = Readonly<{marketKey:string;symbol:string;timeframe:CandleTimeframe;timestampMs:number}>;
+export function journalReplayCursor(request:JournalReplayLaunch,loaded:{marketKey:string;symbol:string;timeframe:CandleTimeframe;candles:ReadonlyArray<Candle>}):number|null {
+  if(request.marketKey!==loaded.marketKey||request.symbol!==loaded.symbol||request.timeframe!==loaded.timeframe||!Number.isFinite(request.timestampMs)||!loaded.candles.length)return null;
+  const first=loaded.candles[0].time*1_000,last=loaded.candles.at(-1)!.time*1_000;
+  if(request.timestampMs<first||request.timestampMs>last)return null;
+  const index=loaded.candles.findIndex(c=>c.time*1_000>=request.timestampMs);
+  return index<0?null:index;
 }
 
 /** Maps authoritative completed-trade fields only. Facts not recorded by DizyPaper remain null. */

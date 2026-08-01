@@ -6,6 +6,7 @@ const text = (value:unknown, field:string, max:number, required=true) => { if(ty
 const finite = (value:unknown, field:string, nullable=false) => value===null&&nullable?null:typeof value==="number"&&Number.isFinite(value)?value:fail(field,`${field} must be a finite number.`);
 const oneOf = <T extends string>(value:unknown, field:string, values:readonly T[], nullable=true):T|null => value==null&&nullable?null:typeof value==="string"&&values.includes(value as T)?value as T:fail(field,`Invalid ${field}.`);
 export const sanitiseTags=(value:unknown)=>Array.isArray(value)?[...new Set(value.map(v=>text(v,"tag",40)).filter(Boolean))].slice(0,20):[];
+export const validJournalMarketKey=(value:unknown):value is string=>typeof value==="string"&&/^mexc:(?:spot|futures):[A-Z0-9_]{1,40}$/.test(value);
 
 export function validateTradeSnapshot(input:unknown):TradeSnapshot {
   if(!input||typeof input!=="object")fail("trade","Completed trade data is required."); const v=input as Record<string,unknown>;
@@ -17,7 +18,7 @@ export function validateTradeSnapshot(input:unknown):TradeSnapshot {
   return Object.freeze({tradeId:text(v.tradeId,"tradeId",120),symbol:text(v.symbol,"symbol",40),market:text(v.market,"market",80),timeframe:text(v.timeframe,"timeframe",10),direction,
     entry:finite(v.entry,"entry")!,exit:finite(v.exit,"exit")!,stop:finite(v.stop,"stop",true),target:finite(v.target,"target",true),positionSize:finite(v.positionSize,"positionSize",true),riskPct:finite(v.riskPct,"riskPct",true),leverage:finite(v.leverage,"leverage",true),marginMode,
     fees:finite(v.fees,"fees",true),pnl:finite(v.pnl,"pnl")!,pnlPct:finite(v.pnlPct,"pnlPct")!,rMultiple:finite(v.rMultiple,"rMultiple",true),openTime:new Date(text(v.openTime,"openTime",40)).toISOString(),closeTime:new Date(text(v.closeTime,"closeTime",40)).toISOString(),closeReason:text(v.closeReason,"closeReason",80),strategyVersion:v.strategyVersion===null?null:text(v.strategyVersion,"strategyVersion",80),
-    replay:replay?Object.freeze({sessionId:text(replay.sessionId,"replay.sessionId",120),symbol:text(replay.symbol,"replay.symbol",40),timeframe:text(replay.timeframe,"replay.timeframe",10),entryTimeMs:finite(replay.entryTimeMs,"replay.entryTimeMs")!,available:Boolean(replay.available)}):null,
+    replay:replay?Object.freeze({sessionId:text(replay.sessionId,"replay.sessionId",120),marketKey:validJournalMarketKey(replay.marketKey)?replay.marketKey:fail("replay.marketKey","Invalid replay market key."),symbol:text(replay.symbol,"replay.symbol",40),timeframe:text(replay.timeframe,"replay.timeframe",10),entryTimeMs:finite(replay.entryTimeMs,"replay.entryTimeMs")!,available:Boolean(replay.available)}):null,
     brain:brain?Object.freeze({id:text(brain.id,"brain.id",120),capturedAt:new Date(text(brain.capturedAt,"brain.capturedAt",40)).toISOString(),summary:text(brain.summary,"brain.summary",500)}):null,
     signal:signal?Object.freeze({direction:oneOf(signal.direction,"signal.direction",["long","short"] as const,false)!,signalTime:new Date(text(signal.signalTime,"signal.signalTime",40)).toISOString(),label:text(signal.label,"signal.label",200)}):null});
 }

@@ -4,7 +4,7 @@ export type TradeQuality = "good" | "mixed" | "poor";
 export type PlanDiscipline = "completely" | "mostly" | "no";
 export type Mood = "calm" | "confident" | "patient" | "hesitant" | "fearful" | "greedy" | "fomo" | "frustrated" | "revenge";
 
-export type ReplayReference = Readonly<{ sessionId: string; symbol: string; timeframe: string; entryTimeMs: number; available: boolean }>;
+export type ReplayReference = Readonly<{ sessionId: string; marketKey: string; symbol: string; timeframe: string; entryTimeMs: number; available: boolean }>;
 export type SnapshotReference = Readonly<{ id: string; capturedAt: string; summary: string }>;
 export type SignalSummary = Readonly<{ direction: "long" | "short"; signalTime: string; label: string }>;
 

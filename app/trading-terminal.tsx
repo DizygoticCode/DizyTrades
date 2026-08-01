@@ -95,7 +95,9 @@ import { type MarketLoadReason } from "./lib/market/reconciliation";
 import {buildPineParityReport} from "./lib/pine-parity";
 import { stableLabelLane } from "./lib/chart/world-projection";
 import { livePaperSnapshot } from "./lib/paper-performance";
-import { createReplaySession, createReplaySnapshot, jumpReplay, jumpReplayToTimestamp, progressReplay, replayDelayMs, replayIdentityChanged, replayPrefix, replayRangeForCandles, stepReplay, type ReplaySession, type ReplaySpeed } from "./lib/replay";
+import { createReplaySession, createReplaySnapshot, jumpReplay, progressReplay, replayDelayMs, replayIdentityChanged, replayPrefix, replayRangeForCandles, stepReplay, type ReplaySession, type ReplaySpeed } from "./lib/replay";
+import { journalReplayCursor } from "./lib/journal-trade-import";
+import { validJournalMarketKey } from "./lib/journal-validation";
 import { PaperPerformanceToolbar } from "./paper-performance-toolbar";
 import { ManualPaperTicket } from "./manual-paper-ticket";
 import { OrderFlowToolbar } from "./order-flow-toolbar";
@@ -1243,6 +1245,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   } = timeline;
   const [replayCandles,setReplayCandles]=useState<ReadonlyArray<Candle>>([]);
   const [replaySession,setReplaySession]=useState<ReplaySession|null>(null);
+  const [journalReplayNotice,setJournalReplayNotice]=useState("");
   const activeReplaySession=replaySession&&!replayIdentityChanged(replaySession,symbol,timeframe as CandleTimeframe)?replaySession:null;
   const replayActive=activeReplaySession!==null;
   const replayClosedCandles=useMemo(()=>activeReplaySession?[...replayPrefix(replayCandles,activeReplaySession.cursorIndex)]:closedCandles,[replayCandles,activeReplaySession,closedCandles]);
@@ -1324,7 +1327,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   useEffect(()=>{const pause=()=>{if(document.visibilityState==="hidden")setReplaySession(current=>current?.status==="playing"?{...current,status:"paused"}:current);};document.addEventListener("visibilitychange",pause);return()=>document.removeEventListener("visibilitychange",pause);},[]);
   useEffect(()=>()=>{if(replayTimer.current!==null)window.clearInterval(replayTimer.current);},[]);
   const enterReplay=()=>{const candles=Object.freeze(closedCandles.map(c=>Object.freeze({...c})));if(!candles.length)return;const now=Date.now(),range=replayRangeForCandles(candles,timeframe as CandleTimeframe);setReplayCandles(candles);setReplaySession(createReplaySession({id:`replay-${now}`,symbol,timeframe:timeframe as CandleTimeframe,...range,startedAt:now,candles,speed:1}));setViewportReset(v=>v+1);};
-  useEffect(()=>{if(replayLaunchHandled.current)return;const query=new URLSearchParams(window.location.search),requestedSymbol=query.get("replaySymbol"),requestedTimeframe=query.get("replayTimeframe"),at=Number(query.get("replayAt"));if(!requestedSymbol||!requestedTimeframe)return;const timer=window.setTimeout(()=>{if(symbol!==requestedSymbol||timeframe!==requestedTimeframe){setSymbol(requestedSymbol);setSelectedMarketKey(`mexc:futures:${requestedSymbol}`);setTimeframe(requestedTimeframe);return;}if(!closedCandles.length||resultMarketKey!==marketKey)return;replayLaunchHandled.current=true;const candles=Object.freeze(closedCandles.map(c=>Object.freeze({...c}))),range=replayRangeForCandles(candles,timeframe as CandleTimeframe),session=createReplaySession({id:`journal-replay-${Date.now()}`,symbol,timeframe:timeframe as CandleTimeframe,...range,startedAt:Date.now(),candles,speed:1});setReplayCandles(candles);setReplaySession(Number.isFinite(at)?jumpReplayToTimestamp(session,candles,at):session);setViewportReset(v=>v+1);},0);return()=>window.clearTimeout(timer);},[symbol,timeframe,closedCandles,resultMarketKey,marketKey]);
+  useEffect(()=>{if(replayLaunchHandled.current)return;const query=new URLSearchParams(window.location.search),requestedMarketKey=query.get("replayMarketKey"),requestedSymbol=query.get("replaySymbol"),requestedTimeframe=query.get("replayTimeframe") as CandleTimeframe|null,at=Number(query.get("replayAt"));if(!requestedMarketKey&&!requestedSymbol&&!requestedTimeframe)return;const clearQuery=()=>{for(const key of ["replayMarketKey","replaySymbol","replayTimeframe","replayAt"])query.delete(key);window.history.replaceState(null,"",`${window.location.pathname}${query.size?`?${query}`:""}`);};const timer=window.setTimeout(()=>{if(!validJournalMarketKey(requestedMarketKey)||!requestedSymbol||!requestedTimeframe||!Number.isFinite(at)){replayLaunchHandled.current=true;clearQuery();setJournalReplayNotice("Replay data is unavailable for this trade.");return;}if(selectedMarketKey!==requestedMarketKey||symbol!==requestedSymbol||timeframe!==requestedTimeframe){setSelectedMarketKey(requestedMarketKey);setSymbol(requestedSymbol);setTimeframe(requestedTimeframe);return;}if(!closedCandles.length||resultMarketKey!==marketKey)return;const candles=Object.freeze(closedCandles.map(c=>Object.freeze({...c}))),cursor=journalReplayCursor({marketKey:requestedMarketKey,symbol:requestedSymbol,timeframe:requestedTimeframe,timestampMs:at},{marketKey:selectedMarketKey,symbol,timeframe:timeframe as CandleTimeframe,candles});replayLaunchHandled.current=true;clearQuery();if(cursor===null){setJournalReplayNotice("Replay data is unavailable for this trade.");return;}const range=replayRangeForCandles(candles,timeframe as CandleTimeframe),session=createReplaySession({id:`journal-replay-${Date.now()}`,symbol,timeframe:timeframe as CandleTimeframe,...range,startedAt:Date.now(),candles,speed:1});setJournalReplayNotice("");setReplayCandles(candles);setReplaySession(jumpReplay(session,candles,cursor));setViewportReset(v=>v+1);},0);return()=>window.clearTimeout(timer);},[selectedMarketKey,symbol,timeframe,closedCandles,resultMarketKey,marketKey]);
   const exitReplay=useCallback(()=>{setReplaySession(null);setReplayCandles([]);setViewportReset(v=>v+1);},[]);
   useEffect(()=>{if(!replaySession||!replayIdentityChanged(replaySession,symbol,timeframe as CandleTimeframe))return;const cleanup=window.setTimeout(exitReplay,0);return()=>window.clearTimeout(cleanup);},[replaySession,symbol,timeframe,exitReplay]);
   const historyCapacity = useMemo(
@@ -1378,6 +1381,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     () => livePaperSnapshot(backtest, paperMark, executionMode === "Paper"),
     [backtest, paperMark, executionMode],
   );
+  const paperCompletionIdentity=useMemo(()=>JSON.stringify({selectedMarketKey,timeframe,strategy,risk}),[selectedMarketKey,timeframe,strategy,risk]);
   const last = liveCandle ?? closedCandles.at(-1);
   const firstVisible = closedCandles.at(-97);
   const change =
@@ -1750,6 +1754,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       </header>
 
       <section className={`replay-controls ${replayActive?"active":""}`} aria-label="Replay controls" aria-live="polite">
+        {journalReplayNotice?<span role="status">{journalReplayNotice}</span>:null}
         {!activeReplaySession?<button type="button" onClick={enterReplay} disabled={!closedCandles.length}>Enter Replay</button>:<>
           <strong>REPLAY MODE</strong><span>{activeReplaySession.symbol} · {activeReplaySession.timeframe}</span>
           <button aria-label="Jump to beginning" type="button" onClick={()=>setReplaySession(s=>s?jumpReplay(s,replayCandles,0):s)}>⏮</button>
@@ -1934,7 +1939,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
             <PaperPerformanceToolbar
               enabled={executionMode === "Paper"}
               readOnly={user.role === "viewer"}
-              journalContext={{symbol,market:selectedMarket?.displayName??symbol,timeframe:timeframe as CandleTimeframe,replay:{symbol,timeframe:timeframe as CandleTimeframe,candles:closedCandles}}}
+              completionIdentity={paperCompletionIdentity}
+              journalContext={{symbol,market:selectedMarket?.displayName??symbol,marketKey:selectedMarketKey,timeframe:timeframe as CandleTimeframe,replay:{marketKey:selectedMarketKey,symbol,timeframe:timeframe as CandleTimeframe,candles:closedCandles}}}
               error={resultMarketKey !== marketKey ? feedError : null}
               onRetry={() => {
                 if (resultMarketKey !== marketKey) void loadMarketData({ reason: "reconnect", resetView: false });
