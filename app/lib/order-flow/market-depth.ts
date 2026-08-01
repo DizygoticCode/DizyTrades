@@ -17,7 +17,7 @@ export function selectVisibleDepth(book:BookView,levels:number,priceRange?:{min:
 }
 export function aggregateDepthBins(levels:readonly DepthLevel[],step:number,side:DepthSide):DepthLevel[]{
  if(!Number.isFinite(step)||step<=0)return sanitiseDepthLevels(levels);
- const bins=new Map<number,DepthLevel>();for(const level of sanitiseDepthLevels(levels)){const tick=side==="bid"?Math.floor(level.price/step):Math.ceil(level.price/step),price=Number((tick*step).toPrecision(12)),current=bins.get(tick);if(current){current.contractQuantity+=level.contractQuantity;current.orderCount+=level.orderCount}else bins.set(tick,{price,contractQuantity:level.contractQuantity,orderCount:level.orderCount})}return [...bins.values()].sort((a,b)=>side==="bid"?b.price-a.price:a.price-b.price);
+ const bins=new Map<number,DepthLevel>();for(const level of sanitiseDepthLevels(levels)){const ratio=level.price/step,tick=side==="bid"?Math.floor(ratio+1e-10):Math.ceil(ratio-1e-10),price=Number((tick*step).toPrecision(12)),current=bins.get(tick);if(current){current.contractQuantity+=level.contractQuantity;current.orderCount+=level.orderCount}else bins.set(tick,{price,contractQuantity:level.contractQuantity,orderCount:level.orderCount})}return [...bins.values()].sort((a,b)=>side==="bid"?b.price-a.price:a.price-b.price);
 }
 export function linearScale(size:number,maximum:number){const value=finiteNonNegative(size),max=finiteNonNegative(maximum);return value===null||max===null||max<=0?0:Math.min(1,value/max)}
 export function logarithmicScale(size:number,maximum:number){const value=finiteNonNegative(size),max=finiteNonNegative(maximum);return value===null||max===null||max<=0?0:Math.min(1,Math.log1p(value)/Math.log1p(max))}
