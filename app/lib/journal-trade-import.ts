@@ -44,7 +44,7 @@ export function tradeSnapshotFromPaper(trade: PaperTrade, context: JournalTradeC
     riskPct:trade.riskPct??null,leverage:trade.leverage??null,marginMode:null,fees:null,pnl:trade.pnl,pnlPct:trade.pnlPct,
     rMultiple:trade.rMultiple??null,openTime:new Date(trade.entryTime*1_000).toISOString(),closeTime:new Date(trade.exitTime*1_000).toISOString(),
     closeReason:trade.exitReason,strategyVersion:null,replay:replayReferenceForTrade(trade,context),brain:null,
-    signal:Number.isFinite(trade.signalTime)?Object.freeze({direction:trade.direction,signalTime:new Date(trade.signalTime*1_000).toISOString(),label:`DizySignals confirmed-candle ${trade.direction}`}):null});
+    signal:Number.isFinite(trade.signalTime)?Object.freeze({direction:trade.direction,signalTime:new Date(trade.signalTime*1_000).toISOString(),label:`DizySignals confirmed-candle ${trade.direction}`}):null,dizyBrainReview:Object.freeze({available:false,reviewId:null,engineVersion:null,generatedAt:null,generatedFromHash:null,reviewConfidence:null})});
 }
 
 export type JournalReplaySource = "retained-memory"|"rolling-history"|"unavailable"|"cancelled";
