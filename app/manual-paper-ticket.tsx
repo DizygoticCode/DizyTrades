@@ -8,7 +8,8 @@ import {
   type CSSProperties,
 } from "react";
 import { PAPER_SIZE_STOPS, sliderToAmount } from "./lib/manual-paper-sizing";
-type Mode = "fixed-margin" | "fixed-notional" | "equity-percent";
+import { estimateLiquidation, paperAccountSummary } from "./lib/manual-paper-engine";
+type Mode = "fixed-margin" | "fixed-notional" | "equity-percent" | "risk-percent";
 type Position = {
   symbol: string;
   side: "long" | "short";
@@ -16,6 +17,10 @@ type Position = {
   entryPrice: number;
   leverage: number;
   margin?: number;
+  marginMode: "isolated" | "cross";
+  estimatedLiquidation: number;
+  riskPriceSource: "fair" | "last";
+  lastRiskPrice: number;
   stopLoss?: number;
   takeProfit?: number;
 };
@@ -28,8 +33,11 @@ type Fill = {
   fee: number;
   realisedPnl: number;
   timestamp: string;
+  closeReason?: "manual"|"stop"|"target"|"liquidation";
+  netPnl?: number;
 };
 type Account = {
+  startingBalance: number;
   cashBalance: number;
   realisedPnl: number;
   fees: number;
@@ -46,6 +54,8 @@ type Account = {
     defaultAmount: number;
     defaultEquityPct: number;
     defaultLeverage: number;
+    maintenanceMarginPct: number;
+    liquidationPenaltyPct: number;
   };
 };
 const money = (value: number) =>
@@ -71,6 +81,7 @@ export function ManualPaperTicket({
     [amount, setAmount] = useState("100"),
     [sizePercent, setSizePercent] = useState(0),
     [leverage, setLeverage] = useState("1"),
+    [marginMode, setMarginMode] = useState<"isolated" | "cross">("isolated"),
     [stopLoss, setStopLoss] = useState(""),
     [takeProfit, setTakeProfit] = useState(""),
     [error, setError] = useState(""),
@@ -78,15 +89,17 @@ export function ManualPaperTicket({
     [collapsed, setCollapsed] = useState(false),
     [hidden, setHidden] = useState(false),
     [height, setHeight] = useState(390);
+  const [riskState,setRiskState]=useState<{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null>(null);
   const load = useCallback(async () => {
-    const response = await fetch("/api/manual-paper");
+    const response = await fetch(`/api/manual-paper?symbol=${encodeURIComponent(symbol)}`);
     if (response.ok)
-      setAccount(((await response.json()) as { account: Account }).account);
-  }, []);
+      {const payload=(await response.json()) as { account: Account;riskPrice?:{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null };setAccount(payload.account);setRiskState(payload.riskPrice??null)}
+  }, [symbol]);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external account synchronisation
     void load().catch(() => setError("Unable to load Manual Paper account."));
   }, [load]);
+  useEffect(()=>{if(!account?.positions[symbol])return;const timer=window.setInterval(()=>void load(),5000);return()=>window.clearInterval(timer)},[account?.positions,symbol,load]);
   const post = useCallback(async (body: Record<string, unknown>) => {
     setBusy(true);
     setError("");
@@ -109,22 +122,19 @@ export function ManualPaperTicket({
     }
   }, []);
   const position = account?.positions[symbol],
-    mark = publicPrice ?? position?.entryPrice ?? 0,
+    mark = riskState?.price ?? (position?.symbol===symbol?position.lastRiskPrice:0) ?? 0,
     unrealised = position
       ? (mark - position.entryPrice) *
         position.quantity *
         (position.side === "long" ? 1 : -1)
       : 0,
     equity = Math.max(0, (account?.cashBalance ?? 0) + unrealised),
-    used = Object.values(account?.positions ?? {}).reduce(
-      (sum, p) => sum + (p.margin ?? (p.quantity * p.entryPrice) / p.leverage),
-      0,
-    ),
+    summary=paperAccountSummary(account?.cashBalance??0,Object.values(account?.positions??{}).map(p=>({...p,margin:p.margin??p.quantity*p.entryPrice/p.leverage})),Object.values(account?.positions??{}).map(p=>p.symbol===symbol?mark:p.lastRiskPrice)),used=summary.usedMargin,
     amountNumber = Math.max(0, Number(amount) || 0),
     leverageNumber = Math.max(1, Number(leverage) || 1),
     margin = Math.max(
       0,
-      mode === "equity-percent"
+      mode === "equity-percent"||mode==="risk-percent"
         ? (equity * amountNumber) / 100
         : mode === "fixed-notional"
           ? amountNumber / leverageNumber
@@ -132,13 +142,16 @@ export function ManualPaperTicket({
     ),
     notional = Math.max(
       0,
-      mode === "fixed-notional" ? amountNumber : margin * leverageNumber,
+      mode === "fixed-notional" ? amountNumber : mode==="risk-percent"&&publicPrice&&Number(stopLoss)>0?equity*amountNumber/100/(Math.abs(publicPrice-Number(stopLoss))/publicPrice):margin * leverageNumber,
     ),
     quantity = publicPrice && publicPrice > 0 ? notional / publicPrice : 0,
     fee = Math.max(
       0,
       (notional * (account?.settings.commissionPct ?? 0)) / 100,
     ),
+    liquidation=quantity>0?estimateLiquidation({side,entryPrice:publicPrice??0,quantity,marginMode,assignedMargin:margin,crossCollateral:equity,entryFee:fee,maintenanceMarginRate:(account?.settings.maintenanceMarginPct??.5)/100,liquidationPenaltyRate:(account?.settings.liquidationPenaltyPct??.1)/100}):NaN,
+    riskAmount=stopLoss&&quantity?Math.abs((publicPrice??0)-Number(stopLoss))*quantity:0,
+    rewardRisk=stopLoss&&takeProfit&&riskAmount?Math.abs(Number(takeProfit)-(publicPrice??0))*quantity/riskAmount:0,
     remaining = equity - used - margin - fee,
     invalidAmount = !Number.isFinite(quantity) || quantity <= 0 || margin < 0;
   const choosePercent = useCallback(
@@ -172,6 +185,7 @@ export function ManualPaperTicket({
         sizeMode: mode,
         amount: Number(amount),
         leverage: Number(leverage),
+        marginMode,
         stopLoss: stopLoss ? Number(stopLoss) : null,
         takeProfit: takeProfit ? Number(takeProfit) : null,
         confirmReverse: Boolean(position && position.side !== orderSide),
@@ -188,6 +202,7 @@ export function ManualPaperTicket({
       mode,
       amount,
       leverage,
+      marginMode,
       stopLoss,
       takeProfit,
       position,
@@ -337,13 +352,14 @@ export function ManualPaperTicket({
                   <option value="fixed-margin">Fixed margin</option>
                   <option value="fixed-notional">Fixed notional</option>
                   <option value="equity-percent">Equity percentage</option>
+                  <option value="risk-percent">Risk % (stop required)</option>
                 </select>
               </label>
             </div>
             <label>
               Amount{" "}
               <span className={styles.unit}>
-                {mode === "equity-percent" ? "%" : "USDT"}
+                {mode === "equity-percent" || mode === "risk-percent" ? "%" : "USDT"}
               </span>
               <input
                 aria-invalid={invalidAmount}
@@ -361,9 +377,15 @@ export function ManualPaperTicket({
                 </small>
               ) : null}
             </label>
+            <label>
+              Margin mode
+              <select value={marginMode} onChange={e=>setMarginMode(e.target.value as "isolated"|"cross")}>
+                <option value="isolated">Isolated</option><option value="cross">Cross (approximation)</option>
+              </select>
+            </label>
             <section>
               <div className={styles.sectionTitle}>
-                <span>Leverage</span>
+                <span>Leverage · simulator fallback range</span>
                 <b>{leverageNumber}×</b>
               </div>
               <div className={styles.leverages}>
@@ -443,12 +465,17 @@ export function ManualPaperTicket({
             <div className={styles.preview}>
               <h4>Order estimate</h4>
               {[
-                ["Mark price", money(mark)],
+                ["Risk price", mark?`${money(mark)} · ${riskState?.source==="fair"?"Fair":"Last fallback"}`:"Awaiting Fair / Last"],
+                ["Symbol", symbol],
+                ["Margin mode", marginMode],
                 ["Quantity", quantity.toFixed(8)],
                 ["Margin", money(margin)],
                 ["Notional", money(notional)],
                 ["Leverage", `${leverageNumber}×`],
                 ["Estimated fee", money(fee)],
+                ["Risk amount", money(riskAmount)],
+                ["Estimated liquidation", Number.isFinite(liquidation)?money(liquidation):"—"],
+                ["Reward / risk", rewardRisk?`${rewardRisk.toFixed(2)}×`:"—"],
                 ["Remaining equity", money(remaining)],
               ].map(([label, value]) => (
                 <span key={label}>
@@ -456,6 +483,12 @@ export function ManualPaperTicket({
                   <b>{value}</b>
                 </span>
               ))}
+            </div>
+            <div className={styles.warnings}>
+              {!stopLoss?<span>No stop loss — estimated liquidation remains active.</span>:null}
+              {marginMode==="cross"?<span>Cross collateral is a simulator approximation, not MEXC-exact.</span>:null}
+              {riskState?.source!=="fair"?<span>Fair price unavailable — explicit Last-price fallback{riskState?.stale?" (last valid mark preserved)":""}.</span>:null}
+              <span>Fees and slippage are assumptions. No profit prediction or financial advice.</span>
             </div>
             <div className={styles.openActions}>
               <button
@@ -519,6 +552,7 @@ export function ManualPaperTicket({
                         "Size",
                         "Entry / Mark",
                         "Lev.",
+                        "Mode / Est. liq.",
                         "Margin",
                         "Unrealised P/L · ROE",
                         "TP / SL",
@@ -554,6 +588,7 @@ export function ManualPaperTicket({
                             <small>{money(mark)}</small>
                           </span>
                           <span>{p.leverage}×</span>
+                          <span>{p.marginMode}<small>Estimated liquidation {money(p.estimatedLiquidation)}</small></span>
                           <span>{money(m)}</span>
                           <span
                             className={
@@ -621,6 +656,7 @@ export function ManualPaperTicket({
                           }
                         >
                           {money(fill.realisedPnl)}
+                          {fill.closeReason?<small>{fill.closeReason}</small>:null}
                         </span>
                       </div>
                     ))
@@ -629,8 +665,14 @@ export function ManualPaperTicket({
             ) : (
               <div className={styles.summary}>
                 {[
+                  ["Starting balance", money(account?.startingBalance ?? 0)],
                   ["Cash balance", money(account?.cashBalance ?? 0)],
+                  ["Available balance", money(summary.availableBalance)],
+                  ["Used margin", money(summary.usedMargin)],
+                  ["Unrealised P/L", money(summary.unrealised)],
                   ["Equity", money(equity)],
+                  ["Margin ratio / health", `${Number.isFinite(summary.marginRatio)?(summary.marginRatio*100).toFixed(2):"∞"}%`],
+                  ["Active exposure", money(positions.reduce((sum,p)=>sum+p.quantity*p.entryPrice,0))],
                   ["Realised P/L", money(account?.realisedPnl ?? 0)],
                   ["Fees paid", money(account?.fees ?? 0)],
                 ].map(([label, value]) => (

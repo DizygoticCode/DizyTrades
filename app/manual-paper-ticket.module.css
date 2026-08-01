@@ -204,6 +204,7 @@
 .error {
   color: var(--red);
 }
+.warnings { display:flex; flex-direction:column; gap:3px; color:var(--yellow); }
 .leverages button {
   flex: 1;
   height: 30px;
@@ -397,6 +398,7 @@
 }
 .tableHead,
 .positionRow {
+  grid-template-columns: repeat(9,minmax(80px,1fr)) minmax(220px,2fr) !important;
   display: grid;
   grid-template-columns: 90px 55px 85px 110px 45px 85px 130px 80px minmax(
       250px,
