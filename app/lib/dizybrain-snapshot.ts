@@ -1,5 +1,6 @@
 import type { RiskSettings } from "./config.ts";
 import type { StrategyAnalysis, StrategySettings } from "./strategy.ts";
+import type { DizyFlowEvidenceReference } from "./order-flow/intelligence.ts";
 
 export type DizyBrainDirection = "BUY" | "SELL" | "NEUTRAL";
 
@@ -37,6 +38,8 @@ export type DizyBrainSnapshot = {
   riskPercent: number;
   checklist: DizyBrainChecklistItem[];
   explanation: DizyBrainExplanationMetadata;
+  /** Optional live public-flow evidence. It is display-only and never enters scoring. */
+  dizyFlowEvidence: DizyFlowEvidenceReference;
 };
 
 export function createDizyBrainSnapshot(input: {
@@ -45,6 +48,7 @@ export function createDizyBrainSnapshot(input: {
   risk: RiskSettings;
   latestClosedCandleTime: number | null;
   provenance?: DizyBrainSnapshot["provenance"];
+  dizyFlowEvidence?: DizyFlowEvidenceReference;
 }): DizyBrainSnapshot {
   const { analysis, strategy, risk } = input;
   const currentDirection: DizyBrainDirection = analysis.scoreLong > analysis.scoreShort
@@ -103,5 +107,8 @@ export function createDizyBrainSnapshot(input: {
         { label: "Current setup direction", detail: `${currentDirection}-leaning`, state: activeConfluence > 0 ? "complete" : "active" },
       ],
     },
+    dizyFlowEvidence: input.provenance?.source === "replay"
+      ? { available:false,snapshotTimeMs:null,inputHash:null,confidence:null,findingCodes:[] }
+      : input.dizyFlowEvidence ?? { available:false,snapshotTimeMs:null,inputHash:null,confidence:null,findingCodes:[] },
   };
 }
