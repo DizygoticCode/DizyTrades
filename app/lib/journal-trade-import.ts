@@ -55,3 +55,16 @@ export async function coordinateJournalReplayLaunch(input:{signal:AbortSignal;lo
   if(input.loadRetained){try{const candles=await input.loadRetained();if(input.signal.aborted)return Object.freeze({source:"cancelled"});const cursor=journalReplayCursor(input.request,{...input.identity,candles});if(cursor!==null)return Object.freeze({source:"retained-memory",candles,cursor});}catch(reason){if(input.signal.aborted||(reason as Error).name==="AbortError")return Object.freeze({source:"cancelled"});}}
   if(input.signal.aborted)return Object.freeze({source:"cancelled"});const cursor=journalReplayCursor(input.request,{...input.identity,candles:input.rollingCandles});return cursor===null?Object.freeze({source:"unavailable"}):Object.freeze({source:"rolling-history",candles:input.rollingCandles,cursor});
 }
+
+/** Separates an abortable attempt from a final handled result. Tokens reject stale completions. */
+export class JournalReplayLaunchLifecycle {
+  private generation=0;
+  private activeToken:number|null=null;
+  private final=false;
+  begin(){if(this.final||this.activeToken!==null)return null;this.activeToken=++this.generation;return this.activeToken;}
+  cancel(token:number){if(this.activeToken!==token)return false;this.activeToken=null;return true;}
+  complete(token:number){if(this.activeToken!==token||this.final)return false;this.activeToken=null;this.final=true;return true;}
+  isCurrent(token:number){return !this.final&&this.activeToken===token;}
+  get launchInFlight(){return this.activeToken!==null;}
+  get launchHandled(){return this.final;}
+}
