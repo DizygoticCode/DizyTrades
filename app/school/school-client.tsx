@@ -25,7 +25,7 @@ export default function SchoolClient() {
   const choose = (slug: string) => { setSelected(slug); setMenuOpen(false); document.querySelector("#lesson")?.scrollIntoView({ behavior: "smooth" }); };
   return <main className="school-shell">
     <header className="school-header">
-      <Link className="school-brand" href="/"><span className="brand-mark" aria-hidden="true"><i/><i/><i/></span><span><b>{SCHOOL_DISPLAY_NAME}</b><small>Quality education. Questionable spelling.</small></span></Link>
+      <Link className="school-brand" href="/"><span className="brand-mark" aria-hidden="true"><i/><i/><i/></span><span><b>{SCHOOL_DISPLAY_NAME}</b><small>Structured trading education.</small></span></Link>
       <nav aria-label="DizyTrades links"><Link href="/">Public site</Link><Link href="/explore">View-only chart</Link><Link className="primary-link" href="/login">Open terminal</Link></nav>
     </header>
     <div className="school-notice" role="note"><b>Learn safely.</b> Educational content only—not financial advice. Markets can cause total loss. Live trading remains disabled.</div>

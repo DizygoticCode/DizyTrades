@@ -10,7 +10,8 @@ test("school is a public route and renders the learning client without auth", as
 });
 
 test("all requested lessons render from the three structured groups", () => {
-  assert.equal(lessons.length, 20);
+  assert.ok(lessons.length >= 21);
+  assert.ok(lessons.some((lesson) => lesson.slug === "dizybrain"));
   assert.deepEqual(lessonGroups, ["Beginner", "Intermediate", "DizyTrades Tools"]);
   for (const lesson of lessons) {
     assert.ok(lesson.slug && lesson.title && lesson.summary);
