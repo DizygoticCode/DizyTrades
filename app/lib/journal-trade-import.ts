@@ -25,7 +25,7 @@ export function replayReferenceForTrade(trade: PaperTrade, context: JournalTrade
   if(identityMatches&&context.replay.candles.length){
     try { const range=replayRangeForCandles(context.replay.candles,context.timeframe); const entryTimeMs=trade.entryTime*1_000; available=entryTimeMs>=range.rangeStartMs&&entryTimeMs<range.rangeEndMs&&context.replay.candles.some(c=>c.time===trade.entryTime); } catch { available=false; }
   }
-  return Object.freeze({sessionId:`journal-replay|${journalTradeId(trade,context)}`,marketKey:context.marketKey,symbol:context.symbol,timeframe:context.timeframe,entryTimeMs:trade.entryTime*1_000,available});
+  return Object.freeze({sessionId:`journal-replay|${journalTradeId(trade,context)}`,marketKey:context.marketKey,symbol:context.symbol,timeframe:context.timeframe,entryTimeMs:trade.entryTime*1_000,available,source:available?"rolling-history" as const:"unavailable" as const,memoryId:null,capturedRangeStartMs:null,capturedRangeEndMs:null,candleCount:null,integrityWarnings:Object.freeze([]),brainAvailable:false,flowAvailability:"unavailable" as const});
 }
 
 export type JournalReplayLaunch = Readonly<{marketKey:string;symbol:string;timeframe:CandleTimeframe;timestampMs:number}>;

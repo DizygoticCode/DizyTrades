@@ -8,18 +8,20 @@ import { journalCreateFields, journalEditableFields } from "./journal-validation
 const root=()=>process.env.DATA_DIR||join(process.cwd(),".data");
 const safe=(id:string)=>id.replace(/[^a-z0-9_-]/gi,"");
 const path=(id:string)=>join(root(),"journal",`${safe(id)}.json`);
-export type JournalRecord={version:2;entries:JournalEntry[]};
-const empty=():JournalRecord=>({version:2,entries:[]});
+export type JournalRecord={version:3;entries:JournalEntry[]};
+const empty=():JournalRecord=>({version:3,entries:[]});
 
 /** Version-one records are normalised in memory and written as v2 on their next mutation. */
 export function migrateJournalEntry(value:unknown):JournalEntry|null {
   if(!value||typeof value!=="object")return null;
   const entry=value as Record<string,unknown>;
-  if(entry.schemaVersion!==1&&entry.schemaVersion!==JOURNAL_SCHEMA_VERSION)return null;
-  return {...entry,schemaVersion:JOURNAL_SCHEMA_VERSION,title:typeof entry.title==="string"?entry.title:"",archived:entry.archived===true,archivedAt:entry.archived===true&&typeof entry.archivedAt==="string"?entry.archivedAt:null} as JournalEntry;
+  if(entry.schemaVersion!==1&&entry.schemaVersion!==2&&entry.schemaVersion!==JOURNAL_SCHEMA_VERSION)return null;
+  const trade=entry.trade&&typeof entry.trade==="object"?entry.trade as Record<string,unknown>:null,replay=trade?.replay&&typeof trade.replay==="object"?trade.replay as Record<string,unknown>:null;
+  const migratedReplay=replay?{...replay,source:replay.source??(replay.available?"rolling-history":"unavailable"),memoryId:replay.memoryId??null,capturedRangeStartMs:replay.capturedRangeStartMs??null,capturedRangeEndMs:replay.capturedRangeEndMs??null,candleCount:replay.candleCount??null,integrityWarnings:replay.integrityWarnings??[],brainAvailable:replay.brainAvailable??false,flowAvailability:replay.flowAvailability??"unavailable"}:null;
+  return {...entry,schemaVersion:JOURNAL_SCHEMA_VERSION,title:typeof entry.title==="string"?entry.title:"",archived:entry.archived===true,archivedAt:entry.archived===true&&typeof entry.archivedAt==="string"?entry.archivedAt:null,trade:trade?{...trade,replay:migratedReplay}:null} as JournalEntry;
 }
 
-export async function readJournal(userId:string):Promise<JournalRecord>{try{const raw=JSON.parse(await readFile(path(userId),"utf8")) as {entries?:unknown[]};return {version:2,entries:Array.isArray(raw.entries)?raw.entries.map(migrateJournalEntry).filter((entry):entry is JournalEntry=>Boolean(entry)).slice(-2000):[]};}catch{return empty();}}
+export async function readJournal(userId:string):Promise<JournalRecord>{try{const raw=JSON.parse(await readFile(path(userId),"utf8")) as {entries?:unknown[]};return {version:3,entries:Array.isArray(raw.entries)?raw.entries.map(migrateJournalEntry).filter((entry):entry is JournalEntry=>Boolean(entry)).slice(-2000):[]};}catch{return empty();}}
 async function writeJournal(userId:string,value:JournalRecord){await mkdir(join(root(),"journal"),{recursive:true});const target=path(userId),temp=`${target}.${process.pid}.${Date.now()}.tmp`;await writeFile(temp,JSON.stringify(value,null,2)+"\n",{mode:0o600});await rename(temp,target);}
 const queues=new Map<string,Promise<unknown>>();async function serial<T>(id:string,fn:()=>Promise<T>){const prior=queues.get(id)??Promise.resolve();let release!:()=>void;const gate=new Promise<void>(r=>release=r),queued=prior.then(()=>gate);queues.set(id,queued);await prior;try{return await fn();}finally{release();if(queues.get(id)===queued)queues.delete(id);}}
 

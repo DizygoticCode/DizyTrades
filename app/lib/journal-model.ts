@@ -1,4 +1,4 @@
-export const JOURNAL_SCHEMA_VERSION = 2 as const;
+export const JOURNAL_SCHEMA_VERSION = 3 as const;
 export const JOURNAL_TITLE_MAX = 120;
 export const JOURNAL_TAG_MAX = 20;
 export const JOURNAL_TAG_LENGTH_MAX = 40;
@@ -7,7 +7,7 @@ export type TradeQuality = "good" | "mixed" | "poor";
 export type PlanDiscipline = "completely" | "mostly" | "no";
 export type Mood = "calm" | "confident" | "patient" | "hesitant" | "fearful" | "greedy" | "fomo" | "frustrated" | "revenge";
 
-export type ReplayReference = Readonly<{ sessionId: string; marketKey: string; symbol: string; timeframe: string; entryTimeMs: number; available: boolean }>;
+export type ReplayReference = Readonly<{ sessionId: string; marketKey: string; symbol: string; timeframe: string; entryTimeMs: number; available: boolean;source:"rolling-history"|"retained-memory"|"unavailable";memoryId:string|null;capturedRangeStartMs:number|null;capturedRangeEndMs:number|null;candleCount:number|null;integrityWarnings:readonly string[];brainAvailable:boolean;flowAvailability:"available"|"partially-available"|"unavailable"|"capture-not-supported"|"error" }>;
 export type SnapshotReference = Readonly<{ id: string; capturedAt: string; summary: string }>;
 export type SignalSummary = Readonly<{ direction: "long" | "short"; signalTime: string; label: string }>;
 
