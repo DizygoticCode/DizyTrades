@@ -123,6 +123,172 @@ The future Product Launcher will be the unified navigation experience for the en
 - Role-appropriate layouts and workspace presets
 - Cross-module notifications, progress and activity summaries
 
+## Phase 6 – Professional Trading Workflow
+
+### Vision
+
+Transform DizyPaper from a simple paper-trading ticket into a complete trading workflow centred around review, discipline and continuous improvement.
+
+### Planned features
+
+#### Professional Paper Account
+
+- Futures account overview
+- Equity
+- Available balance
+- Used margin
+- Margin health
+- Daily P&L
+- Unrealised P&L
+- Realised P&L
+- Open positions
+- Risk utilisation
+
+#### Professional Trade History
+
+Every simulated trade records:
+
+- symbol
+- side
+- leverage
+- margin mode
+- sizing mode
+- entry
+- exit
+- stop
+- target
+- estimated liquidation
+- fees
+- slippage
+- close reason
+- net P&L
+- timestamps
+
+#### DizyJournal
+
+Introduce a dedicated trading journal.
+
+Future capabilities:
+
+- automatic trade capture
+- screenshots
+- DizyBrain explanation snapshots
+- trader notes
+- emotions
+- rule compliance
+- tags
+- filtering
+- search
+- statistics
+
+## Phase 7 – Replay & Review
+
+### Vision
+
+Allow every paper trade to be replayed using the original market context.
+
+### Future features
+
+- replay historical candles
+- replay DizySignals
+- replay DizyBrain
+- replay DizyFlow
+- replay indicators
+- replay DOM
+- replay Volume Profile
+- replay trade lifecycle
+- adjustable playback speed
+- jump to entry
+- jump to exit
+
+## Phase 8 – Intelligent Review
+
+### Vision
+
+Help traders understand WHY trades succeeded or failed.
+
+### Future DizyBrain Review
+
+Examples include:
+
+- rule followed
+- qualified setup
+- trend context
+- structure quality
+- confluence score
+- volatility
+- liquidity context
+- discipline score
+
+The objective is educational review rather than prediction.
+
+## Phase 9 – Workspace Experience
+
+### Vision
+
+Make DizyTrades feel like a unified professional desktop platform.
+
+### Future Product Launcher
+
+#### Modules
+
+- DizyCharts
+- DizyBrain
+- DizyFlow
+- DizyAcademy
+- DizyPaper
+- DizyReplay
+- DizyJournal
+
+#### Workspace improvements
+
+- recent activity
+- favourite modules
+- continue learning
+- journal reminders
+- replay shortcuts
+- workspace presets
+- multi-monitor layouts
+- saved layouts
+- shared navigation
+- contextual notifications
+
+## Long-Term Vision
+
+The intended learning loop is:
+
+Observe Market
+
+↓
+
+Understand with DizyBrain
+
+↓
+
+Practise in DizyPaper
+
+↓
+
+Review in DizyJournal
+
+↓
+
+Replay decisions
+
+↓
+
+Learn in DizyAcademy
+
+↓
+
+Improve discipline
+
+↓
+
+Repeat
+
+The platform should evolve into a complete trading operating system focused on transparency, education, deterministic reasoning and continuous improvement rather than prediction.
+
 ## Phase 4 — Institutional-style analysis
 
 - [ ] Footprint data model
