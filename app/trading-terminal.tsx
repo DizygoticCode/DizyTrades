@@ -51,6 +51,8 @@ import { DizyFlowPrimitive } from "./lib/chart/dizyflow-primitive";
 import { StrategyWorldLinesPrimitive, type StrategyWorldLinesModel, type StrategyWorldLineEntry } from "./lib/chart/strategy-world-lines-primitive";
 import { DizyFlowDom } from "./dizyflow-dom";
 import { DizyFlowAlertHistory, DizyFlowToastRail } from "./dizyflow-toast-rail";
+import { DizyBrainSnapshotPublisher } from "./dizybrain-shell";
+import { createDizyBrainSnapshot } from "./lib/dizybrain-snapshot";
 import type { MarketDescriptor } from "./lib/market/types";
 import { marketBadge } from "./lib/market/catalogue";
 import type { CandleTimeframe } from "./lib/market/types";
@@ -1301,6 +1303,12 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     () => resolveStrategySettings(strategy),
     [strategy],
   );
+  const dizyBrainSnapshot = useMemo(() => createDizyBrainSnapshot({
+    analysis,
+    strategy,
+    risk,
+    latestClosedCandleTime: closedCandles.at(-1)?.time ?? null,
+  }), [analysis, closedCandles, risk, strategy]);
   const historyCapacity = useMemo(
     () => strategyHistoryCapacity(strategy),
     [strategy],
@@ -1638,6 +1646,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
 
   return (
     <main className="terminal-shell">
+      <DizyBrainSnapshotPublisher snapshot={dizyBrainSnapshot} />
       <header className="topbar">
         <div className="brand-lockup">
           <div className="brand-mark" aria-hidden="true">

@@ -18,6 +18,7 @@ test("terminal exposes the DizyBrain transparent signal reasoning workspace", as
   assert.match(shell, /Qualified because/);
   assert.match(shell, /existing .* DizySignals confluence score/);
   assert.match(shell, /It is not a prediction/);
-  assert.match(shell, /MutationObserver/);
+  assert.match(shell, /DizyBrainSnapshot/);
+  assert.doesNotMatch(shell, /MutationObserver|querySelector|textContent/);
   assert.doesNotMatch(shell, /fetch\(/);
 });

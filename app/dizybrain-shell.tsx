@@ -1,15 +1,7 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
-
-type BrainSnapshot = {
-  bias: string;
-  phase: string;
-  lastSignal: string;
-  longScore: number;
-  shortScore: number;
-  risk: string;
-};
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import type { DizyBrainSnapshot } from "./lib/dizybrain-snapshot";
 
 type TimelineItem = {
   label: string;
@@ -17,35 +9,12 @@ type TimelineItem = {
   state: "complete" | "active" | "waiting";
 };
 
-const EMPTY: BrainSnapshot = {
-  bias: "Waiting for confirmed data",
-  phase: "No setup selected",
-  lastSignal: "No confirmed signal yet",
-  longScore: 0,
-  shortScore: 0,
-  risk: "Unavailable",
-};
+const SnapshotContext = createContext<(snapshot: DizyBrainSnapshot) => void>(() => undefined);
 
-function score(text: string | undefined) {
-  const value = Number(text?.match(/(\d+)\s*\/\s*5/)?.[1] ?? 0);
-  return Number.isFinite(value) ? Math.max(0, Math.min(5, value)) : 0;
-}
-
-function readTerminal(): BrainSnapshot {
-  const status = document.querySelector(".chart-status-row");
-  const cards = [...document.querySelectorAll<HTMLElement>(".signal-dock article")];
-  const setup = cards[0];
-  const long = cards[1];
-  const short = cards[2];
-  const risk = cards[3];
-  return {
-    bias: setup?.querySelector("strong")?.textContent?.trim() || status?.querySelector(".bias-pill")?.textContent?.trim() || EMPTY.bias,
-    phase: status?.querySelector("div:first-child span:last-child")?.textContent?.trim() || EMPTY.phase,
-    lastSignal: setup?.querySelector("small")?.textContent?.trim() || EMPTY.lastSignal,
-    longScore: score(long?.querySelector("strong")?.textContent),
-    shortScore: score(short?.querySelector("strong")?.textContent),
-    risk: risk?.querySelector("strong")?.textContent?.trim() || EMPTY.risk,
-  };
+export function DizyBrainSnapshotPublisher({ snapshot }: { snapshot: DizyBrainSnapshot }) {
+  const publish = useContext(SnapshotContext);
+  useEffect(() => publish(snapshot), [publish, snapshot]);
+  return null;
 }
 
 function BrainMark() {
@@ -60,73 +29,18 @@ function BrainMark() {
 
 export function DizyBrainShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const [snapshot, setSnapshot] = useState<BrainSnapshot>(EMPTY);
-
-  useEffect(() => {
-    const update = () => setSnapshot(readTerminal());
-    const observer = new MutationObserver(update);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
-    update();
-    return () => observer.disconnect();
-  }, []);
-
-  const direction = snapshot.shortScore > snapshot.longScore ? "SELL" : snapshot.longScore > snapshot.shortScore ? "BUY" : "NEUTRAL";
-  const activeScore = Math.max(snapshot.longScore, snapshot.shortScore);
-  const confidence = activeScore * 20;
-  const confirmedSignal = !/no confirmed/i.test(snapshot.lastSignal);
-  const biasAvailable = snapshot.bias !== EMPTY.bias;
-  const phaseAvailable = snapshot.phase !== EMPTY.phase;
-  const riskAvailable = snapshot.risk !== EMPTY.risk;
-
-  const checks = useMemo(() => [
-    { label: `${snapshot.bias} market bias`, pass: biasAvailable },
-    { label: `${snapshot.phase} phase identified`, pass: phaseAvailable },
-    { label: `${activeScore} / 5 deterministic confluence`, pass: activeScore > 0 },
-    { label: "Confirmed-candle signal context", pass: confirmedSignal },
-    { label: `Risk gate ${snapshot.risk}`, pass: riskAvailable },
-  ], [activeScore, biasAvailable, confirmedSignal, phaseAvailable, riskAvailable, snapshot]);
-
-  const timeline = useMemo<TimelineItem[]>(() => [
-    {
-      label: "Market context",
-      detail: biasAvailable ? `${snapshot.bias} bias detected` : "Waiting for confirmed market context",
-      state: biasAvailable ? "complete" : "waiting",
-    },
-    {
-      label: "Structure phase",
-      detail: phaseAvailable ? snapshot.phase : "No deterministic phase identified yet",
-      state: phaseAvailable ? "complete" : "waiting",
-    },
-    {
-      label: "Confluence build",
-      detail: `${activeScore} of 5 gates currently satisfied`,
-      state: activeScore >= 4 ? "complete" : activeScore > 0 ? "active" : "waiting",
-    },
-    {
-      label: "Risk gate",
-      detail: riskAvailable ? snapshot.risk : "Risk context is not available",
-      state: riskAvailable ? "complete" : "waiting",
-    },
-    {
-      label: "Confirmed signal",
-      detail: confirmedSignal ? snapshot.lastSignal : "Waiting for a confirmed-candle signal",
-      state: confirmedSignal ? "complete" : activeScore > 0 ? "active" : "waiting",
-    },
-  ], [activeScore, biasAvailable, confirmedSignal, phaseAvailable, riskAvailable, snapshot]);
-
-  const rejectionReasons = useMemo(() => {
-    const reasons: string[] = [];
-    if (!biasAvailable) reasons.push("Market bias has not been confirmed.");
-    if (!phaseAvailable) reasons.push("A recognised structure phase is not available.");
-    if (activeScore < 4) reasons.push(`Confluence is ${activeScore}/5; the setup has not reached the qualification threshold.`);
-    if (!riskAvailable) reasons.push("The risk gate cannot be evaluated yet.");
-    if (!confirmedSignal) reasons.push("No confirmed-candle signal is present.");
-    return reasons;
-  }, [activeScore, biasAvailable, confirmedSignal, phaseAvailable, riskAvailable]);
+  const [snapshot, setSnapshot] = useState<DizyBrainSnapshot | null>(null);
+  const publish = useMemo(() => (next: DizyBrainSnapshot) => setSnapshot(next), []);
+  const direction = snapshot?.currentDirection ?? "NEUTRAL";
+  const activeScore = snapshot?.activeConfluence ?? 0;
+  const confidence = snapshot?.explanation.confidencePercent ?? 0;
+  const checks = snapshot?.checklist ?? [];
+  const timeline: TimelineItem[] = snapshot?.explanation.timeline ?? [];
+  const rejectionReasons = snapshot?.explanation.rejectionReasons ?? [];
 
   return (
     <div className="dizybrain-shell">
-      {children}
+      <SnapshotContext.Provider value={publish}>{children}</SnapshotContext.Provider>
       <button className="dizybrain-launch" onClick={() => setOpen(true)} type="button" aria-expanded={open}>
         <BrainMark /><span><b>DizyBrain</b><small>Explain current signal</small></span>
       </button>
@@ -136,7 +50,7 @@ export function DizyBrainShell({ children }: { children: ReactNode }) {
         <div className="dizybrain-ghost"><BrainMark /></div>
         <section className="dizybrain-summary">
           <span className={`dizybrain-direction ${direction.toLowerCase()}`}>{direction}</span>
-          <div><small>Current setup</small><strong>{snapshot.bias}</strong><span>{snapshot.lastSignal}</span></div>
+          <div><small>Current setup</small><strong>{snapshot?.marketBias ?? "Waiting for confirmed data"}</strong><span>{snapshot?.explanation.currentSetup ?? "NEUTRAL-leaning current setup"}</span></div>
         </section>
         <section>
           <div className="dizybrain-section-title"><span>Overall confidence</span><strong>{confidence}%</strong></div>
@@ -146,15 +60,15 @@ export function DizyBrainShell({ children }: { children: ReactNode }) {
         <section>
           <div className="dizybrain-section-title"><span>Confluence</span><strong>{activeScore} / 5</strong></div>
           <div className="dizybrain-score-grid">
-            <article><span>Long</span><b>{snapshot.longScore}/5</b><i><em style={{ width: `${snapshot.longScore * 20}%` }} /></i></article>
-            <article><span>Short</span><b>{snapshot.shortScore}/5</b><i><em style={{ width: `${snapshot.shortScore * 20}%` }} /></i></article>
-            <article><span>Phase</span><b>{snapshot.phase}</b></article>
-            <article><span>Risk</span><b>{snapshot.risk}</b></article>
+            <article><span>Long</span><b>{snapshot?.longScore ?? 0}/5</b><i><em style={{ width: `${(snapshot?.longScore ?? 0) * 20}%` }} /></i></article>
+            <article><span>Short</span><b>{snapshot?.shortScore ?? 0}/5</b><i><em style={{ width: `${(snapshot?.shortScore ?? 0) * 20}%` }} /></i></article>
+            <article><span>Phase</span><b>{snapshot?.marketPhase ?? "No setup selected"}</b></article>
+            <article><span>Risk</span><b>{snapshot ? `${snapshot.riskPercent}% · ${snapshot.leverage}×` : "Unavailable"}</b></article>
           </div>
         </section>
         <section>
           <div className="dizybrain-section-title"><span>Qualified because</span></div>
-          <ul className="dizybrain-checks">{checks.map((item, index) => <li className={item.pass ? "pass" : "waiting"} key={item.label} style={{ animationDelay: `${index * 55}ms` }}><b>{item.pass ? "✓" : "·"}</b>{item.label}</li>)}</ul>
+          <ul className="dizybrain-checks">{checks.map((item, index) => <li className={item.passed ? "pass" : "waiting"} key={item.id} style={{ animationDelay: `${index * 55}ms` }}><b>{item.passed ? "✓" : "·"}</b>{item.label}</li>)}</ul>
         </section>
         <section className="dizybrain-timeline-section">
           <div className="dizybrain-section-title"><span>Current setup timeline</span><strong>{activeScore}/5</strong></div>
@@ -173,7 +87,7 @@ export function DizyBrainShell({ children }: { children: ReactNode }) {
           {rejectionReasons.length ? (
             <ul>{rejectionReasons.map((reason) => <li key={reason}><b>×</b><span>{reason}</span></li>)}</ul>
           ) : (
-            <div className="dizybrain-qualified"><b>✓</b><span>All currently exposed deterministic gates are available. {snapshot.lastSignal}</span></div>
+            <div className="dizybrain-qualified"><b>✓</b><span>{direction}-leaning current setup with {activeScore}/5 confluence. Historical signals are intentionally excluded from this view.</span></div>
           )}
         </section>
         <section className="dizybrain-coming">
