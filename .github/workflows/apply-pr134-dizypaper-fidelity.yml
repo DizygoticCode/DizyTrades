@@ -7,6 +7,12 @@ on:
     paths:
       - scripts/pr134/**
       - .github/workflows/apply-pr134-dizypaper-fidelity.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/pr134/**
+      - .github/workflows/apply-pr134-dizypaper-fidelity.yml
 
 permissions:
   contents: write
@@ -23,6 +29,7 @@ jobs:
       - name: Check out feature branch
         uses: actions/checkout@v4
         with:
+          ref: feature/dizypaper-symbol-contract-fidelity
           fetch-depth: 0
 
       - name: Use repository Node version
