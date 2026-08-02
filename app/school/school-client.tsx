@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { SCHOOL_DISPLAY_NAME } from "@/app/lib/branding";
 import ConceptDiagram from "./concept-diagram";
-import { academyGlossary, academyLessonGroups, academyLessons, filterAcademyLessons, readAcademyProgress, writeAcademyProgress } from "./academy-extension";
+import { academyGlossary, academyLessonGroups, academyLessons, filterAcademyLessons, readAcademyProgress, writeAcademyProgress } from "./academy-catalogue";
 
 export default function SchoolClient() {
   const [query, setQuery] = useState("");
