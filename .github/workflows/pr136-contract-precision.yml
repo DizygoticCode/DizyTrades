@@ -1,6 +1,9 @@
 name: Apply DizyPaper contract precision
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - feature/dizypaper-contract-precision
