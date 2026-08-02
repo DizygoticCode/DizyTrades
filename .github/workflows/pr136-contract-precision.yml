@@ -32,6 +32,7 @@ jobs:
         run: |
           node scripts/pr136-contract-precision.mjs
           node scripts/pr136-test-fixtures.mjs
+          node scripts/pr136-type-fix.mjs
       - name: Run focused DizyPaper tests
         run: node --conditions=react-server --import tsx --test tests/manual-paper-engine.test.mjs tests/manual-paper.test.mjs tests/mexc-contract-metadata.test.mjs tests/user-backup.test.mjs
       - name: Run full test suite
@@ -41,7 +42,7 @@ jobs:
       - name: Run production build
         run: npm run build
       - name: Remove branch-only machinery
-        run: rm -f scripts/pr136-contract-precision.mjs scripts/pr136-test-fixtures.mjs .github/workflows/pr136-contract-precision.yml
+        run: rm -f scripts/pr136-contract-precision.mjs scripts/pr136-test-fixtures.mjs scripts/pr136-type-fix.mjs .github/workflows/pr136-contract-precision.yml
       - name: Commit validated implementation
         run: |
           git config user.name "github-actions[bot]"
