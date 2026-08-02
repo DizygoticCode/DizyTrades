@@ -31,6 +31,9 @@ test("viewer session navigates the roadmap and remains read-only", async ({ page
     error: "Viewer sessions are read-only.",
   });
 
+  const diagnosticsRejected = await page.request.get("/api/admin/diagnostics");
+  expect(diagnosticsRejected.status()).toBe(403);
+
   await page.goto("/scanner");
   await expect(
     page.getByRole("heading", {
@@ -51,6 +54,9 @@ test("viewer session navigates the roadmap and remains read-only", async ({ page
     }),
   ).toBeVisible();
   await expect(page.getByText(/Viewer/).first()).toBeVisible();
+
+  await page.goto("/diagnostics");
+  await expect(page).toHaveURL(/\/terminal$/);
 });
 
 test("new owner account can persist a bounded market-only profile patch", async ({ page }) => {
@@ -102,4 +108,20 @@ test("new owner account can persist a bounded market-only profile patch", async 
   await page.goto("/scanner");
   await expect(page.getByText(owner.username, { exact: true })).toBeVisible();
   await expect(page.getByText(`${owner.username} · Viewer`, { exact: true })).toHaveCount(0);
+
+  const diagnosticsResponse = await page.request.get("/api/admin/diagnostics");
+  expect(diagnosticsResponse.status()).toBe(200);
+  await expect(diagnosticsResponse.json()).resolves.toMatchObject({
+    version: 1,
+    configuration: { liveTradingEnabled: false },
+    storage: { readable: true, writable: true },
+  });
+
+  await page.goto("/diagnostics");
+  await expect(
+    page.getByRole("heading", {
+      name: "Know what is deployed, retained and degraded.",
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("Live execution")).toBeVisible();
 });
