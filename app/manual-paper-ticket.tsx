@@ -171,7 +171,7 @@ export function ManualPaperTicket({
       0,
       (notional * (account?.settings.commissionPct ?? 0)) / 100,
     ),
-    liquidation=quantity>0?estimateLiquidation({side,entryPrice:publicPrice??0,quantity,marginMode,assignedMargin:margin,crossCollateral:equity,entryFee:fee,maintenanceMarginRate:(account?.settings.maintenanceMarginPct??.5)/100,liquidationPenaltyRate:(account?.settings.liquidationPenaltyPct??.1)/100}):NaN,
+    liquidation=quantity>0?estimateLiquidation({side,entryPrice:publicPrice??0,quantity,marginMode,assignedMargin:margin,crossCollateral:equity,entryFee:fee,maintenanceMarginRate:contract?.maintenanceMarginRate??(account?.settings.maintenanceMarginPct??.5)/100,liquidationPenaltyRate:(account?.settings.liquidationPenaltyPct??.1)/100}):NaN,
     riskAmount=stopLoss&&quantity?Math.abs((publicPrice??0)-Number(stopLoss))*quantity:0,
     rewardRisk=stopLoss&&takeProfit&&riskAmount?Math.abs(Number(takeProfit)-(publicPrice??0))*quantity/riskAmount:0,
     remaining = equity - used - margin - fee,
@@ -190,6 +190,7 @@ export function ManualPaperTicket({
         readOnly ||
         !account?.settings.enabled ||
         !publicPrice ||
+        !contract ||
         invalidAmount
       )
         return;
@@ -218,6 +219,7 @@ export function ManualPaperTicket({
       readOnly,
       account,
       publicPrice,
+      contract,
       invalidAmount,
       post,
       symbol,
