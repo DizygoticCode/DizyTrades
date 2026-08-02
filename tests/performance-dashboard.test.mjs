@@ -60,7 +60,7 @@ test("R distribution counts each recorded sample exactly once",()=>{
  const result=aggregatePerformanceDashboard(entries);
  assert.equal(result.rDistribution.reduce((sum,bucket)=>sum+bucket.trades,0),result.rSampleSize);
  assert.equal(result.rDistribution.find(bucket=>bucket.key==="lt-minus-2").trades,1);
- assert.equal(result.rDistribution.find(bucket=>bucket.key==="one-two").trades,1);
+ assert.equal(result.rDistribution.find(bucket=>bucket.key==="gte-two").trades,1);
 });
 
 test("empty dashboard is honest and finite",()=>{
