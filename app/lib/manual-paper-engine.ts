@@ -22,8 +22,8 @@ export function estimateLiquidation(input:{side:PaperSide;entryPrice:number;quan
  return Math.max(0,entryPrice-direction*distance);
 }
 
-export function sizePaperPosition(input:{mode:PaperSizeMode;amount:number;leverage:number;equity:number;price:number;side:PaperSide;stopLoss?:number|null;maxLeverage?:number}){
- const {amount,leverage,equity,price}=input,maxLeverage=input.maxLeverage??20;if(!valid(amount)||!valid(leverage)||!valid(maxLeverage)||leverage>maxLeverage||!valid(equity)||!valid(price))throw new Error("INVALID_SIZING");
+export function sizePaperPosition(input:{mode:PaperSizeMode;amount:number;leverage:number;equity:number;price:number;side:PaperSide;stopLoss?:number|null;minLeverage?:number;maxLeverage?:number}){
+ const {amount,leverage,equity,price}=input,minLeverage=input.minLeverage??1,maxLeverage=input.maxLeverage??20;if(!valid(amount)||!valid(leverage)||!valid(minLeverage)||!valid(maxLeverage)||maxLeverage<minLeverage||leverage<minLeverage||leverage>maxLeverage||!valid(equity)||!valid(price))throw new Error("INVALID_SIZING");
  let margin:number,notional:number,riskAmount=0;
  if(input.mode==="fixed-notional"){notional=amount;margin=notional/leverage}
  else if(input.mode==="fixed-margin"){margin=amount;notional=margin*leverage}
