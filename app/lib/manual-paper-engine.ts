@@ -2,7 +2,7 @@ export type PaperSide="long"|"short";
 export type MarginMode="isolated"|"cross";
 export type PaperSizeMode="fixed-margin"|"fixed-notional"|"equity-percent"|"risk-percent";
 export type RiskPriceSource="fair"|"last";
-export type CloseReason="manual"|"stop"|"target"|"liquidation";
+export type CloseReason="manual"|"stop"|"target"|"liquidation"|"reversal";
 
 /** Simulator assumptions, not MEXC fee tiers or an exchange-exact risk engine. */
 export const PAPER_RISK_ASSUMPTIONS={maintenanceMarginRate:0.005,takerFeeRate:0.0006,makerFeeRate:0.0002,slippageRate:0.0002,liquidationPenaltyRate:0.001} as const;
