@@ -78,3 +78,5 @@ test("Replay follows each newly revealed candle without resetting zoom",()=>{
           git add app/trading-terminal.tsx tests/replay.test.mjs
           git commit -m "Keep Replay candle in view [replay-follow-repair]"
           git push origin HEAD:fix/replay-follow-latest
+
+# Retriggered after opening PR #122 so the run is visible and reviewable.
