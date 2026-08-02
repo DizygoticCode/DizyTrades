@@ -1,5 +1,5 @@
 import { requireUser } from "../lib/auth";
-import GuidedTradeReviewDock from "./guided-trade-review-dock";
+import GuidedReviewDock from "./guided-review-dock";
 import JournalClient from "./journal-client";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export default async function JournalPage() {
   return (
     <>
       <JournalClient readOnly={readOnly} userName={user.name} />
-      <GuidedTradeReviewDock readOnly={readOnly} />
+      <GuidedReviewDock readOnly={readOnly} />
     </>
   );
 }
