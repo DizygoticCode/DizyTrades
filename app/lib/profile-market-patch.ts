@@ -6,9 +6,11 @@ export type MarketPatchResult =
   | Readonly<{ ok: false; error: string }>;
 
 const VALID_TIMEFRAMES = new Set(["1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "1w", "1M"]);
-const validSymbol = (value: unknown) => typeof value === "string" && /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/.test(value);
-const validMarketKey = (value: unknown) => typeof value === "string" && /^mexc:(spot|futures):[A-Z0-9_]{2,60}$/.test(value);
-const validFavourite = (value: unknown) => validSymbol(value) || validMarketKey(value);
+const validSymbol = (value: unknown): value is string =>
+  typeof value === "string" && /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/.test(value);
+const validMarketKey = (value: unknown): value is string =>
+  typeof value === "string" && /^mexc:(spot|futures):[A-Z0-9_]{2,60}$/.test(value);
+const validFavourite = (value: unknown): value is string => validSymbol(value) || validMarketKey(value);
 
 /** Parses only the market fields that a secondary workspace is allowed to update. */
 export function parseMarketSettingsPatch(input: unknown): MarketPatchResult {
@@ -39,10 +41,10 @@ export function parseMarketSettingsPatch(input: unknown): MarketPatchResult {
     patch.timeframe = object.timeframe;
   }
   if ("favourites" in object) {
-    if (!Array.isArray(object.favourites) || object.favourites.length > 100 || object.favourites.some(value => !validFavourite(value))) {
+    if (!Array.isArray(object.favourites) || object.favourites.length > 100 || !object.favourites.every(validFavourite)) {
       return Object.freeze({ ok: false, error: "Invalid market favourites." });
     }
-    patch.favourites = [...new Set(object.favourites as string[])];
+    patch.favourites = [...new Set(object.favourites)];
   }
   return Object.freeze({ ok: true, patch: Object.freeze(patch) });
 }
