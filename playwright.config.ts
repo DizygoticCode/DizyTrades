@@ -42,6 +42,12 @@ export default defineConfig({
             process.env.SESSION_SECRET ??
             "dizytrades-e2e-session-secret-2026-at-least-32-characters",
           PUBLIC_SIGNUP_ENABLED: "true",
+          ALLOW_TEST_PLAINTEXT_PASSWORDS: "true",
+          LEGACY_AUTH_FALLBACK_ENABLED: "true",
+          LIVE_TRADING_ENABLED: "false",
+          ROB_NAME: "E2E Owner",
+          ROB_EMAIL: "e2e-owner@dizytrades.local",
+          ROB_PASSWORD: "DizyTrades-E2E-Owner-2026!",
         },
       },
 });

@@ -56,6 +56,7 @@ export function DizyBrainTopbarLink() {
       <a className="nav-tab dizystructure-topbar-link" href="/structure" title="Open advanced closed-candle market structure">⌁ DizyStructure</a>
       <a className="nav-tab dizyperformance-topbar-link" href="/performance" title="Open realised performance dashboard">▥ DizyPerformance</a>
       <a className="nav-tab dizyjournal-topbar-link" href="/journal" title="Open DizyJournal">📓 DizyJournal</a>
+      <a className="nav-tab dizyops-topbar-link" href="/diagnostics" title="Open owner-only production diagnostics">⚙ DizyOps</a>
     </>,
     target,
   );
