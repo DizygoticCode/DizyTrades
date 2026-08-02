@@ -1,0 +1,93 @@
+name: PR 121 self repair
+
+on:
+  push:
+    branches:
+      - codex/create-new-branch-for-replay-improvements
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: ${{ !contains(github.event.head_commit.message, '[pr121-repair]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/create-new-branch-for-replay-improvements
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Apply focused PR 121 repair
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          replay = Path('app/lib/replay.ts')
+          text = replay.read_text()
+          text = text.replace(
+            'export type ReplayDataAvailability = "available" | "partially-available" | "unavailable" | "loading" | "error";\nexport type ReplaySession = Readonly<{ id:string; symbol:string; timeframe:CandleTimeframe; status:ReplayStatus; startedAt:number; rangeStartMs:number; rangeEndMs:number; cursorIndex:number; cursorTimeMs:number|null; speed:ReplaySpeed; candlesLoaded:number; visibleCandles:number; error:string|null }>;',
+            'export type ReplayDataAvailability = "available" | "partially-available" | "unavailable" | "loading" | "error";\nexport type ReplayTransitionKind = "session-start" | "timer" | "next" | "previous" | "first" | "last" | "jump";\nexport type ReplaySession = Readonly<{ id:string; symbol:string; timeframe:CandleTimeframe; status:ReplayStatus; startedAt:number; rangeStartMs:number; rangeEndMs:number; cursorIndex:number; cursorTimeMs:number|null; previousCursorTimeMs:number|null; transitionKind:ReplayTransitionKind; speed:ReplaySpeed; candlesLoaded:number; visibleCandles:number; error:string|null }>;'
+          )
+          text = text.replace(
+            'return Object.freeze({id:input.id,symbol:input.symbol,timeframe:input.timeframe,status:input.candles.length?"ready":"ended",startedAt:input.startedAt,rangeStartMs:input.rangeStartMs,rangeEndMs:input.rangeEndMs,cursorIndex:cursor,cursorTimeMs:cursor<0?null:input.candles[0].time*1000,speed:input.speed??1,candlesLoaded:input.candles.length,visibleCandles:cursor+1,error:null});',
+            'return Object.freeze({id:input.id,symbol:input.symbol,timeframe:input.timeframe,status:input.candles.length?"ready":"ended",startedAt:input.startedAt,rangeStartMs:input.rangeStartMs,rangeEndMs:input.rangeEndMs,cursorIndex:cursor,cursorTimeMs:cursor<0?null:input.candles[0].time*1000,previousCursorTimeMs:null,transitionKind:"session-start",speed:input.speed??1,candlesLoaded:input.candles.length,visibleCandles:cursor+1,error:null});'
+          )
+          text = text.replace(
+            'export function jumpReplay(session:ReplaySession,candles:ReadonlyArray<Candle>,index:number):ReplaySession{const cursor=clampReplayCursor(index,candles.length),ended=cursor===candles.length-1;return Object.freeze({...session,cursorIndex:cursor,cursorTimeMs:cursor<0?null:candles[cursor].time*1000,visibleCandles:cursor+1,status:ended?"ended":"paused"});}\nexport const stepReplay=(s:ReplaySession,c:ReadonlyArray<Candle>,delta:1|-1)=>jumpReplay(s,c,s.cursorIndex+delta);\nexport const jumpReplayToTimestamp=(s:ReplaySession,c:ReadonlyArray<Candle>,ms:number)=>{let index=c.findIndex(x=>x.time*1000>=ms);if(index<0)index=c.length-1;return jumpReplay(s,c,index);};',
+            'export function jumpReplay(session:ReplaySession,candles:ReadonlyArray<Candle>,index:number,transitionKind:ReplayTransitionKind="jump"):ReplaySession{const cursor=clampReplayCursor(index,candles.length),ended=cursor===candles.length-1;return Object.freeze({...session,previousCursorTimeMs:session.cursorTimeMs,transitionKind,cursorIndex:cursor,cursorTimeMs:cursor<0?null:candles[cursor].time*1000,visibleCandles:cursor+1,status:ended?"ended":"paused"});}\nexport const stepReplay=(s:ReplaySession,c:ReadonlyArray<Candle>,delta:1|-1)=>jumpReplay(s,c,s.cursorIndex+delta,delta===1?"next":"previous");\nexport const jumpReplayToTimestamp=(s:ReplaySession,c:ReadonlyArray<Candle>,ms:number)=>{let index=c.findIndex(x=>x.time*1000>=ms);if(index<0)index=c.length-1;return jumpReplay(s,c,index,"jump");};'
+          )
+          text = text.replace(
+            'return Object.freeze({...s,cursorIndex:cursor,cursorTimeMs:cursor<0?null:c[cursor].time*1_000,visibleCandles:cursor+1,status:ended?"ended":"playing"});',
+            'return Object.freeze({...s,previousCursorTimeMs:s.cursorTimeMs,transitionKind:"timer",cursorIndex:cursor,cursorTimeMs:cursor<0?null:c[cursor].time*1_000,visibleCandles:cursor+1,status:ended?"ended":"playing"});'
+          )
+          replay.write_text(text)
+
+          terminal = Path('app/trading-terminal.tsx')
+          text = terminal.read_text()
+          text = text.replace(
+            '  const replayLaunchLifecycle=useRef(new JournalReplayLaunchLifecycle());',
+            '  const replayLaunchLifecycle=useRef(new JournalReplayLaunchLifecycle());\n  const historicalFlowRequest=useRef(0);'
+          )
+          text = text.replace(
+            '  const historicalFlowReplay=useMemo<HistoricalDizyFlowReplayView|null>(()=>activeReplaySession&&activeReplaySession.cursorTimeMs!==null&&historicalFlow.status==="available"?buildHistoricalFlowReplayView(historicalFlow.memory,activeReplaySession.cursorTimeMs,replayCandles[Math.max(0,activeReplaySession.cursorIndex-1)]?.time*1_000??activeReplaySession.cursorTimeMs):null,[activeReplaySession,historicalFlow,replayCandles]);',
+            '  const historicalFlowReplay=useMemo<HistoricalDizyFlowReplayView|null>(()=>activeReplaySession&&activeReplaySession.cursorTimeMs!==null&&historicalFlow.status==="available"?buildHistoricalFlowReplayView(historicalFlow.memory,activeReplaySession.cursorTimeMs,activeReplaySession.previousCursorTimeMs??activeReplaySession.cursorTimeMs):null,[activeReplaySession,historicalFlow]);'
+          )
+          old_timer = '  const replayTimer=useRef<number|null>(null);\n  useEffect(()=>{\n    if(!activeReplaySession||activeReplaySession.status!=="playing")return;\n    const sessionId=activeReplaySession.id;\n    const schedule=()=>{replayTimer.current=window.setTimeout(()=>{setReplaySession(current=>current?.id===sessionId?progressReplay(current,replayCandles):current);schedule();},replayDelayMs(activeReplaySession.speed));};\n    schedule();\n    return()=>{if(replayTimer.current!==null)window.clearTimeout(replayTimer.current);replayTimer.current=null;};\n  },[activeReplaySession?.id,activeReplaySession?.status,activeReplaySession?.speed,replayCandles]);'
+          new_timer = '  const replayTimer=useRef<number|null>(null);\n  useEffect(()=>{\n    if(!activeReplaySession||activeReplaySession.status!=="playing")return;\n    const sessionId=activeReplaySession.id;\n    replayTimer.current=window.setTimeout(()=>{\n      setReplaySession(current=>{\n        if(!current||current.id!==sessionId||current.status!=="playing")return current;\n        return progressReplay(current,replayCandles);\n      });\n    },replayDelayMs(activeReplaySession.speed));\n    return()=>{if(replayTimer.current!==null)window.clearTimeout(replayTimer.current);replayTimer.current=null;};\n  },[activeReplaySession?.id,activeReplaySession?.status,activeReplaySession?.speed,activeReplaySession?.cursorIndex,replayCandles]);'
+          if old_timer not in text:
+            raise SystemExit('timer block not found')
+          text = text.replace(old_timer, new_timer)
+
+          old_flow = 'if(flowMemoryId&&flowTradeId){setHistoricalFlow({status:"loading",memoryId:flowMemoryId});void fetch(`/api/historical-dizyflow/${encodeURIComponent(flowMemoryId)}`).then(async response=>{const body=await response.json();if(!response.ok)throw new Error("Historical DizyFlow could not be loaded.");const memory=body.memory as HistoricalDizyFlowMemory;if(memory.id!==flowMemoryId||memory.tradeId!==flowTradeId||memory.marketKey!==requestedMarketKey||memory.symbol!==requestedSymbol)throw new Error("Historical DizyFlow identity mismatch.");setHistoricalFlow(current=>current.status==="loading"&&current.memoryId===flowMemoryId?{status:"available",memory}:current);}).catch(()=>setHistoricalFlow(current=>current.status==="loading"&&current.memoryId===flowMemoryId?{status:"error",message:"Historical DizyFlow could not be loaded."}:current));}else setHistoricalFlow({status:"unavailable",reason:"Historical DizyFlow was not retained for this trade."});setJournalReplayNotice(result.source==="retained-memory"?"Replay source: Retained memory. Historical DizyFlow data was not retained for this trade.":memoryId?"Replay source: Current history. Retained memory was unavailable.":"Replay source: Current history.");'
+          new_flow = 'if(flowMemoryId&&flowTradeId){const flowRequest=++historicalFlowRequest.current;setHistoricalFlow({status:"loading",memoryId:flowMemoryId});setJournalReplayNotice(`${result.source==="retained-memory"?"Replay source: Retained memory.":"Replay source: Current history."} Loading Historical DizyFlow…`);void fetch(`/api/historical-dizyflow/${encodeURIComponent(flowMemoryId)}`,{signal:controller.signal}).then(async response=>{const body=await response.json();if(!response.ok)throw new Error("Historical DizyFlow could not be loaded.");const memory=body.memory as HistoricalDizyFlowMemory;if(memory.id!==flowMemoryId||memory.tradeId!==flowTradeId||memory.marketKey!==requestedMarketKey||memory.symbol!==requestedSymbol)throw new Error("Historical DizyFlow identity mismatch.");if(flowRequest!==historicalFlowRequest.current)return;setHistoricalFlow({status:"available",memory});setJournalReplayNotice(`${result.source==="retained-memory"?"Replay source: Retained memory.":"Replay source: Current history."} Historical DizyFlow available.`);}).catch(error=>{if(error instanceof DOMException&&error.name==="AbortError")return;if(flowRequest!==historicalFlowRequest.current)return;setHistoricalFlow({status:"error",message:"Historical DizyFlow could not be loaded."});setJournalReplayNotice(`${result.source==="retained-memory"?"Replay source: Retained memory.":"Replay source: Current history."} Historical DizyFlow could not be loaded.`);});}else{historicalFlowRequest.current+=1;setHistoricalFlow({status:"unavailable",reason:"Historical DizyFlow was not retained for this trade."});setJournalReplayNotice(`${result.source==="retained-memory"?"Replay source: Retained memory.":memoryId?"Replay source: Current history. Retained memory was unavailable.":"Replay source: Current history."} Historical DizyFlow was not retained for this trade.`);}'
+          if old_flow not in text:
+            raise SystemExit('historical flow block not found')
+          text = text.replace(old_flow, new_flow)
+          text = text.replace(
+            '  const exitReplay=useCallback(()=>{setReplaySession(null);setReplayCandles([]);setHistoricalFlow({status:"unavailable",reason:"Historical DizyFlow was not retained for this trade."});setViewportReset(v=>v+1);},[]);',
+            '  const exitReplay=useCallback(()=>{historicalFlowRequest.current+=1;setReplaySession(null);setReplayCandles([]);setHistoricalFlow({status:"unavailable",reason:"Historical DizyFlow was not retained for this trade."});setViewportReset(v=>v+1);},[]);'
+          )
+          terminal.write_text(text)
+
+          tests = Path('tests/replay.test.mjs')
+          text = tests.read_text()
+          text += '\n' + '''test("records authoritative Replay cursor transitions",()=>{\n  const items=[candle(1),candle(2),candle(3)],range=replayRangeForCandles(items,"1m");\n  let current=createReplaySession({id:"transitions",symbol:"BTC_USDT",timeframe:"1m",...range,startedAt:1,candles:items});\n  assert.equal(current.previousCursorTimeMs,null);\n  current={...current,status:"playing"};\n  current=progressReplay(current,items);\n  assert.equal(current.previousCursorTimeMs,1000);\n  assert.equal(current.cursorTimeMs,2000);\n  assert.equal(current.transitionKind,"timer");\n  current=stepReplay(current,items,-1);\n  assert.equal(current.previousCursorTimeMs,2000);\n  assert.equal(current.cursorTimeMs,1000);\n  assert.equal(current.transitionKind,"previous");\n});\n\ntest("terminal playback uses one self-terminating timeout per cursor",()=>{\n  const source=readFileSync(new URL("../app/trading-terminal.tsx",import.meta.url),"utf8");\n  assert.doesNotMatch(source,/const schedule=/);\n  assert.match(source,/current\.status!=="playing"/);\n  assert.match(source,/activeReplaySession\?\.cursorIndex/);\n  assert.match(source,/signal:controller\.signal/);\n  assert.match(source,/historicalFlowRequest\.current/);\n});'''
+          tests.write_text(text)
+          PY
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: git diff --check
+      - name: Commit validated repair
+        run: |
+          git config user.name "DizyTrades Repair Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add app/lib/replay.ts app/trading-terminal.tsx tests/replay.test.mjs
+          git commit -m "Fix Replay lifecycle and historical flow loading [pr121-repair]"
+          git push origin HEAD:codex/create-new-branch-for-replay-improvements
