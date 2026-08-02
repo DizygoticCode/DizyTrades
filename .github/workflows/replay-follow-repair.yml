@@ -4,13 +4,17 @@ on:
   push:
     branches:
       - fix/replay-follow-latest
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
 
 jobs:
   repair:
-    if: ${{ !contains(github.event.head_commit.message, '[replay-follow-repair]') }}
+    if: ${{ !contains(github.event.head_commit.message || '', '[replay-follow-repair]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -78,5 +82,3 @@ test("Replay follows each newly revealed candle without resetting zoom",()=>{
           git add app/trading-terminal.tsx tests/replay.test.mjs
           git commit -m "Keep Replay candle in view [replay-follow-repair]"
           git push origin HEAD:fix/replay-follow-latest
-
-# Retriggered after opening PR #122 so the run is visible and reviewable.
