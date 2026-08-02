@@ -1,0 +1,61 @@
+.rail {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  inline-size: clamp(340px, 26vw, 440px);
+  min-inline-size: 340px;
+  max-inline-size: 440px;
+  block-size: 38px;
+  min-block-size: 38px;
+  flex: 0 0 auto;
+}
+
+.rail .card {
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: none;
+  block-size: 32px;
+  overflow: hidden;
+}
+
+.rail .message {
+  display: grid !important;
+  grid-template-columns: minmax(140px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+}
+
+.title,
+.detail {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.detail {
+  min-inline-size: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.dismiss {
+  flex: 0 0 18px;
+}
+
+.history {
+  min-inline-size: 48px;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .rail {
+    inline-size: min(440px, calc(100vw - 16px));
+    min-inline-size: 0;
+    max-inline-size: calc(100vw - 16px);
+  }
+
+  .rail .message {
+    grid-template-columns: minmax(110px, 1fr) auto;
+    gap: 7px;
+  }
+}
