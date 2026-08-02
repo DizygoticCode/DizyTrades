@@ -22,3 +22,29 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  browser-smoke:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          CI: "true"
+          SESSION_SECRET: dizytrades-e2e-session-secret-2026-at-least-32-characters
+          PUBLIC_SIGNUP_ENABLED: "true"
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-diagnostics
+          path: artifacts/playwright
+          if-no-files-found: ignore
+          retention-days: 7
