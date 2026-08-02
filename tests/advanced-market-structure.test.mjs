@@ -113,11 +113,11 @@ test("future custom anchors remain explicitly unavailable", () => {
 });
 
 test("pivots require the configured right wing and never confirm the final bars", () => {
-  const highs = [1, 2, 3, 6, 3, 2, 5, 3, 10];
+  const highs = [1, 2, 3, 6, 3, 2, 5, 3, 2, 1, 10];
   const candles = highs.map((high, index) => bar(index * 900, high - 1, high, high - 2, high - 1));
   const pivots = confirmedPivots(candles, 2).filter(pivot => pivot.type === "high");
   assert.deepEqual(pivots.map(pivot => pivot.index), [3, 6]);
-  assert.equal(pivots.some(pivot => pivot.index === 8), false);
+  assert.equal(pivots.some(pivot => pivot.index === 10), false);
 });
 
 test("level clusters are deterministic, bounded and reference-relative", () => {
