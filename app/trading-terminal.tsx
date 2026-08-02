@@ -3387,7 +3387,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               </aside>
             ) : null}
           </div>
-          {futuresSelected ? <ManualPaperTicket publicPrice={liveLastPrice ?? liveCandle?.close ?? null} readOnly={user.role === "viewer"} symbol={symbol} /> : null}
+          {futuresSelected ? <ManualPaperTicket intelligence={orderFlow.intelligence} marketKey={selectedMarketKey} publicPrice={liveLastPrice ?? liveCandle?.close ?? null} readOnly={user.role === "viewer"} symbol={symbol} /> : null}
         </>
       )}
     </main>

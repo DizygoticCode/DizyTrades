@@ -1,0 +1,4 @@
+export type HistoricalDizyFlowJournalSyncResult=Readonly<{journalLinked:boolean;warning:string|null;errorName:string|null}>;
+
+/** Journal is a secondary reference: its failure can never roll back authoritative Paper retention. */
+export async function optionalHistoricalDizyFlowJournalSync(link:(()=>Promise<boolean>)|null):Promise<HistoricalDizyFlowJournalSyncResult>{if(!link)return Object.freeze({journalLinked:false,warning:null,errorName:null});try{if(!await link())throw new Error("Journal entry disappeared during synchronization.");return Object.freeze({journalLinked:true,warning:null,errorName:null})}catch(reason){return Object.freeze({journalLinked:false,warning:"Flow memory was retained by Paper History, but Journal synchronization is pending.",errorName:reason instanceof Error?reason.name:"UNKNOWN"})}}
