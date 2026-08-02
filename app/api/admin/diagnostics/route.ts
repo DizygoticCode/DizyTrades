@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "../../../lib/auth";
 import { collectOperationalDiagnostics } from "../../../lib/operational-diagnostics";
+import { canAccessOperations } from "../../../lib/operations-access";
 import { appendAudit } from "../../../lib/store";
 
 export const runtime = "nodejs";
@@ -11,7 +12,7 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
   }
-  if (user.role !== "owner" && user.role !== "admin") {
+  if (!canAccessOperations(user.role)) {
     return NextResponse.json(
       { error: "Production diagnostics require an owner or admin account." },
       { status: 403 },
