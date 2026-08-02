@@ -270,6 +270,9 @@ export function ManualPaperTicket({
     );
   return (
     <section
+      id="manual-paper-panel"
+      tabIndex={-1}
+      aria-labelledby="manual-paper-heading"
       className={`${styles.panel} ${collapsed ? styles.collapsed : ""}`}
       style={collapsed ? undefined : { height }}
     >
@@ -291,7 +294,7 @@ export function ManualPaperTicket({
         }}
       />
       <header className={styles.header}>
-        <strong>Manual Paper</strong>
+        <strong id="manual-paper-heading">Manual Paper</strong>
         <span className={styles.simulation}>Simulation only</span>
         <span
           className={

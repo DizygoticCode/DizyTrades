@@ -51,7 +51,7 @@ import { DizyFlowPrimitive } from "./lib/chart/dizyflow-primitive";
 import { StrategyWorldLinesPrimitive, type StrategyWorldLinesModel, type StrategyWorldLineEntry } from "./lib/chart/strategy-world-lines-primitive";
 import { DizyFlowDom } from "./dizyflow-dom";
 import { DizyFlowAlertHistory, DizyFlowToastRail } from "./dizyflow-toast-rail";
-import { DizyBrainSnapshotPublisher } from "./dizybrain-shell";
+import { DizyBrainSnapshotPublisher, DizyBrainWorkspace } from "./dizybrain-shell";
 import { createDizyBrainSnapshot } from "./lib/dizybrain-snapshot";
 import { toDizyFlowEvidenceReference } from "./lib/order-flow/intelligence";
 import type { MarketDescriptor } from "./lib/market/types";
@@ -1669,7 +1669,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
 
   return (
     <main className="terminal-shell">
-      <DizyBrainSnapshotPublisher snapshot={dizyBrainSnapshot} />
+      <DizyBrainSnapshotPublisher data={{ snapshot: dizyBrainSnapshot, intelligence: orderFlow.intelligence?.symbol === symbol ? orderFlow.intelligence : null, symbol, market: selectedMarket?.displayName ?? selectedMarketKey, timeframe, feedState: demo ? "Demo" : realtimeStatus, replay: replayActive, flowEnabled: orderFlowSettings.enabled, viewer: user.role === "viewer" }} />
       <header className="topbar">
         <div className="brand-lockup">
           <div className="brand-mark" aria-hidden="true">
@@ -1952,6 +1952,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
             />
           ) : null}
 
+          <div className="analysis-layout">
           <div className={`workspace ${settingsOpen ? "" : "panel-closed"}`}>
             {!replayActive&&orderFlowSettings.enabled&&orderFlowSettings.domVisible&&selectedMarket?<DizyFlowDom store={orderFlow.renderStore} summary={orderFlow.summary} contractSize={selectedMarket?.contractSize??1} market={selectedMarket!} onGrouping={step=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,groupingBySymbol:{...value.dom.groupingBySymbol,[symbol]:step}}}))} onWidth={width=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,width}}))} onDomSettings={patch=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,...patch}}))} onClose={()=>setOrderFlowSettings(value=>({...value,domVisible:false}))}/>:null}
             <section className="chart-section">
@@ -3386,6 +3387,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                 </div>
               </aside>
             ) : null}
+          </div>
+          <DizyBrainWorkspace />
           </div>
           {futuresSelected ? <ManualPaperTicket intelligence={orderFlow.intelligence} marketKey={selectedMarketKey} publicPrice={liveLastPrice ?? liveCandle?.close ?? null} readOnly={user.role === "viewer"} symbol={symbol} /> : null}
         </>

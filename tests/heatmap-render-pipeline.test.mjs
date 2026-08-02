@@ -8,17 +8,11 @@ const primitivePath = new URL(
   import.meta.url,
 );
 
-test("heatmap render pipeline is visible whenever the live heatmap is enabled", async () => {
+test("toolbar keeps heatmap and depth analysis out of its compact control row", async () => {
   const source = await readFile(toolbarPath, "utf8");
-
-  assert.match(source, /data-testid="heatmap-render-pipeline"/);
-  assert.match(source, /Heatmap render:/);
-  assert.match(source, /heatmapObservationsRetained/);
-  assert.match(source, /heatmapCandidateCells/);
-  assert.match(source, /heatmapProjectedCells/);
-  assert.match(source, /heatmapCellsDrawn/);
-  assert.match(source, /lastRendererError/);
-  assert.match(source, /renderer\.failure/);
+  assert.match(source, /\["marketDepthVisible", "Market Depth"\]/);
+  assert.match(source, /dizyflow-brain-open/);
+  assert.doesNotMatch(source, /market-depth-summary|Heatmap render:|heatmapObservationsRetained|Resting orders can be cancelled/);
 });
 
 test("heatmap rows use the effective display bin rather than the raw exchange tick", async () => {
