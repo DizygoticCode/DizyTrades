@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CandlestickSeries, ColorType, createChart, LineSeries, LineStyle, type IChartApi } from "lightweight-charts";
+import { CandlestickSeries, ColorType, createChart, LineSeries, LineStyle, type IChartApi, type UTCTimestamp } from "lightweight-charts";
 import { DEFAULT_TERMINAL_SETTINGS, type UserTerminalSettings } from "../lib/config";
 import { analyzeStrategy, type Candle, type StrategyAnalysis } from "../lib/strategy";
 import type { CandleTimeframe, MarketDescriptor } from "../lib/market/types";
@@ -21,8 +21,8 @@ function Chart({candles,structure}:{candles:readonly Candle[];structure:Advanced
     const container=host.current;if(!container||!candles.length)return;
     const chart=createChart(container,{autoSize:true,layout:{background:{type:ColorType.Solid,color:"#090f1a"},textColor:"#98a9c3"},grid:{vertLines:{color:"#151f31"},horzLines:{color:"#151f31"}},rightPriceScale:{borderColor:"#24334c"},timeScale:{borderColor:"#24334c",timeVisible:true,secondsVisible:false,rightOffset:8},crosshair:{vertLine:{color:"#5e7598"},horzLine:{color:"#5e7598"}}});chartRef.current=chart;
     const candleSeries=chart.addSeries(CandlestickSeries,{upColor:"#35c895",downColor:"#ed6478",wickUpColor:"#35c895",wickDownColor:"#ed6478",borderVisible:false});
-    candleSeries.setData(candles.map(candle=>({time:candle.time,open:candle.open,high:candle.high,low:candle.low,close:candle.close})));
-    if(structure?.anchoredVwap.series.length){const line=chart.addSeries(LineSeries,{color:"#48d9cb",lineWidth:2,priceLineVisible:false,lastValueVisible:true,title:structure.anchoredVwap.label});line.setData(structure.anchoredVwap.series.map(point=>({time:point.time,value:point.value})));}
+    candleSeries.setData(candles.map(candle=>({time:candle.time as UTCTimestamp,open:candle.open,high:candle.high,low:candle.low,close:candle.close})));
+    if(structure?.anchoredVwap.series.length){const line=chart.addSeries(LineSeries,{color:"#48d9cb",lineWidth:2,priceLineVisible:false,lastValueVisible:true,title:structure.anchoredVwap.label});line.setData(structure.anchoredVwap.series.map(point=>({time:point.time as UTCTimestamp,value:point.value})));}
     for(const level of structure?.levels??[]){if(level.kind==="vwap")continue;candleSeries.createPriceLine({price:level.price,color:colour[level.kind],lineWidth:1,lineStyle:level.complete?LineStyle.Dashed:LineStyle.Dotted,axisLabelVisible:true,title:level.label});}
     chart.timeScale().fitContent();const observer=new ResizeObserver(()=>chart.applyOptions({width:container.clientWidth,height:container.clientHeight}));observer.observe(container);
     return()=>{observer.disconnect();chart.remove();chartRef.current=null;};
