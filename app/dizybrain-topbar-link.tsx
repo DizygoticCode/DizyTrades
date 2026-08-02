@@ -53,6 +53,7 @@ export function DizyBrainTopbarLink() {
         `}</style>
       </button>
       <a className="nav-tab dizyscanner-topbar-link" href="/scanner" title="Open multi-symbol DizyScanner">⌕ DizyScanner</a>
+      <a className="nav-tab dizystructure-topbar-link" href="/structure" title="Open advanced closed-candle market structure">⌁ DizyStructure</a>
       <a className="nav-tab dizyperformance-topbar-link" href="/performance" title="Open realised performance dashboard">▥ DizyPerformance</a>
       <a className="nav-tab dizyjournal-topbar-link" href="/journal" title="Open DizyJournal">📓 DizyJournal</a>
     </>,
