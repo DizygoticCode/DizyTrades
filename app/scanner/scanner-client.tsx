@@ -19,6 +19,16 @@ const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFracti
 const price = (value: number | null) => value === null ? "—" : value < 0.001 ? value.toPrecision(4) : Intl.NumberFormat("en", { maximumSignificantDigits: 8 }).format(value);
 const signed = (value: number | null) => value === null ? "—" : `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 
+function readSessionJson<T>(key: string): T | null {
+  try {
+    const value = sessionStorage.getItem(key);
+    return value ? JSON.parse(value) as T : null;
+  } catch {
+    sessionStorage.removeItem(key);
+    return null;
+  }
+}
+
 async function mapLimit<T, R>(items: readonly T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
   const results = new Array<R>(items.length);
   let cursor = 0;
@@ -70,11 +80,11 @@ export default function ScannerClient({readOnly,userName}:{readOnly:boolean;user
         fetch("/api/markets?exchange=mexc",{signal:controller.signal}).then(async response=>response.ok?(await response.json() as {markets:MarketDescriptor[]}).markets:[]),
       ]).then(([profile,available])=>{
         if(controller.signal.aborted)return;
-        const viewerStored=readOnly?JSON.parse(sessionStorage.getItem("dizy-scanner-watchlist")||"null") as {keys?:string[];timeframe?:CandleTimeframe}|null:null;
+        const viewerStored=readOnly?readSessionJson<{keys?:string[];timeframe?:CandleTimeframe}>("dizy-scanner-watchlist"):null;
         setSettings(profile);
         setMarkets(available);
         setWatchlist(normaliseWatchlist(viewerStored?.keys??profile.market.favourites??[],available));
-        setTimeframe(viewerStored?.timeframe??(TIMEFRAMES.includes(profile.market.timeframe as CandleTimeframe)?profile.market.timeframe as CandleTimeframe:"15m"));
+        setTimeframe(viewerStored?.timeframe&&TIMEFRAMES.includes(viewerStored.timeframe)?viewerStored.timeframe:(TIMEFRAMES.includes(profile.market.timeframe as CandleTimeframe)?profile.market.timeframe as CandleTimeframe:"15m"));
         setStatus(available.length?"Catalogue loaded. Scanning confirmed candles…":"MEXC market catalogue is unavailable.");
       }).catch(reason=>{
         if((reason as Error).name!=="AbortError")setStatus("Scanner initialization failed. Retry when the market feed is available.");
@@ -117,7 +127,7 @@ export default function ScannerClient({readOnly,userName}:{readOnly:boolean;user
     if(!settings||!markets.length)return;
     const timer=window.setTimeout(()=>void scan(),80);
     return()=>window.clearTimeout(timer);
-  },[settings,markets.length,timeframe,scope,watchlist.join("|"),scan]);
+  },[settings,markets.length,scan]);
   useEffect(()=>{
     if(!settings||!markets.length)return;
     const timer=window.setInterval(()=>void scan(),60000);
@@ -142,21 +152,23 @@ export default function ScannerClient({readOnly,userName}:{readOnly:boolean;user
     setSaving(true);setStatus(readOnly?"Saving this viewer-session watchlist…":"Saving watchlist to your terminal profile…");
     try{
       if(readOnly){sessionStorage.setItem("dizy-scanner-watchlist",JSON.stringify({keys,timeframe}));setStatus("Viewer-session watchlist saved in this browser tab.");return;}
-      const next={...settings,market:{...settings.market,favourites:keys,timeframe}};
-      const response=await fetch("/api/profile",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(next)});
-      if(!response.ok)throw new Error();setSettings(next);setStatus("Watchlist saved to your DizyTrades profile.");
-    }catch{setStatus("Watchlist could not be saved.");}finally{setSaving(false);}
+      const response=await fetch("/api/profile",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({favourites:keys,timeframe})});
+      const body=await response.json() as {settings?:UserTerminalSettings;error?:string};
+      if(!response.ok||!body.settings)throw new Error(body.error??"Watchlist could not be saved.");
+      setSettings(body.settings);setStatus("Watchlist saved to your DizyTrades profile.");
+    }catch(reason){setStatus((reason as Error).message||"Watchlist could not be saved.");}finally{setSaving(false);}
   }
 
   async function openMarket(row:ScannerRow){
     if(!settings)return;
     const market=markets.find(item=>item.key===row.marketKey);if(!market)return;
     setStatus(`Opening ${market.displayName} in DizyCharts…`);
-    const next={...settings,market:{...settings.market,symbol:market.sourceSymbol,marketKey:market.key,timeframe,favourites:normaliseWatchlist(watchlist,markets)}};
+    const favourites=normaliseWatchlist(watchlist,markets);
     try{
-      if(readOnly)sessionStorage.setItem("dizy-viewer-market",JSON.stringify(next.market));
-      else{
-        const response=await fetch("/api/profile",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(next)});
+      if(readOnly){
+        sessionStorage.setItem("dizy-viewer-market",JSON.stringify({...settings.market,symbol:market.sourceSymbol,marketKey:market.key,timeframe,favourites}));
+      }else{
+        const response=await fetch("/api/profile",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({symbol:market.sourceSymbol,marketKey:market.key,timeframe,favourites})});
         if(!response.ok)throw new Error();
       }
       window.location.assign("/terminal");
@@ -164,7 +176,7 @@ export default function ScannerClient({readOnly,userName}:{readOnly:boolean;user
   }
 
   return <main className={styles.shell}>
-    <header className={styles.topbar}><div><b>DizyTrades</b><span>DizyScanner</span></div><nav><a href="/terminal">DizyCharts</a><a href="/journal">DizyJournal</a><strong>{userName}{readOnly?" · Viewer":""}</strong></nav></header>
+    <header className={styles.topbar}><div><b>DizyTrades</b><span>DizyScanner</span></div><nav><a href="/terminal">DizyCharts</a><a href="/structure">DizyStructure</a><a href="/performance">DizyPerformance</a><a href="/journal">DizyJournal</a><strong>{userName}{readOnly?" · Viewer":""}</strong></nav></header>
     <section className={styles.hero}><div><span>CLOSED-CANDLE MARKET SCANNER</span><h1>Find current confluence without opening every chart.</h1><p>Uses your existing DizySignals strategy settings. Scores describe retained chart evidence, not probability of profit.</p></div><div className={styles.heroActions}><button disabled={loading} onClick={()=>void scan()}>{loading?"Scanning…":"Refresh scan"}</button><button disabled={saving} onClick={()=>void saveWatchlist()}>{saving?"Saving…":"Save watchlist"}</button></div></section>
     <section className={styles.controls} aria-label="Scanner controls">
       <label>Timeframe<select value={timeframe} onChange={event=>setTimeframe(event.target.value as CandleTimeframe)}>{TIMEFRAMES.map(item=><option key={item}>{item}</option>)}</select></label>
