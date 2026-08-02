@@ -6,13 +6,15 @@ import { CANDLE_TIMEFRAMES, type CandleTimeframe } from "./market/types.ts";
 
 export const MAX_REPLAY_CANDLES = 2_000;
 export type ReplayStatus = "idle" | "loading" | "ready" | "playing" | "paused" | "ended" | "error";
-export type ReplaySpeed = "step" | 1 | 2 | 5 | 10;
+export type ReplaySpeed = 0.25 | 0.5 | 1 | 2 | 5 | 10;
 export type ReplayDataAvailability = "available" | "partially-available" | "unavailable" | "loading" | "error";
 export type ReplaySession = Readonly<{ id:string; symbol:string; timeframe:CandleTimeframe; status:ReplayStatus; startedAt:number; rangeStartMs:number; rangeEndMs:number; cursorIndex:number; cursorTimeMs:number|null; speed:ReplaySpeed; candlesLoaded:number; visibleCandles:number; error:string|null }>;
 export type ReplaySnapshot = Readonly<{ sessionId:string; symbol:string; timeframe:CandleTimeframe; cursorIndex:number; cursorTimeMs:number|null; candlesVisible:number; latestCandle:Candle|null; signalAnalysis:StrategyAnalysis; dizyBrainSnapshot:DizyBrainSnapshot|null; orderFlowAvailability:ReplayDataAvailability }>;
 
 const intervalSeconds: Record<CandleTimeframe, number> = {"1m":60,"5m":300,"15m":900,"30m":1800,"1h":3600,"4h":14400,"8h":28800,"1d":86400,"1w":604800,"1M":2592000};
-export const replayDelayMs = (speed:ReplaySpeed) => speed === "step" ? null : 1_000 / speed;
+export const REPLAY_SPEED_DELAYS:Readonly<Record<ReplaySpeed,number>>=Object.freeze({0.25:4_000,0.5:2_000,1:1_000,2:500,5:200,10:100});
+export const replayDelayMs = (speed:ReplaySpeed) => REPLAY_SPEED_DELAYS[speed]??REPLAY_SPEED_DELAYS[1];
+export const validReplaySpeed=(value:unknown):ReplaySpeed=>[0.25,0.5,1,2,5,10].includes(Number(value))?Number(value) as ReplaySpeed:1;
 export function validateReplayRange(startMs:number,endMs:number) { return Number.isSafeInteger(startMs)&&Number.isSafeInteger(endMs)&&startMs>=0&&endMs>startMs; }
 export function clampReplayCursor(index:number,count:number) { return count ? Math.max(0,Math.min(Math.trunc(index),count-1)) : -1; }
 export function replayRangeForCandles(candles:ReadonlyArray<Candle>,timeframe:CandleTimeframe){
@@ -47,7 +49,11 @@ export const replayPrefix=(candles:ReadonlyArray<Candle>,cursor:number):Readonly
 export function jumpReplay(session:ReplaySession,candles:ReadonlyArray<Candle>,index:number):ReplaySession{const cursor=clampReplayCursor(index,candles.length),ended=cursor===candles.length-1;return Object.freeze({...session,cursorIndex:cursor,cursorTimeMs:cursor<0?null:candles[cursor].time*1000,visibleCandles:cursor+1,status:ended?"ended":"paused"});}
 export const stepReplay=(s:ReplaySession,c:ReadonlyArray<Candle>,delta:1|-1)=>jumpReplay(s,c,s.cursorIndex+delta);
 export const jumpReplayToTimestamp=(s:ReplaySession,c:ReadonlyArray<Candle>,ms:number)=>{let index=c.findIndex(x=>x.time*1000>=ms);if(index<0)index=c.length-1;return jumpReplay(s,c,index);};
-export const progressReplay=(s:ReplaySession,c:ReadonlyArray<Candle>)=>s.status!=="playing"?s:stepReplay(s,c,1);
+export const progressReplay=(s:ReplaySession,c:ReadonlyArray<Candle>)=>{
+  if(s.status!=="playing")return s;
+  const cursor=clampReplayCursor(s.cursorIndex+1,c.length),ended=cursor>=c.length-1;
+  return Object.freeze({...s,cursorIndex:cursor,cursorTimeMs:cursor<0?null:c[cursor].time*1_000,visibleCandles:cursor+1,status:ended?"ended":"playing"});
+};
 export function createReplaySnapshot(input:{session:ReplaySession;candles:ReadonlyArray<Candle>;strategy:StrategySettings;risk:RiskSettings;orderFlowAvailability?:ReplayDataAvailability}):ReplaySnapshot{
   const prefix=replayPrefix(input.candles,input.session.cursorIndex), latest=prefix.at(-1)??null, analysis=analyzeStrategy([...prefix],input.strategy);
   const brain=latest?createDizyBrainSnapshot({analysis,strategy:input.strategy,risk:input.risk,latestClosedCandleTime:latest.time,provenance:{source:"replay",sessionId:input.session.id,replayTimestampMs:latest.time*1000}}):null;
