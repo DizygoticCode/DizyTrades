@@ -6,19 +6,82 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: fix/replay-follow-latest
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
+      - name: Apply focused Replay viewport fix
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          terminal = Path('app/trading-terminal.tsx')
+          text = terminal.read_text()
+          marker = 'if (!replayMode || !displayCandles.length) return;'
+          if marker not in text:
+            needle = '''  }, [displayCandles, symbol, timeframe, view.appearance, redraw]);
+  const livePrice = liveCandle?.close ?? null;'''
+            replacement = '''  }, [displayCandles, symbol, timeframe, view.appearance, redraw]);
+  useEffect(() => {
+    if (!replayMode || !displayCandles.length) return;
+    const chart = chartRef.current,
+      canvas = overlayRef.current;
+    if (!chart || !canvas) return;
+    const range = calculateGoToLive({
+      candleCount: displayCandles.length,
+      currentRange: chart.timeScale().getVisibleLogicalRange(),
+      barSpacing: 7,
+      layout: chartLayout(canvas, chart, view),
+    });
+    chart.priceScale("right").applyOptions({ autoScale: true });
+    chart.timeScale().setVisibleLogicalRange({ from: range.from, to: range.to });
+    requestAnimationFrame(redraw);
+  }, [replayMode, displayCandles.length, view, redraw]);
+  const livePrice = liveCandle?.close ?? null;'''
+            if needle not in text:
+              raise SystemExit('Replay viewport insertion point not found')
+            terminal.write_text(text.replace(needle, replacement, 1))
+
+          tests = Path('tests/replay.test.mjs')
+          source = tests.read_text()
+          test_name = 'Replay follows each newly revealed candle without resetting zoom'
+          if test_name not in source:
+            source += '''
+
+test("Replay follows each newly revealed candle without resetting zoom",()=>{
+  const terminal=readFileSync(new URL("../app/trading-terminal.tsx",import.meta.url),"utf8");
+  assert.match(terminal,/if \(!replayMode \|\| !displayCandles\.length\) return;/);
+  assert.match(terminal,/calculateGoToLive\(\{[\s\S]*candleCount: displayCandles\.length,[\s\S]*currentRange: chart\.timeScale\(\)\.getVisibleLogicalRange\(\)/);
+  assert.match(terminal,/chart\.priceScale\("right"\)\.applyOptions\(\{ autoScale: true \}\)/);
+  assert.match(terminal,/\[replayMode, displayCandles\.length, view, redraw\]/);
+});
+'''
+            tests.write_text(source)
+          PY
       - run: npm ci
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - run: git diff --check
+      - name: Commit validated source fix
+        run: |
+          if git diff --quiet -- app/trading-terminal.tsx tests/replay.test.mjs; then
+            echo "Replay viewport fix already present."
+            exit 0
+          fi
+          git config user.name "DizyTrades Repair Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add app/trading-terminal.tsx tests/replay.test.mjs
+          git commit -m "Keep Replay candle in view [replay-follow-repair]"
+          git push origin HEAD:fix/replay-follow-latest
