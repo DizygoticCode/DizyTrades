@@ -204,7 +204,7 @@ function position(value: unknown, key: string): ManualPosition {
     riskPriceSource: oneOf(
       input.riskPriceSource,
       "manualPaper.position.riskPriceSource",
-      ["fair", "last", "preserved"] as const,
+      ["fair", "last"] as const,
     ),
     lastRiskPrice: number(input.lastRiskPrice, "manualPaper.position.lastRiskPrice", 0),
     openedAt: iso(input.openedAt, "manualPaper.position.openedAt"),
@@ -306,7 +306,7 @@ function fill(value: unknown, index: number): ManualFill {
     riskPriceSource:
       input.riskPriceSource == null
         ? undefined
-        : oneOf(input.riskPriceSource, "manualPaper.fill.riskPriceSource", ["fair", "last", "preserved"] as const),
+        : oneOf(input.riskPriceSource, "manualPaper.fill.riskPriceSource", ["fair", "last"] as const),
     entryFee:
       input.entryFee == null
         ? undefined
@@ -325,7 +325,7 @@ function fill(value: unknown, index: number): ManualFill {
         : oneOf(
             input.closeReason,
             "manualPaper.fill.closeReason",
-            ["manual", "stop-loss", "take-profit", "liquidation", "reversal"] as const,
+            ["manual", "stop", "target", "liquidation", "reversal"] as const,
           ),
     grossPnl:
       input.grossPnl == null

@@ -18,7 +18,7 @@ import {
   validateManualPaperBackup,
   writeManualPaperBackup,
 } from "./manual-paper-backup";
-import { readManualAccount, type ManualAccount } from "./manual-paper";
+import { readManualAccount } from "./manual-paper";
 import { createReplayMemory, readReplayMemory } from "./replay-memory-store";
 import { readUserRecord } from "./store";
 import {
