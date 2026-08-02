@@ -3,10 +3,10 @@ import MarketingPage from "./marketing/marketing-page";
 
 export const metadata: Metadata = {
   title: "Everything Dizy™ | DizyTrades",
-  description: "Chart, analyse, follow, learn and test crypto markets in one simulation-first workspace.",
+  description: "Discover, analyse, simulate, replay, review and improve crypto trading decisions in one transparent workspace.",
   openGraph: {
     title: "Everything Dizy™ | DizyTrades",
-    description: "One crypto workspace for centralised markets, on-chain discovery, confirmed-candle signals, order flow, education and paper trading.",
+    description: "One evidence-first crypto workspace for charting, signals, order flow, scanning, structure, paper trading, replay, review, performance, education and recovery.",
     type: "website",
   },
 };
