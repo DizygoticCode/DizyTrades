@@ -1,8 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-const owner = {
-  username: `e2e_owner_${Date.now().toString(36)}`,
+const user = {
+  username: `e2e_user_${Date.now().toString(36)}`,
   password: "DizyTrades-E2E-2026!",
+};
+const owner = {
+  email: "e2e-owner@dizytrades.local",
+  password: "DizyTrades-E2E-Owner-2026!",
 };
 
 test.describe.configure({ mode: "serial" });
@@ -59,11 +63,11 @@ test("viewer session navigates the roadmap and remains read-only", async ({ page
   await expect(page).toHaveURL(/\/terminal$/);
 });
 
-test("new owner account can persist a bounded market-only profile patch", async ({ page }) => {
+test("new user can persist a bounded market-only profile patch", async ({ page }) => {
   await page.goto("/signup");
-  await page.getByLabel("Username (optional)").fill(owner.username);
-  await page.getByLabel("Password", { exact: true }).fill(owner.password);
-  await page.getByLabel("Confirm password").fill(owner.password);
+  await page.getByLabel("Username (optional)").fill(user.username);
+  await page.getByLabel("Password", { exact: true }).fill(user.password);
+  await page.getByLabel("Confirm password").fill(user.password);
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/\/terminal$/);
 
@@ -106,8 +110,19 @@ test("new owner account can persist a bounded market-only profile patch", async 
   expect(patched.settings.orderFlow).toEqual(before.settings.orderFlow);
 
   await page.goto("/scanner");
-  await expect(page.getByText(owner.username, { exact: true })).toBeVisible();
-  await expect(page.getByText(`${owner.username} · Viewer`, { exact: true })).toHaveCount(0);
+  await expect(page.getByText(user.username, { exact: true })).toBeVisible();
+  await expect(page.getByText(`${user.username} · Viewer`, { exact: true })).toHaveCount(0);
+
+  const diagnosticsRejected = await page.request.get("/api/admin/diagnostics");
+  expect(diagnosticsRejected.status()).toBe(403);
+});
+
+test("configured owner can open production diagnostics", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Username or email").fill(owner.email);
+  await page.getByLabel("Password").fill(owner.password);
+  await page.getByRole("button", { name: "Open DizyTrades" }).click();
+  await expect(page).toHaveURL(/\/terminal$/);
 
   const diagnosticsResponse = await page.request.get("/api/admin/diagnostics");
   expect(diagnosticsResponse.status()).toBe(200);
