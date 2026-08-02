@@ -69,3 +69,15 @@ test("workspace source preserves launcher, focus, resize, and compact-toolbar bo
   assert.doesNotMatch(brain, /dizybrain-panel/);
   assert.match(terminal, /analysis-layout/);
 });
+
+test("operational diagnostics are moved intact behind the workspace boundary", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const [brain, toolbar] = await Promise.all([readFile("app/dizybrain-shell.tsx", "utf8"), readFile("app/order-flow-toolbar.tsx", "utf8")]);
+  for (const field of ["snapshotVersion","bufferedUpdates","depthMessagesReceived","recoveryAttempts","restTradesLoaded","duplicatesRejected","heatmapObservationsRetained","tileRequestsStarted","marketDepthVisibleBids","domVisibleRows","primitiveAttached","bubblesRejectedBelowThreshold"]) assert.match(brain, new RegExp(field));
+  assert.match(brain, /Retry public feed/);
+  assert.match(brain, /Captured history \/ retention/);
+  assert.match(brain, /not historical Replay evidence/);
+  assert.match(toolbar, /publishFlowDiagnostics\(\{ summary, renderer/);
+  assert.doesNotMatch(toolbar, /Retry public feed|flow-diagnostics|heatmapObservationsRetained/);
+  assert.doesNotMatch(brain, /buildDizyFlowIntelligenceSnapshot|analyzeStrategy\(/);
+});

@@ -13,6 +13,7 @@ export function OrderFlowToolbar({
   onChange,
   summary,
   onHistory,
+  onRetry,
   renderStore,
   intelligence,
 }: {
@@ -20,10 +21,11 @@ export function OrderFlowToolbar({
   onChange: (settings: OrderFlowSettings) => void;
   summary: FlowSummary;
   onHistory: () => void;
+  onRetry: () => void;
   renderStore: FlowRenderStore;
   intelligence: DizyFlowIntelligenceSnapshot | null;
 }) {
-  const { open, publishDepth } = useDizyBrainWorkspace();
+  const { open, publishFlowDiagnostics } = useDizyBrainWorkspace();
   const renderer = useSyncExternalStore(
     renderStore.subscribeDiagnostics,
     renderStore.getDiagnostics,
@@ -40,7 +42,7 @@ export function OrderFlowToolbar({
       | "imbalanceVisible",
   ) => onChange({ ...settings, [key]: !settings[key] });
 
-  useEffect(() => publishDepth({ visible: settings.enabled && settings.marketDepthVisible, bidTotal: renderer.marketDepthBidTotal, askTotal: renderer.marketDepthAskTotal, clusters: renderer.marketDepthClusters, scaling: settings.marketDepth.scaling, displayMode: settings.marketDepth.displayMode }), [publishDepth, renderer, settings.enabled, settings.marketDepthVisible, settings.marketDepth.scaling, settings.marketDepth.displayMode]);
+  useEffect(() => publishFlowDiagnostics({ summary, renderer, marketDepthVisible: settings.enabled && settings.marketDepthVisible, displayMode: settings.marketDepth.displayMode, retry: onRetry }), [publishFlowDiagnostics, summary, renderer, settings.enabled, settings.marketDepthVisible, settings.marketDepth.displayMode, onRetry]);
 
   return (
     <div className="dizyflow-controls">
