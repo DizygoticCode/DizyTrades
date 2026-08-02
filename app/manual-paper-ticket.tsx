@@ -4,13 +4,21 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
 } from "react";
 import { PAPER_SIZE_STOPS, sliderToAmount } from "./lib/manual-paper-sizing";
 import { estimateLiquidation, paperAccountSummary } from "./lib/manual-paper-engine";
+import type { DizyFlowIntelligenceSnapshot } from "./lib/order-flow/intelligence";
+import { compactDizyFlowSample } from "./lib/historical-dizyflow-compact";
+import { HistoricalDizyFlowCaptureManager } from "./lib/historical-dizyflow-capture";
 type Mode = "fixed-margin" | "fixed-notional" | "equity-percent" | "risk-percent";
 type Position = {
+  tradeId: string;
+  marketKey: string;
+  marketType: "futures";
+  openedAt: string;
   symbol: string;
   side: "long" | "short";
   quantity: number;
@@ -25,6 +33,7 @@ type Position = {
   takeProfit?: number;
 };
 type Fill = {
+  tradeId?: string;
   fillId: string;
   side: string;
   symbol: string;
@@ -35,6 +44,7 @@ type Fill = {
   timestamp: string;
   closeReason?: "manual"|"stop"|"target"|"liquidation";
   netPnl?: number;
+  historicalDizyFlow?:{available:boolean;memoryId:string|null;sampleCount:number;eventCount:number;coveragePct:number|null;limitations:readonly string[]};
 };
 type Account = {
   startingBalance: number;
@@ -69,10 +79,14 @@ export function ManualPaperTicket({
   symbol,
   publicPrice,
   readOnly,
+  marketKey,
+  intelligence,
 }: {
   symbol: string;
   publicPrice: number | null;
   readOnly: boolean;
+  marketKey: string;
+  intelligence: DizyFlowIntelligenceSnapshot | null;
 }) {
   const [account, setAccount] = useState<Account | null>(null),
     [tab, setTab] = useState<"positions" | "history" | "account">("positions"),
@@ -90,6 +104,8 @@ export function ManualPaperTicket({
     [hidden, setHidden] = useState(false),
     [height, setHeight] = useState(390);
   const [riskState,setRiskState]=useState<{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null>(null);
+  const captureManager=useRef(new HistoricalDizyFlowCaptureManager()),previousPosition=useRef<Position|null>(null),finalizeTimers=useRef(new Set<number>());
+  const [captureStatus,setCaptureStatus]=useState<ReturnType<HistoricalDizyFlowCaptureManager["status"]>>({state:"buffering",tradeId:null,marketKey:null,symbol:null,sampleCount:0,eventCount:0,skippedDuplicates:0,sampleLimitReached:false,eventLimitReached:false}),[captureError,setCaptureError]=useState("");
   const load = useCallback(async () => {
     const response = await fetch(`/api/manual-paper?symbol=${encodeURIComponent(symbol)}`);
     if (response.ok)
@@ -100,6 +116,10 @@ export function ManualPaperTicket({
     void load().catch(() => setError("Unable to load Manual Paper account."));
   }, [load]);
   useEffect(()=>{if(!account?.positions[symbol])return;const timer=window.setInterval(()=>void load(),5000);return()=>window.clearInterval(timer)},[account?.positions,symbol,load]);
+  useEffect(()=>{if(readOnly||!intelligence)return;captureManager.current.observe(compactDizyFlowSample(intelligence),{marketKey,symbol,marketType:"futures"});setCaptureStatus(captureManager.current.status())},[intelligence,marketKey,readOnly,symbol]);
+  const uploadCapture=useCallback(async(manager=captureManager.current)=>{try{manager.retry();const draft=manager.finalise(),response=await fetch(`/api/paper/trades/${encodeURIComponent(draft.tradeId)}/historical-dizyflow`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(draft)});if(!response.ok)throw new Error("Historical flow retention failed. Retry is available.");manager.markCompleted();setCaptureError("");await load()}catch(reason){manager.markFailed();setCaptureError(reason instanceof Error?reason.message:"Historical flow retention failed.")}finally{if(manager===captureManager.current)setCaptureStatus(manager.status())}},[load]);
+  useEffect(()=>{const current=account?.positions[symbol]??null,previous=previousPosition.current;if(!readOnly&&previous&&(!current||current.tradeId!==previous.tradeId)){const closed=account?.fills.slice().reverse().find(fill=>fill.side==="close"&&fill.tradeId===previous.tradeId),closingManager=captureManager.current;if(closed){try{closingManager.fullClose(Date.parse(closed.timestamp));const timer=window.setTimeout(()=>{finalizeTimers.current.delete(timer);closingManager.ready(Date.parse(closed.timestamp)+15_000);void uploadCapture(closingManager)},15_000);finalizeTimers.current.add(timer)}catch{/* A missing in-memory session remains unavailable; it is never reconstructed. */}}if(current&&current.marketKey===marketKey){captureManager.current=new HistoricalDizyFlowCaptureManager();if(intelligence)captureManager.current.observe(compactDizyFlowSample(intelligence),{marketKey,symbol:current.symbol,marketType:"futures"});}}if(!readOnly&&current&&current.marketKey===marketKey&&(!previous||previous.tradeId!==current.tradeId)){try{captureManager.current.open({tradeId:current.tradeId,marketKey:current.marketKey,symbol:current.symbol,marketType:current.marketType,entryTimeMs:Date.parse(current.openedAt)})}catch{/* Duplicate lifecycle observations cannot open a second session. */}}previousPosition.current=current;setCaptureStatus(captureManager.current.status());return()=>{}},[account,intelligence,marketKey,readOnly,symbol,uploadCapture]);
+  useEffect(()=>()=>{for(const timer of finalizeTimers.current)window.clearTimeout(timer);finalizeTimers.current.clear();captureManager.current.interrupt("page-session-interrupted")},[]);
   const post = useCallback(async (body: Record<string, unknown>) => {
     setBusy(true);
     setError("");
@@ -288,6 +308,7 @@ export function ManualPaperTicket({
             {money(unrealised)}
           </b>
         </span>
+        <span aria-live="polite">Flow {captureStatus.state} · {captureStatus.sampleCount} samples · {captureStatus.eventCount} events</span>
         <div className={styles.headerSpacer} />
         <button
           aria-label="Minimise Manual Paper"
@@ -507,6 +528,7 @@ export function ManualPaperTicket({
               </button>
             </div>
             {error ? <p className={styles.error}>{error}</p> : null}
+            {captureError?<p className={styles.error} role="status">{captureError} <button type="button" onClick={()=>void uploadCapture()}>Retry flow retention</button></p>:null}
           </aside>
           <main className={styles.workspace}>
             <nav className={styles.tabs}>
@@ -657,6 +679,7 @@ export function ManualPaperTicket({
                         >
                           {money(fill.realisedPnl)}
                           {fill.closeReason?<small>{fill.closeReason}</small>:null}
+                          {fill.side==="close"?<small>{fill.historicalDizyFlow?.available?`${fill.historicalDizyFlow.limitations.length?"Limited":"Retained"} flow · ${fill.historicalDizyFlow.sampleCount} samples · ${fill.historicalDizyFlow.coveragePct??0}% coverage`:"Flow memory unavailable"}</small>:null}
                         </span>
                       </div>
                     ))
