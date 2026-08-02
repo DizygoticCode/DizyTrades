@@ -55,15 +55,13 @@ export function applyMarketSettingsPatch(
 ): Readonly<{ ok: true; settings: UserTerminalSettings }> | Readonly<{ ok: false; error: string }> {
   const parsed = parseMarketSettingsPatch(input);
   if (!parsed.ok) return parsed;
-  return Object.freeze({
-    ok: true,
-    settings: {
-      ...current,
-      market: {
-        ...current.market,
-        ...parsed.patch,
-        exchange: "mexc",
-      },
+  const settings: UserTerminalSettings = {
+    ...current,
+    market: {
+      ...current.market,
+      ...parsed.patch,
+      exchange: "mexc",
     },
-  });
+  };
+  return Object.freeze({ ok: true, settings });
 }
