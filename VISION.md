@@ -4,59 +4,88 @@
 
 Build the most transparent trading platform possible.
 
-The objective is not to promise certainty or predict markets with a hidden algorithm. The objective is to help traders observe, understand, practise, review and improve through deterministic reasoning, measurable evidence and honest limitations.
+DizyTrades does not promise certainty, sell unexplained signals or claim access to a hidden institutional algorithm. It helps traders observe, understand, practise, reconstruct, review and improve through deterministic reasoning, measurable evidence and honest limitations.
 
 > **Every feature must make DizyTrades more understandable, not more mysterious.**
 
-Transparency takes priority over complexity. Evidence takes priority over assumptions. Deterministic reasoning takes priority over black-box predictions.
+Transparency takes priority over complexity. Evidence takes priority over assumptions. Deterministic reasoning takes priority over black-box prediction.
 
 ## Product identity
 
-DizyTrades is a unified trading platform made from focused modules that share market context, user state, visual language and explainable reasoning.
+DizyTrades is one professional workspace composed of focused modules that share market identity, user state, visual language and explainable evidence.
 
-The long-term product family is:
+### Research and market context
 
-- **DizyCharts** — charting, structure, indicators and drawings
+- **DizyCharts** — charting, indicators, patterns and drawings
 - **DizySignals** — confirmed-candle deterministic qualification
-- **DizyBrain** — typed explanations of current evidence and rejection reasons
-- **DizyFlow** — order book, market depth, DOM, public trades and retained liquidity context
+- **DizyBrain** — typed explanation, historical review and behaviour aggregation
+- **DizyFlow** — Market Depth, DOM, public trades and retained liquidity
+- **DizyScanner** — bounded multi-symbol discovery using the same signal engine
+- **DizyStructure** — sessions, anchored VWAP, confirmed swings and timeframe alignment
+- **DizyDEX** — public on-chain market discovery
+
+### Practice and review
+
 - **DizyPaper** — simulation, risk, margin, liquidation and trade history
-- **DizyReplay** — historical reconstruction and controlled playback
-- **DizyJournal** — review, notes, rule compliance and performance context
-- **DizyAcademy** — contextual education inside the trading workflow
-- **DizyQuant** — measurable market-microstructure research
+- **DizyJournal** — immutable trade facts, notes and structured reflection
+- **DizyReplay** — deterministic historical reconstruction
+- **Historical DizyFlow** — retained compact flow evidence where it genuinely exists
+- **DizyPerformance** — realised outcome analytics with coverage and sample warnings
+- **DizyAcademy** — contextual education across the full product workflow
 
-The application should feel like one professional workspace rather than a collection of unrelated pages.
+### Trust and operations
 
-## Continuous learning loop
+- **DizyOps** — bounded production health and storage diagnostics
+- **DizyBackup** — integrity-checked export, dry-run and additive recovery
+- **DizyQuant** — future measurable microstructure research
 
-DizyTrades should support one connected workflow:
+The application should feel like one evidence chain rather than a collection of unrelated pages.
+
+## Continuous improvement loop
 
 ```text
-Observe the market
+Discover with DizyScanner
         ↓
-Understand with DizyBrain
+Build context with DizyStructure
+        ↓
+Observe in DizyCharts and DizyFlow
+        ↓
+Understand qualification with DizySignals and DizyBrain
         ↓
 Practise in DizyPaper
         ↓
-Review in DizyJournal
+Record immutable facts in DizyJournal
         ↓
-Replay the decision
+Reconstruct with DizyReplay and Historical DizyFlow
+        ↓
+Reflect through Guided Review and Behaviour
+        ↓
+Measure outcomes in DizyPerformance
         ↓
 Learn in DizyAcademy
         ↓
-Improve discipline
-        ↓
-Repeat
+Improve discipline and repeat
 ```
 
-Each module should strengthen this loop. Features that do not improve observation, explanation, practice, review, validation or learning should be treated as possible scope creep.
+Every module should strengthen observation, explanation, practice, review, validation, recovery or learning. Features that do not improve this chain should be treated as possible scope creep.
+
+## Evidence hierarchy
+
+DizyTrades distinguishes several forms of information that must never be silently blended:
+
+1. **Observed public data** — candles, prices, depth and trades received from public providers.
+2. **Derived deterministic evidence** — indicators, structure, confluence and typed measurements.
+3. **Simulation assumptions** — fees, slippage, margin and fill models that approximate execution.
+4. **Retained historical evidence** — immutable candles, compact flow samples and review snapshots captured for a trade.
+5. **Trader reflection** — notes, quality, discipline, mood and guided answers.
+6. **Aggregated observations** — performance and behaviour patterns across reviewed samples.
+7. **Research hypotheses** — candidate DizyQuant measurements not yet validated for signal use.
+
+A result from one layer must not masquerade as another. Current live flow must not fill a historical gap. Missing fees must not become zero. A setup score must not become a profit probability. A winning trade must not become proof of good process.
 
 ## Research framework
 
-DizyTrades will not adopt a market concept merely because it is popular, visually convincing or described as institutional.
-
-Every future analytical idea should progress through the same research pipeline:
+Every analytical idea follows the same pipeline:
 
 ```text
 Observe
@@ -74,112 +103,63 @@ Improve or reject
 Only then consider DizySignals
 ```
 
-Ideas begin as informational observations. They may influence trade qualification only after historical replay and statistical testing demonstrate a measurable net improvement.
+Validation should include representative samples, false-positive and false-negative analysis, regime sensitivity, parameter stability, explicit missing-data treatment and out-of-sample or walk-forward checks where practical.
 
-Validation should include:
+If an observation cannot be measured, reproduced and versioned, it remains a theory rather than a signal input.
 
-- representative historical samples
-- false-positive analysis
-- false-negative analysis
-- regime sensitivity
-- parameter stability
-- out-of-sample or walk-forward checks where practical
-- documented limitations and unavailable data
+## Replay as the truth boundary
 
-If an observation cannot be measured or reproduced, it remains a theory rather than a signal input.
+Replay exists to answer what was knowable at a specific historical moment.
 
-## DizyQuant vision
+A valid reconstruction may include:
 
-DizyQuant is the future market-microstructure research engine of DizyTrades.
+- the exact closed-candle prefix
+- DizySignals evidence produced from that prefix
+- DizyBrain snapshot provenance
+- immutable Paper entry and exit facts
+- retained Historical DizyFlow samples and events
+- unavailable, stale and gap metadata
+- the resulting trade outcome
 
-It should measure observable behaviour rather than claim knowledge of a private market-maker algorithm. Research areas include:
-
-### Liquidity ladder
-
-- balance and directional skew
-- symmetry and density
-- upward and downward migration
-- persistence and retreat
-- compression and expansion
-
-### Liquidity replenishment
-
-- refill rate
-- refill consistency
-- side imbalance
-- persistence after execution
-
-### Liquidity consumption
-
-- aggressive buying and selling
-- price movement per unit of aggressive volume
-- consumption efficiency
-- absorption and exhaustion candidates
-
-### Queue dynamics
-
-- estimated visible queue ahead
-- queue depletion
-- queue refill
-- queue turnover
-
-Visible queue estimates remain educational approximations because hidden liquidity, exchange matching priority, cancellations, amendments and latency are unknown.
-
-### Spread, clusters and auction behaviour
-
-- spread compression, expansion and stability
-- cluster lifetime, movement, reinforcement and disappearance
-- acceptance, rejection, balance and imbalance
-- session and volatility regimes
-
-DizyQuant observations should initially remain informational. They graduate into DizySignals only after Replay-based validation supports their use.
-
-## Replay as the validation engine
-
-DizyReplay should eventually reconstruct the original market context for a decision, including:
-
-- candles and indicators
-- DizySignals evidence
-- DizyBrain snapshots
-- DizyFlow market depth, DOM, public trades and retained liquidity
-- DizyPaper lifecycle events
-- DizyQuant observations
-- resulting trade outcome
-
-Every proposed metric should answer one question:
-
-> **Did this improve trading decisions?**
-
-Replay should make that question testable rather than rhetorical.
+Replay must never use later candles, current DOM state or present-day settings to rewrite the historical decision.
 
 ## Explainable intelligence
 
-DizyBrain should explain **why**, not pretend to know **what will happen next**.
+DizyBrain explains **why**. It does not pretend to know **what happens next**.
 
-Every explanation should be traceable to typed, measurable inputs. DizyTrades rejects:
+Every explanation must be traceable to typed measurable inputs. DizyTrades rejects:
 
 - hidden weighting
 - black-box confidence claims
 - secret-algorithm marketing
 - unverifiable institutional narratives
 - probability language unsupported by tested statistics
-- stale historical events presented as current evidence
+- stale historical events shown as current evidence
+- deterministic-looking output built from unavailable data
 
-Unavailable, stale, fallback and insufficient states should remain visible rather than being converted into artificial conviction.
+## Simulation honesty
 
-## Safety and trust
+DizyPaper should become progressively more realistic while remaining explicit about the gap between a model and an exchange matching engine.
 
-DizyTrades remains simulation- and analysis-first.
+The simulator may model:
 
-Live exchange execution must stay disabled until security, credential protection, risk controls, reconciliation, idempotency, auditability and independent review are complete.
+- symbol metadata and precision
+- leverage and margin assumptions
+- maker and taker costs
+- slippage and partial fills
+- funding
+- maintenance tiers and liquidation
+- reduce-only and reversal behaviour
 
-The platform should never imply that:
+It must never imply that visible depth guarantees a fill, that paper liquidation exactly matches MEXC or that a historical result guarantees future performance.
 
-- a resting order must remain in the book
-- a visible queue guarantees a fill
-- a high confluence score is a profit probability
-- a paper result reproduces exchange execution
-- a market observation is financial advice
+## Safety and recovery
+
+DizyTrades is analysis- and simulation-first.
+
+User-owned evidence is valuable product data. Export, integrity validation, dry-run recovery, conflict reporting and off-platform backups are part of trust—not optional administration.
+
+Live exchange execution remains disabled until credential protection, reconciliation, idempotency, account limits, emergency shutdown, immutable auditability and independent review are complete.
 
 ## Product promise
 
