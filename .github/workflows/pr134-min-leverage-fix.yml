@@ -1,0 +1,46 @@
+name: Apply PR 134 minimum leverage fix
+
+on:
+  push:
+    branches:
+      - feature/dizypaper-symbol-contract-fidelity
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/dizypaper-symbol-contract-fidelity
+          fetch-depth: 0
+      - name: Use repository Node version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply minimum leverage correction
+        run: node scripts/pr134-min-leverage-fix.mjs
+      - name: Run focused DizyPaper tests
+        run: node --conditions=react-server --import tsx --test tests/manual-paper-engine.test.mjs tests/manual-paper.test.mjs tests/mexc-contract-metadata.test.mjs
+      - name: Run full test suite
+        run: npm test
+      - name: Run lint
+        run: npm run lint
+      - name: Run production build
+        run: npm run build
+      - name: Remove branch-only machinery
+        run: rm -f scripts/pr134-min-leverage-fix.mjs .github/workflows/pr134-min-leverage-fix.yml
+      - name: Commit validated correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Enforce MEXC minimum leverage server-side"
+          git push origin HEAD:feature/dizypaper-symbol-contract-fidelity
