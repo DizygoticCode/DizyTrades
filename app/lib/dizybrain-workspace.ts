@@ -36,6 +36,14 @@ export const clampDizyBrainWidth = (value: unknown) =>
   Math.min(DIZYBRAIN_MAX_WIDTH, Math.max(DIZYBRAIN_MIN_WIDTH,
     typeof value === "number" && Number.isFinite(value) ? value : DIZYBRAIN_DEFAULT_WIDTH));
 
+export const shouldUseDizyBrainOverlay = (availableWidth: number, sidebarWidth: number) =>
+  !Number.isFinite(availableWidth) || availableWidth < 560 + clampDizyBrainWidth(sidebarWidth) + 16;
+
+export const presentOverviewFlow = (replay: boolean, flow: null | { availability: string; intelligenceConfidence: number; confidenceBand: string; walls: { candidates: readonly unknown[] } }) =>
+  replay
+    ? Object.freeze({ hidden: true as const, message: "Live DizyFlow hidden during historical Replay." })
+    : Object.freeze({ hidden: false as const, availability: flow?.availability ?? "Unavailable", confidence: flow ? `${flow.intelligenceConfidence}% · ${flow.confidenceBand}` : "Unavailable", walls: flow?.walls.candidates.length ?? 0 });
+
 export function parseDizyBrainPreferences(value: string | null): DizyBrainWorkspacePreferences {
   if (!value) return DEFAULT_DIZYBRAIN_PREFERENCES;
   try {
