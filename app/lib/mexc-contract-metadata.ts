@@ -1,6 +1,4 @@
-import { replace, write } from './utils.mjs';
-
-const metadataModule = `export type MexcContractMetadata = {
+export type MexcContractMetadata = {
   symbol: string;
   displayName: string;
   contractSize: number;
@@ -24,12 +22,12 @@ const finite = (value: unknown) => {
 };
 const positive = (value: unknown, field: string) => {
   const parsed = finite(value);
-  if (parsed === null || parsed <= 0) throw new Error(\`Invalid MEXC contract \${field}.\`);
+  if (parsed === null || parsed <= 0) throw new Error(`Invalid MEXC contract ${field}.`);
   return parsed;
 };
 const nonNegative = (value: unknown, field: string) => {
   const parsed = finite(value);
-  if (parsed === null || parsed < 0) throw new Error(\`Invalid MEXC contract \${field}.\`);
+  if (parsed === null || parsed < 0) throw new Error(`Invalid MEXC contract ${field}.`);
   return parsed;
 };
 
@@ -100,11 +98,3 @@ export function clampContractLeverage(
   if (!Number.isFinite(leverage)) return contract.minLeverage;
   return Math.min(contract.maxLeverage, Math.max(contract.minLeverage, Math.round(leverage)));
 }
-`;
-
-await write('app/lib/mexc-contract-metadata.ts', metadataModule);
-await replace(
-  'app/lib/manual-paper-engine.ts',
-  'export function sizePaperPosition(input:{mode:PaperSizeMode;amount:number;leverage:number;equity:number;price:number;side:PaperSide;stopLoss?:number|null}){\n const {amount,leverage,equity,price}=input;if(!valid(amount)||!valid(leverage)||leverage>20||!valid(equity)||!valid(price))throw new Error("INVALID_SIZING");',
-  'export function sizePaperPosition(input:{mode:PaperSizeMode;amount:number;leverage:number;equity:number;price:number;side:PaperSide;stopLoss?:number|null;maxLeverage?:number}){\n const {amount,leverage,equity,price}=input,maxLeverage=input.maxLeverage??20;if(!valid(amount)||!valid(leverage)||!valid(maxLeverage)||leverage>maxLeverage||!valid(equity)||!valid(price))throw new Error("INVALID_SIZING");',
-);

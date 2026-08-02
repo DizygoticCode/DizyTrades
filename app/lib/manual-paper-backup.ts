@@ -150,7 +150,7 @@ function settings(value: unknown): ManualSettings {
       input.defaultLeverage,
       "manualPaper.settings.defaultLeverage",
       1,
-      20,
+      1_000,
     ),
     defaultMarginMode: oneOf(
       input.defaultMarginMode,
@@ -177,7 +177,7 @@ function position(value: unknown, key: string): ManualPosition {
   if (marketSymbol !== key) throw new Error("Manual Paper position key mismatch.");
   const entryPrice = number(input.entryPrice, "manualPaper.position.entryPrice", 0.000000000001);
   const quantity = number(input.quantity, "manualPaper.position.quantity", 0.000000000001);
-  const leverage = number(input.leverage, "manualPaper.position.leverage", 1, 20);
+  const leverage = number(input.leverage, "manualPaper.position.leverage", 1, 1_000);
   return Object.freeze({
     tradeId: string(input.tradeId, "manualPaper.position.tradeId", 300),
     marketKey: string(input.marketKey, "manualPaper.position.marketKey", 100),
@@ -279,7 +279,7 @@ function fill(value: unknown, index: number): ManualFill {
     leverage:
       input.leverage == null
         ? undefined
-        : number(input.leverage, "manualPaper.fill.leverage", 1, 20),
+        : number(input.leverage, "manualPaper.fill.leverage", 1, 1_000),
     price: number(input.price, "manualPaper.fill.price", 0),
     entryPrice:
       input.entryPrice == null

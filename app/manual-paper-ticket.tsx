@@ -14,6 +14,7 @@ import type { DizyFlowIntelligenceSnapshot } from "./lib/order-flow/intelligence
 import { compactDizyFlowSample } from "./lib/historical-dizyflow-compact";
 import { HistoricalDizyFlowCaptureManager } from "./lib/historical-dizyflow-capture";
 import { HistoricalDizyFlowEventAdapter } from "./lib/historical-dizyflow-events";
+import {clampContractLeverage,leverageStopsForContract,type MexcContractMetadata} from "./lib/mexc-contract-metadata";
 type Mode = "fixed-margin" | "fixed-notional" | "equity-percent" | "risk-percent";
 type Position = {
   tradeId: string;
@@ -75,7 +76,6 @@ const money = (value: number) =>
     currency: "USD",
     maximumFractionDigits: 2,
   }).format(Number.isFinite(value) ? value : 0);
-const leverageStops = [1, 2, 3, 5, 10, 20];
 export function ManualPaperTicket({
   symbol,
   publicPrice,
@@ -104,13 +104,13 @@ export function ManualPaperTicket({
     [collapsed, setCollapsed] = useState(false),
     [hidden, setHidden] = useState(false),
     [height, setHeight] = useState(390);
-  const [riskState,setRiskState]=useState<{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null>(null);
+  const [riskState,setRiskState]=useState<{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null>(null),[contract,setContract]=useState<MexcContractMetadata|null>(null);
   const captureManager=useRef(new HistoricalDizyFlowCaptureManager()),eventAdapter=useRef(new HistoricalDizyFlowEventAdapter()),previousPosition=useRef<Position|null>(null),finalizeTimers=useRef(new Set<number>()),retryManager=useRef<HistoricalDizyFlowCaptureManager|null>(null);
   const [captureStatus,setCaptureStatus]=useState<ReturnType<HistoricalDizyFlowCaptureManager["status"]>>({state:"buffering",tradeId:null,marketKey:null,symbol:null,sampleCount:0,eventCount:0,skippedDuplicates:0,sampleLimitReached:false,eventLimitReached:false}),[captureError,setCaptureError]=useState(""),[captureWarning,setCaptureWarning]=useState("");
   const load = useCallback(async () => {
     const response = await fetch(`/api/manual-paper?symbol=${encodeURIComponent(symbol)}`);
     if (response.ok)
-      {const payload=(await response.json()) as { account: Account;riskPrice?:{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null };setAccount(payload.account);setRiskState(payload.riskPrice??null)}
+      {const payload=(await response.json()) as { account: Account;riskPrice?:{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null;contract?:MexcContractMetadata|null },nextContract=payload.contract??null;setAccount(payload.account);setRiskState(payload.riskPrice??null);setContract(nextContract);if(nextContract)setLeverage(current=>String(clampContractLeverage(Number(current),nextContract)))}
   }, [symbol]);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external account synchronisation
@@ -130,9 +130,9 @@ export function ManualPaperTicket({
           headers: { "content-type": "application/json" },
           body: JSON.stringify(body),
         }),
-        data = (await response.json()) as { account?: Account; error?: string };
+        data = (await response.json()) as { account?: Account; error?: string|{message?:string} };
       if (!response.ok)
-        throw new Error(data.error || "Manual Paper request failed");
+        throw new Error(typeof data.error==="string"?data.error:data.error?.message||"Manual Paper request failed");
       if (data.account) setAccount(data.account);
     } catch (value) {
       setError(
@@ -152,7 +152,8 @@ export function ManualPaperTicket({
     equity = Math.max(0, (account?.cashBalance ?? 0) + unrealised),
     summary=paperAccountSummary(account?.cashBalance??0,Object.values(account?.positions??{}).map(p=>({...p,margin:p.margin??p.quantity*p.entryPrice/p.leverage})),Object.values(account?.positions??{}).map(p=>p.symbol===symbol?mark:p.lastRiskPrice)),used=summary.usedMargin,
     amountNumber = Math.max(0, Number(amount) || 0),
-    leverageNumber = Math.max(1, Number(leverage) || 1),
+    leverageNumber = contract?clampContractLeverage(Number(leverage),contract):Math.max(1,Number(leverage)||1),
+    leverageStops=leverageStopsForContract(contract),
     margin = Math.max(
       0,
       mode === "equity-percent"||mode==="risk-percent"
@@ -261,7 +262,8 @@ export function ManualPaperTicket({
       readOnly ||
       !account?.settings.enabled ||
       !publicPrice ||
-      invalidAmount;
+      invalidAmount ||
+      !contract;
   if (hidden)
     return (
       <button className={styles.reopen} onClick={() => setHidden(false)}>
@@ -410,14 +412,19 @@ export function ManualPaperTicket({
             </label>
             <section>
               <div className={styles.sectionTitle}>
-                <span>Leverage · simulator fallback range</span>
+                <span>{contract?`Leverage · MEXC public range ${contract.minLeverage}–${contract.maxLeverage}×`:"Leverage · MEXC rules unavailable"}</span>
                 <b>{leverageNumber}×</b>
               </div>
+              <label>
+                Selected leverage
+                <input type="number" min={contract?.minLeverage??1} max={contract?.maxLeverage??20} step="1" value={leverage} disabled={!contract} onChange={event=>{const value=contract?clampContractLeverage(Number(event.target.value),contract):1;setLeverage(String(value));if(sizePercent>0)setAmount(String(sliderToAmount(sizePercent,equity,mode,value)))}} />
+              </label>
               <div className={styles.leverages}>
                 {leverageStops.map((value) => (
                   <button
                     key={value}
                     className={leverageNumber === value ? styles.active : ""}
+                    disabled={!contract}
                     onClick={() => {
                       setLeverage(String(value));
                       if (sizePercent > 0)
@@ -497,6 +504,8 @@ export function ManualPaperTicket({
                 ["Margin", money(margin)],
                 ["Notional", money(notional)],
                 ["Leverage", `${leverageNumber}×`],
+                ["MEXC contract range", contract?`${contract.minLeverage}–${contract.maxLeverage}×`:"Unavailable"],
+                ["Maintenance margin", contract?`${(contract.maintenanceMarginRate*100).toFixed(3)}%`:"Simulator fallback"],
                 ["Estimated fee", money(fee)],
                 ["Risk amount", money(riskAmount)],
                 ["Estimated liquidation", Number.isFinite(liquidation)?money(liquidation):"—"],
@@ -510,6 +519,7 @@ export function ManualPaperTicket({
               ))}
             </div>
             <div className={styles.warnings}>
+              {!contract?<span>Public MEXC contract rules unavailable — opening new paper positions is disabled.</span>:null}
               {!stopLoss?<span>No stop loss — estimated liquidation remains active.</span>:null}
               {marginMode==="cross"?<span>Cross collateral is a simulator approximation, not MEXC-exact.</span>:null}
               {riskState?.source!=="fair"?<span>Fair price unavailable — explicit Last-price fallback{riskState?.stale?" (last valid mark preserved)":""}.</span>:null}
