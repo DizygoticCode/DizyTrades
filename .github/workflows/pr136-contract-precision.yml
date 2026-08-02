@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
 
+# Branch-only implementation gate; removed before the validated source commit.
 jobs:
   apply-and-validate:
     runs-on: ubuntu-latest
