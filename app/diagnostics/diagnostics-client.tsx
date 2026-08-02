@@ -55,11 +55,15 @@ export default function DiagnosticsClient({ userName }: { userName: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    void refresh(controller.signal);
-    const timer = window.setInterval(() => void refresh(), 30_000);
+    const initialTimer = window.setTimeout(
+      () => void refresh(controller.signal),
+      0,
+    );
+    const intervalTimer = window.setInterval(() => void refresh(), 30_000);
     return () => {
       controller.abort();
-      window.clearInterval(timer);
+      window.clearTimeout(initialTimer);
+      window.clearInterval(intervalTimer);
     };
   }, [refresh]);
 
