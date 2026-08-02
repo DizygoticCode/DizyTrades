@@ -36,13 +36,15 @@ export function scannerUniverse(
   limit = SCANNER_MARKET_LIMIT,
 ): MarketDescriptor[] {
   const active = markets.filter(market => market.status === "active");
-  const byKey = new Map(active.map(market => [market.key, market]));
+  const byKey = new Map<string, MarketDescriptor>(
+    active.map(market => [market.key, market] as const),
+  );
   const selected = favourites.map(key => byKey.get(key)).filter((market): market is MarketDescriptor => Boolean(market));
   const fallback = [...active]
     .filter(market => market.marketType === "futures")
     .sort((a, b) => (b.volume24h ?? 0) - (a.volume24h ?? 0));
   const combined = selected.length ? [...selected, ...fallback] : fallback;
-  return [...new Map(combined.map(market => [market.key, market])).values()].slice(0, Math.max(1, Math.min(SCANNER_MARKET_LIMIT, limit)));
+  return [...new Map<string, MarketDescriptor>(combined.map(market => [market.key, market] as const)).values()].slice(0, Math.max(1, Math.min(SCANNER_MARKET_LIMIT, limit)));
 }
 
 export function buildScannerRow(
@@ -103,6 +105,6 @@ export function sortScannerRows(rows: readonly ScannerRow[], sort: ScannerSort, 
 }
 
 export function normaliseWatchlist(keys: readonly string[], markets: readonly MarketDescriptor[]): string[] {
-  const valid = new Set(markets.map(market => market.key));
+  const valid = new Set<string>(markets.map(market => market.key));
   return [...new Set(keys.filter(key => valid.has(key)))].slice(0, SCANNER_MARKET_LIMIT);
 }
