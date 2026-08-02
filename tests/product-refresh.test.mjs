@@ -8,6 +8,7 @@ import {
   readAcademyProgress,
   writeAcademyProgress,
 } from "../app/school/academy-catalogue.ts";
+import { canAccessOperations } from "../app/lib/operations-access.ts";
 import {
   DEFAULT_ORDER_FLOW_SETTINGS,
   DOM_SAFE_MINIMUM_WIDTH,
@@ -102,4 +103,12 @@ test("DOM defaults and saved settings stay above the no-scroll minimum", () => {
   );
   assert.equal(sanitiseOrderFlowSettings({ dom: { width: 999 } }).dom.width, 380);
   assert.equal(sanitiseOrderFlowSettings({ dom: { width: 300 } }).dom.width, 300);
+});
+
+test("DizyOps permits only owner and admin roles", () => {
+  assert.equal(canAccessOperations("owner"), true);
+  assert.equal(canAccessOperations("admin"), true);
+  assert.equal(canAccessOperations("user"), false);
+  assert.equal(canAccessOperations("viewer"), false);
+  assert.equal(canAccessOperations("unknown"), false);
 });
