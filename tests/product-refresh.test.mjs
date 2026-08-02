@@ -64,7 +64,7 @@ test("Academy search reaches newly shipped workflows", () => {
     ),
   );
   assert.ok(
-    filterAcademyLessons("owner admin").some(
+    filterAcademyLessons("owner/admin").some(
       (lesson) => lesson.slug === "dizyops-diagnostics",
     ),
   );
