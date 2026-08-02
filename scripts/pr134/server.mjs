@@ -52,4 +52,9 @@ await replace(
   'else{const symbol=String(body.symbol??""),risk=await latestPublicRiskPrice(symbol);account=body.action==="close"||body.action==="flash-close"?await closeManualPosition(user.id,symbol,String(body.idempotencyKey),risk.price):body.action==="partial-close"?await partialCloseManualPosition(user.id,symbol,String(body.idempotencyKey),risk.price,body):body.action==="reverse"?await reverseManualPosition(user.id,symbol,String(body.idempotencyKey),risk.price):await submitManualOrder(user.id,body as never,risk.price,risk.source,await latestPublicContractMetadata(symbol))}',
 );
 
-await replaceAllChecked('app/lib/manual-paper-backup.ts', '1, 20', '1, 1_000', 3);
+await replaceAllChecked('app/lib/manual-paper-backup.ts', '1, 20', '1, 1_000', 2);
+await replace(
+  'app/lib/manual-paper-backup.ts',
+  '    defaultLeverage: number(\n      input.defaultLeverage,\n      "manualPaper.settings.defaultLeverage",\n      1,\n      20,\n    ),',
+  '    defaultLeverage: number(\n      input.defaultLeverage,\n      "manualPaper.settings.defaultLeverage",\n      1,\n      1_000,\n    ),',
+);
