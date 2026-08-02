@@ -18,3 +18,27 @@ test("request gate rejects stale and changed identities",()=>{const gate=new Rep
 test("snapshot prefix is invariant to appended future data",()=>{const atOne=jumpReplay(session(),candles,1);const a=createReplaySnapshot({session:atOne,candles,strategy:DEFAULT_STRATEGY,risk:DEFAULT_RISK});const b=createReplaySnapshot({session:atOne,candles:[...candles,candle(300,9999)],strategy:DEFAULT_STRATEGY,risk:DEFAULT_RISK});assert.equal(replayPrefix(candles,1).length,2);assert.deepEqual(a,b);assert.equal(a.dizyBrainSnapshot.provenance.source,"replay");assert.equal(a.dizyBrainSnapshot.provenance.replayTimestampMs,120000);assert.ok(a.signalAnalysis.tradeSignals.every(signal=>signal.time<=120));assert.deepEqual(JSON.parse(JSON.stringify(a)),a);});
 
 test("playing progression remains latched until the final candle",()=>{const candles=[candle(1),candle(2),candle(3)],range=replayRangeForCandles(candles,"1m");let session=createReplaySession({id:"latched",symbol:"BTC_USDT",timeframe:"1m",...range,startedAt:1,candles});session={...session,status:"playing"};session=progressReplay(session,candles);assert.equal(session.cursorIndex,1);assert.equal(session.status,"playing");session=progressReplay(session,candles);assert.equal(session.cursorIndex,2);assert.equal(session.status,"ended");assert.equal(progressReplay(session,candles).cursorIndex,2)});
+
+test("records authoritative Replay cursor transitions",()=>{
+  const items=[candle(1),candle(2),candle(3)],range=replayRangeForCandles(items,"1m");
+  let current=createReplaySession({id:"transitions",symbol:"BTC_USDT",timeframe:"1m",...range,startedAt:1,candles:items});
+  assert.equal(current.previousCursorTimeMs,null);
+  current={...current,status:"playing"};
+  current=progressReplay(current,items);
+  assert.equal(current.previousCursorTimeMs,1000);
+  assert.equal(current.cursorTimeMs,2000);
+  assert.equal(current.transitionKind,"timer");
+  current=stepReplay(current,items,-1);
+  assert.equal(current.previousCursorTimeMs,2000);
+  assert.equal(current.cursorTimeMs,1000);
+  assert.equal(current.transitionKind,"previous");
+});
+
+test("terminal playback uses one self-terminating timeout per cursor",()=>{
+  const source=readFileSync(new URL("../app/trading-terminal.tsx",import.meta.url),"utf8");
+  assert.doesNotMatch(source,/const schedule=/);
+  assert.match(source,/current\.status!=="playing"/);
+  assert.match(source,/activeReplaySession\?\.cursorIndex/);
+  assert.match(source,/signal:controller\.signal/);
+  assert.match(source,/historicalFlowRequest\.current/);
+});
