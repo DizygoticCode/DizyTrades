@@ -14,12 +14,7 @@ await replace(
 await replace(
   'app/manual-paper-ticket.tsx',
   '{const payload=(await response.json()) as { account: Account;riskPrice?:{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null };setAccount(payload.account);setRiskState(payload.riskPrice??null)}',
-  '{const payload=(await response.json()) as { account: Account;riskPrice?:{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null;contract?:MexcContractMetadata|null };setAccount(payload.account);setRiskState(payload.riskPrice??null);setContract(payload.contract??null)}',
-);
-await replace(
-  'app/manual-paper-ticket.tsx',
-  '  useEffect(()=>{if(!account?.positions[symbol])return;const timer=window.setInterval(()=>void load(),5000);return()=>window.clearInterval(timer)},[account?.positions,symbol,load]);',
-  '  useEffect(()=>{if(!account?.positions[symbol])return;const timer=window.setInterval(()=>void load(),5000);return()=>window.clearInterval(timer)},[account?.positions,symbol,load]);\n  useEffect(()=>{if(!contract)return;/* eslint-disable-next-line react-hooks/set-state-in-effect -- clamp persisted leverage to current public contract rules */setLeverage(current=>String(clampContractLeverage(Number(current),contract)))},[contract]);',
+  '{const payload=(await response.json()) as { account: Account;riskPrice?:{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null;contract?:MexcContractMetadata|null },nextContract=payload.contract??null;setAccount(payload.account);setRiskState(payload.riskPrice??null);setContract(nextContract);if(nextContract)setLeverage(current=>String(clampContractLeverage(Number(current),nextContract)))}',
 );
 await replace(
   'app/manual-paper-ticket.tsx',
