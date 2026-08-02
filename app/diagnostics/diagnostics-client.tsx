@@ -83,7 +83,7 @@ export default function DiagnosticsClient({ userName }: { userName: string }) {
 
       <section className={styles.hero}>
         <div>
-          <span>OWNER-ONLY OPERATIONS WORKSPACE</span>
+          <span>OWNER / ADMIN OPERATIONS WORKSPACE</span>
           <h1>Know what is deployed, retained and degraded.</h1>
           <p>
             Runtime and persistent-storage diagnostics only. Secrets, raw user data,

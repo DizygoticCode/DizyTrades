@@ -2,78 +2,97 @@
 
 This is a living high-level history of user-facing milestones. Pull requests remain the detailed technical record.
 
-## Current active beta
+## Current active beta — August 2026
+
+### Connected professional workflow
+
+- Added DizyJournal with immutable Trade Reviews, notes, tags, archive, statistics and safe editing.
+- Added Historical Replay Memory around eligible completed DizyPaper trades.
+- Added deterministic DizyBrain historical trade reviews.
+- Added DizyBrain Behaviour aggregation across valid reviewed samples.
+- Added compact Historical DizyFlow capture around eligible completed trades.
+- Added Guided Historical Trade Review with Context, Entry, Management, Exit and Reflection stages.
+- Added continuous DizyReplay playback from 0.25× through 10×.
+- Added Replay viewport following that preserves zoom and keeps the revealed candle in frame.
+
+### Discovery and market structure
+
+- Added DizyScanner with saved watchlists, bounded concurrency and top-volume fallback.
+- Reused the authoritative DizySignals engine across scanner rows.
+- Added setup direction, evidence split, phase, signal age, sorting and direct chart handoff.
+- Added DizyStructure with UTC sessions, exact opening ranges, previous-day/week levels and anchored VWAP.
+- Added confirmed HH/LH and HL/LL swings, nearby level clusters and available-feed-only timeframe alignment.
+
+### Performance and review
+
+- Added DizyPerformance using immutable completed Journal Trade Reviews.
+- Added realised PnL, peak-to-trough drawdown, expectancy, profit factor and payoff ratio.
+- Added streak, holding-time, fee-coverage and R-distribution views.
+- Added deterministic symbol, timeframe, direction and close-reason breakdowns.
+- Kept process-quality Journal statistics and Behaviour observations separate from outcome metrics.
+
+### Operations and recovery
+
+- Added Playwright Chromium smoke tests for authentication, viewer boundaries and roadmap navigation.
+- Added a protected DizyOps workspace for bounded build, runtime, storage and audit health.
+- Added owner-scoped full JSON backup export and Journal CSV export.
+- Added integrity hashing, local parsing, server dry-run validation and explicit restore confirmation.
+- Added conflict-aware additive recovery without silently replacing current records or open Manual Paper state.
 
 ### DizyBrain
 
-- Added the DizyBrain transparent signal-reasoning drawer.
-- Added terminal top-bar access and a floating launcher.
-- Added current confluence, bias, phase, risk context and setup progression.
-- Removed stale historical BUY/SELL text from the current setup view.
-- Removed invented fixed confluence thresholds.
-- Added regression coverage separating current setup direction from historical signal context.
+- Added a full-height docked Analysis Workspace.
+- Added typed live evidence, qualification, provenance and rejection reasoning.
+- Added Flow, Position, Replay, Journal, Behaviour and Diagnostics modules.
+- Kept DizyBrain deterministic and non-predictive.
 
 ### DizyFlow
 
-- Added grouped depth-of-market bids and asks.
-- Added trade bubbles and public MEXC transaction processing.
-- Added bounded in-memory and persistent liquidity history.
-- Added heatmap render diagnostics, retained invalidation and effective display-bin geometry.
-- Added feed-health, delayed, offline and recovery states.
-- Heatmap data and diagnostics exist, but stable customer-facing rendering remains active work.
+- Added current Market Depth histogram and imbalance display.
+- Added a professional grouped and virtualised DOM ladder.
+- Added recent-trade flashes, cluster highlights and optional visible queue estimates.
+- Added bounded retained liquidity history and viewport tile delivery.
+- Added DizyFlow Intelligence snapshots and Historical DizyFlow retention.
+- Added explicit live, delayed, stale, unavailable and recovery states.
 
-### DizyCharts and drawing tools
+### DizyCharts and DizySignals
 
-- Expanded native timeframe support and market discovery.
+- Expanded native timeframe and unified market discovery.
 - Added support/resistance, VWAP, Volume Profile, Fibonacci, structure labels and regression channels.
-- Added editable manual drawings, extension modes, object history and safer hit testing.
-- Added display indicators including moving averages, Bollinger Bands, RSI, MACD and ATR.
-- Improved price countdown, rollover stability, label lanes and profile-safe plotting.
-
-### DizySignals
-
-- Added confirmed-candle deterministic analysis.
-- Added historical signal scanning beyond short recent windows.
-- Added stable signal timestamps, deduplication and five-part detail records.
-- Added Pine-parity reporting without fabricated returns.
-- Added paper simulation fingerprints that ignore harmless live UI changes.
+- Added editable manual drawings, extension modes and safer chart layout lanes.
+- Added deterministic confirmed-candle DizySignals evidence and historical scanning.
+- Added Replay-safe prefix reconstruction and viewport following.
 
 ### DizyPaper
 
 - Added manual and signal-driven simulation.
-- Added fixed-margin, fixed-notional and equity-percentage sizing.
-- Added leverage-aware notional calculations, fees and mark-to-market presentation.
-- Added saved snapshots, per-user isolation and impossible-liquidity rejection.
-
-### DizyDEX and market browser
-
-- Added unified MEXC spot and perpetual discovery.
-- Added on-chain pool discovery through public providers.
-- Added quote filters, source-aware searches, favourites and graceful provider degradation.
+- Added fixed-margin, fixed-notional, equity-percentage and risk-percentage sizing.
+- Added isolated/cross-margin approximations, leverage, fees, slippage and estimated liquidation.
+- Added Fair/Mark-first risk pricing, partial closes, reversal and flatten actions.
+- Added completed-trade capture into Journal, Replay and retained evidence workflows.
 
 ### DizyAcademy
 
-- Added beginner, intermediate and advanced lesson groups.
-- Added DizySignals, DizyFlow, DOM, heatmap, order-flow and institutional concepts.
-- Added search, browser-local progress and responsive course navigation.
-- Added original SVG lesson diagrams and subsequent visual corrections.
+- Added beginner, intermediate, Advanced Order Flow and Professional Practice groups.
+- Added original SVG diagrams and browser-local progress.
+- Added current-workflow lessons for Scanner, Structure, Replay, Historical DizyFlow, Guided Review, Performance, Behaviour, DizyOps and Backup/Recovery.
 
 ### Product and platform
 
-- Added public marketing pages and branded product navigation.
-- Added view-only terminal sessions.
+- Added public marketing and real view-only terminal access.
 - Added account storage, isolated profiles and saved workspaces.
-- Added production loading, recovery, not-found, sign-in and signup states.
-- Rewrote the repository README around the product.
-- Added automated lint, test and production-build gates.
+- Added DizyDEX public on-chain discovery.
+- Added stale-tab-safe market-only workspace handoffs.
+- Added automated lint, deterministic tests, production build and Chromium browser gates.
 
-## In progress
+## Active programme
 
-- MEXC Last, Fair and Index price sources
-- Manual Paper Simulator v2 with exchange-style leverage and liquidation
-- Market Depth histogram beside the price scale
-- DizyBrain typed state contract
-- DizyAcademy product refresh
+- DizyPaper Fidelity V2: contract precision, funding, maker/taker assumptions, partial fills and deeper margin realism.
+- Workflow, responsive and accessibility polish driven by real use.
+- Read-only exchange connection and shadow reconciliation before any execution work.
+- Independent correctness, storage and security audit.
+
+Live execution remains disabled.
 
 ## Release-note policy
 

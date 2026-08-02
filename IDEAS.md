@@ -1,110 +1,107 @@
 # DizyTrades Idea Backlog
 
-This file captures product ideas without promising delivery order. Items move into `ROADMAP.md` only after scope, dependencies and safety requirements are understood.
+This file captures possible future work without promising delivery order. Shipped capabilities belong in `README.md` and `RELEASE_NOTES.md`; active commitments belong in `ROADMAP.md`.
 
-## DizyBrain
+## DizyBrain and review
 
-- Historical rule ledger
-- Per-candle rejection archive
-- “Why not earlier?” comparison
-- Signal-to-signal comparison
-- Clickable glossary and evidence definitions
-- Exportable analysis cards
-- Journal integration
-- Replay narration
+- Per-candle rejection ledger and “why not earlier?” comparison
+- Signal-to-signal evidence comparison
+- Clickable evidence glossary inside the Analysis Workspace
+- Exportable analysis and review cards
+- Replay narration tied only to the revealed candle prefix
 - Strategy-threshold and missing-input explanations
+- Review bookmarks and side-by-side trade comparison
 
 ## Charting and workspace
 
-- Multi-chart layouts
-- Linked symbols and timeframes
-- Detachable panels
-- Multi-monitor workspace
-- Saved layout templates
-- Drawing templates
-- Indicator presets
+- Multi-chart layouts with linked symbols and timeframes
+- Detachable panels and multi-monitor workspace support
+- Saved layout, drawing and indicator templates
 - Screenshot and annotated-share workflow
-- Session and market-open overlays
-- Economic-calendar overlay
+- Economic-calendar overlay with explicit source and freshness
+- Responsive and accessibility audit across every workspace
+- Command palette and documented keyboard shortcuts
 
-## Replay and review
+## Replay and education
 
-- Candle-by-candle Trade Replay
-- Variable replay speed
-- Hide-future-data mode
-- DizyBrain setup narration
 - Replay bookmarks
-- Quiz mode: predict structure before reveal
-- Compare live decision with replay result
-- Automatic journal entry from replay
+- Quiz mode: predict structure before revealing the next candle
+- Compare the original decision with a fresh replay decision
+- Contextual Academy links from Scanner, Structure, Replay and Journal
+- Structure-identification and DOM exercises
+- Progress badges and course paths for scalp, swing and order-flow practice
+- “Why DizySignals said NO” case library
 
-## Signals and strategy
+## Signals and strategy research
 
-- Visual strategy builder
-- Confluence block editor
+- Visual strategy and confluence-rule builder
 - Rejected-signal scanner
-- Market-regime presets
-- Cross-timeframe confirmation
+- Market-regime presets and deterministic cross-timeframe confirmation
 - Alert conditions from deterministic rules
-- Walk-forward testing
-- Monte Carlo and sequence-risk analysis
-- Strategy versioning and change history
+- Walk-forward testing and strategy-version history
+- Monte Carlo and sequence-risk analysis with explicit assumptions
 
-## DizyFlow and institutional analysis
+## DizyFlow and market microstructure
 
-- Market Depth histogram
 - Full footprint chart
-- Bid/ask delta
-- Cumulative delta
+- Bid/ask delta and cumulative delta
 - Imbalance stacks
-- Absorption and exhaustion detection
-- Iceberg-style activity heuristics
+- Absorption and exhaustion evidence
 - Liquidity sweep and refill tracking
 - DOM ladder trading simulator
-- Large-trade tape
-- Order-flow replay
+- Large-trade tape and order-flow replay
 - Correlated liquidity views
-- Reproducible heatmap visual harness
+- Reproducible visual regression harness for heatmap and DOM states
+
+Iceberg, spoofing or institutional-intent labels must remain unavailable until the evidence and limitations can be stated honestly.
 
 ## Market discovery
 
 - Cross-exchange symbol comparison
-- Funding-rate scanner
-- Open-interest workspace
+- Funding-rate and open-interest workspaces
 - Basis and premium views
 - Volatility and volume scanners
 - New-listing monitor
 - DEX/CEX spread comparison
-- Correlation clusters
-- Market-regime dashboard
-- Custom watchlist columns
+- Correlation clusters and market-regime dashboard
+- Custom Scanner columns and saved scan presets
 
-## Paper trading and analytics
+## DizyPaper Fidelity V2
 
-- MEXC-style leverage ranges by symbol
-- Fair-price liquidation modelling
-- Partial closes and position scaling
-- Isolated and cross-margin simulations
+- Contract price and quantity-step enforcement
+- Maker and taker fee selection
 - Funding-fee simulation
-- Slippage models
-- Session loss limits
-- Risk-of-ruin estimates
-- Expectancy by setup and market regime
-- Equity curve, drawdown and streak analysis
-- Trade tagging and notes
+- Partial fills and depth-sensitive slippage
+- Reduce-only and close-only behaviour
+- Exchange maintenance-margin tiers where metadata is authoritative
+- Clearer isolated versus cross-margin modelling
+- Liquidation and bankruptcy-price audit trails
+- Session loss limits and risk-of-ruin estimates
 - Shareable paper-performance reports
 
-## Education
+## Operations and recovery
 
-- Interactive DizyBrain lessons
-- DOM and footprint exercises
-- Structure-identification challenges
-- Replay quizzes
-- Progress badges
-- Course paths for beginner, swing, scalp and order-flow traders
-- Glossary search across the application
-- Contextual lesson links from terminal controls
-- “Why DizySignals said NO” case library
+- Scheduled backup reminders and retention guidance
+- Restore rehearsal mode against an isolated temporary account
+- Provider freshness and latency probes in DizyOps
+- Sanitised client-error reporting
+- Storage growth projections and retention controls
+- Deployment smoke checks against the newly deployed Render commit
+
+## Exchange connectivity
+
+These ideas remain blocked by the security programme and must be delivered in order.
+
+1. Read-only MEXC account connection
+2. Balance and position reconciliation
+3. Shadow orders showing what would have been submitted
+4. Immutable order-preview and reconciliation audit
+5. Independent security review
+6. Guarded test-account execution
+7. Per-user notional limits, stale-price rejection and kill switch
+8. Broader execution only after sustained beta evidence
+
+No private exchange key should ever be accepted by browser code.
 
 ## Collaboration and community
 
@@ -112,24 +109,9 @@ This file captures product ideas without promising delivery order. Items move in
 - Read-only workspace links
 - Team notes and annotations
 - Mentor/student review mode
-- Strategy template sharing
+- Strategy-template sharing
 - Public roadmap voting
-- Community lesson submissions with review
-
-## Exchange connectivity
-
-These ideas remain blocked by the security milestone.
-
-- Read-only MEXC account connection
-- Position and balance dashboard
-- Order preview
-- Guarded live execution
-- Server-side alerts and automation
-- Multi-account support
-- Multi-exchange adapters
-- Position reconciliation
-- Kill switch
-- Mobile approval flow
+- Reviewed community lesson submissions
 
 ## Experimental ideas
 
@@ -137,18 +119,18 @@ These ideas remain blocked by the security milestone.
 - DizyBrain audio explanations
 - Native desktop wrapper
 - Mobile companion
-- Risk heatmap across a portfolio
-- Institutional activity scanner
+- Portfolio risk heatmap
 - Automated daily market review
-- Personal trading-coach summaries based only on deterministic journal data
+- Personal process summaries derived only from deterministic Journal evidence
 
 ## Promotion rule
 
-An idea moves into the roadmap when it has:
+An idea moves into the roadmap only when it has:
 
 - a clear user problem;
 - defined inputs and outputs;
 - known dependencies;
-- safety and performance boundaries;
+- safety, privacy and performance boundaries;
 - a small-PR delivery path;
-- acceptance criteria that can be tested.
+- acceptance criteria that can be tested;
+- an honest unavailable state.

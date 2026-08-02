@@ -1,8 +1,8 @@
 # DizyTrades Architecture
 
-This document describes **how DizyTrades is structured** and the intended boundaries between public market data, chart presentation, deterministic analysis, simulation, replay, research and future exchange connectivity.
+This document describes the current boundaries between public market data, deterministic analysis, simulation, replay, review, analytics, operations and future exchange connectivity.
 
-The enduring mission and research philosophy live in [VISION.md](VISION.md). Delivery order lives in [ROADMAP.md](ROADMAP.md).
+The enduring mission lives in [VISION.md](VISION.md). Delivery order lives in [ROADMAP.md](ROADMAP.md).
 
 ## System overview
 
@@ -12,122 +12,100 @@ Public exchange and discovery providers
 Transport, validation and normalisation
                 ↓
 Typed live market state + bounded retained history
-        ┌──────────┼──────────┐
-        ↓          ↓          ↓
-   DizyCharts   DizyFlow   DizyDEX
-        ↓          ↓
-     DizySignals   │
-        ↓          │
-     DizyBrain  ←──┘
+        ┌──────────┼──────────┬─────────────┐
+        ↓          ↓          ↓             ↓
+   DizyCharts   DizyFlow   DizyScanner  DizyStructure
+        ↓          ↓          ↓             ↓
+     DizySignals ──────────────┴─────────────┘
+        ↓
+     DizyBrain
         ↓
       DizyPaper
         ↓
    DizyJournal
         ↓
-    DizyReplay
+    DizyReplay ← Historical Replay Memory
+        ↓       ← Historical DizyFlow
+ Guided Review + Historical DizyBrain Review
         ↓
- DizyQuant research
+ Behaviour aggregation + DizyPerformance
 ```
 
-Authentication, profiles, workspaces, paper accounts, journals and audit storage sit beside this market-data path. They must not be mixed into public feed processing.
+Authentication, profiles, workspaces, Paper accounts, Journals, retained evidence, backups and audit storage sit beside the public market-data path. They must not be mixed into provider transport.
 
 ## Product surfaces
 
-### Public application
+### Public
 
-- Marketing site
-- View-only terminal launcher
+- marketing site
+- view-only terminal launcher
 - DizyAcademy
-- Market discovery
-- Sign-in and signup
-- Loading, recovery and not-found states
+- DizyDEX discovery
+- sign-in and signup
+- loading, recovery and not-found states
 
-### Protected terminal
+### Protected research and workflow
 
-- DizyCharts
+- DizyCharts terminal
 - DizySignals
-- DizyFlow
+- DizyBrain workspace
+- DizyFlow and DOM
 - DizyPaper
-- DizyBrain
-- Market browser
-- Settings, appearance and saved workspaces
+- DizyScanner
+- DizyStructure
+- DizyJournal and Guided Review
+- DizyPerformance
+- DizyOps
+- DizyBackup
 
-### Planned protected modules
+Viewer sessions may access selected read-only research surfaces but cannot write profile, Paper, Journal, workspace, backup or account data.
 
-- DizyReplay
-- DizyJournal
-- DizyQuant research views
-- Unified Product Launcher
-- Watchlists, alerts and analytics
+## External data boundary
 
-## Data layers
-
-### Exchange transport
-
-Responsibilities:
+Transport responsibilities:
 
 - REST, WebSocket and SSE connectivity
 - official symbol and contract metadata
 - candles, ticker prices, depth and public trades
 - timeout, retry and recovery handling
-- sequence and duplicate protection
+- sequence, duplicate and stale protection
 
-Transport code must not contain user-interface assumptions, strategy rules or paper-trading calculations.
+Transport code must not contain user-interface assumptions, strategy rules or Paper accounting.
 
-### Validation and normalisation
-
-Every external value must be validated before entering shared state.
-
-Responsibilities:
+Every external value is validated before entering shared state:
 
 - finite numeric conversion
-- symbol and market identity normalisation
+- market and symbol identity normalisation
 - timeframe mapping
 - sorting and deduplication
-- stale and unavailable classification
-- explicit fallback metadata
-- bounded collection and retention limits
+- stale, delayed, fallback and unavailable classification
+- bounded collections and retention
 
-### Typed market state
+## Typed market-state distinctions
 
-Shared state must distinguish concepts that may look similar in the interface:
+The platform must keep these concepts separate:
 
 - closed candles versus a forming candle
 - Last price versus Fair/Mark price versus Index price
 - selected display source versus authoritative risk source
-- current setup direction versus historical confirmed signal
-- current resting depth versus retained liquidity history
-- current resting depth versus historical executed Volume Profile
+- setup direction versus historical confirmed signal
+- current resting depth versus executed Volume Profile
+- current depth versus retained historical liquidity
 - public trades versus resting orders
 - live state versus replay state
-- informational research observations versus validated signal evidence
+- observed evidence versus trader reflection
+- simulation assumptions versus exchange facts
+- informational research versus validated signal evidence
 
 Rendered DOM text must never substitute for typed application state.
 
-## Chart and visualisation boundaries
+## DizyCharts
 
 DizyCharts renders price, structure, indicators and manual drawings.
 
-Visual preferences may change:
+Visual preferences may change colours, width, label size, visible overlays, display price, panel dimensions and layout. They must not silently change strategy inputs, historical qualification, Paper fills, liquidation marking, retained evidence or research validation status.
 
-- colours
-- line width
-- label size
-- visible overlays
-- display price source
-- layout and panel dimensions
-
-They must not silently change:
-
-- strategy inputs
-- confirmed-candle history
-- signal qualification
-- paper fills
-- liquidation marking
-- risk limits
-- research validation status
-
-Complex chart primitives should consume typed render models and bounded stores. High-frequency depth or trade updates should not force the whole React terminal to rerender.
+Complex chart primitives consume typed render models and bounded stores. High-frequency depth and trade updates must not rerender the whole React terminal.
 
 ## DizySignals
 
@@ -135,60 +113,67 @@ DizySignals is a deterministic confirmed-candle engine.
 
 Responsibilities:
 
-- calculate trend, structure, volume and risk context
-- produce stable historical signal markers
-- preserve confirmed-candle and prefix-invariance behaviour where tested
-- expose typed evidence for each setup
-- provide strategy and simulation inputs
+- trend, structure, volume and risk context
+- stable historical signal markers
+- prefix-invariant evidence where tested
+- typed qualification and rejection reasons
+- strategy and simulation inputs
 
-DizySignals must not:
-
-- scrape rendered chart labels
-- consume state from the isolated TradingView widget
-- treat current order-book imbalance as a prediction
-- accept a DizyQuant metric before validation and an explicit promotion decision
+DizySignals must not scrape rendered labels, consume TradingView widget state, treat current order-book imbalance as prediction or accept DizyQuant metrics without validation and explicit promotion.
 
 ## DizyBrain
 
-DizyBrain is an explanation layer, not a separate prediction engine.
+DizyBrain is an explanation and review layer.
 
-It consumes the typed `DizyBrainSnapshot` supplied directly by terminal and strategy state. The snapshot includes current direction, bias, phase, long and short scores, active confluence, configured qualification threshold, latest-closed-candle signal provenance, risk context, checklist state and explanation metadata.
+Live snapshots include current direction, bias, phase, separate long/short scores, active confluence, configured threshold, confirmed-signal provenance, risk context, checklist state and typed explanation metadata.
 
-Historical signal records use a separate type and interface section.
-
-DizyBrain must not invent:
-
-- thresholds
-- historical timestamps
-- unavailable rule events
-- probability claims
-- microstructure narratives unsupported by typed measurements
-
-Future DizyQuant context should enter DizyBrain through a separate typed microstructure snapshot with explicit informational, experimental or validated status.
+Historical review uses retained immutable evidence and a separate deterministic model. Behaviour aggregates completed historical reviews; it does not rerun trades, load Replay candle arrays or predict future performance.
 
 ## DizyFlow
 
-DizyFlow handles market-microstructure data beneath and beside the candles.
-
-Responsibilities:
+DizyFlow owns public microstructure state beneath the candles:
 
 - validated order-book snapshots and sequential updates
-- current Market Depth histogram and imbalance
-- grouped and virtualised DOM bids and asks
-- recent public-trade context
-- estimated visible queue-ahead education
+- current Market Depth histogram
+- grouped virtualised DOM
+- recent public trades and flashes
+- educational visible queue estimates
 - bounded retained liquidity history
-- heatmap tiles and rendering data
-- feed health and diagnostic state
+- heatmap tiles and render data
+- feed health and diagnostics
+- typed DizyFlow Intelligence snapshots
 
-Market Depth and Volume Profile are distinct:
+Visible queue is approximate because hidden liquidity, venue priority, amendments, cancellations and latency are unavailable. A diagnostic proving retained data exists does not automatically prove every customer-facing visual rendered correctly.
 
-- **Market Depth** represents current resting liquidity.
-- **Volume Profile** represents historical executed volume by price.
+## DizyScanner
 
-Visible queue is approximate. Hidden orders, exchange priority, amendments, cancellations and latency are unavailable without private matching-engine information.
+DizyScanner reuses the existing market catalogue, confirmed-candle API and DizySignals settings.
 
-A diagnostic showing retained heatmap data does not prove that a customer-facing historical heatmap rendered correctly.
+Boundaries:
+
+- bounded market universe and request concurrency
+- same signal engine as the terminal
+- no duplicate qualification model
+- no probability-of-profit output
+- market-only profile patches so stale tabs cannot overwrite unrelated settings
+- viewer watchlists remain session-local
+
+## DizyStructure
+
+DizyStructure is descriptive closed-candle context.
+
+It may derive:
+
+- UTC day/week sessions
+- exact opening ranges
+- exact preceding daily/weekly levels
+- anchored VWAP
+- right-wing-confirmed swing pivots
+- HH/LH and HL/LL state
+- nearby level clusters
+- available-feed-only timeframe alignment
+
+Missing boundary candles, incomplete periods and unavailable feeds must remain unavailable. Structure labels do not identify institutional intent.
 
 ## DizyPaper
 
@@ -202,125 +187,138 @@ Responsibilities:
 - leverage, fee and slippage modelling
 - unrealised and realised P&L
 - stop, target and estimated-liquidation modelling
-- per-user account and trade-history state
+- per-user account and fill history
 
-Fair/Mark price should be the authoritative risk and liquidation source when available. A visual Last/Fair/Index selector must not change the risk source.
+Fair/Mark is the preferred risk source when available. A chart display selector must not alter the simulator's authoritative risk source.
 
-Paper calculations should remain typed, deterministic pure functions rather than being embedded in React presentation code.
+Future Fidelity V2 work belongs in deterministic pure helpers and validated server boundaries, not React presentation code. Existing fills and backups must remain migration-safe.
+
+## DizyJournal
+
+Journal entries retain immutable or versioned references rather than current mutable settings.
+
+Trade Review references may include:
+
+- trade lifecycle and outcome
+- strategy/settings provenance
+- Replay memory
+- Historical DizyFlow summary/reference
+- Historical DizyBrain review
+- trader notes, tags, quality, discipline and mood
+
+Guided Review inserts one bounded marked block into existing notes while preserving free-form text and refusing stale/unsaved overwrite.
 
 ## DizyReplay
 
-DizyReplay is the future deterministic playback and validation boundary.
-
-Replay should reconstruct recorded or derivable state at a controlled timestamp without contaminating the live terminal.
-
-Planned responsibilities:
-
-- candle-by-candle playback
-- confirmed DizySignals evidence at each step
-- historical DizyBrain snapshots
-- paper-trade lifecycle events
-- DizyFlow context where bounded historical data exists
-- DizyQuant observations and validation outcomes
-- deterministic play, pause, seek and speed controls
-
-Replay state must be separate from live state:
+Replay is a separate deterministic application state.
 
 ```text
 Live transport state ───────→ Live terminal
 
-Recorded replay dataset ───→ Replay clock ───→ Replay projections
+Retained/derivable history ─→ Replay clock ─→ Replay projections
 ```
 
-A replay clock must not mutate the current live feed, current user paper position or live market-health state.
+The replay clock controls the revealed closed-candle prefix. Signals and Brain explanations rebuild from that prefix. Playback, stepping and viewport following must not mutate live feed state or current Paper positions.
 
-## DizyJournal
+Historical DizyFlow may select only prior-or-exact retained samples within a strict age boundary. It must never interpolate, select a future sample or substitute current live flow.
 
-DizyJournal is the future review boundary around completed simulated trades.
+## DizyPerformance
 
-A journal entry should reference immutable or versioned records rather than whatever the current strategy settings happen to be.
+DizyPerformance reads immutable completed Journal Trade Reviews.
 
-Planned references include:
+It may calculate realised PnL, drawdown, expectancy, profit factor, payoff ratio, streaks, holding time, fees coverage, R distribution and deterministic breakdowns.
 
-- trade lifecycle and outcome
-- entry-time DizyBrain snapshot
-- strategy/settings version
-- paper-account assumptions
-- replay location
-- trader notes, tags and rule-compliance review
+It must not fabricate account equity or percentages where starting balance is unknown. Missing fees/R remain missing and lower coverage.
+
+## DizyOps
+
+DizyOps exposes bounded owner-only operational metadata:
+
+- deployed build/runtime identity
+- storage and retained-evidence status
+- aggregate audit health
+- application and provider health distinctions
+
+It must not expose credentials, private user payloads or unbounded logs.
+
+## DizyBackup
+
+Backup export is owner-scoped and excludes authentication records, session tokens and secrets.
+
+Restore requirements:
+
+- strict schema and ownership validation
+- bounded request size
+- integrity hashing
+- dry-run before application
+- expected-hash match
+- explicit confirmation
+- conflict reporting
+- additive recovery
+- no silent replacement of existing/open Manual Paper state
+- audit events for export, dry-run, apply and rejection
+
+## Storage and identity
+
+- signed HTTP-only sessions
+- SQLite-backed public accounts where available
+- legacy owner/admin fallback
+- isolated per-user profile settings
+- saved chart workspaces
+- Paper state and fills
+- Journal files
+- Replay memories
+- Historical DizyFlow memories
+- Historical DizyBrain reviews
+- bounded audit records
+- owner-scoped backups
+
+Writes are atomic where file-backed and serialised where concurrent mutation could corrupt state. Persistent disk supports one service instance; horizontal scaling requires shared managed storage.
 
 ## DizyQuant research boundary
 
-DizyQuant measures observable market microstructure. It is not a secret market-maker detector and is not automatically a signal engine.
-
-The intended flow is:
+DizyQuant measures observable microstructure. It is not a secret market-maker detector and does not automatically influence signals.
 
 ```text
 Typed DizyFlow observations
             ↓
-Pure measurable metrics
+Pure versioned metrics
             ↓
-Versioned DizyQuant snapshot
+Replay-compatible snapshot
             ↓
-Replay and statistical validation
+Statistical validation
             ↓
-Informational / Experimental / Validated status
+Informational / Experimental / Validated
             ↓
 Explicit promotion decision
             ↓
 Optional DizySignals evidence
 ```
 
-Candidate metrics include liquidity-ladder skew and migration, replenishment, consumption efficiency, queue turnover, spread regimes and cluster persistence.
+Every metric defines source data, units, sampling window, unavailable behaviour, deterministic formula, version, retention needs, status and limitations.
 
-Each metric must define:
+## Live-execution boundary
 
-- required source data
-- units and sampling window
-- unavailable and stale behaviour
-- deterministic formula
-- version
-- retention requirements
-- validation status
-- known limitations
+The current repository contains no enabled live-order path. `LIVE_TRADING_ENABLED=false` remains required.
 
-No metric may alter DizySignals qualification merely because it looks convincing in the live terminal.
-
-## Storage and identity
-
-- Signed HTTP-only sessions
-- SQLite-backed accounts where available
-- legacy owner/admin fallback
-- isolated per-user settings
-- saved chart workspaces
-- paper snapshots and audit events
-- bounded persistent DizyFlow history
-- future versioned journal and replay records
-
-Viewer sessions remain restricted and cannot write protected user state.
-
-## Safety boundary
-
-The current repository must contain no active live-order path. `LIVE_TRADING_ENABLED=false` remains a deployment requirement.
-
-Future live connectivity requires a separate architecture:
+Future connectivity begins read-only. Any write path requires a separate execution architecture:
 
 ```text
 User intent
    ↓
 Order preview and validation
    ↓
-Server-side risk engine
+Server-side account and risk limits
    ↓
 Idempotent exchange adapter
    ↓
-Exchange acknowledgement and reconciliation
+Acknowledgement and reconciliation
    ↓
 Immutable audit record
 ```
 
-Encrypted credential storage, loss limits, symbol limits, emergency shutdown, reconciliation and independent security review are mandatory before execution is enabled.
+Encrypted credentials, MFA, loss limits, symbol/notional/leverage limits, reduce-only enforcement, stale-price rejection, emergency shutdown and independent security review are mandatory before execution.
 
-## Pull-request architecture rule
+## Pull-request rule
 
-A feature PR should normally touch only the layers it needs. Changes crossing transport, strategy, simulation, replay, research and interface boundaries must explain why, add contract tests and document what deliberately remains unchanged.
+A feature PR should normally touch only the layers it needs. Changes crossing transport, strategy, simulation, replay, storage and interface boundaries must explain why, add contract tests and document what deliberately remains unchanged.
