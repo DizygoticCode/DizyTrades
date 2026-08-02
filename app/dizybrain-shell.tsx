@@ -149,7 +149,7 @@ export function DizyBrainWorkspace() {
   const [availableWidth, setAvailableWidth] = useState(0);
   const overlay = shouldUseDizyBrainOverlay(availableWidth, preferences.width);
   useEffect(() => {
-    const layout = document.querySelector<HTMLElement>(".analysis-layout");
+    const layout = document.querySelector<HTMLElement>(".terminal-body-layout");
     if (!layout) return;
     const measure = () => setAvailableWidth(layout.clientWidth);
     const observer = new ResizeObserver(measure); observer.observe(layout); measure();
@@ -182,7 +182,7 @@ export function DizyBrainWorkspace() {
   const onPointerDown = (event: React.PointerEvent) => {
     dragging.current = true; document.body.classList.add("brain-resizing"); event.currentTarget.setPointerCapture(event.pointerId);
   };
-  const onPointerMove = (event: React.PointerEvent) => { if (dragging.current) resize(window.innerWidth - event.clientX, false); };
+  const onPointerMove = (event: React.PointerEvent) => { if (dragging.current) { const bodyRight = document.querySelector<HTMLElement>(".terminal-body-layout")?.getBoundingClientRect().right ?? window.innerWidth; resize(bodyRight - event.clientX, false); } };
   const onPointerUp = (event: React.PointerEvent) => { if (!dragging.current) return; dragging.current = false; document.body.classList.remove("brain-resizing"); event.currentTarget.releasePointerCapture(event.pointerId); resize(preferences.width); };
   if (preferences.collapsed && !overlay) return <aside className="dizybrain-rail" aria-label="DizyBrain Analysis Workspace"><button aria-label="Expand DizyBrain workspace" onClick={() => update({ collapsed: false })}>»</button>{DIZYBRAIN_MODULES.map(item => <button aria-label={item.label} aria-current={preferences.selectedModule === item.id ? "page" : undefined} key={item.id} onClick={() => open(item.id)}>{item.icon}<span>{item.label}</span></button>)}</aside>;
   return <><button className={`brain-mobile-backdrop ${overlay ? "visible" : ""}`} aria-label="Close DizyBrain workspace" onClick={close} type="button" /><aside id="dizybrain-workspace" ref={panelRef} className={`dizybrain-workspace ${overlay ? "drawer" : ""}`} style={{ "--brain-width": `${preferences.width}px` } as React.CSSProperties} aria-label="DizyBrain Analysis Workspace">

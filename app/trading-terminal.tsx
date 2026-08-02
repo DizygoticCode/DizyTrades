@@ -1754,6 +1754,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
         </div>
       </header>
 
+      <div className="terminal-body-layout">
+      <section className="terminal-primary-column" aria-label="Trading terminal workspace">
       <section className={`replay-controls ${replayActive?"active":""}`} aria-label="Replay controls" aria-live="polite">
         {journalReplayNotice?<span role="status">{journalReplayNotice}</span>:null}
         {!activeReplaySession?<button type="button" onClick={enterReplay} disabled={!closedCandles.length}>Enter Replay</button>:<>
@@ -1952,7 +1954,6 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
             />
           ) : null}
 
-          <div className="analysis-layout">
           <div className={`workspace ${settingsOpen ? "" : "panel-closed"}`}>
             {!replayActive&&orderFlowSettings.enabled&&orderFlowSettings.domVisible&&selectedMarket?<DizyFlowDom store={orderFlow.renderStore} summary={orderFlow.summary} contractSize={selectedMarket?.contractSize??1} market={selectedMarket!} onGrouping={step=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,groupingBySymbol:{...value.dom.groupingBySymbol,[symbol]:step}}}))} onWidth={width=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,width}}))} onDomSettings={patch=>setOrderFlowSettings(value=>({...value,dom:{...value.dom,...patch}}))} onClose={()=>setOrderFlowSettings(value=>({...value,domVisible:false}))}/>:null}
             <section className="chart-section">
@@ -3388,11 +3389,12 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               </aside>
             ) : null}
           </div>
-          <DizyBrainWorkspace />
-          </div>
           {futuresSelected ? <ManualPaperTicket intelligence={orderFlow.intelligence} marketKey={selectedMarketKey} publicPrice={liveLastPrice ?? liveCandle?.close ?? null} readOnly={user.role === "viewer"} symbol={symbol} /> : null}
         </>
       )}
+      </section>
+      <DizyBrainWorkspace />
+      </div>
     </main>
   );
 }

@@ -67,7 +67,33 @@ test("workspace source preserves launcher, focus, resize, and compact-toolbar bo
   assert.match(paper, /id="manual-paper-panel"/);
   assert.match(brain, /getElementById\("manual-paper-panel"\)/);
   assert.doesNotMatch(brain, /dizybrain-panel/);
-  assert.match(terminal, /analysis-layout/);
+  assert.doesNotMatch(terminal, /analysis-layout/);
+  const bodyStart = terminal.indexOf('className="terminal-body-layout"');
+  const primaryStart = terminal.indexOf('className="terminal-primary-column"');
+  const workspaceStart = terminal.indexOf('className={`workspace');
+  const manualPaper = terminal.indexOf("<ManualPaperTicket");
+  const primaryEnd = terminal.indexOf("</section>\n      <DizyBrainWorkspace", primaryStart);
+  const brainWorkspace = terminal.indexOf("<DizyBrainWorkspace", primaryEnd);
+  assert.ok(bodyStart < primaryStart && primaryStart < workspaceStart);
+  assert.ok(workspaceStart < manualPaper && manualPaper < primaryEnd);
+  assert.ok(primaryEnd < brainWorkspace, "DizyBrain is a sibling after the complete primary terminal column");
+});
+
+test("shell-level DizyBrain layout owns full-height docking and body-width overlay fallback", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const [brain, css] = await Promise.all([
+    readFile("app/dizybrain-shell.tsx", "utf8"),
+    readFile("app/globals.css", "utf8"),
+  ]);
+  assert.match(brain, /querySelector<HTMLElement>\("\.terminal-body-layout"\)/);
+  assert.doesNotMatch(brain, /querySelector<HTMLElement>\("\.analysis-layout"\)/);
+  assert.match(css, /\.terminal-body-layout\{[^}]*display:flex[^}]*overflow:hidden/);
+  assert.match(css, /\.terminal-primary-column\{[^}]*flex-direction:column[^}]*overflow:hidden/);
+  assert.match(css, /\.dizybrain-workspace[^}]*height:100%/);
+  assert.match(css, /\.brain-module\{[^}]*overflow:auto/);
+  assert.match(css, /\.dizybrain-rail\{[^}]*overflow-y:auto/);
+  assert.match(css, /\.dizybrain-workspace\.drawer\{position:fixed/);
+  assert.doesNotMatch(css, /\.analysis-layout/);
 });
 
 test("operational diagnostics are moved intact behind the workspace boundary", async () => {
