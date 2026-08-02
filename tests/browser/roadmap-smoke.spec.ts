@@ -35,8 +35,8 @@ test("viewer session navigates the roadmap and remains read-only", async ({ page
     error: "Viewer sessions are read-only.",
   });
 
-  const diagnosticsRejected = await page.request.get("/api/admin/diagnostics");
-  expect(diagnosticsRejected.status()).toBe(403);
+  expect((await page.request.get("/api/admin/diagnostics")).status()).toBe(403);
+  expect((await page.request.get("/api/backup/export")).status()).toBe(403);
 
   await page.goto("/scanner");
   await expect(
@@ -61,9 +61,11 @@ test("viewer session navigates the roadmap and remains read-only", async ({ page
 
   await page.goto("/diagnostics");
   await expect(page).toHaveURL(/\/terminal$/);
+  await page.goto("/backup");
+  await expect(page).toHaveURL(/\/terminal$/);
 });
 
-test("new user can persist a bounded market-only profile patch", async ({ page }) => {
+test("new user can persist profile data and validate a same-account backup", async ({ page }) => {
   await page.goto("/signup");
   await page.getByLabel("Username (optional)").fill(user.username);
   await page.getByLabel("Password", { exact: true }).fill(user.password);
@@ -112,9 +114,35 @@ test("new user can persist a bounded market-only profile patch", async ({ page }
   await page.goto("/scanner");
   await expect(page.getByText(user.username, { exact: true })).toBeVisible();
   await expect(page.getByText(`${user.username} · Viewer`, { exact: true })).toHaveCount(0);
+  expect((await page.request.get("/api/admin/diagnostics")).status()).toBe(403);
 
-  const diagnosticsRejected = await page.request.get("/api/admin/diagnostics");
-  expect(diagnosticsRejected.status()).toBe(403);
+  const exportResponse = await page.request.get("/api/backup/export");
+  expect(exportResponse.status()).toBe(200);
+  expect(exportResponse.headers()["content-type"]).toContain("application/json");
+  const backup = await exportResponse.json();
+  expect(backup).toMatchObject({
+    version: 1,
+    application: { name: "DizyTrades" },
+    data: { profile: { settings: { market: { symbol: "BTC_USDT" } } } },
+    integrity: { algorithm: "sha256" },
+  });
+
+  const dryRun = await page.request.post("/api/backup/restore", {
+    data: { dryRun: true, backup },
+  });
+  expect(dryRun.status()).toBe(200);
+  await expect(dryRun.json()).resolves.toMatchObject({
+    dryRun: true,
+    plan: { safeToApply: true, journal: { entriesToAdd: 0 } },
+  });
+
+  await page.goto("/backup");
+  await expect(
+    page.getByRole("heading", {
+      name: "Back up the evidence chain, not merely the notes.",
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Download full JSON backup" })).toBeVisible();
 });
 
 test("configured owner can open production diagnostics", async ({ page }) => {
