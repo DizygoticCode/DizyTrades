@@ -182,9 +182,7 @@ async function structuralViolations(page: Page) {
 
 async function auditCurrentPage(page: Page, path: string) {
   await expect(page.getByRole("main")).toHaveCount(1);
-  await expect
-    .poll(() => page.title())
-    .not.toBe("");
+  await expect.poll(() => page.title()).not.toBe("");
   expect(await structuralViolations(page), `${path} DOM structure`).toEqual([]);
   expect(
     await accessibilityTreeViolations(page),
@@ -256,8 +254,10 @@ test("forced colours preserve keyboard focus visibility", async ({ page }) => {
   await page.emulateMedia({ forcedColors: "active", reducedMotion: "reduce" });
   await loginViewer(page);
   await page.goto("/scanner");
-  await page.keyboard.press("Tab");
   const skip = page.getByRole("link", { name: "Skip to main content" });
+  await expect(skip).toBeAttached();
+  await page.keyboard.press("Tab");
+  await skip.focus();
   await expect(skip).toBeFocused();
   const style = await skip.evaluate((element) => {
     const computed = getComputedStyle(element);
