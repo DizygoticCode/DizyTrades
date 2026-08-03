@@ -3,9 +3,30 @@ import { requireApiUser } from "../../lib/auth";
 import { appendAudit, readUserRecord, saveSettings } from "../../lib/store";
 import { DEFAULT_TERMINAL_SETTINGS } from "../../lib/config";
 import { applyMarketSettingsPatch } from "../../lib/profile-market-patch";
+import { marketShortcutChanged } from "../../lib/recent-shortcuts";
+import { recordRecentMarketShortcut } from "../../lib/recent-shortcuts-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+async function retainRecentMarket(
+  userId: string,
+  before: typeof DEFAULT_TERMINAL_SETTINGS.market,
+  after: typeof DEFAULT_TERMINAL_SETTINGS.market,
+) {
+  if (!marketShortcutChanged(before, after)) return;
+  try {
+    const shortcut = await recordRecentMarketShortcut(userId, after);
+    if (shortcut) {
+      await appendAudit(userId, "recent-market.recorded", {
+        marketKey: shortcut.marketKey,
+        timeframe: shortcut.timeframe,
+      });
+    }
+  } catch {
+    // Recent navigation is convenience state and must never block profile saves.
+  }
+}
 
 export async function GET() {
   const user = await requireApiUser();
@@ -29,7 +50,9 @@ export async function PUT(request: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
   }
+  const current = await readUserRecord(user.id);
   const record = await saveSettings(user.id, payload);
+  await retainRecentMarket(user.id, current.settings.market, record.settings.market);
   await appendAudit(user.id, "settings.saved");
   return NextResponse.json({
     ok: true,
@@ -54,6 +77,7 @@ export async function PATCH(request: Request) {
   const merged = applyMarketSettingsPatch(current.settings, payload);
   if (!merged.ok) return NextResponse.json({ error: merged.error }, { status: 400 });
   const record = await saveSettings(user.id, merged.settings);
+  await retainRecentMarket(user.id, current.settings.market, record.settings.market);
   await appendAudit(user.id, "settings.market-patched");
   return NextResponse.json({ ok: true, updatedAt: record.updatedAt, settings: record.settings });
 }
