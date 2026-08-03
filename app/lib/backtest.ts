@@ -289,7 +289,13 @@ export function simulateConfirmedSignals(
     markedPnl,
     wins,
     winRatePct: completed.length ? (wins / completed.length) * 100 : 0,
-    profitFactor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? null : 0,
+    profitFactor: completed.length
+      ? grossLoss > 0
+        ? grossProfit / grossLoss
+        : grossProfit > 0
+          ? null
+          : 0
+      : null,
     closedTrades: trades,
   };
 }
