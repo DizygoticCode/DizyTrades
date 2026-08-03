@@ -1,0 +1,83 @@
+name: Render deployment rehearsal
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/render-rehearsal.yml"
+      - "scripts/render-rehearsal.mjs"
+      - "tests/render-rehearsal.test.mjs"
+      - "docs/RENDER_REHEARSAL.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/render-rehearsal.yml"
+      - "scripts/render-rehearsal.mjs"
+      - "tests/render-rehearsal.test.mjs"
+      - "docs/RENDER_REHEARSAL.md"
+  workflow_dispatch:
+    inputs:
+      expected_commit:
+        description: "Optional Git commit that must become Render's live deploy"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: render-rehearsal-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  observe-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+      RENDER_WAIT_MINUTES: "20"
+      REHEARSAL_OUTPUT_DIR: artifacts/render-rehearsal
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify rehearsal helpers
+        run: node --test tests/render-rehearsal.test.mjs
+
+      - name: Resolve expected deploy commit
+        env:
+          DISPATCH_EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            echo "EXPECTED_COMMIT=$GITHUB_SHA" >> "$GITHUB_ENV"
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && -n "$DISPATCH_EXPECTED_COMMIT" ]]; then
+            echo "EXPECTED_COMMIT=$DISPATCH_EXPECTED_COMMIT" >> "$GITHUB_ENV"
+          else
+            echo "EXPECTED_COMMIT=" >> "$GITHUB_ENV"
+          fi
+
+      - name: Verify encrypted Render credentials are available
+        run: |
+          if [[ -z "$RENDER_API_KEY" ]]; then
+            echo "RENDER_API_KEY repository secret is unavailable." >&2
+            exit 1
+          fi
+          if [[ -z "$RENDER_SERVICE_ID" ]]; then
+            echo "RENDER_SERVICE_ID repository secret is unavailable." >&2
+            exit 1
+          fi
+
+      - name: Observe Render service deploy and production health
+        run: node scripts/render-rehearsal.mjs
+
+      - name: Upload sanitised rehearsal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-rehearsal-${{ github.run_id }}
+          path: artifacts/render-rehearsal
+          if-no-files-found: error
+          retention-days: 30
