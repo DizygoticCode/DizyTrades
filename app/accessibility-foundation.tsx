@@ -83,6 +83,29 @@ export function isolateModalBackground(dialog: HTMLElement) {
   };
 }
 
+/**
+ * Manual Paper is an embedded application region inside the terminal's real
+ * document main. Its historical element is a nested `main`; an explicit named
+ * region removes the duplicate landmark without changing panel layout or
+ * trading behaviour. This can be removed when the legacy panel markup is next
+ * refactored directly.
+ */
+export function normaliseEmbeddedLandmarks() {
+  const manualPaperWorkspace = document.querySelector<HTMLElement>(
+    "#manual-paper-panel main",
+  );
+  if (!manualPaperWorkspace) return;
+  if (manualPaperWorkspace.getAttribute("role") !== "region") {
+    manualPaperWorkspace.setAttribute("role", "region");
+  }
+  if (!manualPaperWorkspace.hasAttribute("aria-label")) {
+    manualPaperWorkspace.setAttribute(
+      "aria-label",
+      "Manual Paper account workspace",
+    );
+  }
+}
+
 function focusMainContent() {
   const main = document.querySelector<HTMLElement>("main");
   if (!main) return;
@@ -119,7 +142,8 @@ export function AccessibilityFoundation() {
     let opener: HTMLElement | null = null;
     let restoreIsolation = () => {};
 
-    const synchroniseModal = () => {
+    const synchroniseAccessibility = () => {
+      normaliseEmbeddedLandmarks();
       const dialog = currentModalDialog();
       if (dialog && dialog !== trackedDialog) {
         restoreIsolation();
@@ -146,9 +170,9 @@ export function AccessibilityFoundation() {
       }
     };
 
-    const observer = new MutationObserver(synchroniseModal);
+    const observer = new MutationObserver(synchroniseAccessibility);
     observer.observe(document.body, { childList: true, subtree: true });
-    synchroniseModal();
+    synchroniseAccessibility();
 
     const trapFocus = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
