@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CommandPaletteMounted } from "./command-palette-mounted";
 import "./globals.css";
 import "./brand-rollout.css";
 import "./marketing/real-feature-visuals.css";
@@ -20,7 +21,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <CommandPaletteMounted />
+        {children}
+      </body>
     </html>
   );
 }
