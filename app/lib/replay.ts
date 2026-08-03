@@ -47,9 +47,11 @@ export function createReplaySession(input:{id:string;symbol:string;timeframe:Can
   return Object.freeze({id:input.id,symbol:input.symbol,timeframe:input.timeframe,status:input.candles.length?"ready":"ended",startedAt:input.startedAt,rangeStartMs:input.rangeStartMs,rangeEndMs:input.rangeEndMs,cursorIndex:cursor,cursorTimeMs:cursor<0?null:input.candles[0].time*1000,previousCursorTimeMs:null,transitionKind:"session-start",speed:input.speed??1,candlesLoaded:input.candles.length,visibleCandles:cursor+1,error:null});
 }
 export const replayPrefix=(candles:ReadonlyArray<Candle>,cursor:number):ReadonlyArray<Candle>=>Object.freeze(candles.slice(0,clampReplayCursor(cursor,candles.length)+1));
+/** Selects the newest retained candle whose opening time is not after the requested instant. */
+export function replayCursorAtOrBefore(candles:ReadonlyArray<Candle>,timestampMs:number):number|null {if(!candles.length||!Number.isFinite(timestampMs))return null;let low=0,high=candles.length-1,found=-1;while(low<=high){const middle=(low+high)>>>1;if(candles[middle].time*1_000<=timestampMs){found=middle;low=middle+1}else high=middle-1;}return found<0?null:found;}
 export function jumpReplay(session:ReplaySession,candles:ReadonlyArray<Candle>,index:number,transitionKind:ReplayTransitionKind="jump"):ReplaySession{const cursor=clampReplayCursor(index,candles.length),ended=cursor===candles.length-1;return Object.freeze({...session,previousCursorTimeMs:session.cursorTimeMs,transitionKind,cursorIndex:cursor,cursorTimeMs:cursor<0?null:candles[cursor].time*1000,visibleCandles:cursor+1,status:ended?"ended":"paused"});}
 export const stepReplay=(s:ReplaySession,c:ReadonlyArray<Candle>,delta:1|-1)=>jumpReplay(s,c,s.cursorIndex+delta,delta===1?"next":"previous");
-export const jumpReplayToTimestamp=(s:ReplaySession,c:ReadonlyArray<Candle>,ms:number)=>{let index=c.findIndex(x=>x.time*1000>=ms);if(index<0)index=c.length-1;return jumpReplay(s,c,index,"jump");};
+export const jumpReplayToTimestamp=(s:ReplaySession,c:ReadonlyArray<Candle>,ms:number)=>jumpReplay(s,c,replayCursorAtOrBefore(c,ms)??0,"jump");
 export const progressReplay=(s:ReplaySession,c:ReadonlyArray<Candle>)=>{
   if(s.status!=="playing")return s;
   const cursor=clampReplayCursor(s.cursorIndex+1,c.length),ended=cursor>=c.length-1;

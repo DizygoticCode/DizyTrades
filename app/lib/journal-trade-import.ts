@@ -1,7 +1,7 @@
 import type { PaperTrade } from "./backtest";
 import type { TradeSnapshot, ReplayReference } from "./journal-model";
 import type { Candle } from "./strategy";
-import { replayRangeForCandles } from "./replay";
+import { replayCursorAtOrBefore, replayRangeForCandles } from "./replay";
 import type { CandleTimeframe } from "./market/types";
 
 export type JournalTradeContext = Readonly<{
@@ -33,8 +33,7 @@ export function journalReplayCursor(request:JournalReplayLaunch,loaded:{marketKe
   if(request.marketKey!==loaded.marketKey||request.symbol!==loaded.symbol||request.timeframe!==loaded.timeframe||!Number.isFinite(request.timestampMs)||!loaded.candles.length)return null;
   const first=loaded.candles[0].time*1_000,last=loaded.candles.at(-1)!.time*1_000;
   if(request.timestampMs<first||request.timestampMs>last)return null;
-  const index=loaded.candles.findIndex(c=>c.time*1_000>=request.timestampMs);
-  return index<0?null:index;
+  return replayCursorAtOrBefore(loaded.candles,request.timestampMs);
 }
 
 /** Maps authoritative completed-trade fields only. Facts not recorded by DizyPaper remain null. */
