@@ -172,6 +172,8 @@ function settings(value: unknown): ManualSettings {
   });
 }
 
+function depthEvidence(value:unknown,field:string):ManualPosition["entryDepthFill"]{if(value==null)return undefined;const input=object(value,field);return Object.freeze({source:oneOf(input.source,field+".source",["dizyflow-public-depth"] as const),calculationMethod:oneOf(input.calculationMethod,field+".calculationMethod",["visible-book-walk"] as const),bookSide:oneOf(input.bookSide,field+".bookSide",["bid","ask"] as const),fillStatus:oneOf(input.fillStatus,field+".fillStatus",["full","partial"] as const),requestedContractVolume:number(input.requestedContractVolume,field+".requestedContractVolume",0.000000000001),filledContractVolume:number(input.filledContractVolume,field+".filledContractVolume",0.000000000001),unfilledContractVolume:number(input.unfilledContractVolume,field+".unfilledContractVolume",0),availableContractVolume:number(input.availableContractVolume,field+".availableContractVolume",0),quantity:number(input.quantity,field+".quantity",0.000000000001),notional:number(input.notional,field+".notional",0.000000000001),rawWeightedAveragePrice:number(input.rawWeightedAveragePrice,field+".rawWeightedAveragePrice",0.000000000001),executionPrice:number(input.executionPrice,field+".executionPrice",0.000000000001),bestPrice:number(input.bestPrice,field+".bestPrice",0.000000000001),worstPrice:number(input.worstPrice,field+".worstPrice",0.000000000001),levelsConsumed:number(input.levelsConsumed,field+".levelsConsumed",1,1_000),priceImpactBps:number(input.priceImpactBps,field+".priceImpactBps"),snapshotVersion:number(input.snapshotVersion,field+".snapshotVersion",0),snapshotReceivedAt:number(input.snapshotReceivedAt,field+".snapshotReceivedAt",1),snapshotAgeMs:number(input.snapshotAgeMs,field+".snapshotAgeMs",0),sourceMode:input.sourceMode==null?null:oneOf(input.sourceMode,field+".sourceMode",["FULL DEPTH WS","REST FALLBACK","RECONNECTING — LAST BOOK RETAINED","NO VALID BOOK"] as const)})}
+
 function position(value: unknown, key: string): ManualPosition {
   const input = object(value, `manualPaper.positions.${key}`);
   const marketSymbol = symbol(input.symbol, `manualPaper.positions.${key}.symbol`);
@@ -192,6 +194,7 @@ function position(value: unknown, key: string): ManualPosition {
     volUnit: input.volUnit == null ? undefined : number(input.volUnit, "manualPaper.position.volUnit", 0.000000000001),
     minContractVolume: input.minContractVolume == null ? undefined : number(input.minContractVolume, "manualPaper.position.minContractVolume", 0.000000000001),
     maxContractVolume: input.maxContractVolume == null ? undefined : number(input.maxContractVolume, "manualPaper.position.maxContractVolume", 0.000000000001),
+    entryDepthFill: depthEvidence(input.entryDepthFill,"manualPaper.position.entryDepthFill"),
     entryPrice,
     leverage,
     margin: number(input.margin, "manualPaper.position.margin", 0),
@@ -314,6 +317,7 @@ function fill(value: unknown, index: number): ManualFill {
     volUnit: input.volUnit == null ? undefined : number(input.volUnit, "manualPaper.fill.volUnit", 0.000000000001),
     minContractVolume: input.minContractVolume == null ? undefined : number(input.minContractVolume, "manualPaper.fill.minContractVolume", 0.000000000001),
     maxContractVolume: input.maxContractVolume == null ? undefined : number(input.maxContractVolume, "manualPaper.fill.maxContractVolume", 0.000000000001),
+    entryDepthFill: depthEvidence(input.entryDepthFill,"manualPaper.fill.entryDepthFill"),
     notional: number(input.notional, "manualPaper.fill.notional", 0),
     marginUsed:
       input.marginUsed == null

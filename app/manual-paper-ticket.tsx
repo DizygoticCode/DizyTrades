@@ -14,7 +14,9 @@ import type { DizyFlowIntelligenceSnapshot } from "./lib/order-flow/intelligence
 import { compactDizyFlowSample } from "./lib/historical-dizyflow-compact";
 import { HistoricalDizyFlowCaptureManager } from "./lib/historical-dizyflow-capture";
 import { HistoricalDizyFlowEventAdapter } from "./lib/historical-dizyflow-events";
-import {clampContractLeverage,isMexcStepAligned,leverageStopsForContract,quantizeMexcExecutionPrice,quantizeMexcStep,sizeMexcContractOrder,type MexcContractMetadata} from "./lib/mexc-contract-metadata";
+import {clampContractLeverage,isMexcStepAligned,leverageStopsForContract,quantizeMexcStep,sizeMexcContractOrder,type MexcContractMetadata} from "./lib/mexc-contract-metadata";
+import {simulatePaperMarketDepthFill,type PaperDepthFillEvidence} from "./lib/manual-paper-depth";
+import type {DepthEnvelope} from "./lib/order-flow/types";
 type Mode = "fixed-margin" | "fixed-notional" | "equity-percent" | "risk-percent";
 type FundingRate={symbol:string;fundingRate:number;minFundingRate:number;maxFundingRate:number;collectCycleHours:number;nextSettleTime:number;observedAt:number;source:"mexc-public-funding-rate"};
 type FundingPayment={paymentId:string;tradeId:string;symbol:string;side:"long"|"short";settleTime:number;observedAt:number;price:number;priceSource:"fair"|"last";notional:number;fundingRate:number;calculatedCashDelta:number;cashDelta:number;balanceCapped:boolean;source:"mexc-public-funding-history";calculationMethod:"observed-risk-price-notional";resultingBalance:number};
@@ -32,6 +34,7 @@ type Position = {
   volUnit?: number;
   minContractVolume?: number;
   maxContractVolume?: number;
+  entryDepthFill?: PaperDepthFillEvidence;
   entryPrice: number;
   leverage: number;
   margin?: number;
@@ -61,6 +64,7 @@ type Fill = {
   price: number;
   quantity: number;
   contractVolume?: number;
+  entryDepthFill?: PaperDepthFillEvidence;
   fee: number;
   executionType?: "market";
   liquidityRole?: "maker" | "taker";
@@ -136,13 +140,13 @@ export function ManualPaperTicket({
     [collapsed, setCollapsed] = useState(false),
     [hidden, setHidden] = useState(false),
     [height, setHeight] = useState(390);
-  const [riskState,setRiskState]=useState<{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null>(null),[contract,setContract]=useState<MexcContractMetadata|null>(null),[funding,setFunding]=useState<FundingRate|null>(null);
+  const [riskState,setRiskState]=useState<{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null>(null),[contract,setContract]=useState<MexcContractMetadata|null>(null),[funding,setFunding]=useState<FundingRate|null>(null),[depth,setDepth]=useState<DepthEnvelope|null>(null);
   const captureManager=useRef(new HistoricalDizyFlowCaptureManager()),eventAdapter=useRef(new HistoricalDizyFlowEventAdapter()),previousPosition=useRef<Position|null>(null),finalizeTimers=useRef(new Set<number>()),retryManager=useRef<HistoricalDizyFlowCaptureManager|null>(null);
   const [captureStatus,setCaptureStatus]=useState<ReturnType<HistoricalDizyFlowCaptureManager["status"]>>({state:"buffering",tradeId:null,marketKey:null,symbol:null,sampleCount:0,eventCount:0,skippedDuplicates:0,sampleLimitReached:false,eventLimitReached:false}),[captureError,setCaptureError]=useState(""),[captureWarning,setCaptureWarning]=useState("");
   const load = useCallback(async () => {
     const response = await fetch(`/api/manual-paper?symbol=${encodeURIComponent(symbol)}`);
     if (response.ok)
-      {const payload=(await response.json()) as { account: Account;riskPrice?:{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null;contract?:MexcContractMetadata|null;funding?:FundingRate|null },nextContract=payload.contract??null;setAccount(payload.account);setRiskState(payload.riskPrice??null);setContract(nextContract);setFunding(payload.funding??null);if(nextContract)setLeverage(current=>String(clampContractLeverage(Number(current),nextContract)))}
+      {const payload=(await response.json()) as { account: Account;riskPrice?:{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null;contract?:MexcContractMetadata|null;funding?:FundingRate|null;depth?:DepthEnvelope|null },nextContract=payload.contract??null;setAccount(payload.account);setRiskState(payload.riskPrice??null);setContract(nextContract);setFunding(payload.funding??null);setDepth(payload.depth??null);if(nextContract)setLeverage(current=>String(clampContractLeverage(Number(current),nextContract)))}
   }, [symbol]);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external account synchronisation
@@ -198,12 +202,13 @@ export function ManualPaperTicket({
       0,
       mode === "fixed-notional" ? amountNumber : mode==="risk-percent"&&publicPrice&&Number(stopLoss)>0?equity*amountNumber/100/(Math.abs(publicPrice-Number(stopLoss))/publicPrice):targetMargin * leverageNumber,
     ),
-    rawExecutionPrice=publicPrice?publicPrice*(1+(side==="long"?1:-1)*(account?.settings.slippagePct??0)/100):0,
-    executionPrice=contract&&rawExecutionPrice>0?quantizeMexcExecutionPrice(rawExecutionPrice,contract.priceUnit,side,true):rawExecutionPrice,
-    rawContractVolume=contract&&executionPrice>0?targetNotional/(executionPrice*contract.contractSize):0,
+    rawContractVolume=contract&&publicPrice&&publicPrice>0?targetNotional/(publicPrice*contract.contractSize):0,
     steppedContractVolume=contract&&rawContractVolume>0?quantizeMexcStep(rawContractVolume,contract.volUnit,"floor"):0,
     contractVolumeIssue=contract&&targetNotional>0?(steppedContractVolume<contract.minVol?`Minimum ${contract.minVol} contracts`:steppedContractVolume>contract.maxVol?`Maximum ${contract.maxVol} contracts`:null):null,
-    contractOrder=(()=>{try{return contract&&executionPrice>0&&!contractVolumeIssue?sizeMexcContractOrder(targetNotional,executionPrice,contract):null}catch{return null}})(),
+    requestedContractOrder=(()=>{try{return contract&&publicPrice&&publicPrice>0&&!contractVolumeIssue?sizeMexcContractOrder(targetNotional,publicPrice,contract):null}catch{return null}})(),
+    depthPreview=(()=>{try{return contract&&depth&&publicPrice&&publicPrice>0&&requestedContractOrder?simulatePaperMarketDepthFill({side,requestedContractVolume:requestedContractOrder.contractVolume,referencePrice:publicPrice,contract,depth}):null}catch{return null}})(),
+    executionPrice=depthPreview?.executionPrice??publicPrice??0,
+    contractOrder=depthPreview?{contractVolume:depthPreview.filledContractVolume,quantity:depthPreview.quantity,notional:depthPreview.notional}:requestedContractOrder,
     contractVolume=contractOrder?.contractVolume??0,
     quantity=contractOrder?.quantity??0,
     notional=contractOrder?.notional??0,
@@ -564,6 +569,11 @@ export function ManualPaperTicket({
                 ["MEXC contract range", contract?`${contract.minLeverage}–${contract.maxLeverage}×`:"Unavailable"],
                 ["Maintenance margin", contract?`${(contract.maintenanceMarginRate*100).toFixed(3)}%`:"Simulator fallback"],
                 ["Execution assumption", "Market · taker"],
+                ["Entry fill model", depthPreview?"DizyFlow visible-book walk":"Fresh depth captured on submit"],
+                ["Visible fill", depthPreview?`${depthPreview.fillStatus} · ${depthPreview.filledContractVolume}/${depthPreview.requestedContractVolume} contracts`:"Preview unavailable"],
+                ["Depth impact", depthPreview?`${depthPreview.priceImpactBps.toFixed(2)} bps · ${money(depthPreview.executionPrice)} avg`:"Calculated on submit"],
+                ["Depth levels", depthPreview?`${depthPreview.levelsConsumed} ${depthPreview.bookSide} level${depthPreview.levelsConsumed===1?"":"s"}`:"—"],
+                ["Depth snapshot", depthPreview?`v${depthPreview.snapshotVersion} · ${Math.round(depthPreview.snapshotAgeMs)}ms · ${depthPreview.sourceMode??"public depth"}`:"Not warm"],
                 ["Taker fee rate", `${(feeRate*100).toFixed(4)}%`],
                 ["Maker reference", contract?`${(contract.makerFeeRate*100).toFixed(4)}%`:`${(account?.settings.makerCommissionPct??0).toFixed(4)}% fallback`],
                 ["Fee source", feeSource],
@@ -587,6 +597,9 @@ export function ManualPaperTicket({
               {!contract?<span>Public MEXC contract rules unavailable — opening new paper positions is disabled.</span>:null}
               {contractVolumeIssue?<span>{contractVolumeIssue}; requested size cannot be opened.</span>:null}
               {invalidPriceStep&&contract?<span>Stop loss and take profit must use {contract.priceUnit} price increments.</span>:null}
+              {depthPreview?.fillStatus==="partial"?<span>Visible depth fills {depthPreview.filledContractVolume} of {depthPreview.requestedContractVolume} requested contracts; the remainder is not invented.</span>:null}
+              {!depth?<span>Depth preview is not warm; a fresh DizyFlow book is required and captured on submit.</span>:null}
+              <span>New entries walk visible public depth. Current close, reversal and automatic risk exits retain the configured fallback slippage until the next Fidelity V2 sub-slice.</span>
               <span>Immediate Manual Paper actions assume market execution and taker liquidity. Public fee rates do not include account-specific discounts or promotions.</span>
               {!stopLoss?<span>No stop loss — estimated liquidation remains active.</span>:null}
               {fundingSource?<span>Funding uses public settled rates with the observed {riskState?.source??position?.riskPriceSource??"risk"} price as an explicit notional approximation.</span>:null}
@@ -762,6 +775,7 @@ export function ManualPaperTicket({
                         >
                           {money(fill.realisedPnl)}
                           {fill.feeSource?<small>{`${fill.executionType??"market"} · ${fill.liquidityRole??"taker"} · ${((fill.feeRate??0)*100).toFixed(4)}% · ${fill.feeSource==="mexc-public-contract"?"MEXC public":"legacy fallback"} · fee ${money(fill.fee)}`}</small>:null}
+                          {fill.entryDepthFill?<small>{`depth ${fill.entryDepthFill.fillStatus} · ${fill.entryDepthFill.filledContractVolume}/${fill.entryDepthFill.requestedContractVolume} contracts · ${fill.entryDepthFill.levelsConsumed} levels · ${fill.entryDepthFill.priceImpactBps.toFixed(2)} bps`}</small>:null}
                           {fill.closeReason?<small>{fill.closeReason}</small>:null}
                           {fill.side==="close"?<small>{fill.historicalDizyFlow?.available?`${fill.historicalDizyFlow.limitations.length?"Limited":"Retained"} flow · ${fill.historicalDizyFlow.sampleCount} samples · ${fill.historicalDizyFlow.coveragePct??0}% coverage`:"Flow memory unavailable"}</small>:null}
                         </span>
