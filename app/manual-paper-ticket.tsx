@@ -14,7 +14,7 @@ import type { DizyFlowIntelligenceSnapshot } from "./lib/order-flow/intelligence
 import { compactDizyFlowSample } from "./lib/historical-dizyflow-compact";
 import { HistoricalDizyFlowCaptureManager } from "./lib/historical-dizyflow-capture";
 import { HistoricalDizyFlowEventAdapter } from "./lib/historical-dizyflow-events";
-import {clampContractLeverage,isMexcStepAligned,leverageStopsForContract,quantizeMexcExecutionPrice,sizeMexcContractOrder,type MexcContractMetadata} from "./lib/mexc-contract-metadata";
+import {clampContractLeverage,isMexcStepAligned,leverageStopsForContract,quantizeMexcExecutionPrice,quantizeMexcStep,sizeMexcContractOrder,type MexcContractMetadata} from "./lib/mexc-contract-metadata";
 type Mode = "fixed-margin" | "fixed-notional" | "equity-percent" | "risk-percent";
 type Position = {
   tradeId: string;
@@ -28,6 +28,8 @@ type Position = {
   contractSize?: number;
   priceUnit?: number;
   volUnit?: number;
+  minContractVolume?: number;
+  maxContractVolume?: number;
   entryPrice: number;
   leverage: number;
   margin?: number;
@@ -175,7 +177,8 @@ export function ManualPaperTicket({
     rawExecutionPrice=publicPrice?publicPrice*(1+(side==="long"?1:-1)*(account?.settings.slippagePct??0)/100):0,
     executionPrice=contract&&rawExecutionPrice>0?quantizeMexcExecutionPrice(rawExecutionPrice,contract.priceUnit,side,true):rawExecutionPrice,
     rawContractVolume=contract&&executionPrice>0?targetNotional/(executionPrice*contract.contractSize):0,
-    contractVolumeIssue=contract&&targetNotional>0?(rawContractVolume<contract.minVol?`Minimum ${contract.minVol} contracts`:rawContractVolume>contract.maxVol?`Maximum ${contract.maxVol} contracts`:null):null,
+    steppedContractVolume=contract&&rawContractVolume>0?quantizeMexcStep(rawContractVolume,contract.volUnit,"floor"):0,
+    contractVolumeIssue=contract&&targetNotional>0?(steppedContractVolume<contract.minVol?`Minimum ${contract.minVol} contracts`:steppedContractVolume>contract.maxVol?`Maximum ${contract.maxVol} contracts`:null):null,
     contractOrder=(()=>{try{return contract&&executionPrice>0&&!contractVolumeIssue?sizeMexcContractOrder(targetNotional,executionPrice,contract):null}catch{return null}})(),
     contractVolume=contractOrder?.contractVolume??0,
     quantity=contractOrder?.quantity??0,

@@ -74,6 +74,8 @@ test("contract sizing floors to valid volume without exceeding requested notiona
   assert.equal(sizing.quantity, 0.049);
   assert.equal(sizing.notional, 122.50049);
   assert.ok(sizing.notional <= 123.456);
+  const maxEdge=sizeMexcContractOrder((value.maxVol+.5)*2500*value.contractSize,2500,value);
+  assert.equal(maxEdge.contractVolume,value.maxVol);
 });
 
 test("contract sizing rejects exchange minimum and maximum violations", () => {
