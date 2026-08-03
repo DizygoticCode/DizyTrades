@@ -38,12 +38,40 @@ This is a living high-level history of user-facing milestones. Pull requests rem
 - Added owner-scoped full JSON backup export and Journal CSV export.
 - Added integrity hashing, local parsing, server dry-run validation and explicit restore confirmation.
 - Added conflict-aware additive recovery without silently replacing current records or open Manual Paper state.
+- Added read-only Render deployment observation that verifies the configured service, expected commit and simulation-only health contract.
+- Added a destructive application recovery rehearsal in isolated temporary data roots with tamper rejection, owner isolation and idempotency.
+- Deferred destructive provider snapshot rollback until the guarded-execution security milestone rather than creating another paid service for the active beta.
+
+### Authentication and storage hardening
+
+- Completed the active-beta authentication and storage threat review.
+- Made public signup and legacy emergency authentication fail closed unless explicitly enabled.
+- Preserved login/signup throttling through a bounded in-memory fallback when SQLite is unavailable.
+- Bounded signed and opaque session token syntax, size, lifetime and identity fields.
+- Prevented normal database users from receiving unusable signed fallback sessions.
+- Restricted compatibility GET logout to explicit user-initiated same-origin navigation.
+- Hardened request-origin, protocol, host and IP parsing.
+- Added low-level account validation and explicit private auth-database permissions.
+- Replaced lossy profile and Journal owner-ID rewriting with strict collision-free validation.
+- Documented accepted beta limitations and the additional controls required before exchange credentials or order permission.
+
+### Workflow and accessibility
+
+- Added named account-scoped workspace layouts and deterministic built-in presets.
+- Added Ctrl/Cmd+K Commands and a verified keyboard reference.
+- Added recent market, Journal and Academy continuation shortcuts.
+- Added optional first-run onboarding with truthful simulation boundaries.
+- Added shared phone/tablet containment, safe-area handling and internal scrolling for dense workspaces.
+- Added skip navigation, modal focus containment/restoration, forced-colour support and reduced motion.
+- Added consistent empty, delayed, recovering, offline and failed guidance.
+- Reserved the live DizyBrain dock width so Commands and Recent no longer cover its collapse or close controls.
 
 ### DizyBrain
 
 - Added a full-height docked Analysis Workspace.
 - Added typed live evidence, qualification, provenance and rejection reasoning.
 - Added Flow, Position, Replay, Journal, Behaviour and Diagnostics modules.
+- Added a beginner-first summary without deleting detailed evidence.
 - Kept DizyBrain deterministic and non-predictive.
 
 ### DizyFlow
@@ -63,13 +91,17 @@ This is a living high-level history of user-facing milestones. Pull requests rem
 - Added deterministic confirmed-candle DizySignals evidence and historical scanning.
 - Added Replay-safe prefix reconstruction and viewport following.
 
-### DizyPaper
+### DizyPaper Fidelity V2
 
-- Added manual and signal-driven simulation.
-- Added fixed-margin, fixed-notional, equity-percentage and risk-percentage sizing.
-- Added isolated/cross-margin approximations, leverage, fees, slippage and estimated liquidation.
-- Added Fair/Mark-first risk pricing, partial closes, reversal and flatten actions.
-- Added completed-trade capture into Journal, Replay and retained evidence workflows.
+- Added public symbol-specific contract precision, ticks, volume steps and leverage limits.
+- Added public maker/taker fee provenance and funding-payment modelling.
+- Added visible-book entries, manual exits, Reverse, Flatten All and automatic risk exits.
+- Added honest partial fills and persistent residual risk exits when visible liquidity is insufficient.
+- Added reduce-only identity and quantity evidence across every exit path.
+- Added position-size-aware maintenance tiers and separate liquidation/bankruptcy evidence.
+- Added explicit isolated collateral and single-asset USDT cross-margin accounting.
+- Added deterministic v2/v3-to-v4 Manual Paper migration and integrity-verified backup migration.
+- Preserved recorded prices, quantities, fees and P/L instead of reconstructing unavailable history.
 
 ### DizyAcademy
 
@@ -87,12 +119,13 @@ This is a living high-level history of user-facing milestones. Pull requests rem
 
 ## Active programme
 
-- DizyPaper Fidelity V2: contract precision, funding, maker/taker assumptions, partial fills and deeper margin realism.
-- Workflow, responsive and accessibility polish driven by real use.
+- Remaining independent engineering and correctness audits.
+- Simulator accounting and Replay future-leakage review.
+- Backup conflict and independent browser-accessibility review.
 - Read-only exchange connection and shadow reconciliation before any execution work.
-- Independent correctness, storage and security audit.
+- DizyQuant research only behind Replay and statistical validation.
 
-Live execution remains disabled.
+Live execution remains disabled. Provider snapshot rollback, MFA, encrypted exchange credentials, immutable execution audit and real-order controls remain final security-milestone work.
 
 ## Release-note policy
 
