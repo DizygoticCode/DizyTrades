@@ -65,10 +65,18 @@ export async function recordRecentMarketShortcut(
   userId: string,
   market: UserTerminalSettings["market"],
 ) {
-  const next = recentMarketFromSettings(market);
-  if (!next) return null;
   return serialUserOperation(userId, async () => {
-    const current = [...(await readRecentMarketShortcuts(userId))].filter(
+    const retained = [...(await readRecentMarketShortcuts(userId))];
+    const latestRetainedMs = retained.reduce(
+      (latest, item) => Math.max(latest, Date.parse(item.visitedAt)),
+      0,
+    );
+    const visitedAt = new Date(
+      Math.max(Date.now(), latestRetainedMs + 1),
+    ).toISOString();
+    const next = recentMarketFromSettings(market, visitedAt);
+    if (!next) return null;
+    const current = retained.filter(
       (item) => item.marketKey !== next.marketKey,
     );
     await writeRecord(userId, [next, ...current]);
