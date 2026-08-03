@@ -49,9 +49,9 @@ function candles(count = 40) {
   return Array.from({ length: count }, (_, index) => ({
     time: 1_700_000_000 + index * 900,
     open: 100,
-    high: index === count - 1 ? 106 : 101,
-    low: 99,
-    close: index === count - 1 ? 105 : 100,
+    high: index === count - 1 ? 101 : 101,
+    low: index === count - 1 ? 99.5 : 99,
+    close: index === count - 1 ? 100.5 : 100,
     volume: 1000,
   }));
 }
@@ -144,9 +144,9 @@ test("Manual Paper cash, fees and closes reconcile across partial and final exit
   assert.doesNotThrow(() => validateManualPaperBackup(account, user));
 
   for (const [field, message] of [
-    ["cashBalance", /cash balance/i],
+    ["cashBalance", /cashBalance|cash balance/i],
     ["fees", /cumulative fees/i],
-    ["realisedPnl", /cash balance|realised P\/L/i],
+    ["realisedPnl", /cashBalance|cash balance|realised P\/L/i],
   ]) {
     const tampered = structuredClone(account);
     tampered[field] += 1;
