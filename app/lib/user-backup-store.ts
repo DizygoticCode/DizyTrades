@@ -26,6 +26,7 @@ import {
   backupContentHash,
   canonicalBackupJson,
   finaliseDizyTradesBackup,
+  nativeDizyTradesBackupMigration,
   validateBackupJournalEntry,
   validateBackupProfile,
   validateDizyTradesBackup,
@@ -51,6 +52,7 @@ export type BackupRestorePlan = Readonly<{
   ownerId: string;
   generatedAt: string;
   backupHash: string;
+  migration:DizyTradesBackup["migration"];
   safeToApply: boolean;
   profile: Readonly<{
     settingsWillReplace: boolean;
@@ -183,6 +185,7 @@ export async function buildUserBackup(userId: string): Promise<DizyTradesBackup>
       ),
     ]);
 
+  const validatedManualPaper=validateManualPaperBackup(manualPaper,ownerId);
   const content: DizyTradesBackupContent = Object.freeze({
     version: USER_BACKUP_VERSION,
     ownerId,
@@ -191,9 +194,10 @@ export async function buildUserBackup(userId: string): Promise<DizyTradesBackup>
       name: "DizyTrades" as const,
       version: "0.2.0",
     }),
+    migration:nativeDizyTradesBackupMigration(validatedManualPaper),
     data: Object.freeze({
       profile: validateBackupProfile(profileRecord),
-      manualPaper: validateManualPaperBackup(manualPaper, ownerId),
+      manualPaper: validatedManualPaper,
       journal: Object.freeze(
         journalRecord.entries.map((entry, index) =>
           validateBackupJournalEntry(entry, index),
@@ -334,6 +338,8 @@ export async function planUserBackupRestore(
   ]);
   const conflicts: string[] = [];
   const restoreWarnings = [...backup.warnings];
+  if(backup.migration.migrated)restoreWarnings.push("Backup schema v"+backup.migration.sourceBackupVersion+" was integrity-verified and migrated to v"+backup.migration.targetBackupVersion+" for this restore.");
+  if(backup.migration.manualPaper.migrated)restoreWarnings.push("Manual Paper history was migrated from account v"+backup.migration.manualPaper.sourceAccountVersion+" without rewriting recorded prices, quantities, fees or P/L.");
   const currentEntries = new Map(currentJournal.entries.map((entry) => [entry.id, entry]));
   const currentTradeIds = new Map(
     currentJournal.entries
@@ -387,6 +393,7 @@ export async function planUserBackupRestore(
     ownerId,
     generatedAt: new Date().toISOString(),
     backupHash: backup.integrity.contentHash,
+    migration:backup.migration,
     safeToApply: conflicts.length === 0,
     profile: Object.freeze({
       settingsWillReplace: !same(currentProfile.settings, backup.data.profile.settings),

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   DEFAULT_MANUAL_SETTINGS,
   newManualAccount,
+  normaliseManualAccount,
   type ManualAccount,
   type ManualFill,
   type ManualFundingPayment,
@@ -12,6 +13,7 @@ import {
   type ManualSettings,
 } from "./manual-paper";
 import { buildPaperMarginAccountSnapshot, type PaperMarginPositionInput } from "./manual-paper-margin-model";
+import {MANUAL_PAPER_ACCOUNT_VERSION,validateManualPaperFillHistory,validateManualPaperMigrationLedger} from "./manual-paper-history";
 
 const root = () => process.env.DATA_DIR || join(process.cwd(), ".data");
 const safeUserId = (value: string) => {
@@ -365,6 +367,7 @@ function fill(value: unknown, index: number): ManualFill {
         ? undefined
         : oneOf(input.marketType, "manualPaper.fill.marketType", ["futures"] as const),
     historicalDizyFlow: flowReference(input.historicalDizyFlow),
+    history: validateManualPaperFillHistory(input),
     idempotencyKey: string(input.idempotencyKey, "manualPaper.fill.idempotencyKey", 120),
     userId: string(input.userId, "manualPaper.fill.userId", 120),
     symbol: symbol(input.symbol, "manualPaper.fill.symbol"),
@@ -468,8 +471,15 @@ function fundingPayment(value:unknown,index:number):ManualFundingPayment{
 }
 
 export function validateManualPaperBackup(value: unknown, ownerId: string): ManualAccount {
-  const input = object(value, "manualPaper");
-  if (input.version !== 3) throw new Error("Unsupported Manual Paper backup version.");
+  const sourceInput = object(value, "manualPaper"),sourceVersion=sourceInput.version;
+  if(sourceVersion!==2&&sourceVersion!==3&&sourceVersion!==MANUAL_PAPER_ACCOUNT_VERSION)throw new Error("Unsupported Manual Paper backup version.");
+  if(sourceVersion===MANUAL_PAPER_ACCOUNT_VERSION){
+    if(sourceInput.migration==null)throw new Error("Manual Paper v4 backup is missing its migration ledger.");
+    if(!Array.isArray(sourceInput.fills)||!Array.isArray(sourceInput.fundingPayments))throw new Error("Manual Paper v4 history collections are invalid.");
+    if(sourceInput.fills.some(item=>!item||typeof item!=="object"||Array.isArray(item)||!("history" in item)))throw new Error("Manual Paper v4 fill is missing history provenance.");
+    validateManualPaperMigrationLedger(sourceInput.migration,sourceInput.fills,sourceInput.fundingPayments);
+  }
+  const input = object(sourceVersion===MANUAL_PAPER_ACCOUNT_VERSION?sourceInput:normaliseManualAccount(sourceInput), "manualPaper");
   const positionsInput = object(input.positions, "manualPaper.positions");
   const positionEntries = Object.entries(positionsInput);
   if (positionEntries.length > 100) throw new Error("Manual Paper position count is excessive.");
@@ -484,7 +494,7 @@ export function validateManualPaperBackup(value: unknown, ownerId: string): Manu
   if (!Array.isArray(input.idempotencyKeys) || input.idempotencyKeys.length > 1_000) throw new Error("Manual Paper idempotency history is invalid.");
   const idempotencyKeys = input.idempotencyKeys.map((item, index) => string(item, "manualPaper.idempotencyKeys."+index, 120));
   if (new Set(idempotencyKeys).size !== idempotencyKeys.length) throw new Error("Manual Paper idempotency history contains duplicates.");
-  const cashBalance=number(input.cashBalance,"manualPaper.cashBalance",0),parsedSettings=settings(input.settings),storedMarginSnapshot=marginAccountSnapshot(input.marginSnapshot,"manualPaper.marginSnapshot"),activePositions=Object.values(positions);
+  const cashBalance=number(input.cashBalance,"manualPaper.cashBalance",0),parsedSettings=settings(input.settings),storedMarginSnapshot=marginAccountSnapshot(input.marginSnapshot,"manualPaper.marginSnapshot"),activePositions=Object.values(positions),migration=validateManualPaperMigrationLedger(input.migration,fills,fundingPayments);
   if(storedMarginSnapshot){
     const marginInputs:PaperMarginPositionInput[]=activePositions.map(item=>({symbol:item.symbol,side:item.side,quantity:item.quantity,entryPrice:item.entryPrice,markPrice:item.lastRiskPrice>0?item.lastRiskPrice:item.entryPrice,margin:item.margin,marginMode:item.marginMode,maintenanceMarginRate:item.riskTier?.maintenanceMarginRate??parsedSettings.maintenanceMarginPct/100,liquidationPenaltyRate:parsedSettings.liquidationPenaltyPct/100})),expected=buildPaperMarginAccountSnapshot(cashBalance,marginInputs,storedMarginSnapshot.capturedAt),snapshotFields=["cashBalance","isolatedReservedMargin","crossInitialMargin","crossPoolCash","crossUnrealisedPnl","crossEquity","crossAvailableEquity","crossMaintenanceRequirement","crossLiquidationReserve","crossPositionCount"] as const;
     for(const field of snapshotFields){const actual=storedMarginSnapshot[field],wanted=expected[field],tol=Math.max(1e-8,Math.abs(Number(wanted))*1e-9);if(Math.abs(Number(actual)-Number(wanted))>tol)throw new Error("manualPaper.marginSnapshot "+field+" does not reconcile with active positions.")}
@@ -502,7 +512,7 @@ export function validateManualPaperBackup(value: unknown, ownerId: string): Manu
     }
   }else if(activePositions.some(item=>item.marginAudit))throw new Error("Manual Paper margin audit evidence requires an account snapshot.");
   return Object.freeze({
-    version: 3 as const,
+    version: MANUAL_PAPER_ACCOUNT_VERSION,
     cashBalance,
     startingBalance: number(input.startingBalance, "manualPaper.startingBalance", 0),
     realisedPnl: number(input.realisedPnl, "manualPaper.realisedPnl"),
@@ -514,6 +524,7 @@ export function validateManualPaperBackup(value: unknown, ownerId: string): Manu
     idempotencyKeys: Object.freeze(idempotencyKeys) as unknown as string[],
     settings: parsedSettings,
     marginSnapshot: storedMarginSnapshot,
+    migration,
     updatedAt: iso(input.updatedAt, "manualPaper.updatedAt"),
   });
 }
