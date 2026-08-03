@@ -13,21 +13,21 @@ test("DizyFlow activity notification is a bounded floating overlay", () => {
   assert.match(component, /styles\\.rail/);
   assert.match(component, /styles\\.card/);
   assert.match(component, /DizyFlow activity/);
-  assert.match(css, /position:\s*fixed\s*!important/);
-  assert.match(css, /inline-size:\s*min\\(320px,\s*calc\\(100vw - 24px\\)\\)/);
-  assert.match(css, /pointer-events:\s*none/);
-  assert.match(css, /min-block-size:\s*68px/);
-  assert.match(globals, /\\.flow-toast-rail\\{position:fixed!important/);
-  assert.doesNotMatch(globals, /\\.flow-toast-rail\\{position:static!important/);
+  assert.ok(css.includes("position: fixed !important;"));
+  assert.ok(css.includes("inline-size: min(320px, calc(100vw - 24px));"));
+  assert.ok(css.includes("pointer-events: none;"));
+  assert.ok(css.includes("min-block-size: 68px;"));
+  assert.ok(globals.includes(".flow-toast-rail{position:fixed!important"));
+  assert.ok(!globals.includes(".flow-toast-rail{position:static!important"));
 });
 
 test("toast placement and content cannot resize the terminal toolbar", () => {
-  assert.match(globals, /\\.flow-toast-rail\\.top-left\\{left:18px!important/);
-  assert.match(globals, /\\.flow-toast-rail\\.top-centre\\{left:50%!important/);
-  assert.match(globals, /\\.flow-toast-rail\\.top-right\\{right:18px!important/);
-  assert.doesNotMatch(css, /inline-size:\s*clamp\\(340px,\s*26vw,\s*440px\\)/);
-  assert.match(css, /text-overflow:\s*ellipsis/);
-  assert.match(css, /box-shadow:\s*0 14px 38px/);
+  assert.ok(globals.includes(".flow-toast-rail.top-left{left:18px!important"));
+  assert.ok(globals.includes(".flow-toast-rail.top-centre{left:50%!important"));
+  assert.ok(globals.includes(".flow-toast-rail.top-right{right:18px!important"));
+  assert.ok(!css.includes("inline-size: clamp(340px, 26vw, 440px)"));
+  assert.ok(css.includes("text-overflow: ellipsis;"));
+  assert.ok(css.includes("box-shadow: 0 14px 38px"));
 });
 
 test("floating activity toast remains accessible and dismissible", () => {
