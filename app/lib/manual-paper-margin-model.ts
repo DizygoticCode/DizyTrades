@@ -1,9 +1,4 @@
-import {readFile,writeFile,mkdir} from "node:fs/promises";
-
-const replaceOnce=(source,from,to,label)=>{const index=source.indexOf(from);if(index<0)throw new Error(`Missing ${label}`);if(source.indexOf(from,index+from.length)>=0)throw new Error(`Ambiguous ${label}`);return source.slice(0,index)+to+source.slice(index+from.length)};
-
-await mkdir("app/lib",{recursive:true});
-await writeFile("app/lib/manual-paper-margin-model.ts",`import type {MarginMode,PaperSide} from "./manual-paper-engine";
+import type {MarginMode,PaperSide} from "./manual-paper-engine";
 
 export type PaperMarginPositionInput=Readonly<{
  symbol:string;
@@ -101,9 +96,3 @@ export function settlePaperMarginCash(input:{cashBalance:number;marginMode:Margi
  const protectedCollateral=input.marginMode==="isolated"?Math.min(input.cashBalance,input.allocatedMargin):Math.min(input.cashBalance,input.isolatedReservedMargin),minimumCashBalance=input.marginMode==="isolated"?Math.max(0,input.cashBalance-protectedCollateral):protectedCollateral,requestedAfter=input.cashBalance+input.requestedCashDelta,cashAfter=input.requestedCashDelta>=0?requestedAfter:Math.max(minimumCashBalance,requestedAfter),appliedCashDelta=cashAfter-input.cashBalance,capped=Math.abs(appliedCashDelta-input.requestedCashDelta)>tolerance(input.requestedCashDelta);
  return Object.freeze({calculationMethod:input.marginMode==="isolated"?"isolated-position-loss-cap-v1":"cross-shared-pool-loss-cap-v1",marginMode:input.marginMode,cashBefore:input.cashBalance,requestedCashDelta:input.requestedCashDelta,appliedCashDelta,protectedCollateral,minimumCashBalance,cashAfter,capped});
 }
-`,"utf8");
-
-let engine=await readFile("app/lib/manual-paper-engine.ts","utf8");
-engine=replaceOnce(engine,'collateralBasis:"assigned-margin"|"cross-collateral-snapshot"','collateralBasis:"assigned-margin"|"cross-shared-usdt-pool"',"liquidation collateral basis type");
-engine=replaceOnce(engine,'collateralBasis:input.marginMode==="isolated"?"assigned-margin":"cross-collateral-snapshot"','collateralBasis:input.marginMode==="isolated"?"assigned-margin":"cross-shared-usdt-pool"',"liquidation collateral basis value");
-await writeFile("app/lib/manual-paper-engine.ts",engine,"utf8");

@@ -1,19 +1,4 @@
-import {readFile,writeFile,readdir} from "node:fs/promises";
-
-await writeFile("tests/manual-paper-margin-model.test.mjs",`import test from "node:test";
-import assert from "node:assert/strict";
-import {buildPaperMarginAccountSnapshot,buildPaperPositionMarginAudit,settlePaperMarginCash} from "../app/lib/manual-paper-margin-model.ts";
-
-const position=(overrides={})=>({symbol:"BTC_USDT",side:"long",quantity:10,entryPrice:100,markPrice:100,margin:100,marginMode:"cross",maintenanceMarginRate:.01,liquidationPenaltyRate:.001,...overrides});
-
-test("single-asset margin snapshot fences isolated collateral from the cross pool",()=>{const isolated=position({symbol:"ISO_USDT",marginMode:"isolated",markPrice:50}),crossLong=position({symbol:"LONG_USDT",markPrice:110}),crossShort=position({symbol:"SHORT_USDT",side:"short",markPrice:90}),snapshot=buildPaperMarginAccountSnapshot(1000,[isolated,crossLong,crossShort],123);assert.equal(snapshot.isolatedReservedMargin,100);assert.equal(snapshot.crossPoolCash,900);assert.equal(snapshot.crossUnrealisedPnl,200);assert.equal(snapshot.crossEquity,1100);assert.equal(snapshot.crossInitialMargin,200);assert.equal(snapshot.crossAvailableEquity,900);assert.equal(snapshot.crossPositionCount,2);assert.equal(snapshot.capturedAt,123);assert.equal(snapshot.settlementAsset,"USDT")});
-
-test("position audits distinguish fenced isolated support from the shared cross pool",()=>{const isolated=position({symbol:"ISO_USDT",marginMode:"isolated"}),cross=position({symbol:"CROSS_USDT",markPrice:110}),other=position({symbol:"OTHER_USDT",side:"short",markPrice:90}),snapshot=buildPaperMarginAccountSnapshot(1000,[isolated,cross,other],456),isolatedAudit=buildPaperPositionMarginAudit(isolated,snapshot),crossAudit=buildPaperPositionMarginAudit(cross,snapshot);assert.equal(isolatedAudit.calculationMethod,"isolated-position-collateral-v1");assert.equal(isolatedAudit.collateralAvailableToPosition,isolated.margin);assert.equal(isolatedAudit.supportingCrossPositionCount,1);assert.equal(crossAudit.calculationMethod,"cross-shared-usdt-pool-v1");assert.equal(crossAudit.supportingCrossPositionCount,2);assert.equal(crossAudit.collateralAvailableToPosition,snapshot.crossPoolCash+crossAudit.otherCrossUnrealisedPnl-crossAudit.otherCrossMaintenanceRequirement-crossAudit.otherCrossLiquidationReserve)});
-
-test("loss settlement caps isolated loss and protects isolated collateral from cross loss",()=>{const isolated=settlePaperMarginCash({cashBalance:1000,marginMode:"isolated",allocatedMargin:100,isolatedReservedMargin:100,requestedCashDelta:-500}),cross=settlePaperMarginCash({cashBalance:1000,marginMode:"cross",allocatedMargin:200,isolatedReservedMargin:300,requestedCashDelta:-900});assert.equal(isolated.cashAfter,900);assert.equal(isolated.appliedCashDelta,-100);assert.equal(isolated.capped,true);assert.equal(cross.cashAfter,300);assert.equal(cross.appliedCashDelta,-700);assert.equal(cross.protectedCollateral,300);assert.equal(cross.capped,true)});
-`,"utf8");
-
-await writeFile("tests/manual-paper-margin-lifecycle.test.mjs",`import test from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
 import {mkdtemp,rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
@@ -33,13 +18,3 @@ test("isolated liquidation does not move when a cross position gains or loses",(
 test("isolated close losses are capped to assigned margin and survive backup validation",()=>isolated("dizy-margin-cap-",async()=>{const {submitManualOrder,closeManualPosition}=await import("../app/lib/manual-paper.ts"),{validateManualPaperBackup}=await import("../app/lib/manual-paper-backup.ts"),user="margin-cap-user";let account=await open(submitManualOrder,user,"BTC_USDT","isolated",1000),before=account.cashBalance,margin=account.positions.BTC_USDT.margin;account=await closeManualPosition(user,"BTC_USDT","close-btcusdt-000001",1);const fill=account.fills.at(-1);assert.equal(fill.marginSettlement.capped,true);assert.ok(Math.abs((before-account.cashBalance)-margin)<1e-8);assert.equal(fill.marginSettlement.calculationMethod,"isolated-position-loss-cap-v1");assert.doesNotThrow(()=>validateManualPaperBackup(account,user));const copy=structuredClone(account);copy.fills.at(-1).marginSettlement.cashAfter+=1;assert.throws(()=>validateManualPaperBackup(copy,user),/settlement|reconcile/i)}));
 
 test("backup validation rejects contradictory cross-pool evidence",()=>isolated("dizy-margin-backup-",async()=>{const {submitManualOrder}=await import("../app/lib/manual-paper.ts"),{validateManualPaperBackup}=await import("../app/lib/manual-paper-backup.ts"),user="margin-backup-user";const account=await open(submitManualOrder,user,"BTC_USDT","cross",40000);assert.doesNotThrow(()=>validateManualPaperBackup(account,user));const accountCopy=structuredClone(account);accountCopy.marginSnapshot.crossEquity+=1;assert.throws(()=>validateManualPaperBackup(accountCopy,user),/cross equity/i);const positionCopy=structuredClone(account);positionCopy.positions.BTC_USDT.marginAudit.collateralAvailableToPosition+=1;assert.throws(()=>validateManualPaperBackup(positionCopy,user),/cross collateral/i)}));
-`,"utf8");
-
-await writeFile("tests/manual-paper-margin-source.test.mjs",`import test from "node:test";
-import assert from "node:assert/strict";
-import {readFile} from "node:fs/promises";
-
-test("isolated and cross assumptions are explicit at source boundaries",async()=>{const [model,core,backup,ticket,roadmap]=await Promise.all([readFile("app/lib/manual-paper-margin-model.ts","utf8"),readFile("app/lib/manual-paper.ts","utf8"),readFile("app/lib/manual-paper-backup.ts","utf8"),readFile("app/manual-paper-ticket.tsx","utf8"),readFile("ROADMAP.md","utf8")]);for(const value of ["single-asset-usdt-margin-pool-v1","isolated-position-collateral-v1","cross-shared-usdt-pool-v1","isolated-position-loss-cap-v1","cross-shared-pool-loss-cap-v1"])assert.match(model,new RegExp(value));assert.match(core,/refreshAccountRisk/);assert.match(core,/settleManualClose/);assert.match(backup,/cross pool cash does not reconcile/);assert.match(backup,/cross collateral does not reconcile/);assert.match(ticket,/Isolated collateral reserved/);assert.match(ticket,/Cross shared equity/);assert.match(ticket,/Cross · shared USDT pool/);assert.ok(roadmap.includes("- [x] clearer isolated versus cross-margin assumptions"));assert.match(roadmap,/Next slice: migration-safe history and backup support/)});
-`,"utf8");
-
-for(const name of await readdir("tests")){if(!name.endsWith(".mjs"))continue;const path="tests/"+name,source=await readFile(path,"utf8"),next=source.replaceAll("cross-collateral-snapshot","cross-shared-usdt-pool").replaceAll("Next slice: clearer isolated versus cross-margin assumptions","Next slice: migration-safe history and backup support");if(next!==source)await writeFile(path,next,"utf8")}
