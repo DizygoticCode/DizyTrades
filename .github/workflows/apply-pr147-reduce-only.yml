@@ -36,6 +36,7 @@ jobs:
           node scripts/pr147/01a-close-helper-brace.mjs
           node scripts/pr147/02-lifecycles.mjs
           node scripts/pr147/03-boundaries.mjs
+          node scripts/pr147/03a-backup-enabled-literal.mjs
           node scripts/pr147/04-tests-roadmap.mjs
           node scripts/pr147/05-compat-tests.mjs
       - name: Focused reduce-only and automatic-risk tests
