@@ -67,6 +67,8 @@ test("root layout mounts after hydration and launchers remain existing UI action
     readFile("app/command-palette.tsx", "utf8"),
   ]);
   assert.match(layout, /<CommandPaletteMounted \/>/);
+  assert.match(mounted, /useSyncExternalStore/);
+  assert.match(mounted, /\(\) => true, \(\) => false/);
   assert.match(mounted, /mounted \? <CommandPalette \/> : null/);
   assert.match(palette, /Control\+K Meta\+K/);
   assert.match(palette, /first-run-onboarding-trigger/);
