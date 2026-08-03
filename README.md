@@ -249,11 +249,12 @@ The protected workspace now includes:
 - [x] read-only Render deployment observation
 - [x] isolated application recovery rehearsal
 - [x] authentication and storage threat review
+- [x] simulator accounting audit and executable reconciliation
 
 ### Active next programmes
 
 - [ ] remaining independent engineering and correctness audits
-- [ ] simulator accounting and Replay future-leakage review
+- [ ] Replay future-leakage review
 - [ ] backup conflict and independent browser-accessibility review
 - [ ] server-side read-only MEXC connection and shadow reconciliation
 - [ ] DizyQuant microstructure research with Replay/statistical validation
@@ -300,7 +301,7 @@ The repository currently contains:
 
 `LIVE_TRADING_ENABLED=false` is a required deployment boundary. Any future exchange connection begins read-only and server-side. Encrypted credential custody, reconciliation, idempotency, account limits, emergency shutdown and independent review are mandatory before execution can be considered.
 
-The active authentication and storage findings, remediations and accepted beta limitations are documented in [SECURITY.md](SECURITY.md) and [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md).
+The active authentication, storage and simulator-accounting findings, remediations and accepted beta limitations are documented in [SECURITY.md](SECURITY.md), [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md) and [docs/SIMULATOR_ACCOUNTING_AUDIT.md](docs/SIMULATOR_ACCOUNTING_AUDIT.md).
 
 ## Local development
 

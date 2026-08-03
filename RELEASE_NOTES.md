@@ -55,6 +55,16 @@ This is a living high-level history of user-facing milestones. Pull requests rem
 - Replaced lossy profile and Journal owner-ID rewriting with strict collision-free validation.
 - Documented accepted beta limitations and the additional controls required before exchange credentials or order permission.
 
+### Simulator accounting audit
+
+- Added executable reconciliation for native Manual Paper cash, realised P/L, active entry fees, fill notional, fee components, funding and margin settlements.
+- Rejects current account and backup economic tampering instead of silently normalising contradictory values.
+- Preserves legacy and retention-bounded history honestly when complete reconstruction is unavailable.
+- Replaced lossy Manual Paper owner-ID rewriting with strict one-to-one validation.
+- Corrected confirmed-signal maximum-notional sizing so notional cannot exceed either the configured ceiling or equity-based leverage capacity.
+- Separated completed trades from open mark-to-market positions for win rate and profit factor.
+- Added realised versus marked P/L decomposition, including live mark updates.
+
 ### Workflow and accessibility
 
 - Added named account-scoped workspace layouts and deterministic built-in presets.
@@ -120,7 +130,7 @@ This is a living high-level history of user-facing milestones. Pull requests rem
 ## Active programme
 
 - Remaining independent engineering and correctness audits.
-- Simulator accounting and Replay future-leakage review.
+- Replay future-leakage review.
 - Backup conflict and independent browser-accessibility review.
 - Read-only exchange connection and shadow reconciliation before any execution work.
 - DizyQuant research only behind Replay and statistical validation.
