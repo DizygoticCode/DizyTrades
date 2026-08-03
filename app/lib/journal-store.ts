@@ -4,10 +4,10 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { JOURNAL_SCHEMA_VERSION, unavailableHistoricalDizyFlowReference, type DizyBrainReviewReference, type HistoricalDizyFlowReference, type JournalEntry } from "./journal-model";
 import { journalCreateFields, journalEditableFields } from "./journal-validation";
+import { safeOwnerId } from "./security-boundaries";
 
 const root=()=>process.env.DATA_DIR||join(process.cwd(),".data");
-const safe=(id:string)=>id.replace(/[^a-z0-9_-]/gi,"");
-const path=(id:string)=>join(root(),"journal",`${safe(id)}.json`);
+const path=(id:string)=>join(root(),"journal",`${safeOwnerId(id,"Journal owner")}.json`);
 export type JournalRecord={version:5;entries:JournalEntry[]};
 const empty=():JournalRecord=>({version:5,entries:[]});
 
@@ -24,9 +24,18 @@ export function migrateJournalEntry(value:unknown):JournalEntry|null {
   return {...entry,schemaVersion:JOURNAL_SCHEMA_VERSION,title:typeof entry.title==="string"?entry.title:"",archived:entry.archived===true,archivedAt:entry.archived===true&&typeof entry.archivedAt==="string"?entry.archivedAt:null,trade:trade?{...trade,replay:migratedReplay,dizyBrainReview:migratedReview,historicalDizyFlow:flow}:null} as JournalEntry;
 }
 
-export async function readJournal(userId:string):Promise<JournalRecord>{try{const raw=JSON.parse(await readFile(path(userId),"utf8")) as {entries?:unknown[]};return {version:5,entries:Array.isArray(raw.entries)?raw.entries.map(migrateJournalEntry).filter((entry):entry is JournalEntry=>Boolean(entry)).slice(-2000):[]};}catch{return empty();}}
+export async function readJournal(userId:string):Promise<JournalRecord>{
+  const target=path(userId);
+  try{
+    const raw=JSON.parse(await readFile(target,"utf8")) as {entries?:unknown[]};
+    return {version:5,entries:Array.isArray(raw.entries)?raw.entries.map(migrateJournalEntry).filter((entry):entry is JournalEntry=>Boolean(entry)).slice(-2000):[]};
+  }catch(reason){
+    if((reason as NodeJS.ErrnoException).code==="ENOENT")return empty();
+    return empty();
+  }
+}
 async function writeJournal(userId:string,value:JournalRecord){await mkdir(join(root(),"journal"),{recursive:true});const target=path(userId),temp=`${target}.${process.pid}.${Date.now()}.tmp`;await writeFile(temp,JSON.stringify(value,null,2)+"\n",{mode:0o600});await rename(temp,target);}
-const queues=new Map<string,Promise<unknown>>();export async function withJournalTransaction<T>(id:string,fn:()=>Promise<T>){const prior=queues.get(id)??Promise.resolve();let release!:()=>void;const gate=new Promise<void>(r=>release=r),queued=prior.then(()=>gate);queues.set(id,queued);await prior;try{return await fn();}finally{release();if(queues.get(id)===queued)queues.delete(id);}}
+const queues=new Map<string,Promise<unknown>>();export async function withJournalTransaction<T>(id:string,fn:()=>Promise<T>){const ownerId=safeOwnerId(id,"Journal owner");const prior=queues.get(ownerId)??Promise.resolve();let release!:()=>void;const gate=new Promise<void>(r=>release=r),queued=prior.then(()=>gate);queues.set(ownerId,queued);await prior;try{return await fn();}finally{release();if(queues.get(ownerId)===queued)queues.delete(ownerId);}}
 
 export class DuplicateJournalTradeError extends Error {constructor(public entryId:string,public archived:boolean){super("TRADE_ALREADY_JOURNALED");}}
 export async function createJournalEntryWithinTransaction(userId:string,input:unknown){const record=await readJournal(userId),fields=journalCreateFields(input);const duplicate=fields.trade&&record.entries.find(e=>e.trade?.tradeId===fields.trade?.tradeId);if(duplicate)throw new DuplicateJournalTradeError(duplicate.id,duplicate.archived);const now=new Date().toISOString();const entry=Object.freeze({id:randomUUID(),...fields,createdAt:now,editedAt:now}) as JournalEntry;record.entries.push(entry);record.entries=record.entries.slice(-2000);await writeJournal(userId,record);return entry;}
