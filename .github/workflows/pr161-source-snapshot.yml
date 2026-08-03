@@ -16,9 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Archive audited source
-        run: tar --exclude=.git --exclude=node_modules --exclude=artifacts -czf dizytrades-pr161-source.tar.gz .
+        run: tar --exclude=.git --exclude=node_modules --exclude=artifacts -czf /tmp/dizytrades-pr161-source.tar.gz .
       - uses: actions/upload-artifact@v4
         with:
           name: pr161-source-snapshot
-          path: dizytrades-pr161-source.tar.gz
+          path: /tmp/dizytrades-pr161-source.tar.gz
           retention-days: 1
