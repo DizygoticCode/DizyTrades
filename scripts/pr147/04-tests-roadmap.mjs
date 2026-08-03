@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 
 await writeFile("tests/manual-paper-reduce-only.test.mjs", String.raw`import test from "node:test";
 import assert from "node:assert/strict";
-import {mkdtemp,rm} from "node:fs/promises";
+import {mkdtemp,readFile,rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {createManualReduceOnlyPlan,finaliseManualReduceOnly} from "../app/lib/manual-paper-reduce-only.ts";
