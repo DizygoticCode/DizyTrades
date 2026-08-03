@@ -1,0 +1,54 @@
+name: Apply PR 145 beginner-first terminal UI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "scripts/pr145/**"
+      - ".github/workflows/pr145-beginner-ui.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr145-beginner-ui-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  apply-and-validate:
+    if: github.head_ref == 'feature/dizybrain-beginner-first-ui'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dizybrain-beginner-first-ui
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply beginner-first UI patch
+        run: node scripts/pr145/apply.mjs
+      - name: Focused DizyBrain and toast tests
+        run: node --conditions=react-server --import tsx --test tests/dizybrain-beginner-ui.test.mjs tests/dizybrain-workspace.test.mjs tests/dizybrain-v1.test.mjs tests/dizyflow-toast-layout.test.mjs
+      - name: Full unit suite
+        run: npm test
+      - name: Lint
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+      - name: Remove temporary patch machinery
+        run: rm -rf scripts/pr145 .github/workflows/pr145-beginner-ui.yml
+      - name: Commit validated implementation
+        run: |
+          git config user.name "DizygoticCode"
+          git config user.email "232596562+DizygoticCode@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No implementation changes to commit"
+          else
+            git commit -m "Restore beginner-first DizyBrain and floating flow alerts"
+            git push origin HEAD:feature/dizybrain-beginner-first-ui
+          fi
