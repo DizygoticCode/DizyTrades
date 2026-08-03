@@ -105,7 +105,7 @@ No order permission.
 - [x] simulator accounting audit
 - [x] Replay future-leakage audit
 - [x] backup restore and conflict audit
-- [ ] browser accessibility independent review
+- [x] browser accessibility independent review
 - [x] deployment observation and application recovery rehearsal
 
 The authentication and storage review is recorded in [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md). It hardens fail-closed feature flags, session parsing and fallback behaviour, outage throttling, request-origin boundaries, owner-ID/path isolation and auth-database permissions while documenting accepted beta limitations.
@@ -115,6 +115,8 @@ The simulator accounting review is recorded in [docs/SIMULATOR_ACCOUNTING_AUDIT.
 The Replay temporal-boundary review is recorded in [docs/REPLAY_FUTURE_LEAKAGE_AUDIT.md](docs/REPLAY_FUTURE_LEAKAGE_AUDIT.md). It replaces timestamp ceiling jumps with a shared exact-or-prior selector and adds adversarial evidence across interactive Replay, Journal launch, retained closed-candle memory, Historical DizyFlow and DizyBrain historical-review prefixes.
 
 The backup conflict review is recorded in [docs/BACKUP_RESTORE_CONFLICT_AUDIT.md](docs/BACKUP_RESTORE_CONFLICT_AUDIT.md). It rejects same-ID/different-content Paper runs, prevents additive profile or Journal truncation, preflights retained-evidence count and byte limits and repeats profile/Journal checks at write time.
+
+The independent browser accessibility review is recorded in [docs/BROWSER_ACCESSIBILITY_INDEPENDENT_REVIEW.md](docs/BROWSER_ACCESSIBILITY_INDEPENDENT_REVIEW.md). It inspects Chromium's computed accessibility tree and rendered DOM across representative public and viewer workspaces, enforces modal background isolation and removes the duplicate Manual Paper main landmark.
 
 Deployment/recovery evidence now has two completed layers:
 
@@ -191,7 +193,7 @@ Useful for public charting, market study, deterministic signals, order-flow obse
 
 ### Operational Research Platform — in progress
 
-DizyPaper Fidelity V2, workflow/accessibility, deployment observation, application recovery rehearsal, authentication/storage, simulator-accounting, Replay temporal-boundary and backup-conflict reviews are complete. This milestone closes after the remaining independent engineering and browser-accessibility reviews are stable.
+DizyPaper Fidelity V2, workflow/accessibility, deployment observation, application recovery rehearsal, authentication/storage, simulator-accounting, Replay temporal-boundary, backup-conflict and browser-accessibility reviews are complete. This milestone closes after the remaining independent engineering review is stable.
 
 ### Read-only Account Companion — future
 
