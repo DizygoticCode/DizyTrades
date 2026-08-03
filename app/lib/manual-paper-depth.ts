@@ -23,6 +23,7 @@ export type PaperDepthFillEvidence = Readonly<{
   filledContractVolume: number;
   unfilledContractVolume: number;
   availableContractVolume: number;
+  openPositionContractVolume?: number;
   remainingPositionContractVolume?: number;
   quantity: number;
   notional: number;
@@ -225,6 +226,7 @@ export function simulatePaperMarketDepthFill(input: {
     filledContractVolume,
     unfilledContractVolume,
     availableContractVolume,
+    ...(openContractVolume === undefined ? {} : { openPositionContractVolume: openContractVolume }),
     ...(remainingPositionContractVolume === undefined
       ? {}
       : { remainingPositionContractVolume }),
