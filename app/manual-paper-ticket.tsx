@@ -640,7 +640,7 @@ export function ManualPaperTicket({
             {error ? <p className={styles.error}>{error}</p> : null}
             {captureWarning?<p role="status">Retained capture · {captureWarning}</p>:null}{captureError?<p className={styles.error} role="status">{captureError} <button type="button" onClick={()=>void uploadCapture(retryManager.current??captureManager.current)}>Retry flow retention</button></p>:null}
           </aside>
-          <main className={styles.workspace}>
+          <section aria-label="Manual Paper account workspace" className={styles.workspace}>
             <nav className={styles.tabs}>
               {(["positions", "history", "account"] as const).map((value) => (
                 <button
@@ -833,7 +833,7 @@ export function ManualPaperTicket({
                 ))}
               </div>
             )}
-          </main>
+          </section>
         </div>
       ) : null}
     </section>
