@@ -4,9 +4,13 @@ on:
   push:
     branches:
       - feature/dizypaper-reduce-only-semantics
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
 
 concurrency:
-  group: apply-pr147-${{ github.ref }}
+  group: apply-pr147-reduce-only
   cancel-in-progress: true
 
 permissions:
