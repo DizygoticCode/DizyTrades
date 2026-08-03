@@ -76,9 +76,11 @@ Driven by real use rather than speculative redesign.
 - [x] first-run onboarding
 - [ ] responsive and mobile audit
 - [ ] focus order, screen-reader and reduced-motion audit
-- [ ] empty, delayed and recovery state polish
+- [x] empty, delayed and recovery state polish
 
 First-run onboarding now opens once per user and offers bounded paths into the terminal, DizyAcademy or Manual Paper. It remains reopenable from the terminal toolbar, distinguishes simulation from live execution and includes responsive, keyboard and reduced-motion behaviour.
+
+Empty, delayed and recovery states now use one deterministic language contract across DizyCharts/DizyFlow, DizyScanner, DizyStructure and DizyBackup. Existing native feed and validation signals are translated into explicit empty, delayed, recovering, offline or failed guidance, each declaring what remains preserved and offering a bounded retry, reload or choose-another-file action without changing market, strategy, simulator or recovery logic.
 
 ### 3. Read-only exchange connection and shadow mode
 
