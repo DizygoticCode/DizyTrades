@@ -16,6 +16,7 @@ test("viewer navigates and opens verified keyboard help through the palette", as
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/scanner$/);
   await expect(page.getByRole("heading", { name: "Find current confluence without opening every chart." })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Commands/ })).toBeVisible();
 
   await page.evaluate(() => {
     window.dispatchEvent(new KeyboardEvent("keydown", {
