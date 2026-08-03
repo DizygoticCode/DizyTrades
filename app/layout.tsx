@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { CommandPalette } from "./command-palette";
+import { CommandPaletteMounted } from "./command-palette-mounted";
 import "./globals.css";
 import "./brand-rollout.css";
 import "./marketing/real-feature-visuals.css";
@@ -22,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <CommandPalette />
+        <CommandPaletteMounted />
         {children}
       </body>
     </html>
