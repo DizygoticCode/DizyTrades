@@ -17,7 +17,14 @@ test("viewer navigates and opens verified keyboard help through the palette", as
   await expect(page).toHaveURL(/\/scanner$/);
   await expect(page.getByRole("heading", { name: "Find current confluence without opening every chart." })).toBeVisible();
 
-  await page.keyboard.press("Shift+Slash");
+  await page.evaluate(() => {
+    window.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "?",
+      code: "Slash",
+      shiftKey: true,
+      bubbles: true,
+    }));
+  });
   const reference = page.getByRole("dialog", { name: "DizyTrades keyboard reference" });
   await expect(reference).toBeVisible();
   await expect(reference.locator("kbd").filter({ hasText: "Ctrl/Cmd + K" })).toBeVisible();
