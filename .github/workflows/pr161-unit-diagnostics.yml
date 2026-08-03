@@ -1,0 +1,35 @@
+name: PR 161 unit diagnostics
+
+on:
+  pull_request:
+  push:
+    branches:
+      - agent/simulator-accounting-audit
+
+permissions:
+  contents: read
+
+jobs:
+  unit-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Run unit suite with retained output
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee unit-test-output.txt
+      - name: Upload unit output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr161-unit-test-output
+          path: unit-test-output.txt
+          if-no-files-found: error
+          retention-days: 1
