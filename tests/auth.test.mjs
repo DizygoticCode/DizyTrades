@@ -4,11 +4,15 @@ import test from "node:test";
 import {
   authenticateUser,
   authIsConfigured,
+  legacyAuthFallbackEnabled,
+  publicSignupEnabled,
 } from "../app/lib/auth-credentials.ts";
 
 const authEnvironmentKeys = [
   "ALLOW_TEST_PLAINTEXT_PASSWORDS",
   "LIVE_TRADING_ENABLED",
+  "PUBLIC_SIGNUP_ENABLED",
+  "LEGACY_AUTH_FALLBACK_ENABLED",
   "ROB_EMAIL",
   "ROB_PASSWORD",
   "ROB_PASSWORD_HASH",
@@ -30,13 +34,27 @@ function passwordHash(password) {
   return `${salt}:${scryptSync(password, salt, 64).toString("hex")}`;
 }
 
-test.beforeEach(resetAuthEnvironment);
+test.beforeEach(() => {
+  resetAuthEnvironment();
+  process.env.LEGACY_AUTH_FALLBACK_ENABLED = "true";
+});
 
 test.after(() => {
   resetAuthEnvironment();
   for (const [key, value] of Object.entries(originalEnvironment)) {
     if (value !== undefined) process.env[key] = value;
   }
+});
+
+test("keeps signup and legacy fallback disabled unless explicitly enabled", () => {
+  delete process.env.PUBLIC_SIGNUP_ENABLED;
+  delete process.env.LEGACY_AUTH_FALLBACK_ENABLED;
+  assert.equal(publicSignupEnabled(), false);
+  assert.equal(legacyAuthFallbackEnabled(), false);
+  process.env.PUBLIC_SIGNUP_ENABLED = "true";
+  process.env.LEGACY_AUTH_FALLBACK_ENABLED = "true";
+  assert.equal(publicSignupEnabled(), true);
+  assert.equal(legacyAuthFallbackEnabled(), true);
 });
 
 test("allows an explicitly enabled test plaintext password and strips secrets", async () => {
@@ -97,4 +115,11 @@ test("does not configure a user with a malformed hash", () => {
   process.env.ROB_PASSWORD_HASH = "not-a-valid-scrypt-hash";
 
   assert.equal(authIsConfigured(), false);
+});
+
+test("does not authenticate legacy users when fallback is disabled", async () => {
+  process.env.LEGACY_AUTH_FALLBACK_ENABLED = "false";
+  process.env.ROB_EMAIL = "owner@example.test";
+  process.env.ROB_PASSWORD_HASH = passwordHash("hashed-owner-password");
+  assert.equal(await authenticateUser("owner@example.test", "hashed-owner-password"), null);
 });
