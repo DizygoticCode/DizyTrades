@@ -32,7 +32,7 @@ jobs:
       - name: Apply automatic risk depth patch
         run: node scripts/pr143/apply.mjs
       - name: Focused automatic risk tests
-        run: node --test tests/manual-paper-depth-auto-risk.test.mjs tests/manual-paper-depth-auto-risk-route.test.mjs tests/manual-paper-depth.test.mjs tests/manual-paper.test.mjs tests/manual-paper-backup.test.mjs
+        run: node --conditions=react-server --import tsx --test tests/manual-paper-depth-auto-risk.test.mjs tests/manual-paper-depth-auto-risk-route.test.mjs tests/manual-paper-depth.test.mjs tests/manual-paper.test.mjs tests/manual-paper-backup.test.mjs
       - name: Full unit suite
         run: npm test
       - name: Lint
