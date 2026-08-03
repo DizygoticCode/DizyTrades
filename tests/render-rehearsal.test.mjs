@@ -1,0 +1,40 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  buildHealthUrl,
+  deployCommitId,
+  findExpectedDeploy,
+  normaliseCollection,
+} from "../scripts/render-rehearsal.mjs";
+
+test("normalises Render list response variants", () => {
+  const wrapped = [{ deploy: { id: "dep-1" }, cursor: "cursor-1" }];
+  assert.deepEqual(normaliseCollection(wrapped, "deploys"), wrapped);
+  assert.deepEqual(normaliseCollection({ deploys: wrapped }, "deploys"), wrapped);
+  assert.deepEqual(normaliseCollection({ events: [] }, "deploys"), []);
+  assert.deepEqual(normaliseCollection(null, "deploys"), []);
+});
+
+test("matches full and abbreviated commit identifiers", () => {
+  const deploys = [
+    { status: "live", commit: { id: "abcdef1234567890" } },
+    { status: "build_in_progress", commitId: "1234567890abcdef" },
+  ];
+  assert.equal(deployCommitId(deploys[0]), "abcdef1234567890");
+  assert.equal(findExpectedDeploy(deploys, "abcdef1"), deploys[0]);
+  assert.equal(findExpectedDeploy(deploys, "1234567890abcdef9999"), deploys[1]);
+  assert.equal(findExpectedDeploy(deploys, "not-present"), null);
+  assert.equal(findExpectedDeploy(deploys, ""), deploys[0]);
+});
+
+test("builds health URL from configured or default path", () => {
+  assert.equal(
+    buildHealthUrl({ url: "https://dizytrades.example", healthCheckPath: "/api/health" }),
+    "https://dizytrades.example/api/health",
+  );
+  assert.equal(
+    buildHealthUrl({ url: "https://dizytrades.example/base/" }),
+    "https://dizytrades.example/api/health",
+  );
+  assert.throws(() => buildHealthUrl({}), /Render service URL is required/);
+});
