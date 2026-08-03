@@ -1,0 +1,44 @@
+name: PR 164 source fix
+
+on:
+  push:
+    branches:
+      - agent/browser-accessibility-independent-review
+
+permissions:
+  contents: write
+
+jobs:
+  patch-manual-paper-landmark:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/browser-accessibility-independent-review
+          fetch-depth: 0
+      - name: Replace nested main with named section
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/manual-paper-ticket.tsx')
+          text = path.read_text(encoding='utf-8')
+          opening = '          <main className={styles.workspace}>'
+          replacement = '          <section aria-label="Manual Paper account workspace" className={styles.workspace}>'
+          if text.count(opening) != 1:
+              raise SystemExit(f'Expected one Manual Paper workspace main, found {text.count(opening)}')
+          start = text.index(opening)
+          closing = '          </main>'
+          end = text.index(closing, start)
+          text = text[:start] + replacement + text[start + len(opening):end] + '          </section>' + text[end + len(closing):]
+          path.write_text(text, encoding='utf-8')
+          PY
+          rm .github/workflows/pr164-source-fix.yml
+      - name: Commit focused source correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/manual-paper-ticket.tsx .github/workflows/pr164-source-fix.yml
+          git commit -m "Fix Manual Paper landmark source"
+          git push origin HEAD:agent/browser-accessibility-independent-review
