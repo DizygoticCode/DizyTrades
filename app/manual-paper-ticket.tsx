@@ -35,6 +35,12 @@ type Position = {
   margin?: number;
   marginMode: "isolated" | "cross";
   estimatedLiquidation: number;
+  executionType?: "market";
+  liquidityRole?: "maker" | "taker";
+  feeRate?: number;
+  feeSource?: "mexc-public-contract" | "legacy-settings-fallback";
+  makerFeeRate?: number;
+  takerFeeRate?: number;
   riskPriceSource: "fair" | "last";
   lastRiskPrice: number;
   stopLoss?: number;
@@ -49,6 +55,14 @@ type Fill = {
   quantity: number;
   contractVolume?: number;
   fee: number;
+  executionType?: "market";
+  liquidityRole?: "maker" | "taker";
+  feeRate?: number;
+  feeSource?: "mexc-public-contract" | "legacy-settings-fallback";
+  makerFeeRate?: number;
+  takerFeeRate?: number;
+  tradingFee?: number;
+  liquidationPenalty?: number;
   realisedPnl: number;
   timestamp: string;
   closeReason?: "manual"|"stop"|"target"|"liquidation"|"reversal";
@@ -65,6 +79,7 @@ type Account = {
   settings: {
     enabled: boolean;
     commissionPct: number;
+    makerCommissionPct: number;
     slippagePct: number;
     confirmationRequired: boolean;
     panelHeight: number;
@@ -184,7 +199,9 @@ export function ManualPaperTicket({
     quantity=contractOrder?.quantity??0,
     notional=contractOrder?.notional??0,
     margin=leverageNumber>0?notional/leverageNumber:0,
-    fee = Math.max(0,(notional * (account?.settings.commissionPct ?? 0)) / 100),
+    feeRate=contract?.takerFeeRate??(account?.settings.commissionPct??0)/100,
+    feeSource=contract?"MEXC public contract":"Legacy settings fallback",
+    fee = Math.max(0,notional*feeRate),
     liquidation=quantity>0?estimateLiquidation({side,entryPrice:executionPrice,quantity,marginMode,assignedMargin:margin,crossCollateral:equity,entryFee:fee,maintenanceMarginRate:contract?.maintenanceMarginRate??(account?.settings.maintenanceMarginPct??.5)/100,liquidationPenaltyRate:(account?.settings.liquidationPenaltyPct??.1)/100}):NaN,
     riskAmount=stopLoss&&quantity?Math.abs(executionPrice-Number(stopLoss))*quantity:0,
     rewardRisk=stopLoss&&takeProfit&&riskAmount?Math.abs(Number(takeProfit)-executionPrice)*quantity/riskAmount:0,
@@ -529,6 +546,10 @@ export function ManualPaperTicket({
                 ["Leverage", `${leverageNumber}×`],
                 ["MEXC contract range", contract?`${contract.minLeverage}–${contract.maxLeverage}×`:"Unavailable"],
                 ["Maintenance margin", contract?`${(contract.maintenanceMarginRate*100).toFixed(3)}%`:"Simulator fallback"],
+                ["Execution assumption", "Market · taker"],
+                ["Taker fee rate", `${(feeRate*100).toFixed(4)}%`],
+                ["Maker reference", contract?`${(contract.makerFeeRate*100).toFixed(4)}%`:`${(account?.settings.makerCommissionPct??0).toFixed(4)}% fallback`],
+                ["Fee source", feeSource],
                 ["Estimated fee", money(fee)],
                 ["Risk amount", money(riskAmount)],
                 ["Estimated liquidation", Number.isFinite(liquidation)?money(liquidation):"—"],
@@ -545,6 +566,7 @@ export function ManualPaperTicket({
               {!contract?<span>Public MEXC contract rules unavailable — opening new paper positions is disabled.</span>:null}
               {contractVolumeIssue?<span>{contractVolumeIssue}; requested size cannot be opened.</span>:null}
               {invalidPriceStep&&contract?<span>Stop loss and take profit must use {contract.priceUnit} price increments.</span>:null}
+              <span>Immediate Manual Paper actions assume market execution and taker liquidity. Public fee rates do not include account-specific discounts or promotions.</span>
               {!stopLoss?<span>No stop loss — estimated liquidation remains active.</span>:null}
               {marginMode==="cross"?<span>Cross collateral is a simulator approximation, not MEXC-exact.</span>:null}
               {riskState?.source!=="fair"?<span>Fair price unavailable — explicit Last-price fallback{riskState?.stale?" (last valid mark preserved)":""}.</span>:null}
@@ -717,6 +739,7 @@ export function ManualPaperTicket({
                           }
                         >
                           {money(fill.realisedPnl)}
+                          {fill.feeSource?<small>{`${fill.executionType??"market"} · ${fill.liquidityRole??"taker"} · ${((fill.feeRate??0)*100).toFixed(4)}% · ${fill.feeSource==="mexc-public-contract"?"MEXC public":"legacy fallback"} · fee ${money(fill.fee)}`}</small>:null}
                           {fill.closeReason?<small>{fill.closeReason}</small>:null}
                           {fill.side==="close"?<small>{fill.historicalDizyFlow?.available?`${fill.historicalDizyFlow.limitations.length?"Limited":"Retained"} flow · ${fill.historicalDizyFlow.sampleCount} samples · ${fill.historicalDizyFlow.coveragePct??0}% coverage`:"Flow memory unavailable"}</small>:null}
                         </span>

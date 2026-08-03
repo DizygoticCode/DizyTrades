@@ -56,7 +56,7 @@ Improve simulation realism without claiming exchange-exact fills.
 - [x] official contract metadata boundary per symbol
 - [x] quantity and price-step enforcement
 - [x] symbol-specific leverage and maintenance-margin limits
-- [ ] maker versus taker execution assumptions
+- [x] maker versus taker execution assumptions with explicit fee provenance
 - [ ] funding-payment modelling with explicit data provenance
 - [ ] depth-sensitive slippage and partial-fill modelling
 - [ ] reduce-only semantics
@@ -64,7 +64,7 @@ Improve simulation realism without claiming exchange-exact fills.
 - [ ] clearer isolated versus cross-margin assumptions
 - [ ] migration-safe history and backup support
 
-Current slice: maker/taker execution assumptions and fee provenance for simulated fills.
+Next slice: funding-payment modelling with explicit data provenance.
 
 ### 2. Workflow and accessibility polish
 
