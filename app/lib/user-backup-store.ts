@@ -1,12 +1,21 @@
 import "server-only";
 
-import { mkdir, readdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import {
+  MAX_TRADE_REVIEWS_PER_USER,
+  MAX_TRADE_REVIEW_BYTES_PER_USER,
+} from "./dizybrain-trade-review";
 import { createTradeReview, readTradeReview } from "./dizybrain-review-store";
+import { HISTORICAL_DIZYFLOW_LIMITS } from "./historical-dizyflow";
 import {
   createHistoricalDizyFlowMemory,
   readHistoricalDizyFlowMemory,
 } from "./historical-dizyflow-store";
+import {
+  MAX_REPLAY_MEMORIES_PER_USER,
+  MAX_REPLAY_MEMORY_BYTES_PER_USER,
+} from "./historical-replay-memory";
 import {
   unavailableHistoricalDizyFlowReference,
   type DizyBrainReviewReference,
@@ -35,6 +44,8 @@ import {
   type DizyTradesBackupContent,
 } from "./user-backup-model";
 
+const MAX_PROFILE_PAPER_RUNS = 50;
+const MAX_RESTORE_JOURNAL_ENTRIES = 2_000;
 const root = () => process.env.DATA_DIR || join(process.cwd(), ".data");
 const safeUserId = (value: string) => {
   if (!/^[a-z0-9_-]{1,120}$/i.test(value)) {
@@ -57,6 +68,7 @@ export type BackupRestorePlan = Readonly<{
   profile: Readonly<{
     settingsWillReplace: boolean;
     paperRunsToAdd: number;
+    matchingPaperRuns: number;
     existingPaperRuns: number;
   }>;
   manualPaper: "unchanged" | "restore" | "skip-existing" | "skip-open-positions";
@@ -120,6 +132,41 @@ async function listIds(
     if ((reason as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw reason;
   }
+}
+
+async function collectionStorage(directory: string, pattern: RegExp) {
+  try {
+    const files = (await readdir(directory)).filter((name) => pattern.test(name));
+    let bytes = 0;
+    for (const file of files) bytes += (await stat(join(directory, file))).size;
+    return Object.freeze({ count: files.length, bytes });
+  } catch (reason) {
+    if ((reason as NodeJS.ErrnoException).code === "ENOENT") {
+      return Object.freeze({ count: 0, bytes: 0 });
+    }
+    throw reason;
+  }
+}
+
+export function restoreCollectionCapacityConflicts(input: {
+  label: string;
+  existingCount: number;
+  incomingCount: number;
+  maximumCount: number;
+  existingBytes: number;
+  incomingBytes: number;
+  maximumBytes: number;
+}) {
+  const conflicts: string[] = [];
+  if (input.existingCount + input.incomingCount > input.maximumCount) {
+    conflicts.push(
+      `${input.label} restore would exceed the ${input.maximumCount}-item limit.`,
+    );
+  }
+  if (input.existingBytes + input.incomingBytes > input.maximumBytes) {
+    conflicts.push(`${input.label} restore would exceed its storage-byte limit.`);
+  }
+  return Object.freeze(conflicts);
 }
 
 async function readCollection<T>(
@@ -284,29 +331,29 @@ async function evidencePlan(
   backup: DizyTradesBackup,
   conflicts: string[],
 ) {
-  let replayToCreate = 0;
+  const replayNew = [] as DizyTradesBackup["data"]["replayMemories"][number][];
   let replayExisting = 0;
   for (const memory of backup.data.replayMemories) {
     const existing = await readReplayMemory(userId, memory.id);
-    if (!existing) replayToCreate += 1;
+    if (!existing) replayNew.push(memory);
     else if (existing.integrity.contentHash === memory.integrity.contentHash) replayExisting += 1;
     else conflicts.push(`Replay memory ${memory.id} has different content.`);
   }
 
-  let flowToCreate = 0;
+  const flowNew = [] as DizyTradesBackup["data"]["historicalDizyFlow"][number][];
   let flowExisting = 0;
   for (const memory of backup.data.historicalDizyFlow) {
     const existing = await readHistoricalDizyFlowMemory(userId, memory.id);
-    if (!existing) flowToCreate += 1;
+    if (!existing) flowNew.push(memory);
     else if (existing.contentHash === memory.contentHash) flowExisting += 1;
     else conflicts.push(`Historical DizyFlow memory ${memory.id} has different content.`);
   }
 
-  let reviewsToCreate = 0;
+  const reviewsNew = [] as DizyTradesBackup["data"]["dizyBrainReviews"][number][];
   let reviewsExisting = 0;
   for (const review of backup.data.dizyBrainReviews) {
     const existing = await readTradeReview(userId, review.id);
-    if (!existing) reviewsToCreate += 1;
+    if (!existing) reviewsNew.push(review);
     else if (
       existing.generatedFromHash === review.generatedFromHash &&
       existing.reviewContentHash === review.reviewContentHash
@@ -315,12 +362,65 @@ async function evidencePlan(
     } else conflicts.push(`DizyBrain review ${review.id} has different content.`);
   }
 
+  const [replayStorage, flowStorage, reviewStorage] = await Promise.all([
+    collectionStorage(
+      join(root(), "replay-memory", userId),
+      /^hrm1_[a-f0-9]{40}\.json$/,
+    ),
+    collectionStorage(
+      join(root(), "historical-dizyflow", userId),
+      /^hdf1_[a-f0-9]{40}\.json$/,
+    ),
+    collectionStorage(
+      join(root(), "dizybrain-reviews", userId),
+      /^dbr1_[a-f0-9]{40}\.json$/,
+    ),
+  ]);
+  conflicts.push(
+    ...restoreCollectionCapacityConflicts({
+      label: "Replay memory",
+      existingCount: replayStorage.count,
+      incomingCount: replayNew.length,
+      maximumCount: MAX_REPLAY_MEMORIES_PER_USER,
+      existingBytes: replayStorage.bytes,
+      incomingBytes: replayNew.reduce(
+        (total, memory) => total + Buffer.byteLength(`${JSON.stringify(memory, null, 2)}\n`),
+        0,
+      ),
+      maximumBytes: MAX_REPLAY_MEMORY_BYTES_PER_USER,
+    }),
+    ...restoreCollectionCapacityConflicts({
+      label: "Historical DizyFlow memory",
+      existingCount: flowStorage.count,
+      incomingCount: flowNew.length,
+      maximumCount: HISTORICAL_DIZYFLOW_LIMITS.maximumMemoriesPerUser,
+      existingBytes: flowStorage.bytes,
+      incomingBytes: flowNew.reduce(
+        (total, memory) => total + Buffer.byteLength(`${JSON.stringify(memory, null, 2)}\n`),
+        0,
+      ),
+      maximumBytes: HISTORICAL_DIZYFLOW_LIMITS.maximumTotalBytesPerUser,
+    }),
+    ...restoreCollectionCapacityConflicts({
+      label: "DizyBrain review",
+      existingCount: reviewStorage.count,
+      incomingCount: reviewsNew.length,
+      maximumCount: MAX_TRADE_REVIEWS_PER_USER,
+      existingBytes: reviewStorage.bytes,
+      incomingBytes: reviewsNew.reduce(
+        (total, review) => total + Buffer.byteLength(`${JSON.stringify(review, null, 2)}\n`),
+        0,
+      ),
+      maximumBytes: MAX_TRADE_REVIEW_BYTES_PER_USER,
+    }),
+  );
+
   return {
-    replayToCreate,
+    replayToCreate: replayNew.length,
     replayExisting,
-    flowToCreate,
+    flowToCreate: flowNew.length,
     flowExisting,
-    reviewsToCreate,
+    reviewsToCreate: reviewsNew.length,
     reviewsExisting,
   };
 }
@@ -341,11 +441,16 @@ export async function planUserBackupRestore(
   if(backup.migration.migrated)restoreWarnings.push("Backup schema v"+backup.migration.sourceBackupVersion+" was integrity-verified and migrated to v"+backup.migration.targetBackupVersion+" for this restore.");
   if(backup.migration.manualPaper.migrated)restoreWarnings.push("Manual Paper history was migrated from account v"+backup.migration.manualPaper.sourceAccountVersion+" without rewriting recorded prices, quantities, fees or P/L.");
   const currentEntries = new Map(currentJournal.entries.map((entry) => [entry.id, entry]));
+  if (currentEntries.size !== currentJournal.entries.length) {
+    conflicts.push("Existing Journal contains duplicate entry IDs.");
+  }
+  const tradeEntries = currentJournal.entries.filter((entry) => entry.trade);
   const currentTradeIds = new Map(
-    currentJournal.entries
-      .filter((entry) => entry.trade)
-      .map((entry) => [entry.trade!.tradeId, entry]),
+    tradeEntries.map((entry) => [entry.trade!.tradeId, entry]),
   );
+  if (currentTradeIds.size !== tradeEntries.length) {
+    conflicts.push("Existing Journal contains duplicate trade IDs.");
+  }
   let entriesToAdd = 0;
   let existingEntries = 0;
   for (const entry of backup.data.journal) {
@@ -364,11 +469,30 @@ export async function planUserBackupRestore(
     }
     entriesToAdd += 1;
   }
+  if (currentJournal.entries.length + entriesToAdd > MAX_RESTORE_JOURNAL_ENTRIES) {
+    conflicts.push(
+      `Restored Journal would exceed the ${MAX_RESTORE_JOURNAL_ENTRIES.toLocaleString("en-US")}-entry limit.`,
+    );
+  }
 
-  const currentRunIds = new Set(currentProfile.paperRuns.map((run) => run.id));
-  const paperRunsToAdd = backup.data.profile.paperRuns.filter(
-    (run) => !currentRunIds.has(run.id),
-  ).length;
+  const currentRuns = new Map(currentProfile.paperRuns.map((run) => [run.id, run]));
+  if (currentRuns.size !== currentProfile.paperRuns.length) {
+    conflicts.push("Existing profile contains duplicate Paper run IDs.");
+  }
+  let paperRunsToAdd = 0;
+  let matchingPaperRuns = 0;
+  for (const run of backup.data.profile.paperRuns) {
+    const existing = currentRuns.get(run.id);
+    if (!existing) paperRunsToAdd += 1;
+    else if (same(existing, run)) matchingPaperRuns += 1;
+    else conflicts.push(`Paper run ${run.id} already exists with different content.`);
+  }
+  if (currentProfile.paperRuns.length + paperRunsToAdd > MAX_PROFILE_PAPER_RUNS) {
+    conflicts.push(
+      `Restored Paper runs would exceed the ${MAX_PROFILE_PAPER_RUNS}-run limit.`,
+    );
+  }
+
   const manualSame = same(currentManual, backup.data.manualPaper);
   let manualPaper: BackupRestorePlan["manualPaper"] = "unchanged";
   if (!manualSame) {
@@ -398,6 +522,7 @@ export async function planUserBackupRestore(
     profile: Object.freeze({
       settingsWillReplace: !same(currentProfile.settings, backup.data.profile.settings),
       paperRunsToAdd,
+      matchingPaperRuns,
       existingPaperRuns: currentProfile.paperRuns.length,
     }),
     manualPaper,
@@ -421,14 +546,26 @@ async function atomicWrite(path: string, value: unknown) {
 async function writeProfile(userId: string, profile: BackupProfile) {
   const current = await readUserRecord(userId);
   const byId = new Map(current.paperRuns.map((run) => [run.id, run]));
+  if (byId.size !== current.paperRuns.length) {
+    throw new Error("Existing profile contains duplicate Paper run IDs.");
+  }
   for (const run of profile.paperRuns) {
-    if (!byId.has(run.id)) byId.set(run.id, run);
+    const existing = byId.get(run.id);
+    if (existing && !same(existing, run)) {
+      throw new Error(`Paper run ${run.id} already exists with different content.`);
+    }
+    if (!existing) byId.set(run.id, run);
+  }
+  if (byId.size > MAX_PROFILE_PAPER_RUNS) {
+    throw new Error(
+      `Restored Paper runs would exceed the ${MAX_PROFILE_PAPER_RUNS}-run limit.`,
+    );
   }
   const merged: BackupProfile = Object.freeze({
     version: 1 as const,
     updatedAt: new Date().toISOString(),
     settings: profile.settings,
-    paperRuns: Object.freeze([...byId.values()].slice(-50)),
+    paperRuns: Object.freeze([...byId.values()]),
   });
   await atomicWrite(profilePath(userId), merged);
 }
@@ -438,16 +575,43 @@ async function writeMergedJournal(
   backup: DizyTradesBackup,
 ) {
   const current = await readJournal(userId);
-  const currentIds = new Set(current.entries.map((entry) => entry.id));
+  const currentEntries = new Map(current.entries.map((entry) => [entry.id, entry]));
+  if (currentEntries.size !== current.entries.length) {
+    throw new Error("Existing Journal contains duplicate entry IDs.");
+  }
+  const currentTradeIds = new Map(
+    current.entries
+      .filter((entry) => entry.trade)
+      .map((entry) => [entry.trade!.tradeId, entry]),
+  );
   const replayIds = new Set(backup.data.replayMemories.map((item) => item.id));
   const flowIds = new Set(backup.data.historicalDizyFlow.map((item) => item.id));
   const reviewIds = new Set(backup.data.dizyBrainReviews.map((item) => item.id));
-  const additions = backup.data.journal
-    .filter((entry) => !currentIds.has(entry.id))
-    .map((entry) => repairEntryReferences(entry, replayIds, flowIds, reviewIds));
+  const additions: JournalEntry[] = [];
+  for (const entry of backup.data.journal) {
+    const existing = currentEntries.get(entry.id);
+    if (existing) {
+      if (!same(existing, entry)) {
+        throw new Error(`Journal entry ${entry.id} already exists with different content.`);
+      }
+      continue;
+    }
+    const tradeEntry = entry.trade ? currentTradeIds.get(entry.trade.tradeId) : null;
+    if (tradeEntry) {
+      throw new Error(
+        `Trade ${entry.trade!.tradeId} already belongs to Journal entry ${tradeEntry.id}.`,
+      );
+    }
+    const repaired = repairEntryReferences(entry, replayIds, flowIds, reviewIds);
+    additions.push(repaired);
+    currentEntries.set(repaired.id, repaired);
+    if (repaired.trade) currentTradeIds.set(repaired.trade.tradeId, repaired);
+  }
   const entries = [...current.entries, ...additions];
-  if (entries.length > 2_000) {
-    throw new Error("Restored Journal would exceed its 2,000-entry limit.");
+  if (entries.length > MAX_RESTORE_JOURNAL_ENTRIES) {
+    throw new Error(
+      `Restored Journal would exceed the ${MAX_RESTORE_JOURNAL_ENTRIES.toLocaleString("en-US")}-entry limit.`,
+    );
   }
   await atomicWrite(journalPath(userId), { version: 5, entries });
   return additions.length;
