@@ -10,8 +10,11 @@ test("protected workspaces mount one shared accessibility foundation", async () 
   ]);
   assert.match(mounted, /<AccessibilityFoundation \/>/);
   assert.match(foundation, /Skip to main content/);
-  assert.match(foundation, /main\.id = "main-content"/);
-  assert.match(foundation, /main\.tabIndex = -1/);
+  assert.match(foundation, /function focusMainContent\(\)/);
+  assert.match(foundation, /explicit user activation/);
+  assert.match(foundation, /main\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(foundation, /main\.addEventListener\("blur", restore/);
+  assert.doesNotMatch(foundation, /useEffect[\s\S]*main\.id = "main-content"/);
   assert.match(foundation, /\[role="dialog"\]\[aria-modal="true"\]/);
   assert.match(foundation, /event\.key !== "Tab"/);
   assert.match(foundation, /restore\.focus\(\)/);
