@@ -38,6 +38,7 @@ jobs:
           node scripts/pr148/02a-integration-fixes.mjs
           node scripts/pr148/03-boundaries.mjs
           node scripts/pr148/03a-backup-position-basis.mjs
+          node scripts/pr148/03b-ticket-memoization.mjs
           node scripts/pr148/04-tests-roadmap.mjs
           node scripts/pr148/04a-test-contract-fixes.mjs
           node scripts/pr148/04b-position-basis-tests.mjs
