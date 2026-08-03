@@ -57,16 +57,7 @@ jobs:
           const lines=fs.readFileSync('/tmp/pr150-full-suite.log','utf8').split(/\r?\n/);
           const starts=[];
           for(let i=0;i<lines.length;i++)if(/^not ok\s+\d+\s+-\s+/.test(lines[i])||/^# Subtest:/.test(lines[i])&&/^not ok\s+\d+\s+-\s+/.test(lines[i+1]||''))starts.push(i);
-          if(!starts.length){
-            console.log(lines.filter(line=>/not ok|ERR_|AssertionError|Error:|failureType:|location:/.test(line)).slice(-300).join('\n'));
-          }else{
-            for(const start of starts){
-              let end=Math.min(lines.length,start+80);
-              for(let i=start+1;i<Math.min(lines.length,start+80);i++)if(/^# Subtest:/.test(lines[i])||/^ok\s+\d+\s+-\s+/.test(lines[i])||/^not ok\s+\d+\s+-\s+/.test(lines[i])){end=i;break}
-              console.log(lines.slice(start,end).join('\n'));
-              console.log('---');
-            }
-          }
+          if(!starts.length){console.log(lines.filter(line=>/not ok|ERR_|AssertionError|Error:|failureType:|location:/.test(line)).slice(-300).join('\n'))}else{for(const start of starts){let end=Math.min(lines.length,start+80);for(let i=start+1;i<Math.min(lines.length,start+80);i++)if(/^# Subtest:/.test(lines[i])||/^ok\s+\d+\s+-\s+/.test(lines[i])||/^not ok\s+\d+\s+-\s+/.test(lines[i])){end=i;break}console.log(lines.slice(start,end).join('\n'));console.log('---')}}
           NODE
             echo "===== END COMPACT FAILURE REPORT ====="
             exit "$status"
@@ -74,8 +65,33 @@ jobs:
           cat /tmp/pr150-full-suite.log
       - name: Lint
         run: npm run lint
+      - name: TypeScript diagnostics
+        shell: bash
+        run: |
+          set +e
+          npx tsc --noEmit --pretty false > /tmp/pr150-tsc.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "===== PR 150 TYPESCRIPT DIAGNOSTICS ====="
+            cat /tmp/pr150-tsc.log
+            echo "===== END TYPESCRIPT DIAGNOSTICS ====="
+            exit "$status"
+          fi
+          cat /tmp/pr150-tsc.log
       - name: Production build
-        run: npm run build
+        shell: bash
+        run: |
+          set +e
+          npm run build > /tmp/pr150-build.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "===== PR 150 BUILD FAILURE ====="
+            grep -E 'Type error:|error TS|Failed to compile|^[.]/.*:[0-9]+:[0-9]+' /tmp/pr150-build.log || true
+            tail -n 180 /tmp/pr150-build.log
+            echo "===== END BUILD FAILURE ====="
+            exit "$status"
+          fi
+          cat /tmp/pr150-build.log
       - name: Remove temporary migration machinery
         run: rm -rf scripts/pr150 .github/workflows/pr150-migration-safe-history.yml
       - name: Commit clean implementation
