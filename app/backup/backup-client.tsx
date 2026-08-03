@@ -8,10 +8,11 @@ import type {
 } from "../lib/user-backup-store";
 import styles from "./backup.module.css";
 
+type BackupUpload=Omit<DizyTradesBackup,"version"|"migration">&Readonly<{version:1|2;migration?:DizyTradesBackup["migration"]}>;
 type LoadedBackup = Readonly<{
   name: string;
   bytes: number;
-  backup: DizyTradesBackup;
+  backup: BackupUpload;
 }>;
 
 const count = (value: number) => value.toLocaleString();
@@ -45,8 +46,8 @@ export default function BackupClient({ userName }: { userName: string }) {
       return;
     }
     try {
-      const parsed = JSON.parse(await file.text()) as DizyTradesBackup;
-      if (!parsed || parsed.version !== 1 || parsed.application?.name !== "DizyTrades") {
+      const parsed = JSON.parse(await file.text()) as BackupUpload;
+      if (!parsed || (parsed.version !== 1 && parsed.version !== 2) || parsed.application?.name !== "DizyTrades") {
         throw new Error("This is not a supported DizyTrades backup.");
       }
       setLoaded({ name: file.name, bytes: file.size, backup: parsed });
@@ -147,6 +148,7 @@ export default function BackupClient({ userName }: { userName: string }) {
         <article><b>Dry-run first</b><span>No restore can run without a fresh validated plan.</span></article>
         <article><b>Additive recovery</b><span>Existing Journal and evidence are never silently deleted.</span></article>
         <article><b>Paper safety</b><span>Open or existing Manual Paper state is never overwritten.</span></article>
+        <article><b>Versioned migration</b><span>Older valid backups are hash-checked before recorded trade values are preserved into the current schema.</span></article>
       </section>
 
       <section className={styles.workspace}>
@@ -164,7 +166,7 @@ export default function BackupClient({ userName }: { userName: string }) {
             <div className={styles.loaded}>
               <b>{loaded.name}</b>
               <span>{size(loaded.bytes)}</span>
-              <span>Created {new Date(loaded.backup.generatedAt).toLocaleString()}</span>
+              <span>Backup schema v{loaded.backup.version} · Created {new Date(loaded.backup.generatedAt).toLocaleString()}</span>
               <span>Hash {loaded.backup.integrity?.contentHash?.slice(0, 14) ?? "Unavailable"}…</span>
               <dl>
                 <div><dt>Journal</dt><dd>{count(loaded.backup.data?.journal?.length ?? 0)}</dd></div>
@@ -195,6 +197,9 @@ export default function BackupClient({ userName }: { userName: string }) {
                 <div><dt>Profile settings replace</dt><dd>{plan.profile.settingsWillReplace ? "Yes" : "No"}</dd></div>
                 <div><dt>Saved simulator runs to add</dt><dd>{count(plan.profile.paperRunsToAdd)}</dd></div>
                 <div><dt>Manual Paper</dt><dd>{plan.manualPaper.replaceAll("-", " ")}</dd></div>
+                <div><dt>Backup schema</dt><dd>v{plan.migration.sourceBackupVersion} → v{plan.migration.targetBackupVersion}</dd></div>
+                <div><dt>Paper history</dt><dd>{plan.migration.manualPaper.migrated ? "migrated from v"+plan.migration.manualPaper.sourceAccountVersion : "native v"+plan.migration.manualPaper.targetAccountVersion}</dd></div>
+                <div><dt>Preserved Paper fills</dt><dd>{count(plan.migration.manualPaper.fillCount)}</dd></div>
               </dl>
               {plan.conflicts.length ? <div className={styles.conflicts}><b>Conflicts</b>{plan.conflicts.map((item) => <p key={item}>{item}</p>)}</div> : null}
               {plan.warnings.length ? <div className={styles.warnings}><b>Warnings</b>{plan.warnings.map((item) => <p key={item}>{item}</p>)}</div> : null}

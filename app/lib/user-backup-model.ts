@@ -32,9 +32,28 @@ import {
 import type { ManualAccount } from "./manual-paper";
 import { validateManualPaperBackup } from "./manual-paper-backup";
 
-export const USER_BACKUP_VERSION = 1 as const;
+export const USER_BACKUP_VERSION = 2 as const;
+export const USER_BACKUP_MIGRATION_SCHEMA_VERSION = 1 as const;
 export const MAX_USER_BACKUP_BYTES = 100 * 1024 * 1024;
 export const MAX_BACKUP_WARNINGS = 200;
+
+
+export type DizyTradesBackupMigration=Readonly<{
+  schemaVersion:typeof USER_BACKUP_MIGRATION_SCHEMA_VERSION;
+  sourceBackupVersion:1|2;
+  targetBackupVersion:typeof USER_BACKUP_VERSION;
+  migrated:boolean;
+  sourceContentHash:string|null;
+  steps:readonly string[];
+  manualPaper:Readonly<{
+    sourceAccountVersion:2|3|4;
+    targetAccountVersion:4;
+    migrated:boolean;
+    fillCount:number;
+    fundingPaymentCount:number;
+    historyContentHash:string;
+  }>;
+}>;
 
 export type BackupPaperRun = Readonly<{
   id: string;
@@ -59,6 +78,7 @@ export type DizyTradesBackupContent = Readonly<{
     name: "DizyTrades";
     version: string;
   }>;
+  migration:DizyTradesBackupMigration;
   data: Readonly<{
     profile: BackupProfile;
     manualPaper: ManualAccount;
@@ -146,7 +166,7 @@ export function canonicalBackupJson(value: unknown) {
   return JSON.stringify(canonicalValue(value));
 }
 
-export function backupContentHash(content: DizyTradesBackupContent) {
+export function backupContentHash(content: unknown) {
   return createHash("sha256").update(canonicalBackupJson(content)).digest("hex");
 }
 
@@ -298,14 +318,55 @@ function warnings(value: unknown) {
   );
 }
 
+
+function migrationSteps(value:unknown){
+  if(!Array.isArray(value)||value.length>50)throw new Error("Backup migration steps are invalid.");
+  const steps=value.map((item,index)=>text(item,"migration.steps."+index,100));
+  if(new Set(steps).size!==steps.length)throw new Error("Backup migration steps contain duplicates.");
+  return Object.freeze(steps)
+}
+function manualPaperMigrationSummary(manualPaper:ManualAccount):DizyTradesBackupMigration["manualPaper"]{
+  const ledger=manualPaper.migration;
+  return Object.freeze({sourceAccountVersion:ledger.sourceAccountVersion,targetAccountVersion:ledger.targetAccountVersion,migrated:ledger.migrated,fillCount:ledger.fillCount,fundingPaymentCount:ledger.fundingPaymentCount,historyContentHash:ledger.historyContentHash})
+}
+export function nativeDizyTradesBackupMigration(manualPaper:ManualAccount):DizyTradesBackupMigration{
+  return Object.freeze({schemaVersion:USER_BACKUP_MIGRATION_SCHEMA_VERSION,sourceBackupVersion:USER_BACKUP_VERSION,targetBackupVersion:USER_BACKUP_VERSION,migrated:false,sourceContentHash:null,steps:Object.freeze([]),manualPaper:manualPaperMigrationSummary(manualPaper)})
+}
+function migratedV1BackupReport(sourceContentHash:string,manualPaper:ManualAccount):DizyTradesBackupMigration{
+  return Object.freeze({schemaVersion:USER_BACKUP_MIGRATION_SCHEMA_VERSION,sourceBackupVersion:1,targetBackupVersion:USER_BACKUP_VERSION,migrated:true,sourceContentHash,steps:Object.freeze(["verify-v1-integrity-before-migration","upgrade-user-backup-v1-to-v2","migrate-manual-paper-history"]),manualPaper:manualPaperMigrationSummary(manualPaper)})
+}
+function validateBackupMigration(value:unknown,manualPaper:ManualAccount):DizyTradesBackupMigration{
+  const input=record(value,"migration");
+  if(input.schemaVersion!==USER_BACKUP_MIGRATION_SCHEMA_VERSION)throw new Error("Unsupported backup migration schema.");
+  if(input.sourceBackupVersion!==1&&input.sourceBackupVersion!==2)throw new Error("Backup migration source version is invalid.");
+  if(input.targetBackupVersion!==USER_BACKUP_VERSION)throw new Error("Backup migration target version is invalid.");
+  if(typeof input.migrated!=="boolean"||input.migrated!==(input.sourceBackupVersion!==USER_BACKUP_VERSION))throw new Error("Backup migration state does not reconcile.");
+  const sourceContentHash=input.sourceContentHash==null?null:text(input.sourceContentHash,"migration.sourceContentHash",64);
+  if(sourceContentHash!==null&&!/^[a-f0-9]{64}$/.test(sourceContentHash))throw new Error("Backup migration source hash is invalid.");
+  if((input.sourceBackupVersion===1)!==(sourceContentHash!==null))throw new Error("Backup migration source hash does not reconcile.");
+  const steps=migrationSteps(input.steps),paper=record(input.manualPaper,"migration.manualPaper"),expected=manualPaperMigrationSummary(manualPaper),historyContentHash=text(paper.historyContentHash,"migration.manualPaper.historyContentHash",64);
+  if(!/^[a-f0-9]{64}$/.test(historyContentHash))throw new Error("Backup Manual Paper history hash is invalid.");
+  const parsed=Object.freeze({sourceAccountVersion:finite(paper.sourceAccountVersion,"migration.manualPaper.sourceAccountVersion",2) as 2|3|4,targetAccountVersion:finite(paper.targetAccountVersion,"migration.manualPaper.targetAccountVersion",4) as 4,migrated:paper.migrated===true,fillCount:integer(paper.fillCount,"migration.manualPaper.fillCount"),fundingPaymentCount:integer(paper.fundingPaymentCount,"migration.manualPaper.fundingPaymentCount"),historyContentHash});
+  if(parsed.sourceAccountVersion!==expected.sourceAccountVersion||parsed.targetAccountVersion!==expected.targetAccountVersion||parsed.migrated!==expected.migrated||parsed.fillCount!==expected.fillCount||parsed.fundingPaymentCount!==expected.fundingPaymentCount||parsed.historyContentHash!==expected.historyContentHash)throw new Error("Backup Manual Paper migration summary does not reconcile.");
+  return Object.freeze({schemaVersion:USER_BACKUP_MIGRATION_SCHEMA_VERSION,sourceBackupVersion:input.sourceBackupVersion,targetBackupVersion:USER_BACKUP_VERSION,migrated:input.migrated,sourceContentHash,steps,manualPaper:parsed})
+}
+function verifyLegacyV1Integrity(input:Record<string,unknown>){
+  const integrity=record(input.integrity,"integrity");
+  if(integrity.algorithm!=="sha256")throw new Error("Unsupported backup integrity algorithm.");
+  const supplied=text(integrity.contentHash,"integrity.contentHash",64);
+  if(!/^[a-f0-9]{64}$/.test(supplied))throw new Error("Backup integrity hash is invalid.");
+  const legacyContent={version:1,ownerId:input.ownerId,generatedAt:input.generatedAt,application:input.application,data:input.data,warnings:input.warnings};
+  if(backupContentHash(legacyContent)!==supplied)throw new Error("Backup integrity check failed before migration.");
+  return supplied
+}
+
 export function validateDizyTradesBackup(
   value: unknown,
   expectedOwnerId: string,
 ): DizyTradesBackup {
-  const input = record(value, "backup");
-  if (input.version !== USER_BACKUP_VERSION) {
-    throw new Error("Unsupported DizyTrades backup version.");
-  }
+  const input = record(value, "backup"),sourceBackupVersion=input.version;
+  if(sourceBackupVersion!==1&&sourceBackupVersion!==USER_BACKUP_VERSION)throw new Error("Unsupported DizyTrades backup version.");
+  const legacySourceContentHash=sourceBackupVersion===1?verifyLegacyV1Integrity(input):null;
   const ownerId = text(input.ownerId, "ownerId", 120);
   if (ownerId !== expectedOwnerId) {
     throw new Error("Backup owner does not match the signed-in account.");
@@ -350,6 +411,9 @@ export function validateDizyTradesBackup(
     "DizyBrain reviews",
   );
 
+  const manualPaper=validateManualPaperBackup(dataInput.manualPaper, ownerId);
+  const migration=sourceBackupVersion===1?migratedV1BackupReport(legacySourceContentHash!,manualPaper):validateBackupMigration(input.migration,manualPaper);
+
   const content: DizyTradesBackupContent = Object.freeze({
     version: USER_BACKUP_VERSION,
     ownerId,
@@ -358,9 +422,10 @@ export function validateDizyTradesBackup(
       name: "DizyTrades" as const,
       version: text(applicationInput.version, "application.version", 40),
     }),
+    migration,
     data: Object.freeze({
       profile: validateBackupProfile(dataInput.profile),
-      manualPaper: validateManualPaperBackup(dataInput.manualPaper, ownerId),
+      manualPaper,
       journal: Object.freeze(journal),
       replayMemories,
       historicalDizyFlow,
@@ -370,14 +435,9 @@ export function validateDizyTradesBackup(
   });
 
   const integrityInput = record(input.integrity, "integrity");
-  if (integrityInput.algorithm !== "sha256") {
-    throw new Error("Unsupported backup integrity algorithm.");
-  }
-  const suppliedHash = text(integrityInput.contentHash, "integrity.contentHash", 64);
+  if (integrityInput.algorithm !== "sha256") throw new Error("Unsupported backup integrity algorithm.");
   const expectedHash = backupContentHash(content);
-  if (suppliedHash !== expectedHash) {
-    throw new Error("Backup integrity check failed.");
-  }
+  if(sourceBackupVersion===USER_BACKUP_VERSION){const suppliedHash=text(integrityInput.contentHash,"integrity.contentHash",64);if(suppliedHash!==expectedHash)throw new Error("Backup integrity check failed.")}
 
   return Object.freeze({
     ...content,

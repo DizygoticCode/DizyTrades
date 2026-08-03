@@ -1,7 +1,4 @@
-import {mkdir,writeFile} from "node:fs/promises";
-
-await mkdir("app/lib",{recursive:true});
-await writeFile("app/lib/manual-paper-history.ts",String.raw`import "server-only";
+import "server-only";
 
 import {createHash} from "node:crypto";
 
@@ -130,7 +127,7 @@ export function normaliseManualPaperHistory(value:Record<string,unknown>,sourceI
  if(prior&&Array.isArray(prior.appliedSteps))for(const item of prior.appliedSteps)if(typeof item==="string"&&item&&!steps.includes(item))steps.push(item);
  if(source===2)for(const item of ["upgrade-account-v2-to-v4","default-v3-risk-and-funding-fields","rebuild-active-risk-state-from-recorded-position"])if(!steps.includes(item))steps.push(item);
  if(source===3)for(const item of ["upgrade-account-v3-to-v4","rebuild-active-risk-state-from-recorded-position"])if(!steps.includes(item))steps.push(item);
- if(annotated&&!steps.includes("annotate-fill-history-provenance"))steps.push("annotate-fill-history-provenance");
+ if(source!==4&&annotated&&!steps.includes("annotate-fill-history-provenance"))steps.push("annotate-fill-history-provenance");
  for(const item of extraSteps)if(item&&!steps.includes(item))steps.push(item);
  const ledgerSource=prior?.sourceAccountVersion===2||prior?.sourceAccountVersion===3||prior?.sourceAccountVersion===4?prior.sourceAccountVersion as ManualPaperSourceVersion:source;
  const ledger:ManualPaperMigrationLedger=Object.freeze({
@@ -178,4 +175,3 @@ export function validateManualPaperMigrationLedger(value:unknown,fills:readonly 
  if(input.historyContentHash!==expected)throw new Error("Manual Paper history content hash does not reconcile.");
  return Object.freeze({schemaVersion:MANUAL_PAPER_HISTORY_SCHEMA_VERSION,sourceAccountVersion:source,targetAccountVersion:MANUAL_PAPER_ACCOUNT_VERSION,migrated:input.migrated,preservationPolicy:MANUAL_PAPER_PRESERVATION_POLICY,appliedSteps:steps,fillCount:fills.length,fundingPaymentCount:fundingPayments.length,historyContentHash:expected})
 }
-`,"utf8");

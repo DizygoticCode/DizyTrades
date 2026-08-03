@@ -67,12 +67,12 @@ test("full backup round-trips profile and Journal additively", async () => {
     await seed(userId);
     const backup = await buildUserBackup(userId);
 
-    assert.equal(backup.version, 1);
+    assert.equal(backup.version, 2);
     assert.equal(backup.ownerId, userId);
     assert.equal(backup.data.profile.settings.market.symbol, "ETH_USDT");
     assert.equal(backup.data.profile.paperRuns.length, 1);
     assert.equal(backup.data.journal.length, 1);
-    assert.equal(backup.data.manualPaper.version, 3);
+    assert.equal(backup.data.manualPaper.version, 4);
     assert.match(backup.integrity.contentHash, /^[a-f0-9]{64}$/);
     assert.deepEqual(validateDizyTradesBackup(backup, userId), backup);
 
@@ -130,9 +130,11 @@ test("Manual Paper backups require matching fill ownership and never restore ope
     const userId = "paper_backup_user";
     const account = newManualAccount();
     const validated = validateManualPaperBackup(account, userId);
-    assert.equal(validated.version, 3);
+    assert.equal(validated.version, 4);
 
     const foreign = structuredClone(account);
+    foreign.version = 3;
+    delete foreign.migration;
     foreign.fills.push({
       orderId: "order-1",
       fillId: "fill-1",
