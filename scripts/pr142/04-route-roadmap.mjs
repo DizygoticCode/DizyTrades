@@ -1,0 +1,13 @@
+import {readFile,writeFile} from "node:fs/promises";
+const replace=(value,oldText,newText,label)=>{const count=value.split(oldText).length-1;if(count!==1)throw new Error(label+": "+count);return value.replace(oldText,newText)};
+{
+ const path="app/api/manual-paper/route.ts",source=await readFile(path,"utf8");
+ let next=replace(source,'else if(action==="flatten-all"){const current=await readManualAccount(user.id),entries=await Promise.all(Object.keys(current.positions).map(async symbol=>{const risk=await latestPublicRiskPrice(symbol,current.positions[symbol].lastRiskPrice),fundingData=await publicFunding(symbol,true);await syncManualFunding(user.id,symbol,risk.price,risk.source,fundingData.current??undefined,fundingData.history);return [symbol,risk.price] as const}));account=await flattenManualPositions(user.id,String(body.idempotencyKey),Object.fromEntries(entries))}','else if(action==="flatten-all"){const current=await readManualAccount(user.id),entries=await Promise.all(Object.keys(current.positions).map(async symbol=>{const [risk,fundingData,contract,depth]=await Promise.all([latestPublicRiskPrice(symbol,current.positions[symbol].lastRiskPrice),publicFunding(symbol,true),latestPublicContractMetadata(symbol),requiredDepth(symbol)]);await syncManualFunding(user.id,symbol,risk.price,risk.source,fundingData.current??undefined,fundingData.history);return [symbol,{price:risk.price,contract,depth}] as const}));account=await flattenManualPositions(user.id,String(body.idempotencyKey),Object.fromEntries(entries))}',"flatten route");
+ next=replace(next,'else if(action==="reverse")account=await reverseManualPosition(user.id,symbol,String(body.idempotencyKey),risk.price);','else if(action==="reverse"){const [contract,depth]=await Promise.all([latestPublicContractMetadata(symbol),requiredDepth(symbol)]);account=await reverseManualPosition(user.id,symbol,String(body.idempotencyKey),risk.price,depth,contract)}',"reverse route");
+ await writeFile(path,next);
+}
+{
+ const path="ROADMAP.md",source=await readFile(path,"utf8");
+ const next=replace(source,"Current slice: visible-book market entries plus manual Close / Flash Close / percentage exits with partial residual positions. Reverse, Flatten All and automatic stop/target/liquidation depth lifecycle follows before this roadmap item is complete.","Current slice: visible-book market entries and manual exits are complete; Reverse and Flatten All now use sequential visible-book execution. Automatic stop/target/liquidation depth lifecycle remains before this roadmap item is complete.","roadmap");
+ await writeFile(path,next);
+}
