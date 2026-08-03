@@ -8,7 +8,9 @@ on:
       - "tests/render-rehearsal.test.mjs"
       - "docs/RENDER_REHEARSAL.md"
   push:
-    branches: [main]
+    branches:
+      - main
+      - agent/render-rehearsal
     paths:
       - ".github/workflows/render-rehearsal.yml"
       - "scripts/render-rehearsal.mjs"
@@ -51,7 +53,7 @@ jobs:
         env:
           DISPATCH_EXPECTED_COMMIT: ${{ inputs.expected_commit }}
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
             echo "EXPECTED_COMMIT=$GITHUB_SHA" >> "$GITHUB_ENV"
           elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && -n "$DISPATCH_EXPECTED_COMMIT" ]]; then
             echo "EXPECTED_COMMIT=$DISPATCH_EXPECTED_COMMIT" >> "$GITHUB_ENV"
