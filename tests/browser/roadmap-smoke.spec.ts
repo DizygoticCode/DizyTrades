@@ -40,7 +40,10 @@ test("viewer session navigates the roadmap and remains read-only", async ({ page
     .click();
   await expect(onboarding).toBeHidden();
 
-  const startHere = page.getByRole("button", { name: "◎ Start Here" });
+  const startHere = page.getByRole("button", {
+    name: "Start Here",
+    exact: true,
+  });
   await expect(startHere).toBeVisible();
   await startHere.click();
   await expect(onboarding).toBeVisible();
