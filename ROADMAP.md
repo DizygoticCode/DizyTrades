@@ -71,7 +71,7 @@ Depth-sensitive visible-book execution is complete across entries, manual exits,
 Driven by real use rather than speculative redesign.
 
 - [x] saved workspace layouts and presets
-- [ ] command palette and keyboard reference
+- [x] command palette and keyboard reference
 - [ ] recent markets, reviews and learning shortcuts
 - [x] first-run onboarding
 - [ ] responsive and mobile audit
@@ -83,6 +83,8 @@ First-run onboarding now opens once per user and offers bounded paths into the t
 Empty, delayed and recovery states now use one deterministic language contract across DizyCharts/DizyFlow, DizyScanner, DizyStructure and DizyBackup. Existing native feed and validation signals are translated into explicit empty, delayed, recovering, offline or failed guidance, each declaring what remains preserved and offering a bounded retry, reload or choose-another-file action without changing market, strategy, simulator or recovery logic.
 
 Saved workspace layouts now retain up to 12 named, account-scoped snapshots of the sanitised market, timeframe, chart view, strategy, risk and DizyFlow profile. Duplicate names update deterministically, viewer sessions remain read-only, and built-in research, clean-price and order-flow presets can be applied without bypassing the existing profile sanitiser.
+
+The protected-workspace command palette now opens with Ctrl/Cmd+K, filters deterministic navigation and existing terminal launch actions, keeps owner-only operations hidden from viewers and carries terminal launch requests safely across workspace navigation. A standalone ? shortcut opens a keyboard reference containing only implemented palette, focus and DizyFlow DOM controls.
 
 ### 3. Read-only exchange connection and shadow mode
 
