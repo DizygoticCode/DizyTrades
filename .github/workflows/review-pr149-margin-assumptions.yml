@@ -1,0 +1,58 @@
+name: Review PR 149 margin assumptions
+
+on:
+  push:
+    branches:
+      - feature/dizypaper-isolated-cross-margin-assumptions
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: review-pr149-margin-assumptions
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  review-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dizypaper-isolated-cross-margin-assumptions
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply accounting review fixes
+        run: |
+          node scripts/pr149-review/01-accounting-fixes.mjs
+          node scripts/pr149-review/02-backup-reconciliation.mjs
+          node scripts/pr149-review/03-review-tests.mjs
+      - name: Focused margin and funding review tests
+        run: node --conditions=react-server --import tsx --test tests/manual-paper-margin-model.test.mjs tests/manual-paper-margin-lifecycle.test.mjs tests/manual-paper-margin-review.test.mjs tests/manual-paper-margin-source.test.mjs tests/manual-paper-funding.test.mjs tests/manual-paper-risk-tiers.test.mjs tests/manual-paper-reduce-only.test.mjs tests/manual-paper-depth-auto-risk.test.mjs
+      - name: Full unit suite
+        run: npm test
+      - name: Lint
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+      - name: Remove temporary review machinery
+        run: rm -rf scripts/pr149-review .github/workflows/review-pr149-margin-assumptions.yml
+      - name: Commit reviewed implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No reviewed product changes were produced."
+            exit 1
+          fi
+          git commit -m "Harden isolated and cross margin boundaries"
+          git push origin HEAD:feature/dizypaper-isolated-cross-margin-assumptions
