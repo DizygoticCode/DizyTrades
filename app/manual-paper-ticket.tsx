@@ -53,6 +53,7 @@ type Position = {
   fundingPnl?: number;
   riskPriceSource: "fair" | "last";
   lastRiskPrice: number;
+  pendingRiskExit?:{reason:"stop"|"target"|"liquidation";triggeredAt:string;triggerPrice:number;priceSource:"fair"|"last"};
   stopLoss?: number;
   takeProfit?: number;
 };
@@ -77,6 +78,7 @@ type Fill = {
   liquidationPenalty?: number;
   realisedPnl: number;
   timestamp: string;
+  riskExitTrigger?:{reason:"stop"|"target"|"liquidation";triggeredAt:string;triggerPrice:number;priceSource:"fair"|"last"};
   closeReason?: "manual"|"stop"|"target"|"liquidation"|"reversal";
   netPnl?: number;
   historicalDizyFlow?:{available:boolean;memoryId:string|null;sampleCount:number;eventCount:number;coveragePct:number|null;limitations:readonly string[]};
@@ -583,7 +585,8 @@ export function ManualPaperTicket({
               {invalidPriceStep&&contract?<span>Stop loss and take profit must use {contract.priceUnit} price increments.</span>:null}
               {depthPreview?.fillStatus==="partial"?<span>Visible depth fills {depthPreview.filledContractVolume} of {depthPreview.requestedContractVolume} requested contracts; the remainder is not invented.</span>:null}
               {!depth?<span>Depth preview is not warm; a fresh DizyFlow book is required and captured on submit.</span>:null}
-              <span>New entries and manual Close / Flash Close actions walk visible public depth. Reverse, Flatten All and automatic risk exits retain fallback slippage until their dedicated lifecycle slice.</span>
+              {position?.pendingRiskExit?<span>{`${position.pendingRiskExit.reason.toUpperCase()} triggered at ${money(position.pendingRiskExit.triggerPrice)}; the residual exit remains active until fresh visible depth can execute it.`}</span>:null}
+              <span>Entries, manual exits, Reverse and Flatten All walk visible public depth. Triggered stop, target and liquidation exits persist and retry against fresh depth; unfilled residuals are never invented away.</span>
               <span>Immediate Manual Paper actions assume market execution and taker liquidity. Public fee rates do not include account-specific discounts or promotions.</span>
               {!stopLoss?<span>No stop loss — estimated liquidation remains active.</span>:null}
               {fundingSource?<span>Funding uses public settled rates with the observed {riskState?.source??position?.riskPriceSource??"risk"} price as an explicit notional approximation.</span>:null}
@@ -690,7 +693,7 @@ export function ManualPaperTicket({
                             <small>{money(mark)}</small>
                           </span>
                           <span>{p.leverage}×</span>
-                          <span>{p.marginMode}<small>Estimated liquidation {money(p.estimatedLiquidation)}</small></span>
+                          <span>{p.marginMode}<small>Estimated liquidation {money(p.estimatedLiquidation)}</small>{p.pendingRiskExit?<small>{`${p.pendingRiskExit.reason.toUpperCase()} triggered · ${money(p.pendingRiskExit.triggerPrice)} · awaiting visible depth`}</small>:null}</span>
                           <span>{money(m)}</span>
                           <span
                             className={
@@ -762,6 +765,7 @@ export function ManualPaperTicket({
                           {fill.feeSource?<small>{`${fill.executionType??"market"} · ${fill.liquidityRole??"taker"} · ${((fill.feeRate??0)*100).toFixed(4)}% · ${fill.feeSource==="mexc-public-contract"?"MEXC public":"legacy fallback"} · fee ${money(fill.fee)}`}</small>:null}
                           {fill.entryDepthFill?<small>{`entry depth ${fill.entryDepthFill.fillStatus} · ${fill.entryDepthFill.filledContractVolume}/${fill.entryDepthFill.requestedContractVolume} contracts · ${fill.entryDepthFill.levelsConsumed} levels · ${fill.entryDepthFill.priceImpactBps.toFixed(2)} bps`}</small>:null}
                           {fill.exitDepthFill?<small>{`exit depth ${fill.exitDepthFill.fillStatus} · ${fill.exitDepthFill.filledContractVolume}/${fill.exitDepthFill.requestedContractVolume} contracts · remaining ${fill.exitDepthFill.remainingPositionContractVolume??0} · ${fill.exitDepthFill.levelsConsumed} levels · ${fill.exitDepthFill.priceImpactBps.toFixed(2)} bps`}</small>:null}
+                          {fill.riskExitTrigger?<small>{`${fill.riskExitTrigger.reason} triggered ${new Date(fill.riskExitTrigger.triggeredAt).toLocaleString()} at ${money(fill.riskExitTrigger.triggerPrice)} · ${fill.riskExitTrigger.priceSource}`}</small>:null}
                           {fill.closeReason?<small>{fill.closeReason}</small>:null}
                           {fill.side==="close"?<small>{fill.historicalDizyFlow?.available?`${fill.historicalDizyFlow.limitations.length?"Limited":"Retained"} flow · ${fill.historicalDizyFlow.sampleCount} samples · ${fill.historicalDizyFlow.coveragePct??0}% coverage`:"Flow memory unavailable"}</small>:null}
                         </span>
