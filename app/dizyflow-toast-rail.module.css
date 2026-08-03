@@ -5,8 +5,8 @@
   right: 18px;
   left: auto;
   display: block !important;
-  inline-size: min(320px, calc(100vw - 24px));
-  max-inline-size: 320px;
+  inline-size: min(292px, calc(100vw - 24px));
+  max-inline-size: 292px;
   block-size: auto;
   min-block-size: 0;
   padding: 0;
@@ -18,17 +18,17 @@
 .rail .card {
   display: grid;
   grid-template-columns: 4px minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
   inline-size: 100%;
   min-inline-size: 0;
-  min-block-size: 68px;
-  padding: 10px 10px 10px 9px;
+  min-block-size: 60px;
+  padding: 8px 8px 8px 7px;
   overflow: hidden;
   border: 1px solid rgba(133, 151, 184, 0.34);
-  border-radius: 12px;
+  border-radius: 10px;
   background: rgba(11, 15, 25, 0.96);
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.52);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
   pointer-events: auto;
   animation: toast-in 160ms ease-out;
 }
@@ -36,7 +36,7 @@
 .rail .card > i {
   inline-size: 4px;
   block-size: 100%;
-  min-block-size: 46px;
+  min-block-size: 40px;
   border-radius: 999px;
 }
 
@@ -45,12 +45,12 @@
   min-inline-size: 0;
   flex-direction: column !important;
   align-items: flex-start !important;
-  gap: 2px !important;
+  gap: 1px !important;
 }
 
 .eyebrow {
   color: #8995aa;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 750;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -66,26 +66,26 @@
 
 .title {
   color: #edf1fa;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .detail {
   color: #9da8bb !important;
-  font-size: 10px;
+  font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
 
 .actions {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
 }
 
 .history,
 .dismiss {
-  min-inline-size: 30px;
-  min-block-size: 30px;
-  padding: 0 6px;
+  min-inline-size: 28px;
+  min-block-size: 28px;
+  padding: 0 5px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -94,12 +94,12 @@
 }
 
 .history {
-  font-size: 9px;
+  font-size: 8px;
 }
 
 .dismiss {
   padding: 0;
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .history:hover,
@@ -119,8 +119,25 @@
 @media (max-width: 700px) {
   .rail {
     top: 68px;
-    right: 8px;
-    inline-size: min(310px, calc(100vw - 16px));
+    inline-size: min(292px, calc(100vw - 16px));
+  }
+
+  .rail.rail:global(.top-left) {
+    left: 8px !important;
+    right: auto !important;
+    transform: none !important;
+  }
+
+  .rail.rail:global(.top-centre) {
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+  }
+
+  .rail.rail:global(.top-right) {
+    left: auto !important;
+    right: 8px !important;
+    transform: none !important;
   }
 }
 
