@@ -1,0 +1,51 @@
+name: Apply PR 140 visible-depth entries
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/pr140/**"
+      - ".github/workflows/pr140-depth-entry.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr140-depth-entry-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  apply-and-validate:
+    if: github.event.pull_request.head.ref == 'feature/dizypaper-depth-slippage'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dizypaper-depth-slippage
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply visible-depth entry patch
+        run: node scripts/pr140/apply.mjs
+      - name: Focused depth entry tests
+        run: node --conditions=react-server --import tsx --test tests/manual-paper-depth.test.mjs tests/manual-paper-depth-route.test.mjs tests/manual-paper-funding.test.mjs tests/manual-paper-fees.test.mjs tests/manual-paper.test.mjs
+      - name: Full unit suite
+        run: npm test
+      - name: Lint
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+      - name: Remove temporary patch machinery
+        run: rm -rf scripts/pr140 .github/workflows/pr140-depth-entry.yml
+      - name: Commit validated implementation
+        run: |
+          git config user.name "DizyTrades Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Add visible-depth paper entries"
+          git push origin HEAD:feature/dizypaper-depth-slippage
