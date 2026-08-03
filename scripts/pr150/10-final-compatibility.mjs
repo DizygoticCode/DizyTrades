@@ -4,6 +4,10 @@ const replaceOnce=(source,from,to,label)=>{const index=source.indexOf(from);if(i
 
 let manual=await readFile("app/lib/manual-paper.ts","utf8");
 manual=replaceOnce(manual,
+ ' const raw=value as Partial<ManualAccount>&{version?:number;settings?:Partial<ManualSettings>},sourceVersion=raw.version;',
+ ' const raw=value as Omit<Partial<ManualAccount>,"version">&{version?:number;settings?:Partial<ManualSettings>},sourceVersion=raw.version;',
+ "stored account version input type");
+manual=replaceOnce(manual,
  ' if(!Array.isArray(raw.fills)||!Array.isArray(raw.idempotencyKeys))throw new ManualPaperError("ACCOUNT_MIGRATION_FAILED","account.history","Manual Paper history is invalid.");\n const base=newManualAccount(),positions=',
  ' const fills=sourceVersion===2&&raw.fills==null?[]:raw.fills,idempotencyKeys=sourceVersion===2&&raw.idempotencyKeys==null?[]:raw.idempotencyKeys;\n if(!Array.isArray(fills)||!Array.isArray(idempotencyKeys))throw new ManualPaperError("ACCOUNT_MIGRATION_FAILED","account.history","Manual Paper history is invalid.");\n const base=newManualAccount(),positions=',
  "v2 empty history defaults");
