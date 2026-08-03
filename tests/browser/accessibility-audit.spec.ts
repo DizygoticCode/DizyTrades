@@ -14,11 +14,19 @@ async function loginViewer(page: Page) {
 }
 
 async function startKeyboardTraversal(page: Page) {
-  await page.evaluate(() => {
-    document.body.tabIndex = -1;
-    document.body.focus();
-    document.body.removeAttribute("tabindex");
+  // Let modal focus restoration finish, then remove the current focus without
+  // changing the document's tab order. Chrome now starts Tab traversal at the
+  // first focusable element, which must be the protected-workspace skip link.
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
   });
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement === document.body))
+    .toBe(true);
 }
 
 async function lastFocusable(dialog: Locator) {
