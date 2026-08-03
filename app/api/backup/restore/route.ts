@@ -4,9 +4,9 @@ import { validRequestOrigin } from "../../../lib/request-security";
 import { appendAudit } from "../../../lib/store";
 import { MAX_USER_BACKUP_BYTES } from "../../../lib/user-backup-model";
 import {
-  applyUserBackupRestore,
-  planUserBackupRestore,
-} from "../../../lib/user-backup-store";
+  applyUserBackupRestoreWithWorkspaces,
+  planUserBackupRestoreWithWorkspaces,
+} from "../../../lib/user-backup-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,12 +45,13 @@ export async function POST(request: Request) {
   try {
     const dryRun = body.dryRun === true;
     if (dryRun) {
-      const plan = await planUserBackupRestore(user.id, body.backup);
+      const plan = await planUserBackupRestoreWithWorkspaces(user.id, body.backup);
       await appendAudit(user.id, "backup.restore-dry-run", {
         safeToApply: plan.safeToApply,
         conflicts: plan.conflicts.length,
         warnings: plan.warnings.length,
         journalEntriesToAdd: plan.journal.entriesToAdd,
+        workspaceLayoutsToAdd: plan.workspaces.layoutsToAdd,
       });
       return NextResponse.json({ dryRun: true, plan }, {
         headers: { "cache-control": "private, no-store, max-age=0" },
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    const result = await applyUserBackupRestore(
+    const result = await applyUserBackupRestoreWithWorkspaces(
       user.id,
       body.backup,
       body.expectedBackupHash,
@@ -80,6 +81,7 @@ export async function POST(request: Request) {
       replayMemories: result.created.replayMemories,
       historicalDizyFlow: result.created.historicalDizyFlow,
       dizyBrainReviews: result.created.dizyBrainReviews,
+      workspaceLayouts: result.created.workspaceLayouts,
       profileUpdated: result.profileUpdated,
       manualPaperRestored: result.manualPaperRestored,
     });
