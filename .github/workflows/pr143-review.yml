@@ -1,0 +1,54 @@
+name: Apply PR 143 opposite-order depth review
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "scripts/pr143-review/**"
+      - ".github/workflows/pr143-review.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr143-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  apply-and-validate:
+    if: github.head_ref == 'feature/dizypaper-depth-auto-risk-exits'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dizypaper-depth-auto-risk-exits
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply opposite-order review patch
+        run: node scripts/pr143-review/apply.mjs
+      - name: Focused sequential-depth tests
+        run: node --conditions=react-server --import tsx --test tests/manual-paper-depth-opposite-order.test.mjs tests/manual-paper-depth-opposite-order-source.test.mjs tests/manual-paper-depth-auto-risk.test.mjs tests/manual-paper-depth.test.mjs tests/manual-paper.test.mjs
+      - name: Full unit suite
+        run: npm test
+      - name: Lint
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+      - name: Remove temporary review machinery
+        run: rm -rf scripts/pr143-review .github/workflows/pr143-review.yml
+      - name: Commit validated review fix
+        run: |
+          git config user.name "DizygoticCode"
+          git config user.email "232596562+DizygoticCode@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No review changes to commit"
+          else
+            git commit -m "Use sequential depth for opposite ticket orders"
+            git push origin HEAD:feature/dizypaper-depth-auto-risk-exits
+          fi
