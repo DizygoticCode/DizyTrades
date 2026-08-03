@@ -16,7 +16,7 @@ services:
       sizeGB: 1
     envVars:
       - key: NODE_VERSION
-        value: 22.14.0
+        value: 22.23.1
       - key: HOSTNAME
         value: 0.0.0.0
       - key: DATA_DIR
@@ -79,13 +79,9 @@ services:
         sync: false
       - key: ROB_PASSWORD_HASH
         sync: false
-      - key: ROB_PASSWORD
-        sync: false
       - key: FRIEND_NAME
         value: Nick
       - key: FRIEND_EMAIL
         sync: false
       - key: FRIEND_PASSWORD_HASH
-        sync: false
-      - key: FRIEND_PASSWORD
         sync: false

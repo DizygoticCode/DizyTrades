@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/isolated-recovery-rehearsal.yml"
+      - ".node-version"
       - "scripts/isolated-recovery-rehearsal.mjs"
       - "tests/isolated-recovery-rehearsal.test.mjs"
       - "docs/ISOLATED_RECOVERY_REHEARSAL.md"
@@ -14,6 +15,7 @@ on:
     branches: [main, agent/isolated-recovery-rehearsal]
     paths:
       - ".github/workflows/isolated-recovery-rehearsal.yml"
+      - ".node-version"
       - "scripts/isolated-recovery-rehearsal.mjs"
       - "tests/isolated-recovery-rehearsal.test.mjs"
       - "docs/ISOLATED_RECOVERY_REHEARSAL.md"
@@ -40,7 +42,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: ".node-version"
           cache: npm
 
       - run: npm ci
