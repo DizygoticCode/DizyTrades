@@ -70,6 +70,22 @@ function executeLauncher(launcher: Launcher) {
   return true;
 }
 
+function launcherCompleted(launcher: Launcher) {
+  if (launcher === "dizybrain") {
+    return Boolean(
+      document.querySelector('[aria-label="DizyBrain Analysis Workspace"]'),
+    );
+  }
+  if (launcher === "layouts") {
+    return Boolean(document.querySelector(".workspace-layout-dialog"));
+  }
+  if (launcher === "start-here") {
+    return Boolean(document.querySelector(".first-run-onboarding-dialog"));
+  }
+  const panel = document.getElementById("manual-paper-panel");
+  return Boolean(panel && panel.getClientRects().length > 0);
+}
+
 export function CommandPalette() {
   const pathname = usePathname();
   const active = protectedPrefixes.some(
@@ -171,7 +187,9 @@ export function CommandPalette() {
         return;
       }
       const referenceKey =
-        event.key === "?" || (event.key === "/" && event.shiftKey);
+        event.key === "?" ||
+        (event.shiftKey &&
+          (event.key === "/" || event.code === "Slash"));
       if (
         referenceKey &&
         !event.ctrlKey &&
@@ -213,24 +231,21 @@ export function CommandPalette() {
       pendingLauncherKey,
     ) as Launcher | null;
     if (!pending) return;
-    const launch = () => {
-      if (!executeLauncher(pending)) return false;
-      sessionStorage.removeItem(pendingLauncherKey);
-      return true;
-    };
-    if (launch()) return;
-    const observer = new MutationObserver(() => {
-      if (launch()) observer.disconnect();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    const timeout = window.setTimeout(() => {
-      observer.disconnect();
-      sessionStorage.removeItem(pendingLauncherKey);
-    }, 15_000);
-    return () => {
-      observer.disconnect();
-      window.clearTimeout(timeout);
-    };
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      if (launcherCompleted(pending)) {
+        sessionStorage.removeItem(pendingLauncherKey);
+        window.clearInterval(timer);
+        return;
+      }
+      if (Date.now() - startedAt >= 15_000) {
+        sessionStorage.removeItem(pendingLauncherKey);
+        window.clearInterval(timer);
+        return;
+      }
+      executeLauncher(pending);
+    }, 350);
+    return () => window.clearInterval(timer);
   }, [active, pathname]);
 
   if (!active) return null;
@@ -442,16 +457,16 @@ export function CommandPalette() {
         }
         .command-palette-floating {
           position: fixed;
-          right: 16px;
-          bottom: 16px;
+          top: 76px;
+          right: 12px;
           z-index: 9000;
-          min-height: 38px;
-          padding: 0 11px;
+          min-height: 36px;
+          padding: 0 10px;
           border-style: solid;
           border-width: 1px;
           border-radius: 8px;
           font: inherit;
-          font-size: 11px;
+          font-size: 10px;
         }
         .command-palette-backdrop {
           position: fixed;
@@ -658,8 +673,8 @@ export function CommandPalette() {
         }
         @media (max-width: 600px) {
           .command-palette-floating {
-            right: 10px;
-            bottom: 10px;
+            top: 64px;
+            right: 8px;
           }
           .command-palette-backdrop {
             padding: 18px 10px;
