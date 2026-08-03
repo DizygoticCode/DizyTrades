@@ -4,7 +4,7 @@ import { createHmac } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { authenticateDatabaseUser, createDatabaseSession, databaseSession } from "./auth-db";
-import { authenticateLegacyUser, authIsConfigured, configuredUsers, safeEqual, withoutSecrets, type AuthUser } from "./auth-credentials";
+import { authenticateLegacyUser, authIsConfigured, configuredUsers, legacyAuthFallbackEnabled, safeEqual, withoutSecrets, type AuthUser } from "./auth-credentials";
 import { safeOwnerId } from "./security-boundaries";
 
 export { authIsConfigured, type AuthUser };
@@ -59,6 +59,7 @@ export function parseSessionToken(token: string | undefined): AuthUser | null {
     const ownerId = safeOwnerId(payload.id, "session owner");
     if (ownerId === "guest" && payload.role === "viewer" && payload.email === "") return VIEWER_USER;
     if (payload.role !== "owner" && payload.role !== "admin") return null;
+    if (!legacyAuthFallbackEnabled()) return null;
     const legacy = configuredUsers().find((user) => user.id === ownerId && user.email === payload.email);
     return legacy ? withoutSecrets(legacy) : null;
   } catch {
