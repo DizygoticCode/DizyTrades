@@ -1,4 +1,4 @@
-import { replaceExact, replaceRegex, write } from "./utils.mjs";
+import { replaceExact, replaceRegex } from "./utils.mjs";
 
 await replaceExact(
   "app/lib/manual-paper.ts",
@@ -11,10 +11,10 @@ await replaceExact(
   `pnl=(slipped-position.entryPrice)*position.quantity*(position.side==="long"?1:-1),net=pnl-position.entryFee-fee;account.cashBalance=Math.max(0,account.cashBalance+pnl-fee);account.realisedPnl+=net;`,
   `pnl=(slipped-position.entryPrice)*position.quantity*(position.side==="long"?1:-1),tradingNet=pnl-position.entryFee-fee,fundingPnl=position.fundingPnl??0,net=tradingNet+fundingPnl;account.cashBalance=Math.max(0,account.cashBalance+pnl-fee);account.realisedPnl+=tradingNet;`
 );
-await replaceExact(
+await replaceRegex(
   "app/lib/manual-paper.ts",
-  `grossPnl:pnl,netPnl:net,realisedPnl:net`,
-  `grossPnl:pnl,fundingPnl,netPnl:net,realisedPnl:net`
+  /closeReason,grossPnl:pnl,netPnl:net,realisedPnl:net,resultingBalance/,
+  `closeReason,grossPnl:pnl,fundingPnl,netPnl:net,realisedPnl:net,resultingBalance`
 );
 
 await replaceRegex(
