@@ -140,9 +140,14 @@ export function auditManualPaperAccounting(account: ManualAccount): ManualPaperA
   const activeEntryFees = total(positions.map(activeEntryFee));
   const expectedCashBalance = account.startingBalance + account.realisedPnl - activeEntryFees;
   const cashDifference = account.cashBalance - expectedCashBalance;
+  const nativeAccounting = account.migration.sourceAccountVersion === 4;
 
-  if (!reconciles(account.cashBalance, expectedCashBalance, activeEntryFees)) {
-    violations.push("Manual Paper cash balance does not reconcile with starting balance, realised P/L and active entry fees.");
+  if (nativeAccounting) {
+    if (!reconciles(account.cashBalance, expectedCashBalance, activeEntryFees)) {
+      violations.push("Manual Paper cash balance does not reconcile with starting balance, realised P/L and active entry fees.");
+    }
+  } else {
+    warnings.push("Legacy Manual Paper top-level accounting predates the native cash-state bridge and is preserved rather than reconstructed.");
   }
 
   account.fills.forEach((fill, index) => validateFill(fill, index, violations, warnings));
@@ -156,8 +161,8 @@ export function auditManualPaperAccounting(account: ManualAccount): ManualPaperA
       .map((fill) => fill.realisedPnl - Number(fill.fundingPnl ?? 0)),
   );
   const retainedRealisedPnl = retainedTradingPnl + retainedFundingPnl;
-  const completeFills = account.migration.sourceAccountVersion === 4 && account.fills.length < 500;
-  const completeFunding = account.fundingPayments.length < 1000;
+  const completeFills = nativeAccounting && account.fills.length < 500;
+  const completeFunding = nativeAccounting && account.fundingPayments.length < 1000;
   const coverage: ManualPaperAccountingCoverage = completeFills && completeFunding
     ? "complete-history"
     : "retained-window";
@@ -169,10 +174,10 @@ export function auditManualPaperAccounting(account: ManualAccount): ManualPaperA
       violations.push("Manual Paper cumulative fees do not reconcile with complete retained fill history.");
     }
   } else {
-    if (retainedFees - account.fees > tolerance(retainedFees, account.fees)) {
+    if (nativeAccounting && retainedFees - account.fees > tolerance(retainedFees, account.fees)) {
       violations.push("Manual Paper cumulative fees are lower than fees visible in the retained fill window.");
     }
-    warnings.push("Manual Paper fee history is retention-bounded; cumulative fees cannot be reconstructed exactly from retained fills.");
+    warnings.push("Manual Paper fee history is legacy or retention-bounded; cumulative fees cannot be reconstructed exactly from retained fills.");
   }
 
   let fundingDifference: number | null = null;
@@ -182,7 +187,7 @@ export function auditManualPaperAccounting(account: ManualAccount): ManualPaperA
       violations.push("Manual Paper cumulative funding P/L does not reconcile with complete retained funding history.");
     }
   } else {
-    warnings.push("Manual Paper funding history is retention-bounded; cumulative funding cannot be reconstructed exactly from retained payments.");
+    warnings.push("Manual Paper funding history is legacy or retention-bounded; cumulative funding cannot be reconstructed exactly from retained payments.");
   }
 
   let realisedDifference: number | null = null;
@@ -192,7 +197,7 @@ export function auditManualPaperAccounting(account: ManualAccount): ManualPaperA
       violations.push("Manual Paper realised P/L does not reconcile with complete retained closes and funding payments.");
     }
   } else {
-    warnings.push("Manual Paper realised history is retention-bounded; the cash-state bridge remains authoritative.");
+    warnings.push("Manual Paper realised history is legacy or retention-bounded; native current accounts use the cash-state bridge.");
   }
 
   return Object.freeze({
