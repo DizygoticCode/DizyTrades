@@ -1,6 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
-
-const riskTests=`import test from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
 import {mkdtemp,rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
@@ -23,37 +21,6 @@ test("partial exposure reselects the original snapshotted schedule",()=>{const o
 
 test("liquidation audit separates trigger and bankruptcy for long and short",()=>{const base={entryPrice:100,quantity:10,marginMode:"isolated",assignedMargin:100,crossCollateral:300,entryFee:.6,maintenanceMarginRate:.02,liquidationPenaltyRate:.001},long=auditPaperLiquidation({...base,side:"long"}),short=auditPaperLiquidation({...base,side:"short"}),higher=auditPaperLiquidation({...base,side:"long",maintenanceMarginRate:.05});assert.ok(long.bankruptcyPrice<long.estimatedLiquidation&&long.estimatedLiquidation<100);assert.ok(short.estimatedLiquidation<short.bankruptcyPrice&&short.estimatedLiquidation>100);assert.ok(higher.estimatedLiquidation>long.estimatedLiquidation);assert.equal(long.collateralBasis,"assigned-margin");assert.ok(Math.abs(long.maintenanceMarginAtLiquidation-long.estimatedLiquidation*10*.02)<1e-10);assert.ok(Math.abs(long.liquidationToBankruptcyDistance-Math.abs(long.estimatedLiquidation-long.bankruptcyPrice))<1e-10)});
 
-test("Manual Paper snapshots tier provenance and moves residuals down-tier",()=>isolated("dizy-risk-tier-",async()=>{const {submitManualOrder,partialCloseManualPosition}=await import("../app/lib/manual-paper.ts"),{validateManualPaperBackup}=await import("../app/lib/manual-paper-backup.ts"),rules=contract();let account=await submitManualOrder("risk-tier-user",{idempotencyKey:"risk-tier-open-0001",symbol:"BTC_USDT",side:"long",sizeMode:"fixed-notional",amount:1000,leverage:10},100,"fair",rules,undefined,book()),position=account.positions.BTC_USDT;assert.equal(position.contractVolume,10);assert.equal(position.riskTier.level,2);assert.equal(position.riskTier.maintenanceMarginRate,.02);assert.ok(position.bankruptcyPrice<position.estimatedLiquidation);assert.equal(position.liquidationAudit.estimatedLiquidation,position.estimatedLiquidation);assert.equal(account.fills.at(-1).riskTier.level,2);account=await partialCloseManualPosition("risk-tier-user","BTC_USDT","risk-tier-close-0001",100,{percentage:50},book(),rules,{expectedTradeId:position.tradeId,expectedSide:position.side});position=account.positions.BTC_USDT;assert.equal(position.contractVolume,5);assert.equal(position.riskTier.level,1);assert.equal(position.riskTier.capturedAt,account.fills[0].riskTier.capturedAt);assert.equal(position.liquidationAudit.maintenanceMarginRate,.01);assert.equal(validateManualPaperBackup(account,"risk-tier-user").positions.BTC_USDT.riskTier.level,1);for(const mutate of [copy=>copy.positions.BTC_USDT.riskTier.maxExposure=999,copy=>copy.positions.BTC_USDT.liquidationAudit.bankruptcyPrice=1,copy=>copy.positions.BTC_USDT.liquidationAudit.maintenanceMarginAtLiquidation=1]){const copy=structuredClone(account);mutate(copy);assert.throws(()=>validateManualPaperBackup(copy,"risk-tier-user"),/riskTier|risk tier|liquidation|reconcile|boundary/i)}}));
+test("Manual Paper snapshots tier provenance and moves residuals down-tier",()=>isolated("dizy-risk-tier-",async()=>{const {submitManualOrder,partialCloseManualPosition}=await import("../app/lib/manual-paper.ts"),{validateManualPaperBackup}=await import("../app/lib/manual-paper-backup.ts"),rules=contract();let account=await submitManualOrder("risk-tier-user",{idempotencyKey:"risk-tier-open-0001",symbol:"BTC_USDT",side:"long",sizeMode:"fixed-notional",amount:1000,leverage:10},100,"fair",rules,undefined,book()),position=account.positions.BTC_USDT;assert.equal(position.contractVolume,10);assert.equal(position.riskTier.level,2);assert.equal(position.riskTier.maintenanceMarginRate,.02);assert.ok(position.bankruptcyPrice<position.estimatedLiquidation);assert.equal(position.liquidationAudit.estimatedLiquidation,position.estimatedLiquidation);assert.equal(position.liquidationAudit.positionQuantity,position.quantity);assert.equal(account.fills.at(-1).riskTier.level,2);assert.equal(account.fills.at(-1).liquidationAudit.positionQuantity,10);account=await partialCloseManualPosition("risk-tier-user","BTC_USDT","risk-tier-close-0001",100,{percentage:50},book(),rules,{expectedTradeId:position.tradeId,expectedSide:position.side});position=account.positions.BTC_USDT;assert.equal(position.contractVolume,5);assert.equal(position.riskTier.level,1);assert.equal(position.riskTier.capturedAt,account.fills[0].riskTier.capturedAt);assert.equal(position.liquidationAudit.maintenanceMarginRate,.01);assert.equal(position.liquidationAudit.positionQuantity,5);const closeFill=account.fills.at(-1);assert.equal(closeFill.liquidationAudit.positionQuantity,10);assert.equal(validateManualPaperBackup(account,"risk-tier-user").positions.BTC_USDT.riskTier.level,1);for(const mutate of [copy=>copy.positions.BTC_USDT.riskTier.maxExposure=999,copy=>copy.positions.BTC_USDT.liquidationAudit.bankruptcyPrice=1,copy=>copy.positions.BTC_USDT.liquidationAudit.maintenanceMarginAtLiquidation=1,copy=>copy.positions.BTC_USDT.liquidationAudit.positionQuantity=999]){const copy=structuredClone(account);mutate(copy);assert.throws(()=>validateManualPaperBackup(copy,"risk-tier-user"),/riskTier|risk tier|liquidation|reconcile|boundary/i)}}));
 
 test("tier maximum leverage is enforced after actual visible fill",()=>isolated("dizy-risk-tier-lev-",async()=>{const {submitManualOrder}=await import("../app/lib/manual-paper.ts");await assert.rejects(()=>submitManualOrder("risk-tier-lev",{idempotencyKey:"risk-tier-lev-open-0001",symbol:"BTC_USDT",side:"long",sizeMode:"fixed-notional",amount:1000,leverage:25},100,"fair",contract(),undefined,book()),error=>error?.code==="RISK_TIER_LEVERAGE_EXCEEDED")}));
-`;
-await writeFile("tests/manual-paper-risk-tiers.test.mjs",riskTests);
-
-const sourceTests=`import test from "node:test";
-import assert from "node:assert/strict";
-import {readFile} from "node:fs/promises";
-
-test("risk tier and bankruptcy provenance is visible at source boundaries",async()=>{const [metadata,core,ticket,backup,roadmap]=await Promise.all([readFile("app/lib/mexc-contract-metadata.ts","utf8"),readFile("app/lib/manual-paper.ts","utf8"),readFile("app/manual-paper-ticket.tsx","utf8"),readFile("app/lib/manual-paper-backup.ts","utf8"),readFile("ROADMAP.md","utf8")]);for(const field of ["riskBaseVol","riskIncrVol","riskIncrMmr","riskIncrImr","riskLevelLimit"])assert.match(metadata,new RegExp(field));assert.match(core,/validatedEntryRiskTier/);assert.match(core,/auditPaperLiquidation/);assert.match(core,/bankruptcyPrice/);assert.match(ticket,/Tier max leverage/);assert.match(ticket,/Bankruptcy price/);assert.match(ticket,/Liquidation buffer/);assert.match(backup,/tier boundary does not reconcile/);assert.match(backup,/liquidation buffer does not reconcile/);assert.match(roadmap,/- \[x\] maintenance tiers and bankruptcy-price audit/);assert.match(roadmap,/Next slice: clearer isolated versus cross-margin assumptions/)});
-`;
-await writeFile("tests/manual-paper-risk-tier-source.test.mjs",sourceTests);
-
-{
- const path="tests/mexc-contract-metadata.test.mjs";
- let source=await readFile(path,"utf8");
- source=source.replace(
-  'assert.match(source, /maintenanceMarginRate:contract\?\.maintenanceMarginRate\?\?/);',
-  'assert.match(source, /maintenanceMarginRate:riskTierPreview\?\.maintenanceMarginRate\?\?contract\?\.maintenanceMarginRate\?\?/);'
- );
- await writeFile(path,source);
-}
-
-{
- const path="ROADMAP.md";
- let source=await readFile(path,"utf8");
- const old='- [ ] maintenance tiers and bankruptcy-price audit\n- [ ] clearer isolated versus cross-margin assumptions';
- const next='- [x] maintenance tiers and bankruptcy-price audit\n- [ ] clearer isolated versus cross-margin assumptions';
- if(!source.includes(old))throw new Error("roadmap tier checkbox anchor unavailable");
- source=source.replace(old,next);
- source=source.replace('Current slice: maintenance tiers and bankruptcy-price audit.','Maintenance tiers now use snapshotted public contract increment fields with explicit flat fallback, and liquidation is separated from bankruptcy price. Next slice: clearer isolated versus cross-margin assumptions.');
- await writeFile(path,source);
-}

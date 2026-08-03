@@ -3,6 +3,7 @@ export type MarginMode="isolated"|"cross";
 export type PaperSizeMode="fixed-margin"|"fixed-notional"|"equity-percent"|"risk-percent";
 export type RiskPriceSource="fair"|"last";
 export type CloseReason="manual"|"stop"|"target"|"liquidation"|"reversal";
+export type PaperLiquidationAudit=Readonly<{calculationMethod:"linear-usdt-mark-notional-v2";bankruptcyCalculationMethod:"linear-usdt-zero-equity-v1";collateralBasis:"assigned-margin"|"cross-collateral-snapshot";positionQuantity:number;collateral:number;usableCollateral:number;entryFee:number;maintenanceMarginRate:number;liquidationPenaltyRate:number;maintenanceMarginAtLiquidation:number;liquidationPenaltyReserve:number;estimatedLiquidation:number;bankruptcyPrice:number;liquidationToBankruptcyDistance:number}>;
 
 /** Simulator assumptions, not MEXC fee tiers or an exchange-exact risk engine. */
 export const PAPER_RISK_ASSUMPTIONS={maintenanceMarginRate:0.005,takerFeeRate:0.0006,makerFeeRate:0.0002,slippageRate:0.0002,liquidationPenaltyRate:0.001} as const;
@@ -13,14 +14,14 @@ export function paperPnl(side:PaperSide,entry:number,mark:number,quantity:number
 export function paperFee(notional:number,rate=PAPER_RISK_ASSUMPTIONS.takerFeeRate){return valid(notional)&&Number.isFinite(rate)&&rate>=0?notional*rate:NaN}
 export function applyPaperSlippage(price:number,side:PaperSide,opening:boolean,rate=PAPER_RISK_ASSUMPTIONS.slippageRate){const direction=(side==="long")===opening?1:-1;return price*(1+direction*rate)}
 
-export function estimateLiquidation(input:{side:PaperSide;entryPrice:number;quantity:number;marginMode:MarginMode;assignedMargin:number;crossCollateral:number;entryFee:number;maintenanceMarginRate?:number;liquidationPenaltyRate?:number}){
- const {side,entryPrice,quantity}=input,collateral=input.marginMode==="isolated"?input.assignedMargin:input.crossCollateral,mmr=input.maintenanceMarginRate??PAPER_RISK_ASSUMPTIONS.maintenanceMarginRate,penalty=input.liquidationPenaltyRate??PAPER_RISK_ASSUMPTIONS.liquidationPenaltyRate;
- if(!valid(entryPrice)||!valid(quantity)||!valid(collateral)||!Number.isFinite(input.entryFee)||input.entryFee<0||!Number.isFinite(mmr)||mmr<0||mmr>=1||!Number.isFinite(penalty)||penalty<0)return NaN;
- const usable=collateral-input.entryFee, direction=side==="long"?1:-1;
- // Equity loss equals collateral less maintenance and the assumed liquidation closing cost.
- const distance=(usable-entryPrice*quantity*(mmr+penalty))/quantity;
- return Math.max(0,entryPrice-direction*distance);
+export function auditPaperLiquidation(input:{side:PaperSide;entryPrice:number;quantity:number;marginMode:MarginMode;assignedMargin:number;crossCollateral:number;entryFee:number;maintenanceMarginRate?:number;liquidationPenaltyRate?:number}):PaperLiquidationAudit{
+ const {side,entryPrice,quantity}=input,collateral=input.marginMode==="isolated"?input.assignedMargin:input.crossCollateral,mmr=input.maintenanceMarginRate??PAPER_RISK_ASSUMPTIONS.maintenanceMarginRate,penalty=input.liquidationPenaltyRate??PAPER_RISK_ASSUMPTIONS.liquidationPenaltyRate,totalRate=mmr+penalty;
+ if(!valid(entryPrice)||!valid(quantity)||!valid(collateral)||!Number.isFinite(input.entryFee)||input.entryFee<0||input.entryFee>=collateral||!Number.isFinite(mmr)||mmr<0||mmr>=1||!Number.isFinite(penalty)||penalty<0||totalRate>=1)throw new Error("INVALID_LIQUIDATION_INPUT");
+ const usableCollateral=collateral-input.entryFee,bankruptcyPrice=Math.max(0,side==="long"?entryPrice-usableCollateral/quantity:entryPrice+usableCollateral/quantity),estimatedLiquidation=Math.max(0,side==="long"?(entryPrice*quantity-usableCollateral)/(quantity*(1-totalRate)):(entryPrice*quantity+usableCollateral)/(quantity*(1+totalRate))),maintenanceMarginAtLiquidation=estimatedLiquidation*quantity*mmr,liquidationPenaltyReserve=estimatedLiquidation*quantity*penalty;
+ return Object.freeze({calculationMethod:"linear-usdt-mark-notional-v2",bankruptcyCalculationMethod:"linear-usdt-zero-equity-v1",collateralBasis:input.marginMode==="isolated"?"assigned-margin":"cross-collateral-snapshot",positionQuantity:quantity,collateral,usableCollateral,entryFee:input.entryFee,maintenanceMarginRate:mmr,liquidationPenaltyRate:penalty,maintenanceMarginAtLiquidation,liquidationPenaltyReserve,estimatedLiquidation,bankruptcyPrice,liquidationToBankruptcyDistance:Math.abs(estimatedLiquidation-bankruptcyPrice)});
 }
+
+export function estimateLiquidation(input:{side:PaperSide;entryPrice:number;quantity:number;marginMode:MarginMode;assignedMargin:number;crossCollateral:number;entryFee:number;maintenanceMarginRate?:number;liquidationPenaltyRate?:number}){try{return auditPaperLiquidation(input).estimatedLiquidation}catch{return NaN}}
 
 export function sizePaperPosition(input:{mode:PaperSizeMode;amount:number;leverage:number;equity:number;price:number;side:PaperSide;stopLoss?:number|null;minLeverage?:number;maxLeverage?:number}){
  const {amount,leverage,equity,price}=input,minLeverage=input.minLeverage??1,maxLeverage=input.maxLeverage??20;if(!valid(amount)||!valid(leverage)||!valid(minLeverage)||!valid(maxLeverage)||maxLeverage<minLeverage||leverage<minLeverage||leverage>maxLeverage||!valid(equity)||!valid(price))throw new Error("INVALID_SIZING");

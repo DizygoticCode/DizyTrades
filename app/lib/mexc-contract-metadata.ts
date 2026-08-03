@@ -14,6 +14,11 @@ export type MexcContractMetadata = {
   initialMarginRate: number;
   positionOpenType: 1 | 2 | 3;
   riskLimitType: "BY_VOLUME" | "BY_VALUE" | "UNKNOWN";
+  riskBaseVol?: number;
+  riskIncrVol?: number;
+  riskIncrMmr?: number;
+  riskIncrImr?: number;
+  riskLevelLimit?: number;
 };
 
 export type MexcStepMode = "floor" | "ceil" | "nearest";
@@ -64,6 +69,11 @@ export function parseMexcContractMetadata(
   const riskLimitType = input.riskLimitType === "BY_VOLUME" || input.riskLimitType === "BY_VALUE"
     ? input.riskLimitType
     : "UNKNOWN";
+  const optionalPositive=(value:unknown,field:string)=>value==null?undefined:positive(value,field);
+  const optionalNonNegative=(value:unknown,field:string)=>value==null?undefined:nonNegative(value,field);
+  const parsedRiskLevel=input.riskLevelLimit==null?null:finite(input.riskLevelLimit);
+  const riskLevelRaw=parsedRiskLevel===null?undefined:parsedRiskLevel;
+  if(riskLevelRaw!==undefined&&(!Number.isInteger(riskLevelRaw)||riskLevelRaw<1||riskLevelRaw>1000))throw new Error("Invalid MEXC risk level limit.");
   const volUnit = positive(input.volUnit, "volume unit");
   const minVol = positive(input.minVol, "minimum volume");
   const maxVol = positive(input.maxVol, "maximum volume");
@@ -87,6 +97,11 @@ export function parseMexcContractMetadata(
     initialMarginRate: nonNegative(input.initialMarginRate, "initial margin"),
     positionOpenType: openType,
     riskLimitType,
+    riskBaseVol: optionalPositive(input.riskBaseVol, "risk base volume"),
+    riskIncrVol: optionalPositive(input.riskIncrVol, "risk volume increment"),
+    riskIncrMmr: optionalNonNegative(input.riskIncrMmr, "risk maintenance increment"),
+    riskIncrImr: optionalNonNegative(input.riskIncrImr, "risk initial increment"),
+    riskLevelLimit: riskLevelRaw,
   });
 }
 

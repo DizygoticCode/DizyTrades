@@ -9,13 +9,14 @@ import {
   type CSSProperties,
 } from "react";
 import { PAPER_SIZE_STOPS, sliderToAmount } from "./lib/manual-paper-sizing";
-import { estimateLiquidation, paperAccountSummary } from "./lib/manual-paper-engine";
+import { auditPaperLiquidation, paperAccountSummary, type PaperLiquidationAudit } from "./lib/manual-paper-engine";
 import type { DizyFlowIntelligenceSnapshot } from "./lib/order-flow/intelligence";
 import { compactDizyFlowSample } from "./lib/historical-dizyflow-compact";
 import { HistoricalDizyFlowCaptureManager } from "./lib/historical-dizyflow-capture";
 import { HistoricalDizyFlowEventAdapter } from "./lib/historical-dizyflow-events";
 import {clampContractLeverage,isMexcStepAligned,leverageStopsForContract,quantizeMexcStep,sizeMexcContractOrder,type MexcContractMetadata} from "./lib/mexc-contract-metadata";
 import {simulatePaperMarketDepthFill,type PaperDepthFillEvidence} from "./lib/manual-paper-depth";
+import {selectMexcContractRiskTier,type PaperRiskTierSnapshot} from "./lib/manual-paper-risk-tiers";
 import type {DepthEnvelope} from "./lib/order-flow/types";
 type Mode = "fixed-margin" | "fixed-notional" | "equity-percent" | "risk-percent";
 type FundingRate={symbol:string;fundingRate:number;minFundingRate:number;maxFundingRate:number;collectCycleHours:number;nextSettleTime:number;observedAt:number;source:"mexc-public-funding-rate"};
@@ -41,6 +42,9 @@ type Position = {
   margin?: number;
   marginMode: "isolated" | "cross";
   estimatedLiquidation: number;
+  bankruptcyPrice?: number;
+  riskTier?: PaperRiskTierSnapshot;
+  liquidationAudit?: PaperLiquidationAudit;
   executionType?: "market";
   liquidityRole?: "maker" | "taker";
   feeRate?: number;
@@ -69,6 +73,9 @@ type Fill = {
   entryDepthFill?: PaperDepthFillEvidence;
   exitDepthFill?: PaperDepthFillEvidence;
   reduceOnly?: ReduceOnlyEvidence;
+  bankruptcyPrice?: number;
+  riskTier?: PaperRiskTierSnapshot;
+  liquidationAudit?: PaperLiquidationAudit;
   fee: number;
   executionType?: "market";
   liquidityRole?: "maker" | "taker";
@@ -218,6 +225,9 @@ export function ManualPaperTicket({
     contractVolume=contractOrder?.contractVolume??0,
     quantity=contractOrder?.quantity??0,
     notional=contractOrder?.notional??0,
+    riskTierState=(()=>{try{return {tier:contract&&contractOrder?selectMexcContractRiskTier(contract,{contractVolume:contractOrder.contractVolume,notional:contractOrder.notional}):null,error:null as string|null}}catch{return {tier:null,error:"Requested size exceeds the documented public MEXC risk schedule."}}})(),
+    riskTierPreview=riskTierState.tier,
+    riskTierIssue=riskTierState.error??(riskTierPreview&&leverageNumber>riskTierPreview.maxLeverage?`Tier ${riskTierPreview.level} allows at most ${riskTierPreview.maxLeverage}× leverage.`:null),
     margin=leverageNumber>0?notional/leverageNumber:0,
     feeRate=contract?.takerFeeRate??(account?.settings.commissionPct??0)/100,
     feeSource=contract?"MEXC public contract":"Legacy settings fallback",
@@ -230,20 +240,19 @@ export function ManualPaperTicket({
     estimatedFunding=(fundingSide==="long"?-1:1)*fundingNotional*fundingRate,
     nextFundingTime=funding?.nextSettleTime??position?.nextFundingTime??0,
     lastFundingPayment=account?.fundingPayments?.at(-1),
-    liquidation=quantity>0?estimateLiquidation({side,entryPrice:executionPrice,quantity,marginMode,assignedMargin:margin,crossCollateral:equity,entryFee:fee,maintenanceMarginRate:contract?.maintenanceMarginRate??(account?.settings.maintenanceMarginPct??.5)/100,liquidationPenaltyRate:(account?.settings.liquidationPenaltyPct??.1)/100}):NaN,
+    liquidationAudit=(()=>{try{return quantity>0?auditPaperLiquidation({side,entryPrice:executionPrice,quantity,marginMode,assignedMargin:margin,crossCollateral:equity,entryFee:fee,maintenanceMarginRate:riskTierPreview?.maintenanceMarginRate??contract?.maintenanceMarginRate??(account?.settings.maintenanceMarginPct??.5)/100,liquidationPenaltyRate:(account?.settings.liquidationPenaltyPct??.1)/100}):null}catch{return null}})(),
+    liquidation=liquidationAudit?.estimatedLiquidation??NaN,
+    bankruptcy=liquidationAudit?.bankruptcyPrice??NaN,
     riskAmount=stopLoss&&quantity?Math.abs(executionPrice-Number(stopLoss))*quantity:0,
     rewardRisk=stopLoss&&takeProfit&&riskAmount?Math.abs(Number(takeProfit)-executionPrice)*quantity/riskAmount:0,
     remaining = equity - used - margin - fee,
     invalidPriceStep=Boolean(contract&&((stopLoss&&!isMexcStepAligned(Number(stopLoss),contract.priceUnit))||(takeProfit&&!isMexcStepAligned(Number(takeProfit),contract.priceUnit)))),
-    invalidAmount = !Number.isFinite(quantity) || quantity <= 0 || margin < 0 || Boolean(contractVolumeIssue) || invalidPriceStep;
-  const choosePercent = useCallback(
-    (percent: number) => {
-      const safe = Math.min(100, Math.max(0, percent));
-      setSizePercent(safe);
-      setAmount(String(sliderToAmount(safe, equity, mode, leverageNumber)));
-    },
-    [equity, mode, leverageNumber],
-  );
+    invalidAmount = !Number.isFinite(quantity) || quantity <= 0 || margin < 0 || Boolean(contractVolumeIssue) || Boolean(riskTierIssue) || invalidPriceStep;
+  const choosePercent = (percent: number) => {
+    const safe = Math.min(100, Math.max(0, percent));
+    setSizePercent(safe);
+    setAmount(String(sliderToAmount(safe, equity, mode, leverageNumber)));
+  };
   const submit = async (orderSide: "long" | "short") => {
     if (
       readOnly ||
@@ -554,7 +563,11 @@ export function ManualPaperTicket({
                 ["Notional", money(notional)],
                 ["Leverage", `${leverageNumber}×`],
                 ["MEXC contract range", contract?`${contract.minLeverage}–${contract.maxLeverage}×`:"Unavailable"],
-                ["Maintenance margin", contract?`${(contract.maintenanceMarginRate*100).toFixed(3)}%`:"Simulator fallback"],
+                ["Risk tier", riskTierPreview?`Tier ${riskTierPreview.level} · ${riskTierPreview.riskLimitType}`:"Unavailable"],
+                ["Tier exposure", riskTierPreview?`${riskTierPreview.exposure.toLocaleString()} / ${riskTierPreview.maxExposure?.toLocaleString()??"unbounded"}`:"—"],
+                ["Tier max leverage", riskTierPreview?`${riskTierPreview.maxLeverage}×`:"—"],
+                ["Maintenance margin", riskTierPreview?`${(riskTierPreview.maintenanceMarginRate*100).toFixed(3)}%`:contract?`${(contract.maintenanceMarginRate*100).toFixed(3)}% fallback`:"Simulator fallback"],
+                ["Tier source", riskTierPreview?.source??"Unavailable"],
                 ["Execution assumption", "Market · taker"],
                 ["Entry fill model", depthPreview?"DizyFlow visible-book walk":"Fresh depth captured on submit"],
                 ["Visible fill", depthPreview?`${depthPreview.fillStatus} · ${depthPreview.filledContractVolume}/${depthPreview.requestedContractVolume} contracts`:"Preview unavailable"],
@@ -571,6 +584,8 @@ export function ManualPaperTicket({
                 ["Funding source", fundingSource??"Unavailable"],
                 ["Risk amount", money(riskAmount)],
                 ["Estimated liquidation", Number.isFinite(liquidation)?money(liquidation):"—"],
+                ["Bankruptcy price", Number.isFinite(bankruptcy)?money(bankruptcy):"—"],
+                ["Liquidation buffer", liquidationAudit?money(liquidationAudit.liquidationToBankruptcyDistance):"—"],
                 ["Reward / risk", rewardRisk?`${rewardRisk.toFixed(2)}×`:"—"],
                 ["Remaining equity", money(remaining)],
               ].map(([label, value]) => (
@@ -583,6 +598,8 @@ export function ManualPaperTicket({
             <div className={styles.warnings}>
               {!contract?<span>Public MEXC contract rules unavailable — opening new paper positions is disabled.</span>:null}
               {contractVolumeIssue?<span>{contractVolumeIssue}; requested size cannot be opened.</span>:null}
+              {riskTierIssue?<span>{riskTierIssue}</span>:null}
+              {riskTierPreview?.source==="mexc-public-contract-flat-fallback"?<span>Public tier increment fields are unavailable; this order uses the explicit flat contract MMR fallback.</span>:null}
               {invalidPriceStep&&contract?<span>Stop loss and take profit must use {contract.priceUnit} price increments.</span>:null}
               {depthPreview?.fillStatus==="partial"?<span>Visible depth fills {depthPreview.filledContractVolume} of {depthPreview.requestedContractVolume} requested contracts; the remainder is not invented.</span>:null}
               {!depth?<span>Depth preview is not warm; a fresh DizyFlow book is required and captured on submit.</span>:null}
@@ -694,7 +711,7 @@ export function ManualPaperTicket({
                             <small>{money(mark)}</small>
                           </span>
                           <span>{p.leverage}×</span>
-                          <span>{p.marginMode}<small>Estimated liquidation {money(p.estimatedLiquidation)}</small>{p.pendingRiskExit?<small>{`${p.pendingRiskExit.reason.toUpperCase()} triggered · ${money(p.pendingRiskExit.triggerPrice)} · awaiting visible depth`}</small>:null}</span>
+                          <span>{p.marginMode}<small>Tier {p.riskTier?.level??"legacy"} · MMR {p.riskTier?`${(p.riskTier.maintenanceMarginRate*100).toFixed(3)}%`:"legacy"}</small><small>Liquidation {money(p.estimatedLiquidation)} · bankruptcy {p.bankruptcyPrice==null?"—":money(p.bankruptcyPrice)}</small>{p.pendingRiskExit?<small>{`${p.pendingRiskExit.reason.toUpperCase()} triggered · ${money(p.pendingRiskExit.triggerPrice)} · awaiting visible depth`}</small>:null}</span>
                           <span>{money(m)}</span>
                           <span
                             className={
@@ -767,6 +784,7 @@ export function ManualPaperTicket({
                           {fill.entryDepthFill?<small>{`entry depth ${fill.entryDepthFill.fillStatus} · ${fill.entryDepthFill.filledContractVolume}/${fill.entryDepthFill.requestedContractVolume} contracts · ${fill.entryDepthFill.levelsConsumed} levels · ${fill.entryDepthFill.priceImpactBps.toFixed(2)} bps`}</small>:null}
                           {fill.exitDepthFill?<small>{`exit depth ${fill.exitDepthFill.fillStatus} · ${fill.exitDepthFill.filledContractVolume}/${fill.exitDepthFill.requestedContractVolume} contracts · remaining ${fill.exitDepthFill.remainingPositionContractVolume??0} · ${fill.exitDepthFill.levelsConsumed} levels · ${fill.exitDepthFill.priceImpactBps.toFixed(2)} bps`}</small>:null}
                           {fill.reduceOnly?<small>{`reduce-only ${fill.reduceOnly.source} · requested ${fill.reduceOnly.requestedQuantity} · filled ${fill.reduceOnly.filledQuantity} · remaining ${fill.reduceOnly.remainingQuantity}${fill.reduceOnly.capped?" · capped":""}`}</small>:null}
+                          {fill.riskTier?<small>{`risk tier ${fill.riskTier.level} · MMR ${(fill.riskTier.maintenanceMarginRate*100).toFixed(3)}% · ${fill.riskTier.source} · liq ${fill.liquidationAudit?money(fill.liquidationAudit.estimatedLiquidation):"—"} · bankruptcy ${fill.bankruptcyPrice==null?"—":money(fill.bankruptcyPrice)}`}</small>:null}
                           {fill.riskExitTrigger?<small>{`${fill.riskExitTrigger.reason} triggered ${new Date(fill.riskExitTrigger.triggeredAt).toLocaleString()} at ${money(fill.riskExitTrigger.triggerPrice)} · ${fill.riskExitTrigger.priceSource}`}</small>:null}
                           {fill.closeReason?<small>{fill.closeReason}</small>:null}
                           {fill.side==="close"?<small>{fill.historicalDizyFlow?.available?`${fill.historicalDizyFlow.limitations.length?"Limited":"Retained"} flow · ${fill.historicalDizyFlow.sampleCount} samples · ${fill.historicalDizyFlow.coveragePct??0}% coverage`:"Flow memory unavailable"}</small>:null}

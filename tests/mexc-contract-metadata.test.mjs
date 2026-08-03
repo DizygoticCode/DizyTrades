@@ -135,7 +135,7 @@ test("Manual Paper ticket requires contract rules and previews contract precisio
     "utf8",
   );
   assert.match(source, /!publicPrice \|\|\s*!contract \|\|\s*invalidAmount/);
-  assert.match(source, /maintenanceMarginRate:contract\?\.maintenanceMarginRate\?\?/);
+  assert.match(source, /maintenanceMarginRate:riskTierPreview\?\.maintenanceMarginRate\?\?contract\?\.maintenanceMarginRate\?\?/);
   assert.match(source, /sizeMexcContractOrder/);
   assert.match(source, /steppedContractVolume/);
   assert.match(source, /contractVolume/);
