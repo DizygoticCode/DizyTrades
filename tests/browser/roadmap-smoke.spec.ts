@@ -22,6 +22,19 @@ test("viewer session navigates the roadmap and remains read-only", async ({ page
   await page.getByRole("button", { name: "Open View-Only Terminal" }).click();
   await expect(page).toHaveURL(/\/terminal$/);
 
+  const brainLauncher = page.getByRole("button", {
+    name: "DizyBrain Explain this market",
+    exact: true,
+  });
+  await expect(brainLauncher).toBeVisible();
+  await brainLauncher.click();
+  const brain = page.getByLabel("DizyBrain Analysis Workspace");
+  await expect(brain.getByText("Current market read", { exact: true })).toBeVisible();
+  await expect(brain.getByText(/Setup ready|Watch|Setup forming|No setup|Review mode/)).toBeVisible();
+  await expect(brain.getByText("Why DizyBrain says that", { exact: true })).toBeVisible();
+  await expect(brain.getByText("Detailed evidence", { exact: true })).toBeVisible();
+  await brain.getByRole("button", { name: "Close DizyBrain workspace" }).click();
+
   await expect(page.getByRole("link", { name: /DizyScanner/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /DizyStructure/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /DizyPerformance/ })).toBeVisible();
