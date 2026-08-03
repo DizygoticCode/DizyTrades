@@ -1,5 +1,4 @@
-import {writeFile,readFile} from "node:fs/promises";
-await writeFile("tests/manual-paper-margin-review.test.mjs",String.raw`import test from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
 import {mkdtemp,rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
@@ -21,8 +20,3 @@ test("entry capacity includes the entry fee",()=>isolated("dizy-margin-entry-fee
 test("legacy reverse close uses the isolated loss cap before opening the new side",()=>isolated("dizy-margin-reverse-cap-",async()=>{const {submitManualOrder,reverseManualPosition}=await import("../app/lib/manual-paper.ts"),user="margin-reverse-cap";let account=await open(submitManualOrder,user,"BTC_USDT","isolated",1000,10),before=account.cashBalance,oldMargin=account.positions.BTC_USDT.margin;account=await reverseManualPosition(user,"BTC_USDT","margin-reverse-cap-01",1);const [closeFill,openFill]=account.fills.slice(-2);assert.equal(closeFill.closeReason,"reversal");assert.equal(closeFill.marginSettlement.capped,true);assert.equal(closeFill.marginSettlement.calculationMethod,"isolated-position-loss-cap-v1");assert.ok(before-account.cashBalance<=oldMargin+openFill.fee+1e-8);assert.equal(account.positions.BTC_USDT.side,"short")}));
 
 test("backup reconciliation binds active position audits to the top-level pool",()=>isolated("dizy-margin-review-backup-",async()=>{const {submitManualOrder}=await import("../app/lib/manual-paper.ts"),{validateManualPaperBackup}=await import("../app/lib/manual-paper-backup.ts"),user="margin-review-backup";const account=await open(submitManualOrder,user,"BTC_USDT","cross",40000,50);assert.doesNotThrow(()=>validateManualPaperBackup(account,user));const nested=structuredClone(account);nested.positions.BTC_USDT.marginAudit.account.crossPoolCash+=1;assert.throws(()=>validateManualPaperBackup(nested,user),/account snapshot|reconcile/i);const missing=structuredClone(account);delete missing.positions.BTC_USDT.marginAudit;assert.throws(()=>validateManualPaperBackup(missing,user),/missing margin audit/i);const own=structuredClone(account);own.positions.BTC_USDT.marginAudit.positionUnrealisedPnl+=1;assert.throws(()=>validateManualPaperBackup(own,user),/position margin audit/i)}));
-`,"utf8");
-
-let source=await readFile("tests/manual-paper-margin-source.test.mjs","utf8");
-source=source.replace('assert.match(core,/settleManualClose/);','assert.match(core,/settleManualClose/);assert.match(core,/single-asset-usdt-funding-settlement-v1/);assert.match(core,/margin\+fee>available/);').replace('assert.match(backup,/cross collateral does not reconcile/);','assert.match(backup,/cross collateral does not reconcile/);assert.match(backup,/does not reconcile with active positions/);').replace('assert.match(ticket,/Cross shared equity/);','assert.match(ticket,/Cross shared equity/);assert.match(ticket,/sizingEquity/);');
-await writeFile("tests/manual-paper-margin-source.test.mjs",source,"utf8");

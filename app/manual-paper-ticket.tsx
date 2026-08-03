@@ -21,7 +21,7 @@ import type {PaperMarginAccountSnapshot,PaperMarginSettlementAudit,PaperPosition
 import type {DepthEnvelope} from "./lib/order-flow/types";
 type Mode = "fixed-margin" | "fixed-notional" | "equity-percent" | "risk-percent";
 type FundingRate={symbol:string;fundingRate:number;minFundingRate:number;maxFundingRate:number;collectCycleHours:number;nextSettleTime:number;observedAt:number;source:"mexc-public-funding-rate"};
-type FundingPayment={paymentId:string;tradeId:string;symbol:string;side:"long"|"short";settleTime:number;observedAt:number;price:number;priceSource:"fair"|"last";notional:number;fundingRate:number;calculatedCashDelta:number;cashDelta:number;balanceCapped:boolean;source:"mexc-public-funding-history";calculationMethod:"observed-risk-price-notional";resultingBalance:number};
+type FundingPayment={paymentId:string;tradeId:string;symbol:string;side:"long"|"short";settleTime:number;observedAt:number;price:number;priceSource:"fair"|"last";notional:number;fundingRate:number;calculatedCashDelta:number;cashDelta:number;balanceCapped:boolean;source:"mexc-public-funding-history";calculationMethod:"observed-risk-price-notional";marginMode?:"isolated"|"cross";protectedIsolatedMargin?:number;isolatedMarginDebit?:number;settlementMethod?:"single-asset-usdt-funding-settlement-v1";resultingBalance:number};
 type ReduceOnlyEvidence={enabled:true;calculationMethod:"position-bound-cap";source:"manual-close"|"partial-close"|"reverse"|"flatten-all"|"risk-exit"|"opposite-order-replacement";expectedTradeId:string;expectedSide:"long"|"short";positionQuantityBefore:number;requestedQuantity:number;acceptedQuantity:number;capped:boolean;filledQuantity:number;remainingQuantity:number;result:"closed"|"reduced"};
 type Position = {
   tradeId: string;
@@ -203,22 +203,23 @@ export function ManualPaperTicket({
         (position.side === "long" ? 1 : -1)
       : 0,
     marginSnapshot=account?.marginSnapshot,
-    equity = Math.max(0, marginSnapshot?.crossEquity ?? ((account?.cashBalance ?? 0) + unrealised)),
-    summary=paperAccountSummary(account?.cashBalance??0,Object.values(account?.positions??{}).map(p=>({...p,margin:p.margin??p.quantity*p.entryPrice/p.leverage})),Object.values(account?.positions??{}).map(p=>p.symbol===symbol?mark:p.lastRiskPrice)),used=summary.usedMargin,
+    summary=paperAccountSummary(account?.cashBalance??0,Object.values(account?.positions??{}).map(p=>({...p,margin:p.margin??p.quantity*p.entryPrice/p.leverage})),Object.values(account?.positions??{}).map(p=>p.symbol===symbol?mark:p.lastRiskPrice)),
+    equity=summary.equity,
+    sizingEquity=Math.max(0,marginSnapshot?.crossEquity??equity),used=summary.usedMargin,
     amountNumber = Math.max(0, Number(amount) || 0),
     leverageNumber = contract?clampContractLeverage(Number(leverage),contract):Math.max(1,Number(leverage)||1),
     leverageStops=leverageStopsForContract(contract),
     targetMargin = Math.max(
       0,
       mode === "equity-percent"||mode==="risk-percent"
-        ? (equity * amountNumber) / 100
+        ? (sizingEquity * amountNumber) / 100
         : mode === "fixed-notional"
           ? amountNumber / leverageNumber
           : amountNumber,
     ),
     targetNotional = Math.max(
       0,
-      mode === "fixed-notional" ? amountNumber : mode==="risk-percent"&&publicPrice&&Number(stopLoss)>0?equity*amountNumber/100/(Math.abs(publicPrice-Number(stopLoss))/publicPrice):targetMargin * leverageNumber,
+      mode === "fixed-notional" ? amountNumber : mode==="risk-percent"&&publicPrice&&Number(stopLoss)>0?sizingEquity*amountNumber/100/(Math.abs(publicPrice-Number(stopLoss))/publicPrice):targetMargin * leverageNumber,
     ),
     rawContractVolume=contract&&publicPrice&&publicPrice>0?targetNotional/(publicPrice*contract.contractSize):0,
     steppedContractVolume=contract&&rawContractVolume>0?quantizeMexcStep(rawContractVolume,contract.volUnit,"floor"):0,
@@ -807,7 +808,7 @@ export function ManualPaperTicket({
                   ["Starting balance", money(account?.startingBalance ?? 0)],
                   ["Cash balance", money(account?.cashBalance ?? 0)],
                   ["Funding P/L", money(account?.fundingPnl ?? 0)],
-                  ["Last funding", lastFundingPayment?`${lastFundingPayment.cashDelta>=0?"Received":"Paid"} ${money(Math.abs(lastFundingPayment.cashDelta))} · ${lastFundingPayment.source}`:"None"],
+                  ["Last funding", lastFundingPayment?`${lastFundingPayment.cashDelta>=0?"Received":"Paid"} ${money(Math.abs(lastFundingPayment.cashDelta))} · ${lastFundingPayment.source}${(lastFundingPayment.isolatedMarginDebit??0)>0?` · isolated margin debit ${money(lastFundingPayment.isolatedMarginDebit??0)}`:""}`:"None"],
                   ["Available balance", money(summary.availableBalance)],
                   ["Isolated collateral reserved", marginSnapshot?money(marginSnapshot.isolatedReservedMargin):"—"],
                   ["Cross initial margin", marginSnapshot?money(marginSnapshot.crossInitialMargin):"—"],
