@@ -14,7 +14,15 @@ test("protected workspaces mount one shared accessibility foundation", async () 
   assert.match(foundation, /explicit user activation/);
   assert.match(foundation, /main\.focus\(\{ preventScroll: true \}\)/);
   assert.match(foundation, /main\.addEventListener\("blur", restore/);
-  assert.doesNotMatch(foundation, /useEffect[\s\S]*main\.id = "main-content"/);
+  assert.match(foundation, /onClick=\{\(event\) => \{[\s\S]*focusMainContent\(\)/);
+
+  const effectStart = foundation.indexOf("useEffect(() => {");
+  const effectEnd = foundation.indexOf("  }, [active, pathname]);", effectStart);
+  assert.ok(effectStart >= 0 && effectEnd > effectStart, "accessibility effect should be discoverable");
+  const effectBody = foundation.slice(effectStart, effectEnd);
+  assert.doesNotMatch(effectBody, /main\.id = "main-content"/);
+  assert.doesNotMatch(effectBody, /main\.tabIndex = -1/);
+
   assert.match(foundation, /\[role="dialog"\]\[aria-modal="true"\]/);
   assert.match(foundation, /event\.key !== "Tab"/);
   assert.match(foundation, /restore\.focus\(\)/);
