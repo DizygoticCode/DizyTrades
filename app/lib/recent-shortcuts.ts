@@ -25,10 +25,15 @@ export function recentMarketFromSettings(
   market: UserTerminalSettings["market"],
   visitedAt = new Date().toISOString(),
 ): RecentMarketShortcut | null {
-  const marketKey = bounded(market.marketKey, 180);
   const symbol = bounded(market.symbol, 80).toUpperCase();
   const timeframe = bounded(market.timeframe, 20);
   const exchange = bounded(market.exchange, 40).toLocaleLowerCase();
+  // The legacy/default profile predates stable market keys and represents the
+  // terminal's MEXC futures default. Preserve that exact operational context
+  // instead of dropping the first recent-market entry.
+  const marketKey =
+    bounded(market.marketKey, 180) ||
+    (exchange === "mexc" && symbol ? `mexc:futures:${symbol}` : "");
   if (!marketKey || !symbol || !timeframe || !exchange) return null;
   const parsed = Date.parse(visitedAt);
   return Object.freeze({
