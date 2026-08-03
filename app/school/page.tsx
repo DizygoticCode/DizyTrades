@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import SchoolClient from "./school-client";
 import { SCHOOL_DISPLAY_NAME } from "@/app/lib/branding";
+import AcademyRecentTracker from "./academy-recent-tracker";
+import SchoolClient from "./school-client";
 
 export const metadata: Metadata = {
   title: `${SCHOOL_DISPLAY_NAME} — Learn the complete DizyTrades workflow`,
@@ -8,5 +9,10 @@ export const metadata: Metadata = {
 };
 
 export default function SchoolPage() {
-  return <SchoolClient />;
+  return (
+    <>
+      <AcademyRecentTracker />
+      <SchoolClient />
+    </>
+  );
 }
