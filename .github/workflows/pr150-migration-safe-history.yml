@@ -73,11 +73,10 @@ jobs:
           status=$?
           if [ "$status" -ne 0 ]; then
             echo "===== PR 150 TYPESCRIPT DIAGNOSTICS ====="
-            cat /tmp/pr150-tsc.log
+            grep -E '^[^[:space:]].*\([0-9]+,[0-9]+\): error TS[0-9]+:' /tmp/pr150-tsc.log | sort -u | head -n 120
             echo "===== END TYPESCRIPT DIAGNOSTICS ====="
             exit "$status"
           fi
-          cat /tmp/pr150-tsc.log
       - name: Production build
         shell: bash
         run: |
@@ -86,8 +85,8 @@ jobs:
           status=$?
           if [ "$status" -ne 0 ]; then
             echo "===== PR 150 BUILD FAILURE ====="
-            grep -E 'Type error:|error TS|Failed to compile|^[.]/.*:[0-9]+:[0-9]+' /tmp/pr150-build.log || true
-            tail -n 180 /tmp/pr150-build.log
+            grep -E 'Type error:|error TS|Failed to compile|^[.]/.*:[0-9]+:[0-9]+' /tmp/pr150-build.log | head -n 120 || true
+            tail -n 80 /tmp/pr150-build.log
             echo "===== END BUILD FAILURE ====="
             exit "$status"
           fi
