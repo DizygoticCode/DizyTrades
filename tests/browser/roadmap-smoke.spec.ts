@@ -22,7 +22,10 @@ test("viewer session navigates the roadmap and remains read-only", async ({ page
   await page.getByRole("button", { name: "Open View-Only Terminal" }).click();
   await expect(page).toHaveURL(/\/terminal$/);
 
-  const brainLauncher = page.getByRole("button", { name: /DizyBrain/ });
+  const brainLauncher = page.getByRole("button", {
+    name: "DizyBrain Explain this market",
+    exact: true,
+  });
   await expect(brainLauncher).toBeVisible();
   await brainLauncher.click();
   const brain = page.getByLabel("DizyBrain Analysis Workspace");
