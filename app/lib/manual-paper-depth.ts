@@ -23,6 +23,7 @@ export type PaperDepthFillEvidence = Readonly<{
   filledContractVolume: number;
   unfilledContractVolume: number;
   availableContractVolume: number;
+  priorConsumedContractVolume?: number;
   openPositionContractVolume?: number;
   remainingPositionContractVolume?: number;
   quantity: number;
@@ -69,6 +70,7 @@ export function simulatePaperMarketDepthFill(input: {
   requestedContractVolume: number;
   openContractVolume?: number;
   minimumRemainingContractVolume?: number;
+  priorConsumedContractVolume?: number;
   referencePrice: number;
   contract: PaperDepthContractRules;
   depth: DepthEnvelope;
@@ -120,14 +122,24 @@ export function simulatePaperMarketDepthFill(input: {
         "ceil",
       );
 
+  const priorConsumedContractVolume = input.priorConsumedContractVolume === undefined
+    ? 0
+    : quantizeMexcStep(
+        nonNegative(input.priorConsumedContractVolume, "INVALID_PRIOR_DEPTH_CONSUMPTION"),
+        contract.volUnit,
+        "floor",
+      );
+  let skipRemaining = priorConsumedContractVolume;
   const levels = sortedLevels(side, opening, depth).map((level) => {
     positive(level.price, "INVALID_DEPTH_LEVEL");
     nonNegative(level.contractQuantity, "INVALID_DEPTH_LEVEL");
-    return {
-      price: level.price,
-      volume: quantizeMexcStep(level.contractQuantity, contract.volUnit, "floor"),
-    };
+    const originalVolume = quantizeMexcStep(level.contractQuantity, contract.volUnit, "floor");
+    const skipped = quantizeMexcStep(Math.min(skipRemaining, originalVolume), contract.volUnit, "floor");
+    skipRemaining = Number((skipRemaining - skipped).toPrecision(15));
+    return {price:level.price,volume:quantizeMexcStep(Math.max(0,originalVolume-skipped),contract.volUnit,"floor")};
   });
+  if (skipRemaining > contract.volUnit * 1e-9)
+    throw new Error("DEPTH_PRIOR_CONSUMPTION_EXCEEDS_BOOK");
   const availableContractVolume = quantizeMexcStep(
     levels.reduce((sum, level) => sum + level.volume, 0),
     contract.volUnit,
@@ -226,6 +238,7 @@ export function simulatePaperMarketDepthFill(input: {
     filledContractVolume,
     unfilledContractVolume,
     availableContractVolume,
+    ...(priorConsumedContractVolume > 0 ? { priorConsumedContractVolume } : {}),
     ...(openContractVolume === undefined ? {} : { openPositionContractVolume: openContractVolume }),
     ...(remainingPositionContractVolume === undefined
       ? {}

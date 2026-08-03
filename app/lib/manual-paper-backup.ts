@@ -184,6 +184,7 @@ function depthEvidence(value:unknown,field:string,expectedContext:"entry"|"exit"
     filledContractVolume:number(input.filledContractVolume,field+".filledContractVolume",0.000000000001),
     unfilledContractVolume:number(input.unfilledContractVolume,field+".unfilledContractVolume",0),
     availableContractVolume:number(input.availableContractVolume,field+".availableContractVolume",0),
+    priorConsumedContractVolume:input.priorConsumedContractVolume==null?undefined:number(input.priorConsumedContractVolume,field+".priorConsumedContractVolume",0),
     openPositionContractVolume:input.openPositionContractVolume==null?undefined:number(input.openPositionContractVolume,field+".openPositionContractVolume",0.000000000001),
     remainingPositionContractVolume:input.remainingPositionContractVolume==null?undefined:number(input.remainingPositionContractVolume,field+".remainingPositionContractVolume",0),
     quantity:number(input.quantity,field+".quantity",0.000000000001),
@@ -204,6 +205,7 @@ function depthEvidence(value:unknown,field:string,expectedContext:"entry"|"exit"
   if(!Number.isInteger(evidence.levelsConsumed)||!Number.isInteger(evidence.snapshotVersion))throw new Error(field+" has invalid integer evidence.");
   if(evidence.sourceMode==="NO VALID BOOK")throw new Error(field+" cannot reference an invalid book.");
   if(evidence.filledContractVolume-evidence.requestedContractVolume>volumeTolerance||evidence.filledContractVolume-evidence.availableContractVolume>volumeTolerance)throw new Error(field+" has impossible filled volume.");
+  if(evidence.priorConsumedContractVolume!==undefined&&evidence.priorConsumedContractVolume<0)throw new Error(field+" has invalid prior book consumption.");
   if(Math.abs(evidence.filledContractVolume+evidence.unfilledContractVolume-evidence.requestedContractVolume)>volumeTolerance)throw new Error(field+" volume totals do not reconcile.");
   if((evidence.fillStatus==="partial")!==hasRemainder)throw new Error(field+" fill status contradicts its remainder.");
   if(expectedContext==="entry"&&(evidence.openPositionContractVolume!==undefined||evidence.remainingPositionContractVolume!==undefined))throw new Error(field+" entry evidence contains exit state.");
