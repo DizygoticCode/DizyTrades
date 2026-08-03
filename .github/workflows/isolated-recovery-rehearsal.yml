@@ -1,0 +1,65 @@
+name: Isolated recovery rehearsal
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/isolated-recovery-rehearsal.yml"
+      - "scripts/isolated-recovery-rehearsal.mjs"
+      - "tests/isolated-recovery-rehearsal.test.mjs"
+      - "docs/ISOLATED_RECOVERY_REHEARSAL.md"
+      - "app/lib/user-backup-*.ts"
+      - "app/lib/workspace-layout*.ts"
+      - "app/lib/manual-paper-backup.ts"
+  push:
+    branches: [main, agent/isolated-recovery-rehearsal]
+    paths:
+      - ".github/workflows/isolated-recovery-rehearsal.yml"
+      - "scripts/isolated-recovery-rehearsal.mjs"
+      - "tests/isolated-recovery-rehearsal.test.mjs"
+      - "docs/ISOLATED_RECOVERY_REHEARSAL.md"
+      - "app/lib/user-backup-*.ts"
+      - "app/lib/workspace-layout*.ts"
+      - "app/lib/manual-paper-backup.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: isolated-recovery-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  rehearse-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RECOVERY_REHEARSAL_OUTPUT_DIR: artifacts/isolated-recovery-rehearsal
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run focused recovery tests
+        run: >-
+          node --conditions=react-server --import tsx --test
+          tests/isolated-recovery-rehearsal.test.mjs
+
+      - name: Run isolated recovery rehearsal
+        run: >-
+          node --conditions=react-server --import tsx
+          scripts/isolated-recovery-rehearsal.mjs
+
+      - name: Upload sanitised recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolated-recovery-${{ github.run_id }}
+          path: artifacts/isolated-recovery-rehearsal
+          if-no-files-found: error
+          retention-days: 30
