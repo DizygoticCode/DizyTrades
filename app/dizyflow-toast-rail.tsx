@@ -21,11 +21,9 @@ export function DizyFlowToastRail({
 
   useEffect(() => {
     if (paused || !visible.length) return;
+    const id = visible[0].id;
     const timer = setTimeout(
-      () =>
-        setDismissed((current) =>
-          new Set([...current, visible.at(-1)!.id]),
-        ),
+      () => setDismissed((current) => new Set([...current, id])),
       settings.alerts.durationMs,
     );
     return () => clearTimeout(timer);
@@ -41,48 +39,52 @@ export function DizyFlowToastRail({
 
   return (
     <div
+      aria-atomic="true"
       aria-live="polite"
       className={`flow-toast-rail ${settings.alerts.placement} ${styles.rail}`}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      {visible.map((alert) => (
-        <article className={styles.card} key={alert.id}>
-          <i
-            className={
-              alert.type.includes("Buy") || alert.type.includes("Bid")
-                ? "buy"
-                : "sell"
-            }
-          />
-          <span className={styles.message}>
-            <b className={styles.title} title={alert.type}>
-              {alert.type}
-            </b>
-            <small className={styles.detail}>
-              {alert.price.toLocaleString()} · $
-              {alert.notional.toLocaleString(undefined, {
-                maximumFractionDigits: 0,
-              })}
-            </small>
-          </span>
-          <button
-            aria-label={`Dismiss ${alert.type}`}
-            className={styles.dismiss}
-            onClick={() =>
-              setDismissed((current) => new Set([...current, alert.id]))
-            }
-          >
-            ×
-          </button>
-        </article>
-      ))}
-      <button
-        className={`toast-history ${styles.history}`}
-        onClick={onHistory}
-      >
-        History
-      </button>
+      {visible.map((alert) => {
+        const buy = alert.type.includes("Buy") || alert.type.includes("Bid");
+        return (
+          <article className={styles.card} key={alert.id} role="status">
+            <i className={buy ? "buy" : "sell"} />
+            <span className={styles.message}>
+              <small className={styles.eyebrow}>DizyFlow activity</small>
+              <b className={styles.title} title={alert.type}>
+                {alert.type}
+              </b>
+              <small className={styles.detail}>
+                {alert.price.toLocaleString()} · $
+                {alert.notional.toLocaleString(undefined, {
+                  maximumFractionDigits: 0,
+                })}
+              </small>
+            </span>
+            <span className={styles.actions}>
+              <button
+                aria-label="Open DizyFlow alert history"
+                className={styles.history}
+                onClick={onHistory}
+                type="button"
+              >
+                History
+              </button>
+              <button
+                aria-label={`Dismiss ${alert.type}`}
+                className={styles.dismiss}
+                onClick={() =>
+                  setDismissed((current) => new Set([...current, alert.id]))
+                }
+                type="button"
+              >
+                ×
+              </button>
+            </span>
+          </article>
+        );
+      })}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   DIZYBRAIN_WORKSPACE_STORAGE_KEY, parseDizyBrainPreferences,
   shouldUseDizyBrainOverlay,
   presentOverviewFlow,
+  buildDizyBrainBeginnerOverview,
   type DizyBrainWorkspaceModule, type DizyBrainWorkspacePreferences,
 } from "./lib/dizybrain-workspace";
 
@@ -89,7 +90,7 @@ export function DizyBrainShell({ children }: { children: ReactNode }) {
   return <WorkspaceContext.Provider value={controller}>
     {children}
     <button ref={launcherRef} className="dizybrain-launch" onClick={event => open(undefined, event.currentTarget)} type="button" aria-expanded={preferences.open} aria-controls="dizybrain-workspace">
-      <BrainMark /><span><b>DizyBrain</b><small>Analysis Workspace</small></span>
+      <BrainMark /><span><b>DizyBrain</b><small>Explain this market</small></span>
     </button>
   </WorkspaceContext.Provider>;
 }
@@ -104,11 +105,31 @@ function ModuleBody({ data, diagnostics, module }: { data: DizyBrainWorkspaceDat
   if (!data) return <div className="brain-empty">Waiting for terminal evidence…</div>;
   const { snapshot, liveFlow: flow, historicalFlowReplay: historical } = data;
   const overviewFlow = presentOverviewFlow(data.replay, flow);
+  const beginnerOverview = buildDizyBrainBeginnerOverview(snapshot, data.replay);
   if (module === "overview") return <>
-    <Disclosure title="Market" open><Row label="Identity" value={`${data.symbol} · ${data.market}`} /><Row label="Timeframe" value={data.timeframe} /><Row label="Feed" value={data.feedState} /></Disclosure>
-    <Disclosure title="Signal" open><Row label="Classification" value={data.replay ? "Unavailable in historical Replay" : snapshot.currentDirection} /><Row label="Confluence" value={`${snapshot.activeConfluence} / 5`} /><Row label="Confirmed candle" value={snapshot.confirmedSignal ?? "No signal"} /></Disclosure>
-    <Disclosure title="Flow">{data.replay ? <><Row label="Historical DizyFlow" value={data.historicalFlowState.status} /><Row label="Sample" value={historical?.sample ? stamp(historical.sample.timeMs) : "Unavailable"} /><Row label="Confidence" value={historical?.sample ? `${historical.sample.intelligenceConfidence}% · ${historical.sample.confidenceBand}` : "Unavailable"} /><Row label="Events this step" value={historical?.eventsAtStep.length??0} /></> : overviewFlow.hidden ? <p>{overviewFlow.message}</p> : <><Row label="Availability" value={overviewFlow.availability} /><Row label="Confidence" value={overviewFlow.confidence} /><Row label="Visible walls" value={overviewFlow.walls} /></>}</Disclosure>
-    <Disclosure title="Position & Replay"><Row label="Manual Paper" value="Use authoritative ticket below chart" /><Row label="Mode" value={data.replay ? "Historical Replay" : "Live terminal"} /><Row label="Historical DizyFlow" value="Metadata only" /></Disclosure>
+    <section className={"brain-overview-hero " + beginnerOverview.tone} data-testid="dizybrain-beginner-overview">
+      <small>Current market read</small>
+      <div className="brain-overview-state"><strong>{beginnerOverview.marketRead}</strong><span>{beginnerOverview.actionState}</span></div>
+      <div className="brain-overview-confidence"><b>{beginnerOverview.confidenceLabel}</b><span>{beginnerOverview.confidencePercent}% setup evidence</span></div>
+      <p>{beginnerOverview.summary}</p>
+    </section>
+    <section className="brain-overview-card">
+      <h3>Why DizyBrain says that</h3>
+      <ul className="brain-overview-reasons">{beginnerOverview.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>
+    </section>
+    <section className="brain-overview-card caution">
+      <h3>What still matters</h3>
+      <p>{beginnerOverview.caution}</p>
+    </section>
+    <Disclosure title="Advanced details">
+      <Row label="Market" value={data.symbol + " · " + data.market} />
+      <Row label="Timeframe / feed" value={data.timeframe + " · " + data.feedState} />
+      <Row label="Long / short score" value={snapshot.longScore + "/5 · " + snapshot.shortScore + "/5"} />
+      <Row label="Qualification threshold" value={snapshot.qualificationThreshold} />
+      <Row label="Confirmed candle" value={data.replay ? "Historical Replay" : snapshot.confirmedSignal ?? "No confirmed signal"} />
+      {data.replay ? <><Row label="Historical DizyFlow" value={data.historicalFlowState.status} /><Row label="Sample" value={historical?.sample ? stamp(historical.sample.timeMs) : "Unavailable"} /></> : overviewFlow.hidden ? <p>{overviewFlow.message}</p> : <><Row label="DizyFlow availability" value={overviewFlow.availability} /><Row label="Flow evidence" value={overviewFlow.confidence} /><Row label="Visible wall candidates" value={overviewFlow.walls} /></>}
+      <p className="brain-note">Use the Signals and Flow tabs for the complete deterministic evidence and limitations.</p>
+    </Disclosure>
   </>;
   if (module === "signals") return data.replay ? <div className="brain-empty">Live signal evidence is hidden during historical Replay.</div> : <>
     <Disclosure title="Current confirmed-candle evidence" open><Row label="Direction" value={snapshot.currentDirection} /><Row label="Long / Short" value={`${snapshot.longScore}/5 · ${snapshot.shortScore}/5`} /><Row label="Threshold" value={snapshot.qualificationThreshold} /><Row label="Phase" value={snapshot.marketPhase} /><Row label="Bias" value={snapshot.marketBias} /></Disclosure>
@@ -201,9 +222,9 @@ export function DizyBrainWorkspace() {
   if (preferences.collapsed && !overlay) return <aside className="dizybrain-rail" aria-label="DizyBrain Analysis Workspace"><button aria-label="Expand DizyBrain workspace" onClick={() => update({ collapsed: false })}>»</button>{DIZYBRAIN_MODULES.map(item => <button aria-label={item.label} aria-current={preferences.selectedModule === item.id ? "page" : undefined} key={item.id} onClick={() => open(item.id)}>{item.icon}<span>{item.label}</span></button>)}</aside>;
   return <><button className={`brain-mobile-backdrop ${overlay ? "visible" : ""}`} aria-label="Close DizyBrain workspace" onClick={close} type="button" /><aside id="dizybrain-workspace" ref={panelRef} className={`dizybrain-workspace ${overlay ? "drawer" : ""}`} style={{ "--brain-width": `${preferences.width}px` } as React.CSSProperties} aria-label="DizyBrain Analysis Workspace">
     {!overlay ? <div className="brain-resize" role="separator" aria-label="Resize DizyBrain workspace" aria-orientation="vertical" aria-valuemin={DIZYBRAIN_MIN_WIDTH} aria-valuemax={DIZYBRAIN_MAX_WIDTH} aria-valuenow={preferences.width} tabIndex={0} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onDoubleClick={() => resize(DIZYBRAIN_DEFAULT_WIDTH)} onKeyDown={event => { const step = event.shiftKey ? 48 : 16; if (event.key === "ArrowLeft") resize(preferences.width + step); else if (event.key === "ArrowRight") resize(preferences.width - step); else if (event.key === "Home") resize(DIZYBRAIN_MIN_WIDTH); else if (event.key === "End") resize(DIZYBRAIN_MAX_WIDTH); else return; event.preventDefault(); }} /> : null}
-    <header className="brain-header"><div><strong>DIZY<span>BRAIN</span></strong><small>Analysis Workspace</small></div><div><button className="brain-collapse" aria-label="Collapse DizyBrain workspace" onClick={() => update({ collapsed: true })}>‹</button><button className="brain-close" aria-label="Close DizyBrain workspace" onClick={close}>×</button></div></header>
+    <header className="brain-header"><div><strong>DIZY<span>BRAIN</span></strong><small>Market explanation</small></div><div><button className="brain-collapse" aria-label="Collapse DizyBrain workspace" onClick={() => update({ collapsed: true })}>‹</button><button className="brain-close" aria-label="Close DizyBrain workspace" onClick={close}>×</button></div></header>
     <div className="brain-status"><span>{data?.replay ? "Historical" : "Live"}</span><b>{data?.symbol ?? "No market"}</b><span>{data?.feedState ?? "Loading"}</span></div>
-    <nav className="brain-nav" aria-label="DizyBrain modules">{DIZYBRAIN_MODULES.map(item => <button aria-current={preferences.selectedModule === item.id ? "page" : undefined} key={item.id} onClick={() => update({ selectedModule: item.id })}><span aria-hidden="true">{item.icon}</span>{item.label}</button>)}</nav>
+    <div className="brain-nav-heading">Detailed evidence</div><nav className="brain-nav" aria-label="Detailed DizyBrain evidence modules">{DIZYBRAIN_MODULES.map(item => <button aria-current={preferences.selectedModule === item.id ? "page" : undefined} key={item.id} onClick={() => update({ selectedModule: item.id })}><span aria-hidden="true">{item.icon}</span>{item.label}</button>)}</nav>
     <section className="brain-module" aria-labelledby="brain-module-title"><h2 id="brain-module-title">{DIZYBRAIN_MODULES.find(item => item.id === preferences.selectedModule)?.label}</h2><ModuleBody data={data} diagnostics={flowDiagnostics} module={preferences.selectedModule} /></section>
   </aside></>;
 }
