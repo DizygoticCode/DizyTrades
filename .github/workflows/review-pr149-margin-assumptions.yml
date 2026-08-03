@@ -36,6 +36,7 @@ jobs:
           node scripts/pr149-review/01-accounting-fixes.mjs
           node scripts/pr149-review/02-backup-reconciliation.mjs
           node scripts/pr149-review/03-review-tests.mjs
+          node -e 'const fs=require("node:fs");const p="tests/manual-paper-margin-source.test.mjs";let s=fs.readFileSync(p,"utf8");s=s.replace("assert.match(core,/margin+fee>available/);","assert.ok(core.includes(\"margin+fee>available\"));");fs.writeFileSync(p,s);'
       - name: Focused margin and funding review tests
         run: node --conditions=react-server --import tsx --test tests/manual-paper-margin-model.test.mjs tests/manual-paper-margin-lifecycle.test.mjs tests/manual-paper-margin-review.test.mjs tests/manual-paper-margin-source.test.mjs tests/manual-paper-funding.test.mjs tests/manual-paper-risk-tiers.test.mjs tests/manual-paper-reduce-only.test.mjs tests/manual-paper-depth-auto-risk.test.mjs
       - name: Full unit suite
