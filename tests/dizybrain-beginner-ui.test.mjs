@@ -12,13 +12,14 @@ test("beginner overview separates market lean from actual setup readiness",()=>{
   const view=buildDizyBrainBeginnerOverview(snapshot,false);
   assert.equal(view.marketRead,"Bullish lean");
   assert.equal(view.actionState,"Watch");
-  assert.equal(view.confidenceLabel,"Strong evidence");
+  assert.equal(view.confidenceLabel,"Strong support");
   assert.equal(view.confidencePercent,80);
   assert.match(view.summary,/has not confirmed/);
-  assert.deepEqual(view.reasons,["Bullish market bias","Markup structure phase","4 of 5 setup checks currently agree"]);
+  assert.deepEqual(view.reasons,["4 of 5 setup checks currently agree","Bullish market bias","Markup structure phase"]);
   const ready=buildDizyBrainBeginnerOverview({...snapshot,qualified:true,confirmedSignal:"BUY"},false);
   assert.equal(ready.actionState,"Setup ready");
   assert.match(ready.summary,/meets the current deterministic setup rules/);
+  assert.deepEqual(ready.reasons,["BUY confirmed on the latest closed candle","4 of 5 setup checks currently agree","Bullish market bias"]);
 });
 
 test("Replay is clearly review evidence rather than a live setup",()=>{
