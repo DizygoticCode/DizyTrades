@@ -1,0 +1,51 @@
+name: Apply PR 141 visible-depth manual exits
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/pr141/**"
+      - ".github/workflows/pr141-depth-manual-exits.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr141-depth-manual-exits-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  apply-and-validate:
+    if: github.event.pull_request.head.ref == 'feature/dizypaper-depth-manual-exits'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dizypaper-depth-manual-exits
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply visible-depth manual exit patch
+        run: node scripts/pr141/apply.mjs
+      - name: Focused manual exit tests
+        run: node --conditions=react-server --import tsx --test tests/manual-paper-depth-exits.test.mjs tests/manual-paper-depth-exit-route.test.mjs tests/manual-paper-depth.test.mjs tests/manual-paper-funding.test.mjs tests/manual-paper-fees.test.mjs tests/manual-paper.test.mjs
+      - name: Full unit suite
+        run: npm test
+      - name: Lint
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+      - name: Remove temporary patch machinery
+        run: rm -rf scripts/pr141 .github/workflows/pr141-depth-manual-exits.yml
+      - name: Commit validated implementation
+        run: |
+          git config user.name "DizyTrades Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Add visible-depth manual exits"
+          git push origin HEAD:feature/dizypaper-depth-manual-exits
