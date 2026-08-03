@@ -39,6 +39,7 @@ jobs:
           node scripts/pr150/05-user-backup-store.mjs
           node scripts/pr150/06-ui-roadmap-tests.mjs
           node scripts/pr150/07-strict-current-schema.mjs
+          node scripts/pr150/08-migration-regressions.mjs
       - name: Focused migration and Paper evidence tests
         run: node --conditions=react-server --import tsx --test tests/manual-paper-history.test.mjs tests/user-backup-migration.test.mjs tests/user-backup.test.mjs tests/manual-paper-funding.test.mjs tests/manual-paper-margin-lifecycle.test.mjs tests/manual-paper-risk-tiers.test.mjs tests/manual-paper-reduce-only.test.mjs tests/manual-paper-depth-auto-risk.test.mjs
       - name: Full unit suite
