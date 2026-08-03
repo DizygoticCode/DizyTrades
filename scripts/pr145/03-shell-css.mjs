@@ -6,12 +6,9 @@ const once=(value,oldText,newText,label)=>{const count=value.split(oldText).leng
   next=once(next,'<BrainMark /><span><b>DizyBrain</b><small>Analysis Workspace</small></span>','<BrainMark /><span><b>DizyBrain</b><small>Explain this market</small></span>','launcher copy');
   next=once(next,'<strong>DIZY<span>BRAIN</span></strong><small>Analysis Workspace</small>','<strong>DIZY<span>BRAIN</span></strong><small>Market explanation</small>','header copy');
   next=once(next,'  const overviewFlow = presentOverviewFlow(data.replay, flow);\n','  const overviewFlow = presentOverviewFlow(data.replay, flow);\n  const beginnerOverview = buildDizyBrainBeginnerOverview(snapshot, data.replay);\n','overview model');
-  const oldOverview=`  if (module === "overview") return <>
-    <Disclosure title="Market" open><Row label="Identity" value={\`${data.symbol} · ${data.market}\`} /><Row label="Timeframe" value={data.timeframe} /><Row label="Feed" value={data.feedState} /></Disclosure>
-    <Disclosure title="Signal" open><Row label="Classification" value={data.replay ? "Unavailable in historical Replay" : snapshot.currentDirection} /><Row label="Confluence" value={\`${snapshot.activeConfluence} / 5\`} /><Row label="Confirmed candle" value={snapshot.confirmedSignal ?? "No signal"} /></Disclosure>
-    <Disclosure title="Flow">{data.replay ? <><Row label="Historical DizyFlow" value={data.historicalFlowState.status} /><Row label="Sample" value={historical?.sample ? stamp(historical.sample.timeMs) : "Unavailable"} /><Row label="Confidence" value={historical?.sample ? \`${historical.sample.intelligenceConfidence}% · ${historical.sample.confidenceBand}\` : "Unavailable"} /><Row label="Events this step" value={historical?.eventsAtStep.length??0} /></> : overviewFlow.hidden ? <p>{overviewFlow.message}</p> : <><Row label="Availability" value={overviewFlow.availability} /><Row label="Confidence" value={overviewFlow.confidence} /><Row label="Visible walls" value={overviewFlow.walls} /></>}</Disclosure>
-    <Disclosure title="Position & Replay"><Row label="Manual Paper" value="Use authoritative ticket below chart" /><Row label="Mode" value={data.replay ? "Historical Replay" : "Live terminal"} /><Row label="Historical DizyFlow" value="Metadata only" /></Disclosure>
-  </>;`;
+  const overviewStart=next.indexOf('  if (module === "overview") return <>');
+  const overviewEnd=next.indexOf('\n  if (module === "signals")',overviewStart);
+  if(overviewStart<0||overviewEnd<0)throw new Error('overview boundaries missing');
   const newOverview=`  if (module === "overview") return <>
     <section className={"brain-overview-hero " + beginnerOverview.tone} data-testid="dizybrain-beginner-overview">
       <small>Current market read</small>
@@ -37,7 +34,7 @@ const once=(value,oldText,newText,label)=>{const count=value.split(oldText).leng
       <p className="brain-note">Use the Signals and Flow tabs for the complete deterministic evidence and limitations.</p>
     </Disclosure>
   </>;`;
-  next=once(next,oldOverview,newOverview,'beginner overview');
+  next=next.slice(0,overviewStart)+newOverview+next.slice(overviewEnd);
   next=once(next,'    <nav className="brain-nav" aria-label="DizyBrain modules">','    <div className="brain-nav-heading">Detailed evidence</div><nav className="brain-nav" aria-label="Detailed DizyBrain evidence modules">','nav heading');
   await writeFile(path,next);
 }
