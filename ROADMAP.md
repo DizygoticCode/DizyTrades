@@ -53,9 +53,9 @@ This roadmap reflects the merged product as of August 2026. Items are not promis
 
 Improve simulation realism without claiming exchange-exact fills.
 
-- [ ] official contract metadata boundary per symbol
-- [ ] quantity and price-step enforcement
-- [ ] symbol-specific leverage and maintenance-margin limits
+- [x] official contract metadata boundary per symbol
+- [x] quantity and price-step enforcement
+- [x] symbol-specific leverage and maintenance-margin limits
 - [ ] maker versus taker execution assumptions
 - [ ] funding-payment modelling with explicit data provenance
 - [ ] depth-sensitive slippage and partial-fill modelling
@@ -63,6 +63,8 @@ Improve simulation realism without claiming exchange-exact fills.
 - [ ] maintenance tiers and bankruptcy-price audit
 - [ ] clearer isolated versus cross-margin assumptions
 - [ ] migration-safe history and backup support
+
+Current slice: maker/taker execution assumptions and fee provenance for simulated fills.
 
 ### 2. Workflow and accessibility polish
 
