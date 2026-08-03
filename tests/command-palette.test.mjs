@@ -60,12 +60,14 @@ test("keyboard reference documents only implemented palette and DOM controls", (
   assert.equal(KEYBOARD_REFERENCE.some((item) => item.keys === "DOM: Escape"), true);
 });
 
-test("root layout mounts the palette and launchers remain existing UI actions", async () => {
-  const [layout, palette] = await Promise.all([
+test("root layout mounts after hydration and launchers remain existing UI actions", async () => {
+  const [layout, mounted, palette] = await Promise.all([
     readFile("app/layout.tsx", "utf8"),
+    readFile("app/command-palette-mounted.tsx", "utf8"),
     readFile("app/command-palette.tsx", "utf8"),
   ]);
-  assert.match(layout, /<CommandPalette \/>/);
+  assert.match(layout, /<CommandPaletteMounted \/>/);
+  assert.match(mounted, /mounted \? <CommandPalette \/> : null/);
   assert.match(palette, /Control\+K Meta\+K/);
   assert.match(palette, /first-run-onboarding-trigger/);
   assert.match(palette, /workspace-layout-trigger/);
