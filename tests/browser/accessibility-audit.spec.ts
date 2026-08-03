@@ -39,6 +39,12 @@ async function lastFocusable(dialog: Locator) {
     .last();
 }
 
+function maximumDurationSeconds(value: string) {
+  return Math.max(
+    ...value.split(",").map((duration) => Number.parseFloat(duration.trim()) || 0),
+  );
+}
+
 test("protected workspace supports skip navigation and trapped modal focus", async ({ page }) => {
   await loginViewer(page);
   await openFreshScanner(page);
@@ -106,8 +112,8 @@ test("protected workspaces expose visible focus and reduced-motion behaviour", a
   });
   expect(focusStyle.outlineStyle).not.toBe("none");
   expect(Number.parseFloat(focusStyle.outlineWidth)).toBeGreaterThanOrEqual(3);
-  expect(focusStyle.transitionDuration).toMatch(/0\.00001s|0s/);
-  expect(focusStyle.animationDuration).toMatch(/0\.00001s|0s/);
+  expect(maximumDurationSeconds(focusStyle.transitionDuration)).toBeLessThanOrEqual(0.00001);
+  expect(maximumDurationSeconds(focusStyle.animationDuration)).toBeLessThanOrEqual(0.00001);
 
   await expect(page.getByRole("main")).toHaveCount(1);
   await expect(page.getByRole("status").first()).not.toBeEmpty();
