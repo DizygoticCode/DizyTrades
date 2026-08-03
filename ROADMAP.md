@@ -73,10 +73,12 @@ Driven by real use rather than speculative redesign.
 - [ ] saved workspace layouts and presets
 - [ ] command palette and keyboard reference
 - [ ] recent markets, reviews and learning shortcuts
-- [ ] first-run onboarding
+- [x] first-run onboarding
 - [ ] responsive and mobile audit
 - [ ] focus order, screen-reader and reduced-motion audit
 - [ ] empty, delayed and recovery state polish
+
+First-run onboarding now opens once per user and offers bounded paths into the terminal, DizyAcademy or Manual Paper. It remains reopenable from the terminal toolbar, distinguishes simulation from live execution and includes responsive, keyboard and reduced-motion behaviour.
 
 ### 3. Read-only exchange connection and shadow mode
 
