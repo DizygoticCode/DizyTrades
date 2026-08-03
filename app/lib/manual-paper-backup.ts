@@ -7,6 +7,7 @@ import {
   newManualAccount,
   type ManualAccount,
   type ManualFill,
+  type ManualFundingPayment,
   type ManualPosition,
   type ManualSettings,
 } from "./manual-paper";
@@ -213,6 +214,15 @@ function position(value: unknown, key: string): ManualPosition {
     feeSource: input.feeSource == null ? undefined : oneOf(input.feeSource, "manualPaper.position.feeSource", ["mexc-public-contract", "legacy-settings-fallback"] as const),
     makerFeeRate: input.makerFeeRate == null ? undefined : number(input.makerFeeRate, "manualPaper.position.makerFeeRate", 0, 1),
     takerFeeRate: input.takerFeeRate == null ? undefined : number(input.takerFeeRate, "manualPaper.position.takerFeeRate", 0, 1),
+    fundingRate: input.fundingRate == null ? undefined : number(input.fundingRate, "manualPaper.position.fundingRate", -1, 1),
+    fundingMinRate: input.fundingMinRate == null ? undefined : number(input.fundingMinRate, "manualPaper.position.fundingMinRate", -1, 1),
+    fundingMaxRate: input.fundingMaxRate == null ? undefined : number(input.fundingMaxRate, "manualPaper.position.fundingMaxRate", -1, 1),
+    fundingCollectCycleHours: input.fundingCollectCycleHours == null ? undefined : number(input.fundingCollectCycleHours, "manualPaper.position.fundingCollectCycleHours", 0.01, 168),
+    nextFundingTime: input.nextFundingTime == null ? undefined : number(input.nextFundingTime, "manualPaper.position.nextFundingTime", 1),
+    fundingSource: input.fundingSource == null ? undefined : oneOf(input.fundingSource, "manualPaper.position.fundingSource", ["mexc-public-funding-rate"] as const),
+    fundingObservedAt: input.fundingObservedAt == null ? undefined : number(input.fundingObservedAt, "manualPaper.position.fundingObservedAt", 1),
+    fundingPnl: input.fundingPnl == null ? undefined : number(input.fundingPnl, "manualPaper.position.fundingPnl"),
+    lastFundingSettlementAt: input.lastFundingSettlementAt == null ? undefined : number(input.lastFundingSettlementAt, "manualPaper.position.lastFundingSettlementAt", 1),
     riskPriceSource: oneOf(
       input.riskPriceSource,
       "manualPaper.position.riskPriceSource",
@@ -341,6 +351,7 @@ function fill(value: unknown, index: number): ManualFill {
     takerFeeRate: input.takerFeeRate == null ? undefined : number(input.takerFeeRate, "manualPaper.fill.takerFeeRate", 0, 1),
     tradingFee: input.tradingFee == null ? undefined : number(input.tradingFee, "manualPaper.fill.tradingFee", 0),
     liquidationPenalty: input.liquidationPenalty == null ? undefined : number(input.liquidationPenalty, "manualPaper.fill.liquidationPenalty", 0),
+    fundingPnl: input.fundingPnl == null ? undefined : number(input.fundingPnl, "manualPaper.fill.fundingPnl"),
     fee: number(input.fee, "manualPaper.fill.fee", 0),
     timestamp: iso(input.timestamp, "manualPaper.fill.timestamp"),
     openedAt:
@@ -364,6 +375,8 @@ function fill(value: unknown, index: number): ManualFill {
   });
 }
 
+function fundingPayment(value:unknown,index:number):ManualFundingPayment{const input=object(value,`manualPaper.fundingPayments.${index}`);return Object.freeze({paymentId:string(input.paymentId,"manualPaper.fundingPayment.paymentId",300),tradeId:string(input.tradeId,"manualPaper.fundingPayment.tradeId",300),userId:string(input.userId,"manualPaper.fundingPayment.userId",120),symbol:symbol(input.symbol,"manualPaper.fundingPayment.symbol"),side:oneOf(input.side,"manualPaper.fundingPayment.side",["long","short"] as const),settleTime:number(input.settleTime,"manualPaper.fundingPayment.settleTime",1),observedAt:number(input.observedAt,"manualPaper.fundingPayment.observedAt",1),price:number(input.price,"manualPaper.fundingPayment.price",0.000000000001),priceSource:oneOf(input.priceSource,"manualPaper.fundingPayment.priceSource",["fair","last"] as const),quantity:number(input.quantity,"manualPaper.fundingPayment.quantity",0.000000000001),notional:number(input.notional,"manualPaper.fundingPayment.notional",0),fundingRate:number(input.fundingRate,"manualPaper.fundingPayment.fundingRate",-1,1),calculatedCashDelta:number(input.calculatedCashDelta,"manualPaper.fundingPayment.calculatedCashDelta"),cashDelta:number(input.cashDelta,"manualPaper.fundingPayment.cashDelta"),balanceCapped:boolean(input.balanceCapped,"manualPaper.fundingPayment.balanceCapped"),source:oneOf(input.source,"manualPaper.fundingPayment.source",["mexc-public-funding-history"] as const),calculationMethod:oneOf(input.calculationMethod,"manualPaper.fundingPayment.calculationMethod",["observed-risk-price-notional"] as const),resultingBalance:number(input.resultingBalance,"manualPaper.fundingPayment.resultingBalance",0)})}
+
 export function validateManualPaperBackup(value: unknown, ownerId: string): ManualAccount {
   const input = object(value, "manualPaper");
   if (input.version !== 3) throw new Error("Unsupported Manual Paper backup version.");
@@ -377,6 +390,10 @@ export function validateManualPaperBackup(value: unknown, ownerId: string): Manu
     throw new Error("Manual Paper fill history is invalid.");
   }
   const fills = input.fills.map(fill);
+  const fundingInput=input.fundingPayments??[];
+  if(!Array.isArray(fundingInput)||fundingInput.length>1_000)throw new Error("Manual Paper funding history is invalid.");
+  const fundingPayments=fundingInput.map(fundingPayment);
+  if(fundingPayments.some(item=>item.userId!==ownerId))throw new Error("Manual Paper funding owner mismatch.");
   if (fills.some((item) => item.userId !== ownerId)) {
     throw new Error("Manual Paper fill owner mismatch.");
   }
@@ -398,6 +415,8 @@ export function validateManualPaperBackup(value: unknown, ownerId: string): Manu
     startingBalance: number(input.startingBalance, "manualPaper.startingBalance", 0),
     realisedPnl: number(input.realisedPnl, "manualPaper.realisedPnl"),
     fees: number(input.fees, "manualPaper.fees", 0),
+    fundingPnl: input.fundingPnl==null?0:number(input.fundingPnl, "manualPaper.fundingPnl"),
+    fundingPayments: Object.freeze(fundingPayments) as unknown as ManualFundingPayment[],
     positions: Object.freeze(positions),
     fills: Object.freeze(fills) as unknown as ManualFill[],
     idempotencyKeys: Object.freeze(idempotencyKeys) as unknown as string[],
@@ -411,6 +430,8 @@ export function manualPaperIsEmpty(account: ManualAccount) {
   return (
     Object.keys(account.positions).length === 0 &&
     account.fills.length === 0 &&
+    account.fundingPayments.length === 0 &&
+    account.fundingPnl === 0 &&
     account.idempotencyKeys.length === 0 &&
     account.cashBalance === baseline.cashBalance &&
     account.startingBalance === baseline.startingBalance &&

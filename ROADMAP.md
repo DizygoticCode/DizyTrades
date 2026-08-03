@@ -57,14 +57,14 @@ Improve simulation realism without claiming exchange-exact fills.
 - [x] quantity and price-step enforcement
 - [x] symbol-specific leverage and maintenance-margin limits
 - [x] maker versus taker execution assumptions with explicit fee provenance
-- [ ] funding-payment modelling with explicit data provenance
+- [x] funding-payment modelling with explicit data provenance
 - [ ] depth-sensitive slippage and partial-fill modelling
 - [ ] reduce-only semantics
 - [ ] maintenance tiers and bankruptcy-price audit
 - [ ] clearer isolated versus cross-margin assumptions
 - [ ] migration-safe history and backup support
 
-Next slice: funding-payment modelling with explicit data provenance.
+Next slice: depth-sensitive slippage and partial-fill modelling.
 
 ### 2. Workflow and accessibility polish
 
