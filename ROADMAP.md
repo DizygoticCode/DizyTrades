@@ -75,7 +75,7 @@ Driven by real use rather than speculative redesign.
 - [x] recent markets, reviews and learning shortcuts
 - [x] first-run onboarding
 - [x] responsive and mobile audit
-- [ ] focus order, screen-reader and reduced-motion audit
+- [x] focus order, screen-reader and reduced-motion audit
 - [x] empty, delayed and recovery state polish
 
 First-run onboarding now opens once per user and offers bounded paths into the terminal, DizyAcademy or Manual Paper. It remains reopenable from the terminal toolbar, distinguishes simulation from live execution and includes responsive, keyboard and reduced-motion behaviour.
@@ -89,6 +89,8 @@ The protected-workspace command palette now opens with Ctrl/Cmd+K, filters deter
 Recent workflow shortcuts now combine three existing sources of truth: account-scoped market/timeframe changes, newest-first Journal entries and browser-local DizyAcademy progress. Owner market history is retained atomically without blocking profile saves, viewer history stays in the browser, Journal links open exact retained entries, and Academy links restore the exact last or next lesson without forcing later manual navigation back to an old lesson.
 
 The responsive audit now applies one protected-workspace contract above the existing page-specific breakpoints: narrow screens retain every navigation destination through internal horizontal scrolling, intentionally wide tables remain inside their own scroll regions, global Commands and Recent tools respect safe areas without covering terminal-owned controls, and modal workflows are bounded to the dynamic viewport. Chromium verifies phone and small-tablet containment across DizyCharts, DizyScanner, DizyStructure, DizyPerformance, DizyJournal, DizyAcademy, DizyBackup and DizyOps.
+
+The accessibility workflow audit now provides a first-focus skip link and deterministic main-content target on every protected route, traps keyboard focus inside the active modal, restores focus to the launcher after dismissal, and applies consistent focus-visible styling including forced-colour support. A shared reduced-motion contract removes non-essential animation, transition delay and smooth scrolling when the operating system requests reduced motion. Chromium verifies keyboard-only skip navigation, modal wrapping, focus restoration, accessible dialog names, landmarks, live status output and computed reduced-motion behaviour.
 
 ### 3. Read-only exchange connection and shadow mode
 
