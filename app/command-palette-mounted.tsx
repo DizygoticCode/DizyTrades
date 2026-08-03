@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { CommandPalette } from "./command-palette";
 
+function subscribe() {
+  return () => {};
+}
+
 export function CommandPaletteMounted() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(subscribe, () => true, () => false);
   return mounted ? <CommandPalette /> : null;
 }
