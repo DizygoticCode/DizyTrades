@@ -1,6 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
-
-await writeFile("tests/manual-paper-reduce-only.test.mjs", String.raw`import test from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
 import {mkdtemp,readFile,rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
@@ -25,10 +23,3 @@ test("reverse closes reduce-only and stale old trade requests cannot touch the n
 test("opposite ticket replacement and automatic risk exits preserve reduce-only provenance",()=>isolated("dizy-reduce-sources-",async()=>{const {submitManualOrder,markManualPosition}=await import("../app/lib/manual-paper.ts");let account=await open("reduce-sources"),old=account.positions.BTC_USDT;account=await submitManualOrder("reduce-sources",{idempotencyKey:"reduce-sources-sell-0001",symbol:"BTC_USDT",side:"short",sizeMode:"fixed-notional",amount:200,leverage:20,confirmReverse:true,expectedTradeId:old.tradeId,expectedSide:old.side},100,"fair",rules,undefined,book([[99.9,50]],[[100.1,50]]));const replacementClose=account.fills.findLast(fill=>fill.side==="close");assert.equal(replacementClose.reduceOnly.source,"opposite-order-replacement");assert.equal(account.positions.BTC_USDT.side,"short");await rm(process.env.DATA_DIR,{recursive:true,force:true});account=await open("reduce-risk",{stopLoss:99});account=await markManualPosition("reduce-risk","BTC_USDT",98,"fair",undefined,[],book([[97.9,50]],[[98.1,50]]),rules,true);const riskFill=account.fills.at(-1);assert.equal(riskFill.reduceOnly.source,"risk-exit");assert.equal(riskFill.reduceOnly.result,"closed");assert.equal(riskFill.riskExitTrigger.reason,"stop")}));
 
 test("HTTP and ticket boundaries bind client exits to trade identity",async()=>{const [route,ticket,core,roadmap]=await Promise.all([readFile("app/api/manual-paper/route.ts","utf8"),readFile("app/manual-paper-ticket.tsx","utf8"),readFile("app/lib/manual-paper.ts","utf8"),readFile("ROADMAP.md","utf8")]);assert.match(route,/reduceOnlyTarget\(body\)/);assert.match(route,/expectedTradeId:body\.expectedTradeId/);assert.match(ticket,/expectedTradeId: position\?\.tradeId/);assert.match(ticket,/actionPosition\?\.tradeId/);assert.match(ticket,/reduce-only \$\{fill\.reduceOnly\.source\}/);assert.match(core,/opposite-order-replacement/);assert.match(core,/STALE_REDUCE_ONLY_TARGET/);assert.match(roadmap,/- \[x\] reduce-only semantics/)});
-`);
-
-let roadmap=await readFile("ROADMAP.md","utf8");
-roadmap=roadmap.replace("- [ ] reduce-only semantics","- [x] reduce-only semantics");
-roadmap=roadmap.replace("Current slice: reduce-only semantics.","Current slice: maintenance tiers and bankruptcy-price audit.");
-if(!roadmap.includes("- [x] reduce-only semantics")||!roadmap.includes("Current slice: maintenance tiers and bankruptcy-price audit."))throw new Error("Roadmap update failed");
-await writeFile("ROADMAP.md",roadmap);

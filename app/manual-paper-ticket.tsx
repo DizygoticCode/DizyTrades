@@ -20,6 +20,7 @@ import type {DepthEnvelope} from "./lib/order-flow/types";
 type Mode = "fixed-margin" | "fixed-notional" | "equity-percent" | "risk-percent";
 type FundingRate={symbol:string;fundingRate:number;minFundingRate:number;maxFundingRate:number;collectCycleHours:number;nextSettleTime:number;observedAt:number;source:"mexc-public-funding-rate"};
 type FundingPayment={paymentId:string;tradeId:string;symbol:string;side:"long"|"short";settleTime:number;observedAt:number;price:number;priceSource:"fair"|"last";notional:number;fundingRate:number;calculatedCashDelta:number;cashDelta:number;balanceCapped:boolean;source:"mexc-public-funding-history";calculationMethod:"observed-risk-price-notional";resultingBalance:number};
+type ReduceOnlyEvidence={enabled:true;calculationMethod:"position-bound-cap";source:"manual-close"|"partial-close"|"reverse"|"flatten-all"|"risk-exit"|"opposite-order-replacement";expectedTradeId:string;expectedSide:"long"|"short";positionQuantityBefore:number;requestedQuantity:number;acceptedQuantity:number;capped:boolean;filledQuantity:number;remainingQuantity:number;result:"closed"|"reduced"};
 type Position = {
   tradeId: string;
   marketKey: string;
@@ -67,6 +68,7 @@ type Fill = {
   contractVolume?: number;
   entryDepthFill?: PaperDepthFillEvidence;
   exitDepthFill?: PaperDepthFillEvidence;
+  reduceOnly?: ReduceOnlyEvidence;
   fee: number;
   executionType?: "market";
   liquidityRole?: "maker" | "taker";
@@ -269,6 +271,8 @@ export function ManualPaperTicket({
       stopLoss: stopLoss ? Number(stopLoss) : null,
       takeProfit: takeProfit ? Number(takeProfit) : null,
       confirmReverse: Boolean(position && position.side !== orderSide),
+      expectedTradeId: position?.tradeId,
+      expectedSide: position?.side,
       idempotencyKey: crypto.randomUUID(),
     });
   };
@@ -288,14 +292,11 @@ export function ManualPaperTicket({
       window.removeEventListener("manual-paper-open", open);
     };
   }, [readOnly, submit]);
-  const action = (value: string, extra: Record<string, unknown> = {}) =>
-      post({
-        action: value,
-        symbol,
-        idempotencyKey: crypto.randomUUID(),
-        ...extra,
-      }),
-    positions = useMemo(
+  const action = (value: string, extra: Record<string, unknown> = {}) => {
+    const actionSymbol=String(extra.symbol??symbol),actionPosition=account?.positions[actionSymbol];
+    return post({action:value,symbol:actionSymbol,idempotencyKey:crypto.randomUUID(),expectedTradeId:actionPosition?.tradeId,expectedSide:actionPosition?.side,...extra});
+  };
+  const positions = useMemo(
       () => Object.values(account?.positions ?? {}),
       [account],
     ),
@@ -765,6 +766,7 @@ export function ManualPaperTicket({
                           {fill.feeSource?<small>{`${fill.executionType??"market"} · ${fill.liquidityRole??"taker"} · ${((fill.feeRate??0)*100).toFixed(4)}% · ${fill.feeSource==="mexc-public-contract"?"MEXC public":"legacy fallback"} · fee ${money(fill.fee)}`}</small>:null}
                           {fill.entryDepthFill?<small>{`entry depth ${fill.entryDepthFill.fillStatus} · ${fill.entryDepthFill.filledContractVolume}/${fill.entryDepthFill.requestedContractVolume} contracts · ${fill.entryDepthFill.levelsConsumed} levels · ${fill.entryDepthFill.priceImpactBps.toFixed(2)} bps`}</small>:null}
                           {fill.exitDepthFill?<small>{`exit depth ${fill.exitDepthFill.fillStatus} · ${fill.exitDepthFill.filledContractVolume}/${fill.exitDepthFill.requestedContractVolume} contracts · remaining ${fill.exitDepthFill.remainingPositionContractVolume??0} · ${fill.exitDepthFill.levelsConsumed} levels · ${fill.exitDepthFill.priceImpactBps.toFixed(2)} bps`}</small>:null}
+                          {fill.reduceOnly?<small>{`reduce-only ${fill.reduceOnly.source} · requested ${fill.reduceOnly.requestedQuantity} · filled ${fill.reduceOnly.filledQuantity} · remaining ${fill.reduceOnly.remainingQuantity}${fill.reduceOnly.capped?" · capped":""}`}</small>:null}
                           {fill.riskExitTrigger?<small>{`${fill.riskExitTrigger.reason} triggered ${new Date(fill.riskExitTrigger.triggeredAt).toLocaleString()} at ${money(fill.riskExitTrigger.triggerPrice)} · ${fill.riskExitTrigger.priceSource}`}</small>:null}
                           {fill.closeReason?<small>{fill.closeReason}</small>:null}
                           {fill.side==="close"?<small>{fill.historicalDizyFlow?.available?`${fill.historicalDizyFlow.limitations.length?"Limited":"Retained"} flow · ${fill.historicalDizyFlow.sampleCount} samples · ${fill.historicalDizyFlow.coveragePct??0}% coverage`:"Flow memory unavailable"}</small>:null}
