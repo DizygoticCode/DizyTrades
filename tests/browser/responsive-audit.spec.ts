@@ -5,12 +5,20 @@ const owner = {
   password: "DizyTrades-E2E-Owner-2026!",
 };
 
+async function dismissOnboarding(page: Page) {
+  const backdrop = page.locator(".first-run-onboarding-backdrop");
+  await backdrop.waitFor({ state: "visible", timeout: 3000 }).catch(() => {});
+  if (await backdrop.isVisible().catch(() => false)) {
+    await page.getByRole("button", { name: "Skip onboarding" }).click();
+    await expect(backdrop).toBeHidden();
+  }
+}
+
 async function loginViewer(page: Page) {
   await page.goto("/login");
   await page.getByRole("button", { name: "Open View-Only Terminal" }).click();
   await expect(page).toHaveURL(/\/terminal$/);
-  const skip = page.getByRole("button", { name: "Skip onboarding" });
-  if (await skip.isVisible().catch(() => false)) await skip.click();
+  await dismissOnboarding(page);
 }
 
 async function loginOwner(page: Page) {
@@ -19,8 +27,7 @@ async function loginOwner(page: Page) {
   await page.getByLabel("Password").fill(owner.password);
   await page.getByRole("button", { name: "Open DizyTrades" }).click();
   await expect(page).toHaveURL(/\/terminal$/);
-  const skip = page.getByRole("button", { name: "Skip onboarding" });
-  if (await skip.isVisible().catch(() => false)) await skip.click();
+  await dismissOnboarding(page);
 }
 
 async function expectViewportContained(page: Page, route: string) {
