@@ -1,0 +1,30 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFile } from "node:fs/promises";
+
+test("protected workspaces mount one shared accessibility foundation", async () => {
+  const [mounted, foundation, layout] = await Promise.all([
+    readFile("app/command-palette-mounted.tsx", "utf8"),
+    readFile("app/accessibility-foundation.tsx", "utf8"),
+    readFile("app/layout.tsx", "utf8"),
+  ]);
+  assert.match(mounted, /<AccessibilityFoundation \/>/);
+  assert.match(foundation, /Skip to main content/);
+  assert.match(foundation, /main\.id = "main-content"/);
+  assert.match(foundation, /main\.tabIndex = -1/);
+  assert.match(foundation, /\[role="dialog"\]\[aria-modal="true"\]/);
+  assert.match(foundation, /event\.key !== "Tab"/);
+  assert.match(foundation, /restore\.focus\(\)/);
+  assert.match(layout, /import "\.\/accessibility-audit\.css"/);
+});
+
+test("focus and reduced-motion styles remain explicit", async () => {
+  const css = await readFile("app/accessibility-audit.css", "utf8");
+  assert.match(css, /\.accessibility-skip-link:focus-visible/);
+  assert.match(css, /:focus-visible/);
+  assert.match(css, /@media \(forced-colors: active\)/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(css, /animation-duration: 0\.01ms !important/);
+  assert.match(css, /transition-duration: 0\.01ms !important/);
+  assert.match(css, /scroll-behavior: auto !important/);
+});
