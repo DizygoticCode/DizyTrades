@@ -31,6 +31,8 @@ jobs:
       - run: npm ci
       - name: Apply exact source patch
         run: node scripts/pr139/apply.mjs
+      - name: Inspect generated funding seam
+        run: nl -ba app/lib/manual-paper.ts | sed -n '56,68p'
       - name: Focused funding provenance tests
         run: node --conditions=react-server --import tsx --test tests/manual-paper-funding.test.mjs tests/manual-paper-fees.test.mjs tests/manual-paper.test.mjs
       - name: Full unit suite
