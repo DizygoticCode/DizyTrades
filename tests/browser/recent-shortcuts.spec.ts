@@ -58,12 +58,20 @@ test("owner continues recent markets reviews and Academy learning", async ({ pag
   await expect(
     dialog.getByText("DizyScanner and saved watchlists", { exact: true }),
   ).toBeVisible();
-  await expect(dialog.getByRole("link", { name: new RegExp(reviewTitle) })).toHaveAttribute(
-    "href",
-    /\/journal\?entry=/,
-  );
 
-  await dialog.getByRole("button", { name: /ETH\/USDT/ }).click();
+  const reviewLink = dialog.getByRole("link", { name: new RegExp(reviewTitle) });
+  await expect(reviewLink).toHaveAttribute("href", /\/journal\?entry=/);
+  await reviewLink.click();
+  await expect(page).toHaveURL(/\/journal\?entry=/);
+  await expect(page.locator(".journal-detail input").first()).toHaveValue(reviewTitle);
+
+  await page.goto("/terminal");
+  await expect(page.getByRole("button", { name: "Recent" })).toBeVisible();
+  await page.getByRole("button", { name: "Recent" }).click();
+  await page
+    .getByRole("dialog", { name: "DizyTrades recent shortcuts" })
+    .getByRole("button", { name: /ETH\/USDT/ })
+    .click();
   await expect(page).toHaveURL(/\/terminal$/);
   const profile = await page.request.get("/api/profile");
   expect(profile.status()).toBe(200);
