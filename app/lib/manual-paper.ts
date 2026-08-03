@@ -12,6 +12,8 @@ import {createManualReduceOnlyPlan,finaliseManualReduceOnly,type ManualReduceOnl
 import {legacyPaperRiskTierSnapshot,reselectPaperRiskTier,selectMexcContractRiskTier,type PaperRiskTierSnapshot} from "./manual-paper-risk-tiers";
 import {buildPaperMarginAccountSnapshot,buildPaperPositionMarginAudit,settlePaperMarginCash,type PaperMarginAccountSnapshot,type PaperMarginPositionInput,type PaperMarginSettlementAudit,type PaperPositionMarginAudit} from "./manual-paper-margin-model";
 import {MANUAL_PAPER_ACCOUNT_VERSION,createManualPaperFillHistory,normaliseManualPaperHistory,type ManualPaperFillHistory,type ManualPaperMigrationLedger} from "./manual-paper-history";
+import {assertManualPaperAccounting} from "./manual-paper-accounting-audit";
+import {safeOwnerId} from "./security-boundaries";
 import type {DepthEnvelope} from "./order-flow/types";
 
 export type ManualSide="long"|"short";
@@ -37,7 +39,7 @@ export function calculateManualSizing(input:{sizeMode:ManualSizeMode;amount:unkn
  if(!Number.isFinite(price)||price<=0)fail("PRICE_UNAVAILABLE","marketPrice","Current public market price is unavailable.");
  try{const result=sizePaperPosition({mode:input.sizeMode,amount,leverage,equity,price,side:input.side??"long",stopLoss:number(input.stopLoss),minLeverage,maxLeverage});if(!result.riskAmount)return {margin:result.margin,notional:result.notional,quantity:result.quantity,leverage:result.leverage};return result}catch(error){const code=error instanceof Error?error.message:"INVALID_SIZING";return fail(code,code==="INVALID_RISK_STOP"?"stopLoss":"amount",code==="INVALID_RISK_STOP"?"Risk percentage sizing requires a valid protective stop.":code==="INSUFFICIENT_EQUITY"?"Required margin exceeds paper equity.":"Invalid position sizing values.")}
 }
-const root=()=>process.env.DATA_DIR||join(process.cwd(),".data"),safe=(id:string)=>id.replace(/[^a-z0-9_-]/gi,""),path=(id:string)=>join(root(),"manual-paper",`${safe(id)}.json`);
+const root=()=>process.env.DATA_DIR||join(process.cwd(),".data"),path=(id:string)=>join(root(),"manual-paper",`${safeOwnerId(id,"Manual Paper owner")}.json`);
 export function normaliseManualAccount(value:unknown):ManualAccount{
  if(!value||typeof value!=="object"||Array.isArray(value))throw new ManualPaperError("ACCOUNT_MIGRATION_FAILED","account","Manual Paper account must be an object.");
  const raw=value as Omit<Partial<ManualAccount>,"version">&{version?:number;settings?:Partial<ManualSettings>},sourceVersion=raw.version;
@@ -56,10 +58,13 @@ export function normaliseManualAccount(value:unknown):ManualAccount{
  if(sourceVersion!==MANUAL_PAPER_ACCOUNT_VERSION)delete (account as Partial<ManualAccount>).migration;
  const capturedAt=typeof raw.marginSnapshot?.capturedAt==="number"&&Number.isFinite(raw.marginSnapshot.capturedAt)?raw.marginSnapshot.capturedAt:Number.isFinite(Date.parse(String(raw.updatedAt??"")))?Date.parse(String(raw.updatedAt)):0;
  refreshAccountRisk(account,capturedAt);
- return normaliseManualPaperHistory(account,sourceVersion,steps) as ManualAccount
+ const normalised=normaliseManualPaperHistory(account,sourceVersion,steps) as ManualAccount;
+ try{assertManualPaperAccounting(normalised)}catch(error){throw new ManualPaperError("ACCOUNT_ACCOUNTING_INVALID","account",error instanceof Error?error.message:"Manual Paper accounting does not reconcile.")}
+ return normalised
 }
 export async function readManualAccount(userId:string){
- try{return normaliseManualAccount(JSON.parse(await readFile(path(userId),"utf8")))}catch(reason){
+ const target=path(userId);
+ try{return normaliseManualAccount(JSON.parse(await readFile(target,"utf8")))}catch(reason){
   if((reason as NodeJS.ErrnoException).code==="ENOENT")return newManualAccount();
   if(reason instanceof ManualPaperError)throw reason;
   throw new ManualPaperError("ACCOUNT_MIGRATION_FAILED","account",reason instanceof Error?reason.message:"Manual Paper account could not be migrated.")
@@ -69,7 +74,7 @@ async function writeManualAccount(userId:string,value:ManualAccount){
  const normalised=normaliseManualAccount(value);Object.assign(value,normalised);
  await mkdir(join(root(),"manual-paper"),{recursive:true});const target=path(userId),temp=target+"."+process.pid+"."+Date.now()+".tmp";await writeFile(temp,JSON.stringify(normalised,null,2)+"\n",{mode:0o600});await rename(temp,target)
 }
-const queues=new Map<string,Promise<unknown>>();async function serial<T>(userId:string,fn:()=>Promise<T>):Promise<T>{const previous=queues.get(userId)??Promise.resolve();let release!:()=>void;const gate=new Promise<void>(r=>release=r);queues.set(userId,previous.then(()=>gate));await previous;try{return await fn()}finally{release()}}
+const queues=new Map<string,Promise<unknown>>();async function serial<T>(userId:string,fn:()=>Promise<T>):Promise<T>{const ownerId=safeOwnerId(userId,"Manual Paper owner"),previous=queues.get(ownerId)??Promise.resolve();let release!:()=>void;const gate=new Promise<void>(r=>release=r),current=previous.then(()=>gate);queues.set(ownerId,current);await previous;try{return await fn()}finally{release();if(queues.get(ownerId)===current)queues.delete(ownerId)}}
 export async function latestPublicRiskPrice(symbol:string,previous?:number){if(!/^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/.test(symbol))fail("INVALID_SYMBOL","symbol","Invalid market symbol.");const response=await fetch(`https://contract.mexc.com/api/v1/contract/ticker?symbol=${encodeURIComponent(symbol)}`,{signal:AbortSignal.timeout(5000),cache:"no-store"});if(!response.ok)fail("PRICE_UNAVAILABLE","marketPrice","Current public risk price is unavailable.");const body=await response.json() as {data?:{fairPrice?:unknown;lastPrice?:unknown}};const selected=selectRiskPrice(body.data?.fairPrice,body.data?.lastPrice,previous);if(!selected)return fail("PRICE_UNAVAILABLE","marketPrice","Fair and Last prices are unavailable.");return selected}
 export async function latestPublicPrice(symbol:string){return (await latestPublicRiskPrice(symbol)).price}
 const contractMetadataCache=new Map<string,{at:number;value:MexcContractMetadata}>();

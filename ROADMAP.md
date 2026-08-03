@@ -102,13 +102,15 @@ No order permission.
 
 - [ ] Codex or independent engineering review
 - [x] authentication and storage threat review
-- [ ] simulator accounting audit
+- [x] simulator accounting audit
 - [ ] Replay future-leakage audit
 - [ ] backup restore and conflict audit
 - [ ] browser accessibility independent review
 - [x] deployment observation and application recovery rehearsal
 
 The authentication and storage review is recorded in [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md). It hardens fail-closed feature flags, session parsing and fallback behaviour, outage throttling, request-origin boundaries, owner-ID/path isolation and auth-database permissions while documenting accepted beta limitations.
+
+The simulator accounting review is recorded in [docs/SIMULATOR_ACCOUNTING_AUDIT.md](docs/SIMULATOR_ACCOUNTING_AUDIT.md). It adds executable Manual Paper cash, fee, funding and settlement reconciliation; corrects signal-simulator maximum-notional sizing; and keeps open mark-to-market positions out of completed win-rate and profit-factor statistics.
 
 Deployment/recovery evidence now has two completed layers:
 
@@ -185,7 +187,7 @@ Useful for public charting, market study, deterministic signals, order-flow obse
 
 ### Operational Research Platform — in progress
 
-DizyPaper Fidelity V2, workflow/accessibility, deployment observation, application recovery rehearsal and the authentication/storage threat review are complete. This milestone closes after the remaining independent engineering, simulator, Replay, backup-conflict and browser-accessibility reviews are stable.
+DizyPaper Fidelity V2, workflow/accessibility, deployment observation, application recovery rehearsal, authentication/storage and simulator-accounting reviews are complete. This milestone closes after the remaining independent engineering, Replay, backup-conflict and browser-accessibility reviews are stable.
 
 ### Read-only Account Companion — future
 

@@ -13,6 +13,7 @@ import {
   type ManualSettings,
 } from "./manual-paper";
 import { buildPaperMarginAccountSnapshot, type PaperMarginPositionInput } from "./manual-paper-margin-model";
+import {assertManualPaperAccounting} from "./manual-paper-accounting-audit";
 import {MANUAL_PAPER_ACCOUNT_VERSION,validateManualPaperFillHistory,validateManualPaperMigrationLedger} from "./manual-paper-history";
 
 const root = () => process.env.DATA_DIR || join(process.cwd(), ".data");
@@ -511,7 +512,7 @@ export function validateManualPaperBackup(value: unknown, ownerId: string): Manu
       if(item.liquidationAudit){const expectedCollateral=item.marginMode==="isolated"?item.margin:Math.max(1e-9,audit.collateralAvailableToPosition);if(Math.abs(item.liquidationAudit.collateral-expectedCollateral)>Math.max(tol,Math.abs(expectedCollateral)*1e-9))throw new Error("Manual Paper liquidation collateral does not reconcile with margin support.")}
     }
   }else if(activePositions.some(item=>item.marginAudit))throw new Error("Manual Paper margin audit evidence requires an account snapshot.");
-  return Object.freeze({
+  const validated=Object.freeze({
     version: MANUAL_PAPER_ACCOUNT_VERSION,
     cashBalance,
     startingBalance: number(input.startingBalance, "manualPaper.startingBalance", 0),
@@ -526,7 +527,9 @@ export function validateManualPaperBackup(value: unknown, ownerId: string): Manu
     marginSnapshot: storedMarginSnapshot,
     migration,
     updatedAt: iso(input.updatedAt, "manualPaper.updatedAt"),
-  });
+  }) as ManualAccount;
+  assertManualPaperAccounting(validated);
+  return validated;
 }
 
 export function manualPaperIsEmpty(account: ManualAccount) {
