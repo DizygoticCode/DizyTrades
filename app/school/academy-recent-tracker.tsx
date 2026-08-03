@@ -19,15 +19,18 @@ export default function AcademyRecentTracker() {
       if (cancelled) return;
       const validSlugs = academyLessons.map((lesson) => lesson.slug);
       const requested = new URLSearchParams(window.location.search).get("lesson");
-      const targetSlug =
+      let pendingSlug =
         requested && validSlugs.includes(requested)
           ? requested
           : readAcademyLastLesson(window.localStorage, validSlugs);
 
       const selectRequested = () => {
-        if (!targetSlug) return true;
-        const lesson = academyLessons.find((item) => item.slug === targetSlug);
-        if (!lesson) return true;
+        if (!pendingSlug) return true;
+        const lesson = academyLessons.find((item) => item.slug === pendingSlug);
+        if (!lesson) {
+          pendingSlug = null;
+          return true;
+        }
         const button = Array.from(
           document.querySelectorAll<HTMLButtonElement>(
             "#course-navigation button",
@@ -35,6 +38,7 @@ export default function AcademyRecentTracker() {
         ).find((candidate) => candidate.textContent?.includes(lesson.title));
         if (!button) return false;
         if (button.getAttribute("aria-current") !== "page") button.click();
+        pendingSlug = null;
         return true;
       };
 
