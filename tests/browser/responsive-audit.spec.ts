@@ -144,3 +144,43 @@ test("owner operations remain usable on phone and small-tablet widths", async ({
     await expectViewportContained(page, route);
   }
 });
+
+test("global workflow triggers clear of DizyBrain controls on desktop", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginOwner(page);
+  await page.locator(".dizybrain-launch").click();
+
+  const workspace = page.locator("#dizybrain-workspace");
+  const close = page.locator(".brain-close");
+  await expect(workspace).toBeVisible();
+  await expect(close).toBeVisible();
+  await expect(page.locator(".command-palette-floating")).toBeVisible();
+  await expect(page.locator(".recent-shortcuts-trigger")).toBeVisible();
+
+  await expect
+    .poll(async () => page.evaluate(() => document.body.getAttribute("data-dizybrain-tool-offset")))
+    .toBe("true");
+
+  const geometry = await page.evaluate(() => {
+    const box = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`Missing ${selector}`);
+      const bounds = element.getBoundingClientRect();
+      return { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom };
+    };
+    return {
+      workspace: box("#dizybrain-workspace"),
+      close: box(".brain-close"),
+      commands: box(".command-palette-floating"),
+      recent: box(".recent-shortcuts-trigger"),
+    };
+  });
+
+  expect(geometry.commands.right).toBeLessThanOrEqual(geometry.workspace.left - 8);
+  expect(geometry.recent.right).toBeLessThanOrEqual(geometry.workspace.left - 8);
+  expect(geometry.commands.right <= geometry.close.left || geometry.commands.left >= geometry.close.right).toBe(true);
+  expect(geometry.recent.right <= geometry.close.left || geometry.recent.left >= geometry.close.right).toBe(true);
+
+  await close.click();
+  await expect(workspace).toBeHidden();
+});
