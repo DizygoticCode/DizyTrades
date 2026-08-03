@@ -19,3 +19,19 @@ test("manual close and partial-close HTTP paths require depth and current contra
 test("position-row actions submit their own symbol",async()=>{const source=await readFile(new URL("../app/manual-paper-ticket.tsx",import.meta.url),"utf8");assert.ok(source.includes('action("partial-close", { symbol:p.symbol, percentage })'));assert.ok(source.includes('action("flash-close",{symbol:p.symbol})'));assert.ok(source.includes('action("reverse",{symbol:p.symbol})'))});
 `,
 );
+
+const ticketPath="app/manual-paper-ticket.tsx",ticketSource=await readFile(ticketPath,"utf8"),ticketNext=ticketSource
+  .replace(
+    '    invalidAmount = !Number.isFinite(quantity) || quantity <= 0 || margin < 0 || Boolean(contractVolumeIssue) || invalidPriceStep;\n  const choosePercent = useCallback(',
+    '    invalidAmount = !Number.isFinite(quantity) || quantity <= 0 || margin < 0 || Boolean(contractVolumeIssue) || invalidPriceStep;\n  const positionSide=position?.side;\n  const choosePercent = useCallback(',
+  )
+  .replace(
+    '        confirmReverse: Boolean(position && position.side !== orderSide),',
+    '        confirmReverse: Boolean(positionSide && positionSide !== orderSide),',
+  )
+  .replace(
+    '      takeProfit,\n      position,\n    ],',
+    '      takeProfit,\n      positionSide,\n    ],',
+  );
+if(ticketNext===ticketSource)throw new Error("Manual Paper submit memoization was not updated.");
+await writeFile(ticketPath,ticketNext);
