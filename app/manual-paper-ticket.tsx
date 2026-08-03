@@ -65,6 +65,7 @@ type Fill = {
   quantity: number;
   contractVolume?: number;
   entryDepthFill?: PaperDepthFillEvidence;
+  exitDepthFill?: PaperDepthFillEvidence;
   fee: number;
   executionType?: "market";
   liquidityRole?: "maker" | "taker";
@@ -207,6 +208,7 @@ export function ManualPaperTicket({
     contractVolumeIssue=contract&&targetNotional>0?(steppedContractVolume<contract.minVol?`Minimum ${contract.minVol} contracts`:steppedContractVolume>contract.maxVol?`Maximum ${contract.maxVol} contracts`:null):null,
     requestedContractOrder=(()=>{try{return contract&&publicPrice&&publicPrice>0&&!contractVolumeIssue?sizeMexcContractOrder(targetNotional,publicPrice,contract):null}catch{return null}})(),
     depthPreview=(()=>{try{return contract&&depth&&publicPrice&&publicPrice>0&&requestedContractOrder?simulatePaperMarketDepthFill({side,requestedContractVolume:requestedContractOrder.contractVolume,referencePrice:publicPrice,contract,depth}):null}catch{return null}})(),
+    exitDepthPreview=(()=>{try{const openVolume=position&&contract?(position.contractVolume??position.quantity/contract.contractSize):0;return position&&contract&&depth&&mark>0&&openVolume>0?simulatePaperMarketDepthFill({side:position.side,opening:false,requestedContractVolume:openVolume,openContractVolume:openVolume,minimumRemainingContractVolume:position.minContractVolume??contract.minVol,referencePrice:mark,contract,depth}):null}catch{return null}})(),
     executionPrice=depthPreview?.executionPrice??publicPrice??0,
     contractOrder=depthPreview?{contractVolume:depthPreview.filledContractVolume,quantity:depthPreview.quantity,notional:depthPreview.notional}:requestedContractOrder,
     contractVolume=contractOrder?.contractVolume??0,
@@ -238,54 +240,36 @@ export function ManualPaperTicket({
     },
     [equity, mode, leverageNumber],
   );
-  const submit = useCallback(
-    async (orderSide: "long" | "short") => {
-      if (
-        readOnly ||
-        !account?.settings.enabled ||
-        !publicPrice ||
-        !contract ||
-        invalidAmount
+  const submit = async (orderSide: "long" | "short") => {
+    if (
+      readOnly ||
+      !account?.settings.enabled ||
+      !publicPrice ||
+      !contract ||
+      invalidAmount
+    )
+      return;
+    if (
+      account.settings.confirmationRequired &&
+      !window.confirm(
+        `${orderSide === "long" ? "Open Long" : "Open Short"} in Manual Paper? No exchange order will be sent.`,
       )
-        return;
-      if (
-        account.settings.confirmationRequired &&
-        !window.confirm(
-          `${orderSide === "long" ? "Open Long" : "Open Short"} in Manual Paper? No exchange order will be sent.`,
-        )
-      )
-        return;
-      await post({
-        action: "order",
-        symbol,
-        side: orderSide,
-        sizeMode: mode,
-        amount: Number(amount),
-        leverage: Number(leverage),
-        marginMode,
-        stopLoss: stopLoss ? Number(stopLoss) : null,
-        takeProfit: takeProfit ? Number(takeProfit) : null,
-        confirmReverse: Boolean(position && position.side !== orderSide),
-        idempotencyKey: crypto.randomUUID(),
-      });
-    },
-    [
-      readOnly,
-      account,
-      publicPrice,
-      contract,
-      invalidAmount,
-      post,
+    )
+      return;
+    await post({
+      action: "order",
       symbol,
-      mode,
-      amount,
-      leverage,
+      side: orderSide,
+      sizeMode: mode,
+      amount: Number(amount),
+      leverage: Number(leverage),
       marginMode,
-      stopLoss,
-      takeProfit,
-      position,
-    ],
-  );
+      stopLoss: stopLoss ? Number(stopLoss) : null,
+      takeProfit: takeProfit ? Number(takeProfit) : null,
+      confirmReverse: Boolean(position && position.side !== orderSide),
+      idempotencyKey: crypto.randomUUID(),
+    });
+  };
   useEffect(() => {
     const quick = (event: Event) => {
       if (readOnly) return;
@@ -599,7 +583,7 @@ export function ManualPaperTicket({
               {invalidPriceStep&&contract?<span>Stop loss and take profit must use {contract.priceUnit} price increments.</span>:null}
               {depthPreview?.fillStatus==="partial"?<span>Visible depth fills {depthPreview.filledContractVolume} of {depthPreview.requestedContractVolume} requested contracts; the remainder is not invented.</span>:null}
               {!depth?<span>Depth preview is not warm; a fresh DizyFlow book is required and captured on submit.</span>:null}
-              <span>New entries walk visible public depth. Current close, reversal and automatic risk exits retain the configured fallback slippage until the next Fidelity V2 sub-slice.</span>
+              <span>New entries and manual Close / Flash Close actions walk visible public depth. Reverse, Flatten All and automatic risk exits retain fallback slippage until their dedicated lifecycle slice.</span>
               <span>Immediate Manual Paper actions assume market execution and taker liquidity. Public fee rates do not include account-specific discounts or promotions.</span>
               {!stopLoss?<span>No stop loss — estimated liquidation remains active.</span>:null}
               {fundingSource?<span>Funding uses public settled rates with the observed {riskState?.source??position?.riskPriceSource??"risk"} price as an explicit notional approximation.</span>:null}
@@ -723,11 +707,12 @@ export function ManualPaperTicket({
                             <small>{p.takeProfit ?? "—"}</small>
                           </span>
                           <span className={styles.rowActions}>
+                            {p.symbol===symbol&&exitDepthPreview?<small>{`Exit depth ${exitDepthPreview.fillStatus} · ${exitDepthPreview.filledContractVolume}/${exitDepthPreview.requestedContractVolume} contracts · ${exitDepthPreview.levelsConsumed} levels · ${exitDepthPreview.priceImpactBps.toFixed(2)} bps`}</small>:null}
                             {[25, 50, 75].map((percentage) => (
                               <button
                                 key={percentage}
                                 onClick={() =>
-                                  void action("partial-close", { percentage })
+                                  void action("partial-close", { symbol:p.symbol, percentage })
                                 }
                               >
                                 Close {percentage}%
@@ -735,11 +720,11 @@ export function ManualPaperTicket({
                             ))}
                             <button
                               className={styles.danger}
-                              onClick={() => void action("flash-close")}
+                              onClick={() => void action("flash-close",{symbol:p.symbol})}
                             >
                               Flash Close
                             </button>
-                            <button onClick={() => void action("reverse")}>
+                            <button onClick={() => void action("reverse",{symbol:p.symbol})}>
                               Reverse
                             </button>
                           </span>
@@ -775,7 +760,8 @@ export function ManualPaperTicket({
                         >
                           {money(fill.realisedPnl)}
                           {fill.feeSource?<small>{`${fill.executionType??"market"} · ${fill.liquidityRole??"taker"} · ${((fill.feeRate??0)*100).toFixed(4)}% · ${fill.feeSource==="mexc-public-contract"?"MEXC public":"legacy fallback"} · fee ${money(fill.fee)}`}</small>:null}
-                          {fill.entryDepthFill?<small>{`depth ${fill.entryDepthFill.fillStatus} · ${fill.entryDepthFill.filledContractVolume}/${fill.entryDepthFill.requestedContractVolume} contracts · ${fill.entryDepthFill.levelsConsumed} levels · ${fill.entryDepthFill.priceImpactBps.toFixed(2)} bps`}</small>:null}
+                          {fill.entryDepthFill?<small>{`entry depth ${fill.entryDepthFill.fillStatus} · ${fill.entryDepthFill.filledContractVolume}/${fill.entryDepthFill.requestedContractVolume} contracts · ${fill.entryDepthFill.levelsConsumed} levels · ${fill.entryDepthFill.priceImpactBps.toFixed(2)} bps`}</small>:null}
+                          {fill.exitDepthFill?<small>{`exit depth ${fill.exitDepthFill.fillStatus} · ${fill.exitDepthFill.filledContractVolume}/${fill.exitDepthFill.requestedContractVolume} contracts · remaining ${fill.exitDepthFill.remainingPositionContractVolume??0} · ${fill.exitDepthFill.levelsConsumed} levels · ${fill.exitDepthFill.priceImpactBps.toFixed(2)} bps`}</small>:null}
                           {fill.closeReason?<small>{fill.closeReason}</small>:null}
                           {fill.side==="close"?<small>{fill.historicalDizyFlow?.available?`${fill.historicalDizyFlow.limitations.length?"Limited":"Retained"} flow · ${fill.historicalDizyFlow.sampleCount} samples · ${fill.historicalDizyFlow.coveragePct??0}% coverage`:"Flow memory unavailable"}</small>:null}
                         </span>

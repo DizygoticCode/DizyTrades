@@ -1,20 +1,30 @@
 import {
   quantizeMexcExecutionPrice,
   quantizeMexcStep,
-  type MexcContractMetadata,
 } from "./mexc-contract-metadata";
 import type { DepthEnvelope, DepthLevel, DepthSourceMode } from "./order-flow/types";
 
+export type PaperDepthContractRules = Readonly<{
+  symbol: string;
+  contractSize: number;
+  priceUnit: number;
+  volUnit: number;
+  minVol: number;
+  maxVol: number;
+}>;
 export type PaperDepthFillStatus = "full" | "partial";
 export type PaperDepthFillEvidence = Readonly<{
   source: "dizyflow-public-depth";
   calculationMethod: "visible-book-walk";
+  executionContext?: "entry" | "exit";
   bookSide: "bid" | "ask";
   fillStatus: PaperDepthFillStatus;
   requestedContractVolume: number;
   filledContractVolume: number;
   unfilledContractVolume: number;
   availableContractVolume: number;
+  openPositionContractVolume?: number;
+  remainingPositionContractVolume?: number;
   quantity: number;
   notional: number;
   rawWeightedAveragePrice: number;
@@ -38,27 +48,36 @@ const nonNegative = (value: number, code: string) => {
   return value;
 };
 
+const takesAsks = (side: "long" | "short", opening: boolean) =>
+  (side === "long") === opening;
+
 function sortedLevels(
   side: "long" | "short",
+  opening: boolean,
   envelope: DepthEnvelope,
 ): readonly DepthLevel[] {
-  const values = side === "long" ? envelope.snapshot.asks : envelope.snapshot.bids;
+  const askSide = takesAsks(side, opening);
+  const values = askSide ? envelope.snapshot.asks : envelope.snapshot.bids;
   return [...values].sort((a, b) =>
-    side === "long" ? a.price - b.price : b.price - a.price,
+    askSide ? a.price - b.price : b.price - a.price,
   );
 }
 
 export function simulatePaperMarketDepthFill(input: {
   side: "long" | "short";
+  opening?: boolean;
   requestedContractVolume: number;
+  openContractVolume?: number;
+  minimumRemainingContractVolume?: number;
   referencePrice: number;
-  contract: MexcContractMetadata;
+  contract: PaperDepthContractRules;
   depth: DepthEnvelope;
   observedAt?: number;
   maxAgeMs?: number;
 }): PaperDepthFillEvidence {
   const observedAt = input.observedAt ?? Date.now();
   const maxAgeMs = input.maxAgeMs ?? 10_000;
+  const opening = input.opening ?? true;
   const { contract, depth, side } = input;
   positive(input.referencePrice, "INVALID_DEPTH_REFERENCE_PRICE");
   positive(maxAgeMs, "INVALID_DEPTH_MAX_AGE");
@@ -84,25 +103,73 @@ export function simulatePaperMarketDepthFill(input: {
   if (requestedContractVolume > contract.maxVol)
     throw new Error("DEPTH_VOLUME_ABOVE_MAXIMUM");
 
-  const levels = sortedLevels(side, depth);
-  let remaining = requestedContractVolume;
-  let filledContractVolume = 0;
-  let weightedPriceTotal = 0;
-  let availableContractVolume = 0;
-  const consumed: Array<{ price: number; volume: number }> = [];
+  const openContractVolume = input.openContractVolume === undefined
+    ? undefined
+    : quantizeMexcStep(
+        positive(input.openContractVolume, "INVALID_OPEN_DEPTH_VOLUME"),
+        contract.volUnit,
+        "floor",
+      );
+  if (!opening && openContractVolume !== undefined && requestedContractVolume > openContractVolume)
+    throw new Error("DEPTH_EXIT_EXCEEDS_POSITION");
+  const minimumRemainingContractVolume = input.minimumRemainingContractVolume === undefined
+    ? 0
+    : quantizeMexcStep(
+        nonNegative(input.minimumRemainingContractVolume, "INVALID_DEPTH_REMAINDER"),
+        contract.volUnit,
+        "ceil",
+      );
 
-  for (const level of levels) {
+  const levels = sortedLevels(side, opening, depth).map((level) => {
     positive(level.price, "INVALID_DEPTH_LEVEL");
     nonNegative(level.contractQuantity, "INVALID_DEPTH_LEVEL");
-    const available = quantizeMexcStep(
-      level.contractQuantity,
+    return {
+      price: level.price,
+      volume: quantizeMexcStep(level.contractQuantity, contract.volUnit, "floor"),
+    };
+  });
+  const availableContractVolume = quantizeMexcStep(
+    levels.reduce((sum, level) => sum + level.volume, 0),
+    contract.volUnit,
+    "floor",
+  );
+  let targetFillContractVolume = quantizeMexcStep(
+    Math.min(requestedContractVolume, availableContractVolume),
+    contract.volUnit,
+    "floor",
+  );
+
+  if (
+    !opening &&
+    openContractVolume !== undefined &&
+    targetFillContractVolume < requestedContractVolume
+  ) {
+    const remaining = quantizeMexcStep(
+      Math.max(0, openContractVolume - targetFillContractVolume),
       contract.volUnit,
       "floor",
     );
-    availableContractVolume += available;
-    if (remaining <= contract.volUnit * 1e-9 || available <= 0) continue;
+    if (remaining > 0 && remaining < minimumRemainingContractVolume) {
+      targetFillContractVolume = quantizeMexcStep(
+        Math.max(0, openContractVolume - minimumRemainingContractVolume),
+        contract.volUnit,
+        "floor",
+      );
+    }
+  }
+
+  if (targetFillContractVolume < contract.minVol)
+    throw new Error("DEPTH_LIQUIDITY_BELOW_MINIMUM");
+
+  let remainingToFill = targetFillContractVolume;
+  let filledContractVolume = 0;
+  let weightedPriceTotal = 0;
+  const consumed: Array<{ price: number; volume: number }> = [];
+
+  for (const level of levels) {
+    if (remainingToFill <= contract.volUnit * 1e-9 || level.volume <= 0) continue;
     const volume = quantizeMexcStep(
-      Math.min(remaining, available),
+      Math.min(remainingToFill, level.volume),
       contract.volUnit,
       "floor",
     );
@@ -110,7 +177,9 @@ export function simulatePaperMarketDepthFill(input: {
     consumed.push({ price: level.price, volume });
     filledContractVolume += volume;
     weightedPriceTotal += level.price * volume;
-    remaining = Number((requestedContractVolume - filledContractVolume).toPrecision(15));
+    remainingToFill = Number(
+      (targetFillContractVolume - filledContractVolume).toPrecision(15),
+    );
   }
 
   filledContractVolume = quantizeMexcStep(
@@ -125,35 +194,42 @@ export function simulatePaperMarketDepthFill(input: {
     contract.volUnit,
     "floor",
   );
+  const remainingPositionContractVolume = openContractVolume === undefined
+    ? undefined
+    : quantizeMexcStep(
+        Math.max(0, openContractVolume - filledContractVolume),
+        contract.volUnit,
+        "floor",
+      );
   const rawWeightedAveragePrice = weightedPriceTotal / filledContractVolume;
   const executionPrice = quantizeMexcExecutionPrice(
     rawWeightedAveragePrice,
     contract.priceUnit,
     side,
-    true,
+    opening,
   );
   const quantity = Number(
     (filledContractVolume * contract.contractSize).toPrecision(15),
   );
   const notional = Number((quantity * executionPrice).toPrecision(15));
-  const directionalMove =
-    side === "long"
-      ? executionPrice - input.referencePrice
-      : input.referencePrice - executionPrice;
+  const adverseMove = takesAsks(side, opening)
+    ? executionPrice - input.referencePrice
+    : input.referencePrice - executionPrice;
 
   return Object.freeze({
     source: "dizyflow-public-depth",
     calculationMethod: "visible-book-walk",
-    bookSide: side === "long" ? "ask" : "bid",
+    executionContext: opening ? "entry" : "exit",
+    bookSide: takesAsks(side, opening) ? "ask" : "bid",
     fillStatus: unfilledContractVolume > contract.volUnit * 1e-9 ? "partial" : "full",
     requestedContractVolume,
     filledContractVolume,
     unfilledContractVolume,
-    availableContractVolume: quantizeMexcStep(
-      availableContractVolume,
-      contract.volUnit,
-      "floor",
-    ),
+    availableContractVolume,
+    ...(openContractVolume === undefined ? {} : { openPositionContractVolume: openContractVolume }),
+    ...(remainingPositionContractVolume === undefined
+      ? {}
+      : { remainingPositionContractVolume }),
     quantity,
     notional,
     rawWeightedAveragePrice,
@@ -161,7 +237,7 @@ export function simulatePaperMarketDepthFill(input: {
     bestPrice: consumed[0].price,
     worstPrice: consumed.at(-1)!.price,
     levelsConsumed: consumed.length,
-    priceImpactBps: (directionalMove / input.referencePrice) * 10_000,
+    priceImpactBps: (adverseMove / input.referencePrice) * 10_000,
     snapshotVersion: depth.snapshot.version,
     snapshotReceivedAt: depth.receivedAt,
     snapshotAgeMs,
