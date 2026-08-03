@@ -60,11 +60,11 @@ Improve simulation realism without claiming exchange-exact fills.
 - [x] funding-payment modelling with explicit data provenance
 - [x] depth-sensitive slippage and partial-fill modelling
 - [x] reduce-only semantics
-- [ ] maintenance tiers and bankruptcy-price audit
+- [x] maintenance tiers and bankruptcy-price audit
 - [ ] clearer isolated versus cross-margin assumptions
 - [ ] migration-safe history and backup support
 
-Depth-sensitive visible-book execution is complete across entries, manual exits, Reverse, Flatten All and automatic stop/target/liquidation exits, including persistent partial risk exits. Current slice: maintenance tiers and bankruptcy-price audit.
+Depth-sensitive visible-book execution is complete across entries, manual exits, Reverse, Flatten All and automatic stop/target/liquidation exits, including persistent partial risk exits. Maintenance tiers now use snapshotted public contract increment fields with explicit flat fallback, and liquidation is separated from bankruptcy price. Next slice: clearer isolated versus cross-margin assumptions.
 
 ### 2. Workflow and accessibility polish
 
