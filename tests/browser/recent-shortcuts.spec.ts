@@ -1,9 +1,19 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const owner = {
   email: "e2e-owner@dizytrades.local",
   password: "DizyTrades-E2E-Owner-2026!",
 };
+
+async function dismissOnboarding(page: Page) {
+  const skip = page.getByRole("button", { name: "Skip onboarding" });
+  const appeared = await skip
+    .waitFor({ state: "visible", timeout: 1_500 })
+    .then(() => true)
+    .catch(() => false);
+  if (appeared) await skip.click();
+  await expect(page.locator(".first-run-onboarding-backdrop")).toHaveCount(0);
+}
 
 test.afterEach(async ({ page }) => {
   // The browser suite reuses one configured owner. Restore its baseline market
@@ -24,9 +34,7 @@ test("owner continues recent markets reviews and Academy learning", async ({ pag
   await page.getByLabel("Password").fill(owner.password);
   await page.getByRole("button", { name: "Open DizyTrades" }).click();
   await expect(page).toHaveURL(/\/terminal$/);
-
-  const skip = page.getByRole("button", { name: "Skip onboarding" });
-  if (await skip.isVisible().catch(() => false)) await skip.click();
+  await dismissOnboarding(page);
 
   const journal = await page.request.post("/api/journal", {
     data: {
@@ -59,6 +67,7 @@ test("owner continues recent markets reviews and Academy learning", async ({ pag
     localStorage.setItem("dizyacademy-progress-v3", JSON.stringify([]));
   });
   await page.reload();
+  await dismissOnboarding(page);
   await expect(page.getByRole("button", { name: "Recent" })).toBeVisible();
   await page.getByRole("button", { name: "Recent" }).click();
 
@@ -78,6 +87,7 @@ test("owner continues recent markets reviews and Academy learning", async ({ pag
   await expect(page.locator(".journal-detail input").first()).toHaveValue(reviewTitle);
 
   await page.goto("/terminal");
+  await dismissOnboarding(page);
   await expect(page.getByRole("button", { name: "Recent" })).toBeVisible();
   await page.getByRole("button", { name: "Recent" }).click();
   await page
@@ -85,6 +95,7 @@ test("owner continues recent markets reviews and Academy learning", async ({ pag
     .getByRole("button", { name: /ETH\/USDT/ })
     .click();
   await expect(page).toHaveURL(/\/terminal$/);
+  await dismissOnboarding(page);
   const profile = await page.request.get("/api/profile");
   expect(profile.status()).toBe(200);
   await expect(profile.json()).resolves.toMatchObject({
