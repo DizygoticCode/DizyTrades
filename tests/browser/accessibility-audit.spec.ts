@@ -13,6 +13,14 @@ async function loginViewer(page: Page) {
   await expect(page.locator(".first-run-onboarding-backdrop")).toHaveCount(0);
 }
 
+async function startKeyboardTraversal(page: Page) {
+  await page.evaluate(() => {
+    document.body.tabIndex = -1;
+    document.body.focus();
+    document.body.removeAttribute("tabindex");
+  });
+}
+
 async function lastFocusable(dialog: Locator) {
   return dialog
     .locator(
@@ -24,13 +32,14 @@ async function lastFocusable(dialog: Locator) {
 test("protected workspace supports skip navigation and trapped modal focus", async ({ page }) => {
   await loginViewer(page);
 
-  await page.locator("body").focus();
+  await startKeyboardTraversal(page);
   await page.keyboard.press("Tab");
   const skipLink = page.getByRole("link", { name: "Skip to main content" });
   await expect(skipLink).toBeFocused();
   await page.keyboard.press("Enter");
-  const main = page.locator("main#main-content");
+  const main = page.getByRole("main");
   await expect(main).toHaveAttribute("tabindex", "-1");
+  await expect(main).toHaveAttribute("id", "main-content");
   await expect(main).toBeFocused();
 
   const commandsTrigger = page.getByRole("button", { name: /Commands/ });
@@ -70,8 +79,12 @@ test("protected workspaces expose visible focus and reduced-motion behaviour", a
   await page.emulateMedia({ reducedMotion: "reduce" });
   await loginViewer(page);
 
+  await startKeyboardTraversal(page);
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Skip to main content" })).toBeFocused();
+  await page.keyboard.press("Tab");
   const trigger = page.getByRole("button", { name: /Commands/ });
-  await trigger.focus();
+  await expect(trigger).toBeFocused();
   const focusStyle = await trigger.evaluate((element) => {
     const style = getComputedStyle(element);
     return {
@@ -87,7 +100,6 @@ test("protected workspaces expose visible focus and reduced-motion behaviour", a
   expect(focusStyle.animationDuration).toMatch(/0\.00001s|0s/);
 
   await page.goto("/scanner");
-  await expect(page.locator("main#main-content")).toHaveCount(1);
   await expect(page.getByRole("main")).toHaveCount(1);
   await expect(page.getByRole("status").first()).not.toBeEmpty();
 });
