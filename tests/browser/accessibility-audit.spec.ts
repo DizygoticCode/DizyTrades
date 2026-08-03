@@ -13,17 +13,19 @@ async function loginViewer(page: Page) {
   await expect(page.locator(".first-run-onboarding-backdrop")).toHaveCount(0);
 }
 
-async function startKeyboardTraversal(page: Page) {
-  // Let modal focus restoration finish, then remove the current focus without
-  // changing the document's tab order. Chrome now starts Tab traversal at the
-  // first focusable element, which must be the protected-workspace skip link.
-  await page.evaluate(async () => {
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-    );
-    const active = document.activeElement;
-    if (active instanceof HTMLElement) active.blur();
-  });
+async function openFreshScanner(page: Page) {
+  // A direct protected-route load resets Chrome's sequential focus cursor.
+  // This measures real first-focus order rather than onboarding's prior focus
+  // history, which persists even after the previously focused control blurs.
+  await page.goto("/scanner");
+  await expect(page).toHaveURL(/\/scanner$/);
+  await expect(
+    page.getByRole("heading", {
+      name: "Find current confluence without opening every chart.",
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Skip to main content" })).toBeAttached();
+  await expect(page.getByRole("button", { name: /Commands/ })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => document.activeElement === document.body))
     .toBe(true);
@@ -39,8 +41,8 @@ async function lastFocusable(dialog: Locator) {
 
 test("protected workspace supports skip navigation and trapped modal focus", async ({ page }) => {
   await loginViewer(page);
+  await openFreshScanner(page);
 
-  await startKeyboardTraversal(page);
   await page.keyboard.press("Tab");
   const skipLink = page.getByRole("link", { name: "Skip to main content" });
   await expect(skipLink).toBeFocused();
@@ -86,8 +88,8 @@ test("protected workspace supports skip navigation and trapped modal focus", asy
 test("protected workspaces expose visible focus and reduced-motion behaviour", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await loginViewer(page);
+  await openFreshScanner(page);
 
-  await startKeyboardTraversal(page);
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "Skip to main content" })).toBeFocused();
   await page.keyboard.press("Tab");
@@ -107,7 +109,6 @@ test("protected workspaces expose visible focus and reduced-motion behaviour", a
   expect(focusStyle.transitionDuration).toMatch(/0\.00001s|0s/);
   expect(focusStyle.animationDuration).toMatch(/0\.00001s|0s/);
 
-  await page.goto("/scanner");
   await expect(page.getByRole("main")).toHaveCount(1);
   await expect(page.getByRole("status").first()).not.toBeEmpty();
 });
