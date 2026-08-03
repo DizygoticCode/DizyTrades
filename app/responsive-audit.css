@@ -1,0 +1,117 @@
+/*
+ * Protected-workspace responsive audit contract.
+ *
+ * Individual workspaces keep their own layout breakpoints. This layer only
+ * enforces the cross-workspace rules that must stay identical: no page-level
+ * horizontal overflow, reachable navigation, safe-area-aware global tools,
+ * bounded modal surfaces and internal scrolling for deliberately wide data.
+ */
+
+@media (max-width: 760px) {
+  body:has(.command-palette-floating) {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  body:has(.command-palette-floating) main,
+  body:has(.command-palette-floating) main > *,
+  body:has(.command-palette-floating) section,
+  body:has(.command-palette-floating) article {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Workspace headers may contain more destinations than fit on a phone.
+     Keep every destination reachable without making the whole page wider. */
+  body:has(.command-palette-floating) main > header:first-child {
+    max-width: 100%;
+  }
+
+  body:has(.command-palette-floating) main > header:first-child nav {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 3px;
+  }
+
+  body:has(.command-palette-floating) main > header:first-child nav > * {
+    flex: 0 0 auto;
+  }
+
+  /* Dense tables and ladders are intentionally wider than a phone. Their
+     own surface scrolls; the browser viewport never does. */
+  body:has(.command-palette-floating) [class*="table"],
+  body:has(.command-palette-floating) [class*="Table"],
+  body:has(.command-palette-floating) .paper-history,
+  body:has(.command-palette-floating) .stats-table-wrap,
+  body:has(.command-palette-floating) .brain-table,
+  body:has(.command-palette-floating) .dom-book {
+    max-width: 100%;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Global workflow tools move away from terminal-owned controls and honour
+     device safe areas. DizyBrain remains on the lower-right. */
+  .command-palette-floating {
+    top: auto !important;
+    right: auto !important;
+    left: max(8px, env(safe-area-inset-left)) !important;
+    bottom: max(8px, env(safe-area-inset-bottom)) !important;
+    min-height: 40px !important;
+  }
+
+  .recent-shortcuts-trigger {
+    top: auto !important;
+    right: auto !important;
+    left: max(8px, env(safe-area-inset-left)) !important;
+    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 48px) !important;
+    min-height: 40px !important;
+  }
+
+  .command-palette-backdrop,
+  .recent-shortcuts-backdrop,
+  .workspace-layout-backdrop,
+  .first-run-onboarding-backdrop {
+    place-items: start center !important;
+    padding: max(10px, env(safe-area-inset-top)) 8px
+      max(10px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .command-palette-dialog,
+  .recent-shortcuts-dialog,
+  .workspace-layout-dialog,
+  .first-run-onboarding-dialog {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: calc(
+      100dvh - max(20px, env(safe-area-inset-top)) -
+        max(20px, env(safe-area-inset-bottom))
+    );
+    overflow: auto;
+    border-radius: 10px !important;
+  }
+
+  .recent-shortcuts-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 420px) {
+  body:has(.command-palette-floating) input,
+  body:has(.command-palette-floating) select,
+  body:has(.command-palette-floating) textarea,
+  body:has(.command-palette-floating) button {
+    max-width: 100%;
+  }
+
+  .command-palette-trigger kbd {
+    display: none;
+  }
+}

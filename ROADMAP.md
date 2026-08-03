@@ -74,7 +74,7 @@ Driven by real use rather than speculative redesign.
 - [x] command palette and keyboard reference
 - [x] recent markets, reviews and learning shortcuts
 - [x] first-run onboarding
-- [ ] responsive and mobile audit
+- [x] responsive and mobile audit
 - [ ] focus order, screen-reader and reduced-motion audit
 - [x] empty, delayed and recovery state polish
 
@@ -87,6 +87,8 @@ Saved workspace layouts now retain up to 12 named, account-scoped snapshots of t
 The protected-workspace command palette now opens with Ctrl/Cmd+K, filters deterministic navigation and existing terminal launch actions, keeps owner-only operations hidden from viewers and carries terminal launch requests safely across workspace navigation. A standalone ? shortcut opens a keyboard reference containing only implemented palette, focus and DizyFlow DOM controls.
 
 Recent workflow shortcuts now combine three existing sources of truth: account-scoped market/timeframe changes, newest-first Journal entries and browser-local DizyAcademy progress. Owner market history is retained atomically without blocking profile saves, viewer history stays in the browser, Journal links open exact retained entries, and Academy links restore the exact last or next lesson without forcing later manual navigation back to an old lesson.
+
+The responsive audit now applies one protected-workspace contract above the existing page-specific breakpoints: narrow screens retain every navigation destination through internal horizontal scrolling, intentionally wide tables remain inside their own scroll regions, global Commands and Recent tools respect safe areas without covering terminal-owned controls, and modal workflows are bounded to the dynamic viewport. Chromium verifies phone and small-tablet containment across DizyCharts, DizyScanner, DizyStructure, DizyPerformance, DizyJournal, DizyAcademy, DizyBackup and DizyOps.
 
 ### 3. Read-only exchange connection and shadow mode
 
