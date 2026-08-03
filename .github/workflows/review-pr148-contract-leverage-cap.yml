@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - feature/dizypaper-maintenance-tiers-bankruptcy-audit
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: review-pr148-contract-leverage-cap
