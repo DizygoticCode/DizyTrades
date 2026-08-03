@@ -36,7 +36,7 @@ export type MexcPrivateReadRequest = Readonly<{
   parameters?: Readonly<Record<string, string | number | undefined>>;
   credentials: MexcPrivateReadCredentials;
   requestTimeMs?: number;
-  receiveWindowMs?: number;
+  receiveWindowSeconds?: number;
   timeoutMs?: number;
 }>;
 
@@ -224,7 +224,7 @@ export function signMexcPrivateReadRequest(input: {
   credentials: MexcPrivateReadCredentials;
   requestTimeMs: number;
   query: string;
-  receiveWindowMs?: number;
+  receiveWindowSeconds?: number;
 }) {
   const credentials = validateCredentials(input.credentials);
   if (!Number.isSafeInteger(input.requestTimeMs) || input.requestTimeMs <= 0) {
@@ -233,15 +233,15 @@ export function signMexcPrivateReadRequest(input: {
       "MEXC request time is invalid.",
     );
   }
-  const receiveWindowMs = input.receiveWindowMs ?? 5_000;
   if (
-    !Number.isSafeInteger(receiveWindowMs) ||
-    receiveWindowMs < 1_000 ||
-    receiveWindowMs > 60_000
+    input.receiveWindowSeconds !== undefined &&
+    (!Number.isSafeInteger(input.receiveWindowSeconds) ||
+      input.receiveWindowSeconds < 1 ||
+      input.receiveWindowSeconds > 60)
   ) {
     throw new MexcPrivateReadOnlyError(
       "stale-request",
-      "MEXC receive window is invalid.",
+      "MEXC receive window must be between 1 and 60 seconds.",
     );
   }
   const target = mexcPrivateReadRequestTarget({
@@ -252,13 +252,16 @@ export function signMexcPrivateReadRequest(input: {
   const signature = createHmac("sha256", credentials.apiSecret)
     .update(target)
     .digest("hex");
-  return Object.freeze({
+  const headers: Record<string, string> = {
     ApiKey: credentials.apiKey,
     "Request-Time": String(input.requestTimeMs),
-    "Recv-Window": String(receiveWindowMs),
     Signature: signature,
     "Content-Type": "application/json",
-  });
+  };
+  if (input.receiveWindowSeconds !== undefined) {
+    headers["Recv-Window"] = String(input.receiveWindowSeconds);
+  }
+  return Object.freeze(headers);
 }
 
 export function buildMexcPrivateReadUrl(input: {
@@ -387,7 +390,7 @@ export async function requestMexcPrivateRead<T = unknown>(
     credentials: input.credentials,
     requestTimeMs,
     query,
-    receiveWindowMs: input.receiveWindowMs,
+    receiveWindowSeconds: input.receiveWindowSeconds,
   });
   const timeoutMs = input.timeoutMs ?? MEXC_PRIVATE_REQUEST_TIMEOUT_MS;
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 500 || timeoutMs > 30_000) {
