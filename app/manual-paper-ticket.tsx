@@ -17,10 +17,11 @@ import { HistoricalDizyFlowEventAdapter } from "./lib/historical-dizyflow-events
 import {clampContractLeverage,isMexcStepAligned,leverageStopsForContract,quantizeMexcStep,sizeMexcContractOrder,type MexcContractMetadata} from "./lib/mexc-contract-metadata";
 import {simulatePaperMarketDepthFill,type PaperDepthFillEvidence} from "./lib/manual-paper-depth";
 import {selectMexcContractRiskTier,type PaperRiskTierSnapshot} from "./lib/manual-paper-risk-tiers";
+import type {PaperMarginAccountSnapshot,PaperMarginSettlementAudit,PaperPositionMarginAudit} from "./lib/manual-paper-margin-model";
 import type {DepthEnvelope} from "./lib/order-flow/types";
 type Mode = "fixed-margin" | "fixed-notional" | "equity-percent" | "risk-percent";
 type FundingRate={symbol:string;fundingRate:number;minFundingRate:number;maxFundingRate:number;collectCycleHours:number;nextSettleTime:number;observedAt:number;source:"mexc-public-funding-rate"};
-type FundingPayment={paymentId:string;tradeId:string;symbol:string;side:"long"|"short";settleTime:number;observedAt:number;price:number;priceSource:"fair"|"last";notional:number;fundingRate:number;calculatedCashDelta:number;cashDelta:number;balanceCapped:boolean;source:"mexc-public-funding-history";calculationMethod:"observed-risk-price-notional";resultingBalance:number};
+type FundingPayment={paymentId:string;tradeId:string;symbol:string;side:"long"|"short";settleTime:number;observedAt:number;price:number;priceSource:"fair"|"last";notional:number;fundingRate:number;calculatedCashDelta:number;cashDelta:number;balanceCapped:boolean;source:"mexc-public-funding-history";calculationMethod:"observed-risk-price-notional";marginMode?:"isolated"|"cross";protectedIsolatedMargin?:number;isolatedMarginDebit?:number;settlementMethod?:"single-asset-usdt-funding-settlement-v1";resultingBalance:number};
 type ReduceOnlyEvidence={enabled:true;calculationMethod:"position-bound-cap";source:"manual-close"|"partial-close"|"reverse"|"flatten-all"|"risk-exit"|"opposite-order-replacement";expectedTradeId:string;expectedSide:"long"|"short";positionQuantityBefore:number;requestedQuantity:number;acceptedQuantity:number;capped:boolean;filledQuantity:number;remainingQuantity:number;result:"closed"|"reduced"};
 type Position = {
   tradeId: string;
@@ -45,6 +46,7 @@ type Position = {
   bankruptcyPrice?: number;
   riskTier?: PaperRiskTierSnapshot;
   liquidationAudit?: PaperLiquidationAudit;
+  marginAudit?: PaperPositionMarginAudit;
   executionType?: "market";
   liquidityRole?: "maker" | "taker";
   feeRate?: number;
@@ -76,6 +78,8 @@ type Fill = {
   bankruptcyPrice?: number;
   riskTier?: PaperRiskTierSnapshot;
   liquidationAudit?: PaperLiquidationAudit;
+  marginAudit?: PaperPositionMarginAudit;
+  marginSettlement?: PaperMarginSettlementAudit;
   fee: number;
   executionType?: "market";
   liquidityRole?: "maker" | "taker";
@@ -101,6 +105,7 @@ type Account = {
   fundingPayments: FundingPayment[];
   positions: Record<string, Position>;
   fills: Fill[];
+  marginSnapshot?: PaperMarginAccountSnapshot;
   settings: {
     enabled: boolean;
     commissionPct: number;
@@ -197,22 +202,24 @@ export function ManualPaperTicket({
         position.quantity *
         (position.side === "long" ? 1 : -1)
       : 0,
-    equity = Math.max(0, (account?.cashBalance ?? 0) + unrealised),
-    summary=paperAccountSummary(account?.cashBalance??0,Object.values(account?.positions??{}).map(p=>({...p,margin:p.margin??p.quantity*p.entryPrice/p.leverage})),Object.values(account?.positions??{}).map(p=>p.symbol===symbol?mark:p.lastRiskPrice)),used=summary.usedMargin,
+    marginSnapshot=account?.marginSnapshot,
+    summary=paperAccountSummary(account?.cashBalance??0,Object.values(account?.positions??{}).map(p=>({...p,margin:p.margin??p.quantity*p.entryPrice/p.leverage})),Object.values(account?.positions??{}).map(p=>p.symbol===symbol?mark:p.lastRiskPrice)),
+    equity=summary.equity,
+    sizingEquity=Math.max(0,marginSnapshot?.crossEquity??equity),used=summary.usedMargin,
     amountNumber = Math.max(0, Number(amount) || 0),
     leverageNumber = contract?clampContractLeverage(Number(leverage),contract):Math.max(1,Number(leverage)||1),
     leverageStops=leverageStopsForContract(contract),
     targetMargin = Math.max(
       0,
       mode === "equity-percent"||mode==="risk-percent"
-        ? (equity * amountNumber) / 100
+        ? (sizingEquity * amountNumber) / 100
         : mode === "fixed-notional"
           ? amountNumber / leverageNumber
           : amountNumber,
     ),
     targetNotional = Math.max(
       0,
-      mode === "fixed-notional" ? amountNumber : mode==="risk-percent"&&publicPrice&&Number(stopLoss)>0?equity*amountNumber/100/(Math.abs(publicPrice-Number(stopLoss))/publicPrice):targetMargin * leverageNumber,
+      mode === "fixed-notional" ? amountNumber : mode==="risk-percent"&&publicPrice&&Number(stopLoss)>0?sizingEquity*amountNumber/100/(Math.abs(publicPrice-Number(stopLoss))/publicPrice):targetMargin * leverageNumber,
     ),
     rawContractVolume=contract&&publicPrice&&publicPrice>0?targetNotional/(publicPrice*contract.contractSize):0,
     steppedContractVolume=contract&&rawContractVolume>0?quantizeMexcStep(rawContractVolume,contract.volUnit,"floor"):0,
@@ -459,7 +466,7 @@ export function ManualPaperTicket({
             <label>
               Margin mode
               <select value={marginMode} onChange={e=>setMarginMode(e.target.value as "isolated"|"cross")}>
-                <option value="isolated">Isolated</option><option value="cross">Cross (approximation)</option>
+                <option value="isolated">Isolated · fenced collateral</option><option value="cross">Cross · shared USDT pool</option>
               </select>
             </label>
             <section>
@@ -554,6 +561,8 @@ export function ManualPaperTicket({
                 ["Risk price", mark?`${money(mark)} · ${riskState?.source==="fair"?"Fair":"Last fallback"}`:"Awaiting Fair / Last"],
                 ["Symbol", symbol],
                 ["Margin mode", marginMode],
+                ["Margin support", marginMode==="isolated"?"Only this position margin":"Shared USDT pool across cross positions"],
+                ["Shared margin available", marginSnapshot?money(Math.max(0,marginSnapshot.crossAvailableEquity)):"—"],
                 ["Execution price", executionPrice?money(executionPrice):"—"],
                 ["Contracts", contractVolume?String(contractVolume):"—"],
                 ["Contract size", contract?String(contract.contractSize):"—"],
@@ -711,7 +720,7 @@ export function ManualPaperTicket({
                             <small>{money(mark)}</small>
                           </span>
                           <span>{p.leverage}×</span>
-                          <span>{p.marginMode}<small>Tier {p.riskTier?.level??"legacy"} · MMR {p.riskTier?`${(p.riskTier.maintenanceMarginRate*100).toFixed(3)}%`:"legacy"}</small><small>Liquidation {money(p.estimatedLiquidation)} · bankruptcy {p.bankruptcyPrice==null?"—":money(p.bankruptcyPrice)}</small>{p.pendingRiskExit?<small>{`${p.pendingRiskExit.reason.toUpperCase()} triggered · ${money(p.pendingRiskExit.triggerPrice)} · awaiting visible depth`}</small>:null}</span>
+                          <span>{p.marginMode}<small>{p.marginAudit?.marginMode==="isolated"?`Fenced ${money(p.marginAudit.collateralAvailableToPosition)}`:p.marginAudit?`Shared pool · ${p.marginAudit.supportingCrossPositionCount} cross position${p.marginAudit.supportingCrossPositionCount===1?"":"s"}`:"Legacy margin evidence"}</small><small>Tier {p.riskTier?.level??"legacy"} · MMR {p.riskTier?`${(p.riskTier.maintenanceMarginRate*100).toFixed(3)}%`:"legacy"}</small><small>Liquidation {money(p.estimatedLiquidation)} · bankruptcy {p.bankruptcyPrice==null?"—":money(p.bankruptcyPrice)}</small>{p.pendingRiskExit?<small>{`${p.pendingRiskExit.reason.toUpperCase()} triggered · ${money(p.pendingRiskExit.triggerPrice)} · awaiting visible depth`}</small>:null}</span>
                           <span>{money(m)}</span>
                           <span
                             className={
@@ -783,7 +792,7 @@ export function ManualPaperTicket({
                           {fill.feeSource?<small>{`${fill.executionType??"market"} · ${fill.liquidityRole??"taker"} · ${((fill.feeRate??0)*100).toFixed(4)}% · ${fill.feeSource==="mexc-public-contract"?"MEXC public":"legacy fallback"} · fee ${money(fill.fee)}`}</small>:null}
                           {fill.entryDepthFill?<small>{`entry depth ${fill.entryDepthFill.fillStatus} · ${fill.entryDepthFill.filledContractVolume}/${fill.entryDepthFill.requestedContractVolume} contracts · ${fill.entryDepthFill.levelsConsumed} levels · ${fill.entryDepthFill.priceImpactBps.toFixed(2)} bps`}</small>:null}
                           {fill.exitDepthFill?<small>{`exit depth ${fill.exitDepthFill.fillStatus} · ${fill.exitDepthFill.filledContractVolume}/${fill.exitDepthFill.requestedContractVolume} contracts · remaining ${fill.exitDepthFill.remainingPositionContractVolume??0} · ${fill.exitDepthFill.levelsConsumed} levels · ${fill.exitDepthFill.priceImpactBps.toFixed(2)} bps`}</small>:null}
-                          {fill.reduceOnly?<small>{`reduce-only ${fill.reduceOnly.source} · requested ${fill.reduceOnly.requestedQuantity} · filled ${fill.reduceOnly.filledQuantity} · remaining ${fill.reduceOnly.remainingQuantity}${fill.reduceOnly.capped?" · capped":""}`}</small>:null}
+                          {fill.reduceOnly?<small>{`reduce-only ${fill.reduceOnly.source} · requested ${fill.reduceOnly.requestedQuantity} · filled ${fill.reduceOnly.filledQuantity} · remaining ${fill.reduceOnly.remainingQuantity}${fill.reduceOnly.capped?" · capped":""}`}</small>:null}{fill.marginSettlement?<small>{`${fill.marginSettlement.marginMode==="isolated"?"Isolated loss cap":"Cross pool protection"} · applied ${money(fill.marginSettlement.appliedCashDelta)}${fill.marginSettlement.capped?" · capped":""}`}</small>:null}
                           {fill.riskTier?<small>{`risk tier ${fill.riskTier.level} · MMR ${(fill.riskTier.maintenanceMarginRate*100).toFixed(3)}% · ${fill.riskTier.source} · liq ${fill.liquidationAudit?money(fill.liquidationAudit.estimatedLiquidation):"—"} · bankruptcy ${fill.bankruptcyPrice==null?"—":money(fill.bankruptcyPrice)}`}</small>:null}
                           {fill.riskExitTrigger?<small>{`${fill.riskExitTrigger.reason} triggered ${new Date(fill.riskExitTrigger.triggeredAt).toLocaleString()} at ${money(fill.riskExitTrigger.triggerPrice)} · ${fill.riskExitTrigger.priceSource}`}</small>:null}
                           {fill.closeReason?<small>{fill.closeReason}</small>:null}
@@ -799,8 +808,16 @@ export function ManualPaperTicket({
                   ["Starting balance", money(account?.startingBalance ?? 0)],
                   ["Cash balance", money(account?.cashBalance ?? 0)],
                   ["Funding P/L", money(account?.fundingPnl ?? 0)],
-                  ["Last funding", lastFundingPayment?`${lastFundingPayment.cashDelta>=0?"Received":"Paid"} ${money(Math.abs(lastFundingPayment.cashDelta))} · ${lastFundingPayment.source}`:"None"],
+                  ["Last funding", lastFundingPayment?`${lastFundingPayment.cashDelta>=0?"Received":"Paid"} ${money(Math.abs(lastFundingPayment.cashDelta))} · ${lastFundingPayment.source}${(lastFundingPayment.isolatedMarginDebit??0)>0?` · isolated margin debit ${money(lastFundingPayment.isolatedMarginDebit??0)}`:""}`:"None"],
                   ["Available balance", money(summary.availableBalance)],
+                  ["Isolated collateral reserved", marginSnapshot?money(marginSnapshot.isolatedReservedMargin):"—"],
+                  ["Cross initial margin", marginSnapshot?money(marginSnapshot.crossInitialMargin):"—"],
+                  ["Cross pool cash", marginSnapshot?money(marginSnapshot.crossPoolCash):"—"],
+                  ["Cross unrealised P/L", marginSnapshot?money(marginSnapshot.crossUnrealisedPnl):"—"],
+                  ["Cross shared equity", marginSnapshot?money(marginSnapshot.crossEquity):"—"],
+                  ["Cross margin available", marginSnapshot?money(Math.max(0,marginSnapshot.crossAvailableEquity)):"—"],
+                  ["Portfolio maintenance", marginSnapshot?money(marginSnapshot.crossMaintenanceRequirement):"—"],
+                  ["Liquidation reserve", marginSnapshot?money(marginSnapshot.crossLiquidationReserve):"—"],
                   ["Used margin", money(summary.usedMargin)],
                   ["Unrealised P/L", money(summary.unrealised)],
                   ["Equity", money(equity)],
