@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": "22.23.1"
   },
   "scripts": {
     "dev": "next dev",
@@ -13,6 +13,7 @@
     "test": "node --conditions=react-server --import tsx --test tests/*.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
+    "check:engineering": "node --import tsx --test tests/engineering-contract.test.mjs",
     "hash-password": "node scripts/hash-password.mjs"
   },
   "dependencies": {
