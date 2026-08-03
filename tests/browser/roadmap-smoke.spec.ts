@@ -134,7 +134,7 @@ test("new user can persist profile data and validate a same-account backup", asy
   expect(exportResponse.headers()["content-type"]).toContain("application/json");
   const backup = await exportResponse.json();
   expect(backup).toMatchObject({
-    version: 1,
+    version: 2,
     application: { name: "DizyTrades" },
     data: { profile: { settings: { market: { symbol: "BTC_USDT" } } } },
     integrity: { algorithm: "sha256" },
