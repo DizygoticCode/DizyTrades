@@ -9,6 +9,15 @@ export async function replaceExact(path, from, to) {
   await writeFile(path, source.slice(0, first) + to + source.slice(first + from.length));
 }
 
+export async function replaceRegex(path, pattern, replacement) {
+  const source = await readFile(path, "utf8");
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  const matches = [...source.matchAll(new RegExp(pattern.source, flags))];
+  if (matches.length !== 1)
+    throw new Error(`Expected one match in ${path}, found ${matches.length}: ${pattern}`);
+  await writeFile(path, source.replace(pattern, replacement));
+}
+
 export async function append(path, content) {
   const source = await readFile(path, "utf8");
   await writeFile(path, `${source.trimEnd()}\n\n${content.trim()}\n`);
