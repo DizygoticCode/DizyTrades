@@ -130,10 +130,21 @@ const endpointIds = new Set<MexcPrivateReadEndpointId>(
 );
 const symbolPattern = /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
 const currencyPattern = /^[A-Z0-9]{1,20}$/;
+const sensitiveLabelPattern =
+  /\b(api[_-]?key|api[_-]?secret|secret|signature|token)\s*[:=]\s*[^\s,;]+/gi;
 
-function boundedProviderMessage(value: unknown) {
+function boundedProviderMessage(
+  value: unknown,
+  sensitiveValues: readonly string[] = [],
+) {
   if (typeof value !== "string") return "MEXC private read request failed.";
-  const normalised = value.replaceAll(/[\r\n\t]+/g, " ").trim();
+  let normalised = value
+    .replaceAll(/[\r\n\t]+/g, " ")
+    .replaceAll(sensitiveLabelPattern, "$1=[redacted]")
+    .trim();
+  for (const sensitive of sensitiveValues) {
+    if (sensitive.length >= 4) normalised = normalised.replaceAll(sensitive, "[redacted]");
+  }
   return normalised.slice(0, 240) || "MEXC private read request failed.";
 }
 
@@ -415,7 +426,10 @@ export async function requestMexcPrivateRead<T = unknown>(
         providerCode === null
           ? "invalid-response"
           : classifyMexcPrivateFailure(providerCode),
-        boundedProviderMessage(payload.message),
+        boundedProviderMessage(payload.message, [
+          input.credentials.apiKey,
+          input.credentials.apiSecret,
+        ]),
         providerCode,
       );
     }
