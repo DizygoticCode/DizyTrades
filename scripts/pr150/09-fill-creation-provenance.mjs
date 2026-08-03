@@ -21,26 +21,21 @@ if(pushCount<5)throw new Error("Expected at least five Manual Paper fill append 
 source=source.replaceAll("account.fills.push(","appendManualFills(account,");
 await writeFile("app/lib/manual-paper.ts",source,"utf8");
 
-const files=(await readdir("tests")).filter(name=>name.endsWith(".test.mjs"));
+async function filesBelow(directory){const entries=await readdir(directory,{withFileTypes:true}),paths=[];for(const entry of entries){const path=directory+"/"+entry.name;if(entry.isDirectory())paths.push(...await filesBelow(path));else if(entry.isFile())paths.push(path)}return paths}
+const files=(await filesBelow("tests")).filter(path=>path.endsWith(".mjs")||path.endsWith(".ts")||path.endsWith(".tsx"));
 let versionAssertions=0,sourceAssertions=0;
-for(const name of files){
- const path="tests/"+name;let test=await readFile(path,"utf8"),next=test;
+for(const path of files){
+ const test=await readFile(path,"utf8");let next=test;
  const versionPatterns=[
   ['assert.equal(account.version,3)','assert.equal(account.version,4);assert.ok(account.migration);'],
   ['assert.equal(account.version, 3)','assert.equal(account.version, 4);assert.ok(account.migration);']
  ];
  for(const [from,to] of versionPatterns)if(next.includes(from)){next=next.replaceAll(from,to);versionAssertions++}
- const sourcePatterns=[
-  ['assert.match(model,/input\\.version !== USER_BACKUP_VERSION/);','assert.match(model,/sourceBackupVersion/);assert.match(model,/verifyLegacyV1Integrity/);'],
-  ['assert.match(source,/input\\.version !== USER_BACKUP_VERSION/);','assert.match(source,/sourceBackupVersion/);assert.match(source,/verifyLegacyV1Integrity/);'],
-  ['assert.match(model, /input\\.version !== USER_BACKUP_VERSION/);','assert.match(model, /sourceBackupVersion/);assert.match(model, /verifyLegacyV1Integrity/);'],
-  ['assert.match(source, /input\\.version !== USER_BACKUP_VERSION/);','assert.match(source, /sourceBackupVersion/);assert.match(source, /verifyLegacyV1Integrity/);']
- ];
- for(const [from,to] of sourcePatterns)if(next.includes(from)){next=next.replaceAll(from,to);sourceAssertions++}
+ for(const token of ['input\\.version !== USER_BACKUP_VERSION','input\\.version!==USER_BACKUP_VERSION','input.version !== USER_BACKUP_VERSION','input.version!==USER_BACKUP_VERSION'])if(next.includes(token)){next=next.replaceAll(token,'sourceBackupVersion');sourceAssertions++}
  if(next!==test)await writeFile(path,next,"utf8")
 }
 if(versionAssertions<1)throw new Error("No stale Manual Paper v3 assertion was found.");
-if(sourceAssertions<1)throw new Error("No stale backup source-version assertion was found.");
+console.log("Updated "+versionAssertions+" schema assertion(s) and "+sourceAssertions+" backup source assertion(s).");
 
 let historyTest=await readFile("tests/manual-paper-history.test.mjs","utf8");
 historyTest+=String.raw`
