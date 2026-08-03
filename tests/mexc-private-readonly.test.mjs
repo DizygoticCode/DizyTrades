@@ -60,16 +60,26 @@ test("private GET signature follows the documented HMAC target", () => {
     credentials,
     requestTimeMs: 1_700_000_000_000,
     query: "page_num=1&symbol=BTC_USDT",
-    receiveWindowMs: 5_000,
+    receiveWindowSeconds: 5,
   });
   assert.deepEqual(headers, {
     ApiKey: "test-api-key",
     "Request-Time": "1700000000000",
-    "Recv-Window": "5000",
     Signature: "1c180ffa87474956312379744802927f0f6153574590f016b1c7c60abdef25c6",
     "Content-Type": "application/json",
+    "Recv-Window": "5",
   });
   assert.equal(JSON.stringify(headers).includes(credentials.apiSecret), false);
+  assert.throws(
+    () =>
+      signMexcPrivateReadRequest({
+        credentials,
+        requestTimeMs: 1_700_000_000_000,
+        query: "",
+        receiveWindowSeconds: 61,
+      }),
+    /between 1 and 60 seconds/i,
+  );
 });
 
 test("endpoint builder accepts only declared read parameters and identities", () => {
@@ -162,6 +172,7 @@ test("transport sends one signed no-store GET without a body or redirect", async
   assert.equal("body" in observed.init, false);
   assert.equal(observed.init.headers.ApiKey, credentials.apiKey);
   assert.equal(observed.init.headers["Request-Time"], "1700000000000");
+  assert.equal("Recv-Window" in observed.init.headers, false);
   assert.match(observed.init.headers.Signature, /^[a-f0-9]{64}$/);
   assert.deepEqual(result, {
     endpoint: "open-positions",
