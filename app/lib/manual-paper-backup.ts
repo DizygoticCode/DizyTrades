@@ -222,6 +222,8 @@ function depthEvidence(value:unknown,field:string,expectedContext:"entry"|"exit"
   return evidence;
 }
 
+function riskExitTrigger(value:unknown,field:string):ManualPosition["pendingRiskExit"]{if(value==null)return undefined;const input=object(value,field);return Object.freeze({reason:oneOf(input.reason,field+".reason",["stop","target","liquidation"] as const),triggeredAt:iso(input.triggeredAt,field+".triggeredAt"),triggerPrice:number(input.triggerPrice,field+".triggerPrice",0.000000000001),priceSource:oneOf(input.priceSource,field+".priceSource",["fair","last"] as const)})}
+
 function position(value: unknown, key: string): ManualPosition {
   const input = object(value, `manualPaper.positions.${key}`);
   const marketSymbol = symbol(input.symbol, `manualPaper.positions.${key}.symbol`);
@@ -280,6 +282,7 @@ function position(value: unknown, key: string): ManualPosition {
       ["fair", "last"] as const,
     ),
     lastRiskPrice: number(input.lastRiskPrice, "manualPaper.position.lastRiskPrice", 0),
+    pendingRiskExit: riskExitTrigger(input.pendingRiskExit, "manualPaper.position.pendingRiskExit"),
     openedAt: iso(input.openedAt, "manualPaper.position.openedAt"),
   });
 }
@@ -409,6 +412,7 @@ function fill(value: unknown, index: number): ManualFill {
     timestamp: iso(input.timestamp, "manualPaper.fill.timestamp"),
     openedAt:
       input.openedAt == null ? undefined : iso(input.openedAt, "manualPaper.fill.openedAt"),
+    riskExitTrigger: riskExitTrigger(input.riskExitTrigger, "manualPaper.fill.riskExitTrigger"),
     closeReason:
       input.closeReason == null
         ? undefined
