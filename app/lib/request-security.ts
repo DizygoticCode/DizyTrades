@@ -36,3 +36,9 @@ export function validRequestOrigin(request: Request) {
     return false;
   }
 }
+
+export function validSameOriginNavigation(request: Request) {
+  return request.headers.get("sec-fetch-site")?.toLowerCase() === "same-origin"
+    && request.headers.get("sec-fetch-mode")?.toLowerCase() === "navigate"
+    && request.headers.get("sec-fetch-user") === "?1";
+}
