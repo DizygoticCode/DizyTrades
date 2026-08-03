@@ -207,6 +207,12 @@ function position(value: unknown, key: string): ManualPosition {
       0,
     ),
     entryFee: number(input.entryFee, "manualPaper.position.entryFee", 0),
+    executionType: input.executionType == null ? undefined : oneOf(input.executionType, "manualPaper.position.executionType", ["market"] as const),
+    liquidityRole: input.liquidityRole == null ? undefined : oneOf(input.liquidityRole, "manualPaper.position.liquidityRole", ["maker", "taker"] as const),
+    feeRate: input.feeRate == null ? undefined : number(input.feeRate, "manualPaper.position.feeRate", 0, 1),
+    feeSource: input.feeSource == null ? undefined : oneOf(input.feeSource, "manualPaper.position.feeSource", ["mexc-public-contract", "legacy-settings-fallback"] as const),
+    makerFeeRate: input.makerFeeRate == null ? undefined : number(input.makerFeeRate, "manualPaper.position.makerFeeRate", 0, 1),
+    takerFeeRate: input.takerFeeRate == null ? undefined : number(input.takerFeeRate, "manualPaper.position.takerFeeRate", 0, 1),
     riskPriceSource: oneOf(
       input.riskPriceSource,
       "manualPaper.position.riskPriceSource",
@@ -327,6 +333,14 @@ function fill(value: unknown, index: number): ManualFill {
       input.exitFee == null
         ? undefined
         : number(input.exitFee, "manualPaper.fill.exitFee", 0),
+    executionType: input.executionType == null ? undefined : oneOf(input.executionType, "manualPaper.fill.executionType", ["market"] as const),
+    liquidityRole: input.liquidityRole == null ? undefined : oneOf(input.liquidityRole, "manualPaper.fill.liquidityRole", ["maker", "taker"] as const),
+    feeRate: input.feeRate == null ? undefined : number(input.feeRate, "manualPaper.fill.feeRate", 0, 1),
+    feeSource: input.feeSource == null ? undefined : oneOf(input.feeSource, "manualPaper.fill.feeSource", ["mexc-public-contract", "legacy-settings-fallback"] as const),
+    makerFeeRate: input.makerFeeRate == null ? undefined : number(input.makerFeeRate, "manualPaper.fill.makerFeeRate", 0, 1),
+    takerFeeRate: input.takerFeeRate == null ? undefined : number(input.takerFeeRate, "manualPaper.fill.takerFeeRate", 0, 1),
+    tradingFee: input.tradingFee == null ? undefined : number(input.tradingFee, "manualPaper.fill.tradingFee", 0),
+    liquidationPenalty: input.liquidationPenalty == null ? undefined : number(input.liquidationPenalty, "manualPaper.fill.liquidationPenalty", 0),
     fee: number(input.fee, "manualPaper.fill.fee", 0),
     timestamp: iso(input.timestamp, "manualPaper.fill.timestamp"),
     openedAt:
