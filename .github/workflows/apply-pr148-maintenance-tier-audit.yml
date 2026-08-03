@@ -43,8 +43,20 @@ jobs:
           node scripts/pr148/04b-position-basis-tests.mjs
       - name: Focused maintenance tier and bankruptcy tests
         run: node --conditions=react-server --import tsx --test tests/manual-paper-risk-tiers.test.mjs tests/manual-paper-risk-tier-source.test.mjs tests/manual-paper-engine.test.mjs tests/mexc-contract-metadata.test.mjs tests/manual-paper-reduce-only.test.mjs tests/manual-paper-depth-auto-risk.test.mjs
-      - name: Full unit suite
-        run: npm test
+      - name: Full unit suite diagnostic
+        shell: bash
+        run: |
+          set +e
+          npm test > /tmp/pr148-full-suite.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "--- failing tests and assertions ---"
+            grep -nE 'not ok|AssertionError|ERR_ASSERTION|Expected values|actual:|expected:|error:' /tmp/pr148-full-suite.log | tail -160 || true
+            echo "--- final failure context ---"
+            tail -240 /tmp/pr148-full-suite.log
+            exit "$status"
+          fi
+          cat /tmp/pr148-full-suite.log
       - name: Lint
         run: npm run lint
       - name: Production build
