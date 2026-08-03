@@ -42,6 +42,15 @@ function unwrap(item, key) {
   return item;
 }
 
+export function flattenService(payload) {
+  const service = unwrap(payload, "service") ?? payload;
+  if (!service || typeof service !== "object") return service;
+  const details = service.serviceDetails;
+  return details && typeof details === "object"
+    ? { ...service, ...details, serviceDetails: details }
+    : service;
+}
+
 export function deployCommitId(deploy) {
   return String(
     deploy?.commit?.id ??
@@ -65,8 +74,11 @@ export function findExpectedDeploy(deploys, expectedCommit) {
   );
 }
 
-export function buildHealthUrl(service) {
-  const base = required(service?.url, "Render service URL");
+export function buildHealthUrl(input) {
+  const service = flattenService(input);
+  const slug = typeof service?.slug === "string" ? service.slug.trim() : "";
+  const fallbackUrl = slug ? `https://${slug}.onrender.com` : "";
+  const base = required(service?.url ?? fallbackUrl, "Render service URL");
   const healthPath =
     typeof service?.healthCheckPath === "string" && service.healthCheckPath.trim()
       ? service.healthCheckPath.trim()
@@ -74,20 +86,21 @@ export function buildHealthUrl(service) {
   return new URL(healthPath, base.endsWith("/") ? base : `${base}/`).toString();
 }
 
-function serviceSummary(service) {
+function serviceSummary(input) {
+  const service = flattenService(input);
   return {
-    id: String(service.id ?? "unknown"),
-    name: String(service.name ?? "unknown"),
-    type: String(service.type ?? "unknown"),
-    branch: String(service.branch ?? "unknown"),
-    repo: String(service.repo ?? "unknown"),
-    region: String(service.region ?? "unknown"),
-    plan: String(service.plan ?? "unknown"),
-    suspended: String(service.suspended ?? "unknown"),
-    autoDeploy: String(service.autoDeploy ?? "unknown"),
-    url: String(service.url ?? "unknown"),
-    healthCheckPath: String(service.healthCheckPath ?? "/api/health"),
-    persistentDiskDeclared: Boolean(service.disk),
+    id: String(service?.id ?? "unknown"),
+    name: String(service?.name ?? "unknown"),
+    type: String(service?.type ?? "unknown"),
+    branch: String(service?.branch ?? "unknown"),
+    repo: String(service?.repo ?? "unknown"),
+    region: String(service?.region ?? "unknown"),
+    plan: String(service?.plan ?? "unknown"),
+    suspended: String(service?.suspended ?? "unknown"),
+    autoDeploy: String(service?.autoDeploy ?? "unknown"),
+    url: String(service?.url ?? "unknown"),
+    healthCheckPath: String(service?.healthCheckPath ?? "/api/health"),
+    persistentDiskDeclared: Boolean(service?.disk),
   };
 }
 
@@ -199,7 +212,7 @@ export async function runRenderRehearsal(environment = process.env) {
     `${API_ORIGIN}/services/${encodeURIComponent(serviceId)}`,
     apiKey,
   );
-  const service = unwrap(servicePayload, "service") ?? servicePayload;
+  const service = flattenService(servicePayload);
   if (String(service?.id) !== serviceId) {
     throw new Error("Render returned a different service than RENDER_SERVICE_ID.");
   }
