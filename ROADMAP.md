@@ -64,7 +64,7 @@ Improve simulation realism without claiming exchange-exact fills.
 - [ ] clearer isolated versus cross-margin assumptions
 - [ ] migration-safe history and backup support
 
-Current slice: visible-book market-entry walking and partial entry fills. Close, reversal and automatic risk-exit depth lifecycle follows before this roadmap item is complete.
+Current slice: visible-book market entries plus manual Close / Flash Close / percentage exits with partial residual positions. Reverse, Flatten All and automatic stop/target/liquidation depth lifecycle follows before this roadmap item is complete.
 
 ### 2. Workflow and accessibility polish
 

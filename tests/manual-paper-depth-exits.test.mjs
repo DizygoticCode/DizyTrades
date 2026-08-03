@@ -1,9 +1,4 @@
-import { replaceExact } from "./utils.mjs";
-import { writeFile } from "node:fs/promises";
-
-await writeFile(
-  "tests/manual-paper-depth-exits.test.mjs",
-  `import test from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
 import {simulatePaperMarketDepthFill} from "../app/lib/manual-paper-depth.ts";
 
@@ -19,24 +14,4 @@ test("manual full-close request records a partial exit and keeps the trade open"
 
 test("a fully filled 50 percent request remains an open trade",async()=>{const {mkdtemp,rm}=await import("node:fs/promises"),{tmpdir}=await import("node:os"),{join}=await import("node:path"),{submitManualOrder,partialCloseManualPosition}=await import("../app/lib/manual-paper.ts"),prior=process.env.DATA_DIR,root=await mkdtemp(join(tmpdir(),"dizy-paper-depth-partial-exit-"));process.env.DATA_DIR=root;try{let account=await submitManualOrder("depth-partial-exit",{idempotencyKey:"depth-partial-open1",symbol:"BTC_USDT",side:"long",sizeMode:"fixed-notional",amount:500,leverage:10},100,"fair",contract,undefined,entryBook);const book=depth([{price:99.9,orderCount:1,contractQuantity:10_000}],[{price:100.1,orderCount:1,contractQuantity:20_000}]);account=await partialCloseManualPosition("depth-partial-exit","BTC_USDT","depth-partial-close1",100,{percentage:50},book,contract);const fill=account.fills.at(-1);assert.equal(fill.exitDepthFill.fillStatus,"full");assert.equal(fill.exitDepthFill.requestedContractVolume,2_500);assert.equal(fill.exitDepthFill.filledContractVolume,2_500);assert.equal(fill.closeReason,undefined);assert.equal(account.positions.BTC_USDT.contractVolume,2_500)}finally{if(prior===undefined)delete process.env.DATA_DIR;else process.env.DATA_DIR=prior;await rm(root,{recursive:true,force:true})}});
 
-test("manual exit depth rejects an unfillable sub-minimum remainder without mutation",async()=>{const {mkdtemp,rm}=await import("node:fs/promises"),{tmpdir}=await import("node:os"),{join}=await import("node:path"),{submitManualOrder,closeManualPosition,ManualPaperError}=await import("../app/lib/manual-paper.ts"),prior=process.env.DATA_DIR,root=await mkdtemp(join(tmpdir(),"dizy-paper-depth-min-remnant-"));process.env.DATA_DIR=root;const rules={...contract,minVol:5};try{let account=await submitManualOrder("depth-min-remnant",{idempotencyKey:"depth-min-open-0001",symbol:"BTC_USDT",side:"long",sizeMode:"fixed-notional",amount:1.2,leverage:2},100,"fair",rules,undefined,entryBook);assert.equal(account.positions.BTC_USDT.contractVolume,11);const before=account.cashBalance,book=depth([{price:99.9,orderCount:1,contractQuantity:8}],[{price:100.1,orderCount:1,contractQuantity:20}]);await assert.rejects(()=>closeManualPosition("depth-min-remnant","BTC_USDT","depth-min-close001",100,book,rules),error=>error instanceof ManualPaperError&&error.code==="DEPTH_LIQUIDITY_BELOW_MINIMUM");account=(await import("../app/lib/manual-paper.ts")).readManualAccount?await (await import("../app/lib/manual-paper.ts")).readManualAccount("depth-min-remnant"):account;assert.equal(account.positions.BTC_USDT.contractVolume,11);assert.equal(account.cashBalance,before)}finally{if(prior===undefined)delete process.env.DATA_DIR;else process.env.DATA_DIR=prior;await rm(root,{recursive:true,force:true})}});
-`,
-);
-
-await writeFile(
-  "tests/manual-paper-depth-exit-route.test.mjs",
-  `import test from "node:test";
-import assert from "node:assert/strict";
-import {readFile} from "node:fs/promises";
-
-test("manual close and partial-close HTTP paths require depth and current contract rules",async()=>{const source=await readFile(new URL("../app/api/manual-paper/route.ts",import.meta.url),"utf8");assert.ok(source.includes("closeManualPosition(user.id,symbol,String(body.idempotencyKey),risk.price,depth,contract)"));assert.ok(source.includes("partialCloseManualPosition(user.id,symbol,String(body.idempotencyKey),risk.price,body,depth,contract)"));assert.match(source,/Fresh public DizyFlow depth is unavailable for this market action/)});
-
-test("position-row actions submit their own symbol",async()=>{const source=await readFile(new URL("../app/manual-paper-ticket.tsx",import.meta.url),"utf8");assert.match(source,/action\("partial-close", \{ symbol:p\.symbol, percentage \}\)/);assert.match(source,/action\("flash-close",\{symbol:p\.symbol\}\)/);assert.match(source,/action\("reverse",\{symbol:p\.symbol\}\)/)});
-`,
-);
-
-await replaceExact(
-  "ROADMAP.md",
-  `Current slice: visible-book market-entry walking and partial entry fills. Close, reversal and automatic risk-exit depth lifecycle follows before this roadmap item is complete.`,
-  `Current slice: visible-book market entries plus manual Close / Flash Close / percentage exits with partial residual positions. Reverse, Flatten All and automatic stop/target/liquidation depth lifecycle follows before this roadmap item is complete.`
-);
+test("manual exit depth rejects an unfillable sub-minimum remainder without mutation",async()=>{const {mkdtemp,rm}=await import("node:fs/promises"),{tmpdir}=await import("node:os"),{join}=await import("node:path"),{submitManualOrder,closeManualPosition,readManualAccount,ManualPaperError}=await import("../app/lib/manual-paper.ts"),prior=process.env.DATA_DIR,root=await mkdtemp(join(tmpdir(),"dizy-paper-depth-min-remnant-"));process.env.DATA_DIR=root;const rules={...contract,minVol:5};try{let account=await submitManualOrder("depth-min-remnant",{idempotencyKey:"depth-min-open-0001",symbol:"BTC_USDT",side:"long",sizeMode:"fixed-notional",amount:.9,leverage:2},100,"fair",rules,undefined,entryBook);assert.equal(account.positions.BTC_USDT.contractVolume,9);const before=account.cashBalance,book=depth([{price:99.9,orderCount:1,contractQuantity:8}],[{price:100.1,orderCount:1,contractQuantity:20}]);await assert.rejects(()=>closeManualPosition("depth-min-remnant","BTC_USDT","depth-min-close001",100,book,rules),error=>error instanceof ManualPaperError&&error.code==="DEPTH_LIQUIDITY_BELOW_MINIMUM");account=await readManualAccount("depth-min-remnant");assert.equal(account.positions.BTC_USDT.contractVolume,9);assert.equal(account.cashBalance,before)}finally{if(prior===undefined)delete process.env.DATA_DIR;else process.env.DATA_DIR=prior;await rm(root,{recursive:true,force:true})}});
