@@ -1,0 +1,48 @@
+name: Apply PR 146 compact toolbar toast
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr146-toolbar-toast-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  apply-and-validate:
+    if: github.head_ref == 'fix/compact-toolbar-flow-toast'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply compact toolbar toast hotfix
+        run: node scripts/pr146/apply.mjs
+      - name: Focused toast tests
+        run: node --test tests/dizyflow-toast-layout.test.mjs
+      - name: Full unit suite
+        run: npm test
+      - name: Lint
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+      - name: Remove temporary patch machinery
+        run: rm -rf scripts/pr146 .github/workflows/pr146-toolbar-toast.yml
+      - name: Commit validated implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/dizyflow-toast-rail.module.css app/globals.css tests/dizyflow-toast-layout.test.mjs
+          git add -u scripts/pr146 .github/workflows/pr146-toolbar-toast.yml
+          git commit -m "Restore compact DizyFlow toolbar toast"
+          git push origin HEAD:${GITHUB_HEAD_REF}
