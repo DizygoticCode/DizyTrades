@@ -110,15 +110,29 @@ function validateWorkspaceBackup(
   const workspaceLayouts = validateWorkspaceLayoutBackupCollection(
     data.workspaceLayouts,
   );
+  const baseData = withoutWorkspaceLayouts(data);
   const baseContent = {
     version: input.version,
     ownerId: input.ownerId,
     generatedAt: input.generatedAt,
     application: input.application,
     migration: input.migration,
-    data: withoutWorkspaceLayouts(data),
+    data: baseData,
     warnings: input.warnings,
   };
+  if (sourceVersion === 1) {
+    const legacyContent = {
+      version: 1,
+      ownerId: input.ownerId,
+      generatedAt: input.generatedAt,
+      application: input.application,
+      data: baseData,
+      warnings: input.warnings,
+    };
+    if (backupContentHash(legacyContent) !== suppliedHash) {
+      throw new Error("Backup integrity check failed before migration.");
+    }
+  }
   const baseCandidate = {
     ...baseContent,
     integrity: {
