@@ -1,6 +1,7 @@
 name: PR 160 unit diagnostics
 
 on:
+  pull_request:
   push:
     branches:
       - agent/auth-storage-threat-review
