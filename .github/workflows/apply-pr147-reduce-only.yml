@@ -37,22 +37,14 @@ jobs:
           node scripts/pr147/02-lifecycles.mjs
           node scripts/pr147/03-boundaries.mjs
           node scripts/pr147/04-tests-roadmap.mjs
-      - name: Print failing legacy test bodies
+      - name: Compact full-suite failure diagnostics
+        shell: bash
         run: |
-          node - <<'NODE'
-          const {readFileSync}=require('node:fs');
-          const cases=[
-            ['tests/manual-paper.test.mjs','Manual Paper opens, partially closes, reverses and liquidates isolated positions'],
-            ['tests/manual-paper.test.mjs','cross margin liquidation boundary improves with account collateral'],
-            ['tests/manual-paper.test.mjs','manual order execution enforces MEXC contract volume and price steps'],
-            ['tests/manual-paper-depth-exits.test.mjs','manual exit depth evidence survives backup and rejects tampering'],
-          ];
-          for(const [path,title] of cases){
-            const s=readFileSync(path,'utf8'),i=s.indexOf(title);
-            console.log('\n===== '+title+' @ '+i+' =====');
-            console.log(i<0?'NOT FOUND':s.slice(Math.max(0,i-20),i+2600));
-          }
-          NODE
-      - name: Print failing test diagnostics
-        run: |
-          node --conditions=react-server --import tsx --test --test-name-pattern="Manual Paper opens, partially closes|cross margin liquidation boundary|manual order execution enforces|manual exit depth evidence survives" tests/manual-paper.test.mjs tests/manual-paper-depth-exits.test.mjs || true
+          set +e
+          npm test > /tmp/pr147-full.log 2>&1
+          status=$?
+          echo "===== FAILURE INDEX ====="
+          grep -nE "^(not ok|# Subtest:)|NO_POSITION|STALE_REDUCE_ONLY|REDUCE_ONLY|position quantity does not reconcile|AssertionError|tests/.*:[0-9]+:[0-9]+" /tmp/pr147-full.log | tail -n 260 || true
+          echo "===== FAILURE TAIL ====="
+          tail -n 180 /tmp/pr147-full.log
+          exit $status
