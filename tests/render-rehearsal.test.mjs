@@ -4,6 +4,7 @@ import {
   buildHealthUrl,
   deployCommitId,
   findExpectedDeploy,
+  flattenService,
   normaliseCollection,
 } from "../scripts/render-rehearsal.mjs";
 
@@ -13,6 +14,24 @@ test("normalises Render list response variants", () => {
   assert.deepEqual(normaliseCollection({ deploys: wrapped }, "deploys"), wrapped);
   assert.deepEqual(normaliseCollection({ events: [] }, "deploys"), []);
   assert.deepEqual(normaliseCollection(null, "deploys"), []);
+});
+
+test("flattens nested web-service details", () => {
+  const service = flattenService({
+    service: {
+      id: "srv-test",
+      name: "DizyTrades",
+      serviceDetails: {
+        url: "https://dizytrades.example",
+        healthCheckPath: "/api/health",
+        region: "oregon",
+      },
+    },
+  });
+  assert.equal(service.id, "srv-test");
+  assert.equal(service.url, "https://dizytrades.example");
+  assert.equal(service.healthCheckPath, "/api/health");
+  assert.equal(service.region, "oregon");
 });
 
 test("matches full and abbreviated commit identifiers", () => {
@@ -27,14 +46,23 @@ test("matches full and abbreviated commit identifiers", () => {
   assert.equal(findExpectedDeploy(deploys, ""), deploys[0]);
 });
 
-test("builds health URL from configured or default path", () => {
+test("builds health URL from configured, nested or slug-derived service data", () => {
   assert.equal(
     buildHealthUrl({ url: "https://dizytrades.example", healthCheckPath: "/api/health" }),
     "https://dizytrades.example/api/health",
   );
   assert.equal(
-    buildHealthUrl({ url: "https://dizytrades.example/base/" }),
-    "https://dizytrades.example/api/health",
+    buildHealthUrl({
+      serviceDetails: {
+        url: "https://nested.example",
+        healthCheckPath: "/healthz",
+      },
+    }),
+    "https://nested.example/healthz",
+  );
+  assert.equal(
+    buildHealthUrl({ slug: "dizytrades" }),
+    "https://dizytrades.onrender.com/api/health",
   );
   assert.throws(() => buildHealthUrl({}), /Render service URL is required/);
 });
