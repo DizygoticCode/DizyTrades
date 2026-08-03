@@ -8,9 +8,14 @@ const exitPath="tests/manual-paper-depth-exits.test.mjs",exitSource=await readFi
 if(exitNext===exitSource)throw new Error("Minimum-remnant fixture was not updated.");
 await writeFile(exitPath,exitNext);
 
-const routePath="tests/manual-paper-depth-exit-route.test.mjs",routeSource=await readFile(routePath,"utf8"),routeNext=routeSource
-  .replace('assert.match(source,/action\\("partial-close", \\{ symbol:p\\.symbol, percentage \\}\\)/);','assert.ok(source.includes(\'action("partial-close", { symbol:p.symbol, percentage })\'));')
-  .replace('assert.match(source,/action\\("flash-close",\\{symbol:p\\.symbol\\}\\)/);','assert.ok(source.includes(\'action("flash-close",{symbol:p.symbol})\'));')
-  .replace('assert.match(source,/action\\("reverse",\\{symbol:p\\.symbol\\}\\)/)','assert.ok(source.includes(\'action("reverse",{symbol:p.symbol})\'))');
-if(routeNext===routeSource)throw new Error("Position-row action fixture was not updated.");
-await writeFile(routePath,routeNext);
+await writeFile(
+  "tests/manual-paper-depth-exit-route.test.mjs",
+  `import test from "node:test";
+import assert from "node:assert/strict";
+import {readFile} from "node:fs/promises";
+
+test("manual close and partial-close HTTP paths require depth and current contract rules",async()=>{const source=await readFile(new URL("../app/api/manual-paper/route.ts",import.meta.url),"utf8");assert.ok(source.includes("closeManualPosition(user.id,symbol,String(body.idempotencyKey),risk.price,depth,contract)"));assert.ok(source.includes("partialCloseManualPosition(user.id,symbol,String(body.idempotencyKey),risk.price,body,depth,contract)"));assert.match(source,/Fresh public DizyFlow depth is unavailable for this market action/)});
+
+test("position-row actions submit their own symbol",async()=>{const source=await readFile(new URL("../app/manual-paper-ticket.tsx",import.meta.url),"utf8");assert.ok(source.includes('action("partial-close", { symbol:p.symbol, percentage })'));assert.ok(source.includes('action("flash-close",{symbol:p.symbol})'));assert.ok(source.includes('action("reverse",{symbol:p.symbol})'))});
+`,
+);
