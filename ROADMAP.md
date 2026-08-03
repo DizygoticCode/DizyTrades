@@ -98,15 +98,17 @@ No order permission.
 - [ ] stale/private-data failure handling
 - [ ] explicit proof that no write permission is requested
 
-### 4. Independent audit
+### 4. Independent audit — complete
 
-- [ ] Codex or independent engineering review
+- [x] Codex or independent engineering review
 - [x] authentication and storage threat review
 - [x] simulator accounting audit
 - [x] Replay future-leakage audit
 - [x] backup restore and conflict audit
 - [x] browser accessibility independent review
 - [x] deployment observation and application recovery rehearsal
+
+The independent engineering review is recorded in [docs/INDEPENDENT_ENGINEERING_REVIEW.md](docs/INDEPENDENT_ENGINEERING_REVIEW.md). It establishes one exact Node runtime across package tooling, CI, operational rehearsals and Render; removes production plaintext-password slots; adds browser response hardening, bounded dependency maintenance and executable repository contracts.
 
 The authentication and storage review is recorded in [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md). It hardens fail-closed feature flags, session parsing and fallback behaviour, outage throttling, request-origin boundaries, owner-ID/path isolation and auth-database permissions while documenting accepted beta limitations.
 
@@ -191,9 +193,9 @@ Live execution remains disabled until all earlier operational, security and reco
 
 Useful for public charting, market study, deterministic signals, order-flow observation, simulation, replay, review, analytics, education and recovery while execution remains disabled.
 
-### Operational Research Platform — in progress
+### Operational Research Platform — achieved
 
-DizyPaper Fidelity V2, workflow/accessibility, deployment observation, application recovery rehearsal, authentication/storage, simulator-accounting, Replay temporal-boundary, backup-conflict and browser-accessibility reviews are complete. This milestone closes after the remaining independent engineering review is stable.
+DizyPaper Fidelity V2, workflow/accessibility, deployment observation, application recovery rehearsal and all focused independent reviews are complete. Runtime, production-boundary and repository assumptions are executable CI contracts. Provider-level persistent-disk rollback remains intentionally deferred to the guarded-execution security milestone.
 
 ### Read-only Account Companion — future
 
