@@ -69,7 +69,9 @@ test("root layout mounts after hydration and launchers remain existing UI action
   assert.match(layout, /<CommandPaletteMounted \/>/);
   assert.match(mounted, /useSyncExternalStore/);
   assert.match(mounted, /\(\) => true, \(\) => false/);
-  assert.match(mounted, /mounted \? <CommandPalette \/> : null/);
+  assert.match(mounted, /return mounted \? \(/);
+  assert.match(mounted, /<CommandPalette \/>/);
+  assert.match(mounted, /<RecentShortcuts \/>/);
   assert.match(palette, /Control\+K Meta\+K/);
   assert.match(palette, /first-run-onboarding-trigger/);
   assert.match(palette, /workspace-layout-trigger/);
