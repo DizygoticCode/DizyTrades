@@ -5,6 +5,18 @@ const owner = {
   password: "DizyTrades-E2E-Owner-2026!",
 };
 
+test.afterEach(async ({ page }) => {
+  // The browser suite reuses one configured owner. Restore its baseline market
+  // even when this journey fails so later workspace tests remain independent.
+  await page.request.patch("/api/profile", {
+    data: {
+      symbol: "BTC_USDT",
+      marketKey: "mexc:futures:BTC_USDT",
+      timeframe: "15m",
+    },
+  }).catch(() => undefined);
+});
+
 test("owner continues recent markets reviews and Academy learning", async ({ page }) => {
   const reviewTitle = `Recent review ${Date.now().toString(36)}`;
   await page.goto("/login");
