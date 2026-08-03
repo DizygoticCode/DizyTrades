@@ -1,4 +1,4 @@
-import { replaceExact, replaceRegex, write } from "./utils.mjs";
+import { replaceExact, write } from "./utils.mjs";
 
 await replaceExact(
   "app/manual-paper-ticket.tsx",
@@ -28,17 +28,17 @@ await replaceExact(
 await replaceExact(
   "app/manual-paper-ticket.tsx",
   `    fee = Math.max(0,notional*feeRate),`,
-  `    fee = Math.max(0,notional*feeRate),\n    fundingRate=funding?.fundingRate??position?.fundingRate??0,\n    fundingNotional=position?position.quantity*mark:notional,\n    estimatedFunding=(side==="long"?-1:1)*fundingNotional*fundingRate,\n    nextFundingTime=funding?.nextSettleTime??position?.nextFundingTime??0,\n    lastFundingPayment=account?.fundingPayments?.at(-1),`
+  `    fee = Math.max(0,notional*feeRate),\n    fundingRate=funding?.fundingRate??position?.fundingRate??0,\n    fundingCycle=funding?.collectCycleHours??position?.fundingCollectCycleHours??0,\n    fundingSource=funding?.source??position?.fundingSource??null,\n    fundingNotional=position?position.quantity*mark:notional,\n    fundingSide=position?.side??side,\n    estimatedFunding=(fundingSide==="long"?-1:1)*fundingNotional*fundingRate,\n    nextFundingTime=funding?.nextSettleTime??position?.nextFundingTime??0,\n    lastFundingPayment=account?.fundingPayments?.at(-1),`
 );
 await replaceExact(
   "app/manual-paper-ticket.tsx",
   `                ["Estimated fee", money(fee)],`,
-  `                ["Estimated fee", money(fee)],\n                ["Funding rate", funding?\`${(fundingRate*100).toFixed(4)}% · \${funding.collectCycleHours}h\`:"Unavailable"],\n                ["Next funding", nextFundingTime?new Date(nextFundingTime).toLocaleString():"Unavailable"],\n                ["Est. next funding", funding?\`${estimatedFunding>=0?"Receive":"Pay"} \${money(Math.abs(estimatedFunding))}\`:"Unavailable"],\n                ["Funding source", funding?.source??"Unavailable"],`
+  `                ["Estimated fee", money(fee)],\n                ["Funding rate", fundingSource?\`${(fundingRate*100).toFixed(4)}% · \${fundingCycle}h\`:"Unavailable"],\n                ["Next funding", nextFundingTime?new Date(nextFundingTime).toLocaleString():"Unavailable"],\n                ["Est. next funding", fundingSource?\`${estimatedFunding>=0?"Receive":"Pay"} \${money(Math.abs(estimatedFunding))}\`:"Unavailable"],\n                ["Funding source", fundingSource??"Unavailable"],`
 );
 await replaceExact(
   "app/manual-paper-ticket.tsx",
   `              {!stopLoss?<span>No stop loss — estimated liquidation remains active.</span>:null}`,
-  `              {!stopLoss?<span>No stop loss — estimated liquidation remains active.</span>:null}\n              {funding?<span>Funding uses public settled rates with the observed {riskState?.source??"risk"} price as an explicit notional approximation.</span>:null}`
+  `              {!stopLoss?<span>No stop loss — estimated liquidation remains active.</span>:null}\n              {fundingSource?<span>Funding uses public settled rates with the observed {riskState?.source??position?.riskPriceSource??"risk"} price as an explicit notional approximation.</span>:null}`
 );
 await replaceExact(
   "app/manual-paper-ticket.tsx",
@@ -66,6 +66,8 @@ test("MEXC funding snapshots retain settlement cadence and provenance",()=>{cons
 test("positive funding charges longs and credits shorts",()=>{assert.equal(calculatePaperFundingPayment({side:"long",quantity:2,observedPrice:100,fundingRate:.001}).calculatedCashDelta,-.2);assert.equal(calculatePaperFundingPayment({side:"short",quantity:2,observedPrice:100,fundingRate:.001}).calculatedCashDelta,.2)});
 
 test("Manual Paper applies each settled funding event once and preserves it through backup",async()=>{const {mkdtemp,rm}=await import("node:fs/promises"),{tmpdir}=await import("node:os"),{join}=await import("node:path"),{submitManualOrder,syncManualFunding,closeManualPosition}=await import("../app/lib/manual-paper.ts"),{validateManualPaperBackup}=await import("../app/lib/manual-paper-backup.ts"),prior=process.env.DATA_DIR,root=await mkdtemp(join(tmpdir(),"dizy-paper-funding-"));process.env.DATA_DIR=root;try{let account=await submitManualOrder("funding-owner",{idempotencyKey:"funding-open-000001",symbol:"BTC_USDT",side:"long",sizeMode:"fixed-notional",amount:100,leverage:10},100,"fair",contract,parseMexcFundingRate(currentPayload,"BTC_USDT",Date.now()));const position=account.positions.BTC_USDT,opened=Date.parse(position.openedAt);await new Promise(resolve=>setTimeout(resolve,5));const settlement={symbol:"BTC_USDT",fundingRate:.001,settleTime:opened+1,source:"mexc-public-funding-history"};account=await syncManualFunding("funding-owner","BTC_USDT",100,"fair",undefined,[settlement]);assert.equal(account.fundingPayments.length,1);assert.ok(account.fundingPnl<0);assert.equal(account.positions.BTC_USDT.fundingPnl,account.fundingPnl);const once=account.fundingPnl;account=await syncManualFunding("funding-owner","BTC_USDT",100,"fair",undefined,[settlement]);assert.equal(account.fundingPayments.length,1);assert.equal(account.fundingPnl,once);const restored=validateManualPaperBackup(account,"funding-owner");assert.equal(restored.fundingPayments[0].source,"mexc-public-funding-history");account=await closeManualPosition("funding-owner","BTC_USDT","funding-close-00001",101);const closed=account.fills.at(-1);assert.equal(closed.fundingPnl,once);assert.ok(Math.abs(closed.netPnl-((closed.grossPnl??0)-(closed.entryFee??0)-closed.fee+once))<1e-12)}finally{if(prior===undefined)delete process.env.DATA_DIR;else process.env.DATA_DIR=prior;await rm(root,{recursive:true,force:true})}});
+
+test("pre-funding v3 backups migrate with empty funding history",async()=>{const {newManualAccount}=await import("../app/lib/manual-paper.ts"),{validateManualPaperBackup}=await import("../app/lib/manual-paper-backup.ts"),legacy=newManualAccount();delete legacy.fundingPnl;delete legacy.fundingPayments;const restored=validateManualPaperBackup(legacy,"legacy-owner");assert.equal(restored.fundingPnl,0);assert.deepEqual(restored.fundingPayments,[])});
 `
 );
 
