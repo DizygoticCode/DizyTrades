@@ -7,6 +7,12 @@ import {
   DEFAULT_TERMINAL_SETTINGS,
   sanitiseTerminalSettings,
 } from "../app/lib/config.ts";
+import { buildUserBackup } from "../app/lib/user-backup-store.ts";
+import {
+  applyUserBackupRestoreWithWorkspaces,
+  buildUserBackupWithWorkspaces,
+  planUserBackupRestoreWithWorkspaces,
+} from "../app/lib/user-backup-workspace.ts";
 import {
   applyBuiltInWorkspacePreset,
   normaliseWorkspaceLayoutName,
@@ -21,6 +27,7 @@ import {
 
 test("workspace names are bounded and meaningful", () => {
   assert.equal(normaliseWorkspaceLayoutName("  BTC   15m research  "), "BTC 15m research");
+  assert.equal(normaliseWorkspaceLayoutName("研究 15m"), "研究 15m");
   assert.throws(() => normaliseWorkspaceLayoutName("---"), /letter or number/);
   assert.throws(() => normaliseWorkspaceLayoutName("  "), /required/);
 });
@@ -114,11 +121,62 @@ test("account workspace storage creates, updates, finds and deletes snapshots", 
   }
 });
 
-test("terminal and API expose the saved-layout workflow", async () => {
-  const [terminal, client, route] = await Promise.all([
+test("full backup preserves workspace layouts without breaking older v2 backups", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "dizy-workspace-backup-"));
+  const previous = process.env.DATA_DIR;
+  process.env.DATA_DIR = directory;
+  const userId = "workspace_backup_user";
+  try {
+    const saved = await saveWorkspaceLayout(
+      userId,
+      "BTC 15m research",
+      DEFAULT_TERMINAL_SETTINGS,
+    );
+    const extended = await buildUserBackupWithWorkspaces(userId);
+    assert.equal(extended.data.workspaceLayouts.length, 1);
+    assert.equal(extended.data.workspaceLayouts[0].id, saved.layout.id);
+
+    const legacyV2 = await buildUserBackup(userId);
+    const legacyPlan = await planUserBackupRestoreWithWorkspaces(userId, legacyV2);
+    assert.equal(legacyPlan.safeToApply, true);
+    assert.equal(legacyPlan.workspaces.layoutsToAdd, 0);
+
+    const tampered = structuredClone(extended);
+    tampered.data.workspaceLayouts[0].name = "Tampered layout";
+    await assert.rejects(
+      () => planUserBackupRestoreWithWorkspaces(userId, tampered),
+      /integrity check failed/i,
+    );
+
+    assert.equal(await deleteWorkspaceLayout(userId, saved.layout.id), true);
+    const plan = await planUserBackupRestoreWithWorkspaces(userId, extended);
+    assert.equal(plan.safeToApply, true);
+    assert.equal(plan.workspaces.layoutsToAdd, 1);
+    assert.equal(plan.workspaces.matchingLayouts, 0);
+
+    const result = await applyUserBackupRestoreWithWorkspaces(
+      userId,
+      extended,
+      plan.backupHash,
+    );
+    assert.equal(result.applied, true);
+    assert.equal(result.created.workspaceLayouts, 1);
+    assert.equal((await readWorkspaceLayouts(userId))[0].name, "BTC 15m research");
+  } finally {
+    if (previous === undefined) delete process.env.DATA_DIR;
+    else process.env.DATA_DIR = previous;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("terminal API and full backup expose the saved-layout workflow", async () => {
+  const [terminal, client, route, exportRoute, restoreRoute, backupWrapper] = await Promise.all([
     readFile("app/terminal/page.tsx", "utf8"),
     readFile("app/workspace-layouts.tsx", "utf8"),
     readFile("app/api/workspaces/route.ts", "utf8"),
+    readFile("app/api/backup/export/route.ts", "utf8"),
+    readFile("app/api/backup/restore/route.ts", "utf8"),
+    readFile("app/lib/user-backup-workspace.ts", "utf8"),
   ]);
   assert.match(terminal, /WorkspaceLayouts/);
   assert.match(client, /Save current workspace/);
@@ -127,4 +185,8 @@ test("terminal and API expose the saved-layout workflow", async () => {
   assert.match(route, /workspace\.created/);
   assert.match(route, /workspace\.applied/);
   assert.match(route, /Viewer sessions are read-only/);
+  assert.match(exportRoute, /buildUserBackupWithWorkspaces/);
+  assert.match(restoreRoute, /applyUserBackupRestoreWithWorkspaces/);
+  assert.match(backupWrapper, /Backup integrity check failed/);
+  assert.match(backupWrapper, /mergeWorkspaceLayoutsUnlocked/);
 });
