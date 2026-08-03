@@ -19,12 +19,31 @@ const safeUserId = (value: string) => {
 };
 const pathFor = (userId: string) =>
   join(root(), "workspace-layouts", `${safeUserId(userId)}.json`);
+const queues = new Map<string, Promise<unknown>>();
 
 type WorkspaceLayoutRecord = Readonly<{
   version: 1;
   updatedAt: string;
   layouts: readonly SavedWorkspaceLayout[];
 }>;
+
+async function serial<T>(userId: string, operation: () => Promise<T>) {
+  const key = safeUserId(userId);
+  const prior = queues.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const current = prior.then(() => gate);
+  queues.set(key, current);
+  await prior;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (queues.get(key) === current) queues.delete(key);
+  }
+}
 
 async function writeRecord(userId: string, layouts: readonly SavedWorkspaceLayout[]) {
   const target = pathFor(userId);
@@ -62,36 +81,40 @@ export async function saveWorkspaceLayout(
   settings: UserTerminalSettings,
 ) {
   const name = normaliseWorkspaceLayoutName(nameInput);
-  const layouts = [...(await readWorkspaceLayouts(userId))];
-  const existingIndex = layouts.findIndex(
-    (layout) => layout.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
-  );
-  const now = new Date().toISOString();
-  const existing = existingIndex >= 0 ? layouts[existingIndex] : null;
-  if (!existing && layouts.length >= MAX_WORKSPACE_LAYOUTS) {
-    throw new Error(`A maximum of ${MAX_WORKSPACE_LAYOUTS} saved workspaces is supported.`);
-  }
-  const layout: SavedWorkspaceLayout = Object.freeze({
-    version: WORKSPACE_LAYOUT_VERSION,
-    id: existing?.id ?? `wsl1_${randomUUID()}`,
-    name,
-    createdAt: existing?.createdAt ?? now,
-    updatedAt: now,
-    settings,
+  return serial(userId, async () => {
+    const layouts = [...(await readWorkspaceLayouts(userId))];
+    const existingIndex = layouts.findIndex(
+      (layout) => layout.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+    );
+    const now = new Date().toISOString();
+    const existing = existingIndex >= 0 ? layouts[existingIndex] : null;
+    if (!existing && layouts.length >= MAX_WORKSPACE_LAYOUTS) {
+      throw new Error(`A maximum of ${MAX_WORKSPACE_LAYOUTS} saved workspaces is supported.`);
+    }
+    const layout: SavedWorkspaceLayout = Object.freeze({
+      version: WORKSPACE_LAYOUT_VERSION,
+      id: existing?.id ?? `wsl1_${randomUUID()}`,
+      name,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      settings,
+    });
+    if (existingIndex >= 0) layouts.splice(existingIndex, 1, layout);
+    else layouts.unshift(layout);
+    await writeRecord(userId, layouts);
+    return Object.freeze({ layout, created: !existing });
   });
-  if (existingIndex >= 0) layouts.splice(existingIndex, 1, layout);
-  else layouts.unshift(layout);
-  await writeRecord(userId, layouts);
-  return Object.freeze({ layout, created: !existing });
 }
 
 export async function deleteWorkspaceLayout(userId: string, id: string) {
   if (!/^wsl1_[a-z0-9-]{8,80}$/i.test(id)) throw new Error("Invalid workspace identifier.");
-  const layouts = [...(await readWorkspaceLayouts(userId))];
-  const next = layouts.filter((layout) => layout.id !== id);
-  if (next.length === layouts.length) return false;
-  await writeRecord(userId, next);
-  return true;
+  return serial(userId, async () => {
+    const layouts = [...(await readWorkspaceLayouts(userId))];
+    const next = layouts.filter((layout) => layout.id !== id);
+    if (next.length === layouts.length) return false;
+    await writeRecord(userId, next);
+    return true;
+  });
 }
 
 export async function findWorkspaceLayout(userId: string, id: string) {
