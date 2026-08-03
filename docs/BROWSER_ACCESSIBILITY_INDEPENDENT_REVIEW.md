@@ -64,12 +64,6 @@ The terminal already owns the document's primary `main` landmark. The embedded M
 
 The embedded workspace is now a server-rendered named `section`: `Manual Paper account workspace`. This keeps one document main while exposing the trading panel as a discoverable region without changing layout or simulation behaviour.
 
-### Palette actions raced modal teardown
-
-Command actions previously closed the palette and navigated or launched another workspace in the same event. Once the background correctly became inert, that sequence could overlap modal removal and background restoration.
-
-Non-reference commands now close the palette first and execute on the next animation frame, after React has removed the dialog and the shared foundation has cleared inert state. Switching from commands to the keyboard reference remains inside the same modal and does not close it.
-
 ### Existing palette journey raced onboarding hydration
 
 The older command-palette browser journey checked onboarding visibility only once. A late-hydrating onboarding dialog could then cover the palette trigger and create a flaky failure.
