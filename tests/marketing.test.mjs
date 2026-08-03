@@ -27,7 +27,8 @@ test("account routes enter the protected terminal and logout stays on the public
   assert.match(logoutRoute, /(?:Location:\s*["']\/login["']|new URL\(\s*["']\/login["'],\s*request\.url\s*\))/, "logout must redirect to /login");
   assert.match(logoutRoute, /maxAge:\s*0/, "logout must expire the session cookie");
   assert.doesNotMatch(logoutRoute, /0\.0\.0\.0/, "logout must never redirect to a development host");
-  assert.match(await source("app/lib/auth.ts"), /SESSION_COOKIE\s*=\s*["']dizytrades_session["']/);
+  assert.match(await source("app/lib/auth-session.ts"), /SESSION_COOKIE\s*=\s*["']dizytrades_session["']/);
+  assert.match(await source("app/lib/auth.ts"), /SESSION_COOKIE/);
 });
 test("developer links are safely isolated external links", async () => {
   const files = await Promise.all(["app/marketing/marketing-page.tsx", "app/marketing/site-header.tsx", "app/marketing/public-route.tsx"].map(source));
