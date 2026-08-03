@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "../../lib/auth";
 import { appendAudit, readUserRecord, saveSettings } from "../../lib/store";
+import { recordRecentMarketShortcut } from "../../lib/recent-shortcuts-store";
 import {
   deleteWorkspaceLayout,
   findWorkspaceLayout,
@@ -69,6 +70,11 @@ export async function PUT(request: Request) {
     const layout = await findWorkspaceLayout(user.id, id);
     if (!layout) return NextResponse.json({ error: "Saved workspace was not found." }, { status: 404 });
     const record = await saveSettings(user.id, layout.settings);
+    try {
+      await recordRecentMarketShortcut(user.id, record.settings.market);
+    } catch {
+      // Recent shortcuts are convenience state and do not invalidate layout apply.
+    }
     await appendAudit(user.id, "workspace.applied", {
       workspaceId: layout.id,
       name: layout.name,

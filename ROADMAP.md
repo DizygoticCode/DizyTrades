@@ -72,7 +72,7 @@ Driven by real use rather than speculative redesign.
 
 - [x] saved workspace layouts and presets
 - [x] command palette and keyboard reference
-- [ ] recent markets, reviews and learning shortcuts
+- [x] recent markets, reviews and learning shortcuts
 - [x] first-run onboarding
 - [ ] responsive and mobile audit
 - [ ] focus order, screen-reader and reduced-motion audit
@@ -85,6 +85,8 @@ Empty, delayed and recovery states now use one deterministic language contract a
 Saved workspace layouts now retain up to 12 named, account-scoped snapshots of the sanitised market, timeframe, chart view, strategy, risk and DizyFlow profile. Duplicate names update deterministically, viewer sessions remain read-only, and built-in research, clean-price and order-flow presets can be applied without bypassing the existing profile sanitiser.
 
 The protected-workspace command palette now opens with Ctrl/Cmd+K, filters deterministic navigation and existing terminal launch actions, keeps owner-only operations hidden from viewers and carries terminal launch requests safely across workspace navigation. A standalone ? shortcut opens a keyboard reference containing only implemented palette, focus and DizyFlow DOM controls.
+
+Recent workflow shortcuts now combine three existing sources of truth: account-scoped market/timeframe changes, newest-first Journal entries and browser-local DizyAcademy progress. Owner market history is retained atomically without blocking profile saves, viewer history stays in the browser, Journal links open exact retained entries, and Academy links restore the exact last or next lesson without forcing later manual navigation back to an old lesson.
 
 ### 3. Read-only exchange connection and shadow mode
 

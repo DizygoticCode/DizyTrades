@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { CommandPalette } from "./command-palette";
+import { RecentShortcuts } from "./recent-shortcuts";
 
 function subscribe() {
   return () => {};
@@ -9,5 +10,10 @@ function subscribe() {
 
 export function CommandPaletteMounted() {
   const mounted = useSyncExternalStore(subscribe, () => true, () => false);
-  return mounted ? <CommandPalette /> : null;
+  return mounted ? (
+    <>
+      <CommandPalette />
+      <RecentShortcuts />
+    </>
+  ) : null;
 }
