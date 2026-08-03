@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: pr139-funding-provenance-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   apply-and-validate:
