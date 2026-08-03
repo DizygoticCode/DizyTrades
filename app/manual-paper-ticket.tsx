@@ -14,7 +14,7 @@ import type { DizyFlowIntelligenceSnapshot } from "./lib/order-flow/intelligence
 import { compactDizyFlowSample } from "./lib/historical-dizyflow-compact";
 import { HistoricalDizyFlowCaptureManager } from "./lib/historical-dizyflow-capture";
 import { HistoricalDizyFlowEventAdapter } from "./lib/historical-dizyflow-events";
-import {clampContractLeverage,leverageStopsForContract,type MexcContractMetadata} from "./lib/mexc-contract-metadata";
+import {clampContractLeverage,isMexcStepAligned,leverageStopsForContract,quantizeMexcExecutionPrice,quantizeMexcStep,sizeMexcContractOrder,type MexcContractMetadata} from "./lib/mexc-contract-metadata";
 type Mode = "fixed-margin" | "fixed-notional" | "equity-percent" | "risk-percent";
 type Position = {
   tradeId: string;
@@ -24,6 +24,12 @@ type Position = {
   symbol: string;
   side: "long" | "short";
   quantity: number;
+  contractVolume?: number;
+  contractSize?: number;
+  priceUnit?: number;
+  volUnit?: number;
+  minContractVolume?: number;
+  maxContractVolume?: number;
   entryPrice: number;
   leverage: number;
   margin?: number;
@@ -41,6 +47,7 @@ type Fill = {
   symbol: string;
   price: number;
   quantity: number;
+  contractVolume?: number;
   fee: number;
   realisedPnl: number;
   timestamp: string;
@@ -58,6 +65,7 @@ type Account = {
   settings: {
     enabled: boolean;
     commissionPct: number;
+    slippagePct: number;
     confirmationRequired: boolean;
     panelHeight: number;
     panelCollapsed: boolean;
@@ -154,7 +162,7 @@ export function ManualPaperTicket({
     amountNumber = Math.max(0, Number(amount) || 0),
     leverageNumber = contract?clampContractLeverage(Number(leverage),contract):Math.max(1,Number(leverage)||1),
     leverageStops=leverageStopsForContract(contract),
-    margin = Math.max(
+    targetMargin = Math.max(
       0,
       mode === "equity-percent"||mode==="risk-percent"
         ? (equity * amountNumber) / 100
@@ -162,20 +170,27 @@ export function ManualPaperTicket({
           ? amountNumber / leverageNumber
           : amountNumber,
     ),
-    notional = Math.max(
+    targetNotional = Math.max(
       0,
-      mode === "fixed-notional" ? amountNumber : mode==="risk-percent"&&publicPrice&&Number(stopLoss)>0?equity*amountNumber/100/(Math.abs(publicPrice-Number(stopLoss))/publicPrice):margin * leverageNumber,
+      mode === "fixed-notional" ? amountNumber : mode==="risk-percent"&&publicPrice&&Number(stopLoss)>0?equity*amountNumber/100/(Math.abs(publicPrice-Number(stopLoss))/publicPrice):targetMargin * leverageNumber,
     ),
-    quantity = publicPrice && publicPrice > 0 ? notional / publicPrice : 0,
-    fee = Math.max(
-      0,
-      (notional * (account?.settings.commissionPct ?? 0)) / 100,
-    ),
-    liquidation=quantity>0?estimateLiquidation({side,entryPrice:publicPrice??0,quantity,marginMode,assignedMargin:margin,crossCollateral:equity,entryFee:fee,maintenanceMarginRate:contract?.maintenanceMarginRate??(account?.settings.maintenanceMarginPct??.5)/100,liquidationPenaltyRate:(account?.settings.liquidationPenaltyPct??.1)/100}):NaN,
-    riskAmount=stopLoss&&quantity?Math.abs((publicPrice??0)-Number(stopLoss))*quantity:0,
-    rewardRisk=stopLoss&&takeProfit&&riskAmount?Math.abs(Number(takeProfit)-(publicPrice??0))*quantity/riskAmount:0,
+    rawExecutionPrice=publicPrice?publicPrice*(1+(side==="long"?1:-1)*(account?.settings.slippagePct??0)/100):0,
+    executionPrice=contract&&rawExecutionPrice>0?quantizeMexcExecutionPrice(rawExecutionPrice,contract.priceUnit,side,true):rawExecutionPrice,
+    rawContractVolume=contract&&executionPrice>0?targetNotional/(executionPrice*contract.contractSize):0,
+    steppedContractVolume=contract&&rawContractVolume>0?quantizeMexcStep(rawContractVolume,contract.volUnit,"floor"):0,
+    contractVolumeIssue=contract&&targetNotional>0?(steppedContractVolume<contract.minVol?`Minimum ${contract.minVol} contracts`:steppedContractVolume>contract.maxVol?`Maximum ${contract.maxVol} contracts`:null):null,
+    contractOrder=(()=>{try{return contract&&executionPrice>0&&!contractVolumeIssue?sizeMexcContractOrder(targetNotional,executionPrice,contract):null}catch{return null}})(),
+    contractVolume=contractOrder?.contractVolume??0,
+    quantity=contractOrder?.quantity??0,
+    notional=contractOrder?.notional??0,
+    margin=leverageNumber>0?notional/leverageNumber:0,
+    fee = Math.max(0,(notional * (account?.settings.commissionPct ?? 0)) / 100),
+    liquidation=quantity>0?estimateLiquidation({side,entryPrice:executionPrice,quantity,marginMode,assignedMargin:margin,crossCollateral:equity,entryFee:fee,maintenanceMarginRate:contract?.maintenanceMarginRate??(account?.settings.maintenanceMarginPct??.5)/100,liquidationPenaltyRate:(account?.settings.liquidationPenaltyPct??.1)/100}):NaN,
+    riskAmount=stopLoss&&quantity?Math.abs(executionPrice-Number(stopLoss))*quantity:0,
+    rewardRisk=stopLoss&&takeProfit&&riskAmount?Math.abs(Number(takeProfit)-executionPrice)*quantity/riskAmount:0,
     remaining = equity - used - margin - fee,
-    invalidAmount = !Number.isFinite(quantity) || quantity <= 0 || margin < 0;
+    invalidPriceStep=Boolean(contract&&((stopLoss&&!isMexcStepAligned(Number(stopLoss),contract.priceUnit))||(takeProfit&&!isMexcStepAligned(Number(takeProfit),contract.priceUnit)))),
+    invalidAmount = !Number.isFinite(quantity) || quantity <= 0 || margin < 0 || Boolean(contractVolumeIssue) || invalidPriceStep;
   const choosePercent = useCallback(
     (percent: number) => {
       const safe = Math.min(100, Math.max(0, percent));
@@ -481,6 +496,7 @@ export function ManualPaperTicket({
                 Stop loss
                 <input
                   type="number"
+                  step={contract?.priceUnit ?? "any"}
                   value={stopLoss}
                   onChange={(e) => setStopLoss(e.target.value)}
                   placeholder="Optional"
@@ -490,6 +506,7 @@ export function ManualPaperTicket({
                 Take profit
                 <input
                   type="number"
+                  step={contract?.priceUnit ?? "any"}
                   value={takeProfit}
                   onChange={(e) => setTakeProfit(e.target.value)}
                   placeholder="Optional"
@@ -502,6 +519,10 @@ export function ManualPaperTicket({
                 ["Risk price", mark?`${money(mark)} · ${riskState?.source==="fair"?"Fair":"Last fallback"}`:"Awaiting Fair / Last"],
                 ["Symbol", symbol],
                 ["Margin mode", marginMode],
+                ["Execution price", executionPrice?money(executionPrice):"—"],
+                ["Contracts", contractVolume?String(contractVolume):"—"],
+                ["Contract size", contract?String(contract.contractSize):"—"],
+                ["Price tick", contract?String(contract.priceUnit):"—"],
                 ["Quantity", quantity.toFixed(8)],
                 ["Margin", money(margin)],
                 ["Notional", money(notional)],
@@ -522,6 +543,8 @@ export function ManualPaperTicket({
             </div>
             <div className={styles.warnings}>
               {!contract?<span>Public MEXC contract rules unavailable — opening new paper positions is disabled.</span>:null}
+              {contractVolumeIssue?<span>{contractVolumeIssue}; requested size cannot be opened.</span>:null}
+              {invalidPriceStep&&contract?<span>Stop loss and take profit must use {contract.priceUnit} price increments.</span>:null}
               {!stopLoss?<span>No stop loss — estimated liquidation remains active.</span>:null}
               {marginMode==="cross"?<span>Cross collateral is a simulator approximation, not MEXC-exact.</span>:null}
               {riskState?.source!=="fair"?<span>Fair price unavailable — explicit Last-price fallback{riskState?.stale?" (last valid mark preserved)":""}.</span>:null}

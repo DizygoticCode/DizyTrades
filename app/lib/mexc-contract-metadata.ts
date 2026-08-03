@@ -16,6 +16,14 @@ export type MexcContractMetadata = {
   riskLimitType: "BY_VOLUME" | "BY_VALUE" | "UNKNOWN";
 };
 
+export type MexcStepMode = "floor" | "ceil" | "nearest";
+export type MexcContractOrderSizing = {
+  contractVolume: number;
+  contractSize: number;
+  quantity: number;
+  notional: number;
+};
+
 const finite = (value: unknown) => {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -56,6 +64,10 @@ export function parseMexcContractMetadata(
   const riskLimitType = input.riskLimitType === "BY_VOLUME" || input.riskLimitType === "BY_VALUE"
     ? input.riskLimitType
     : "UNKNOWN";
+  const volUnit = positive(input.volUnit, "volume unit");
+  const minVol = positive(input.minVol, "minimum volume");
+  const maxVol = positive(input.maxVol, "maximum volume");
+  if (maxVol < minVol) throw new Error("Invalid MEXC contract volume range.");
   return Object.freeze({
     symbol,
     displayName:
@@ -66,9 +78,9 @@ export function parseMexcContractMetadata(
     minLeverage,
     maxLeverage,
     priceUnit: positive(input.priceUnit, "price unit"),
-    volUnit: positive(input.volUnit, "volume unit"),
-    minVol: positive(input.minVol, "minimum volume"),
-    maxVol: positive(input.maxVol, "maximum volume"),
+    volUnit,
+    minVol,
+    maxVol,
     makerFeeRate: nonNegative(input.makerFeeRate, "maker fee"),
     takerFeeRate: nonNegative(input.takerFeeRate, "taker fee"),
     maintenanceMarginRate: nonNegative(input.maintenanceMarginRate, "maintenance margin"),
@@ -97,4 +109,67 @@ export function clampContractLeverage(
 ) {
   if (!Number.isFinite(leverage)) return contract.minLeverage;
   return Math.min(contract.maxLeverage, Math.max(contract.minLeverage, Math.round(leverage)));
+}
+
+function decimalPlaces(value: number) {
+  const [coefficient, exponentText] = value.toExponential().split("e");
+  const fractionDigits = (coefficient.split(".")[1] ?? "").length;
+  return Math.max(0, Math.min(12, fractionDigits - Number(exponentText)));
+}
+
+export function quantizeMexcStep(
+  value: number,
+  step: number,
+  mode: MexcStepMode = "nearest",
+) {
+  if (!Number.isFinite(value) || !Number.isFinite(step) || step <= 0)
+    throw new Error("INVALID_MEXC_STEP");
+  const ratio = value / step;
+  const units = mode === "floor"
+    ? Math.floor(ratio + 1e-10)
+    : mode === "ceil"
+      ? Math.ceil(ratio - 1e-10)
+      : Math.round(ratio);
+  return Number((units * step).toFixed(decimalPlaces(step)));
+}
+
+export function isMexcStepAligned(value: number, step: number) {
+  if (!Number.isFinite(value) || value < 0 || !Number.isFinite(step) || step <= 0)
+    return false;
+  const nearest = quantizeMexcStep(value, step, "nearest");
+  return Math.abs(value - nearest) <= Math.max(1e-10, step * 1e-9);
+}
+
+export function quantizeMexcExecutionPrice(
+  price: number,
+  priceUnit: number,
+  side: "long" | "short",
+  opening: boolean,
+) {
+  const adverseDirection = (side === "long") === opening ? "ceil" : "floor";
+  const result = quantizeMexcStep(price, priceUnit, adverseDirection);
+  if (result <= 0) throw new Error("INVALID_CONTRACT_PRICE");
+  return result;
+}
+
+export function sizeMexcContractOrder(
+  notional: number,
+  executionPrice: number,
+  contract: MexcContractMetadata,
+): MexcContractOrderSizing {
+  if (!Number.isFinite(notional) || notional <= 0 || !Number.isFinite(executionPrice) || executionPrice <= 0)
+    throw new Error("INVALID_CONTRACT_NOTIONAL");
+  const rawVolume = notional / (executionPrice * contract.contractSize);
+  const contractVolume = quantizeMexcStep(rawVolume, contract.volUnit, "floor");
+  if (contractVolume < contract.minVol) throw new Error("CONTRACT_VOLUME_BELOW_MINIMUM");
+  if (contractVolume > contract.maxVol) throw new Error("CONTRACT_VOLUME_ABOVE_MAXIMUM");
+  const quantity = Number((contractVolume * contract.contractSize).toPrecision(15));
+  const actualNotional = Number((quantity * executionPrice).toPrecision(15));
+  if (quantity <= 0 || actualNotional <= 0) throw new Error("INVALID_CONTRACT_NOTIONAL");
+  return Object.freeze({
+    contractVolume,
+    contractSize: contract.contractSize,
+    quantity,
+    notional: actualNotional,
+  });
 }

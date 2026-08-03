@@ -185,6 +185,12 @@ function position(value: unknown, key: string): ManualPosition {
     symbol: marketSymbol,
     side: oneOf(input.side, "manualPaper.position.side", ["long", "short"] as const),
     quantity,
+    contractVolume: input.contractVolume == null ? undefined : number(input.contractVolume, "manualPaper.position.contractVolume", 0.000000000001),
+    contractSize: input.contractSize == null ? undefined : number(input.contractSize, "manualPaper.position.contractSize", 0.000000000001),
+    priceUnit: input.priceUnit == null ? undefined : number(input.priceUnit, "manualPaper.position.priceUnit", 0.000000000001),
+    volUnit: input.volUnit == null ? undefined : number(input.volUnit, "manualPaper.position.volUnit", 0.000000000001),
+    minContractVolume: input.minContractVolume == null ? undefined : number(input.minContractVolume, "manualPaper.position.minContractVolume", 0.000000000001),
+    maxContractVolume: input.maxContractVolume == null ? undefined : number(input.maxContractVolume, "manualPaper.position.maxContractVolume", 0.000000000001),
     entryPrice,
     leverage,
     margin: number(input.margin, "manualPaper.position.margin", 0),
@@ -286,6 +292,12 @@ function fill(value: unknown, index: number): ManualFill {
         ? undefined
         : number(input.entryPrice, "manualPaper.fill.entryPrice", 0),
     quantity: number(input.quantity, "manualPaper.fill.quantity", 0),
+    contractVolume: input.contractVolume == null ? undefined : number(input.contractVolume, "manualPaper.fill.contractVolume", 0.000000000001),
+    contractSize: input.contractSize == null ? undefined : number(input.contractSize, "manualPaper.fill.contractSize", 0.000000000001),
+    priceUnit: input.priceUnit == null ? undefined : number(input.priceUnit, "manualPaper.fill.priceUnit", 0.000000000001),
+    volUnit: input.volUnit == null ? undefined : number(input.volUnit, "manualPaper.fill.volUnit", 0.000000000001),
+    minContractVolume: input.minContractVolume == null ? undefined : number(input.minContractVolume, "manualPaper.fill.minContractVolume", 0.000000000001),
+    maxContractVolume: input.maxContractVolume == null ? undefined : number(input.maxContractVolume, "manualPaper.fill.maxContractVolume", 0.000000000001),
     notional: number(input.notional, "manualPaper.fill.notional", 0),
     marginUsed:
       input.marginUsed == null
