@@ -181,7 +181,7 @@ async function structuralViolations(page: Page) {
 }
 
 async function auditCurrentPage(page: Page, path: string) {
-  await expect(page.locator("main")).toHaveCount(1);
+  await expect(page.getByRole("main")).toHaveCount(1);
   await expect
     .poll(() => page.title())
     .not.toBe("");
@@ -216,6 +216,11 @@ test("viewer workspaces expose named controls and coherent document structure", 
     await page.goto(path);
     await expect(page).toHaveURL(new RegExp(`${path}$`));
     await auditCurrentPage(page, path);
+    if (path === "/terminal") {
+      await expect(
+        page.getByRole("region", { name: "Manual Paper account workspace" }),
+      ).toBeVisible();
+    }
   }
 });
 
