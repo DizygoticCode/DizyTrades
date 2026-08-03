@@ -46,8 +46,10 @@ This roadmap reflects the merged product as of August 2026. Items are not promis
 - [x] full JSON backup export and Journal CSV
 - [x] integrity validation, restore dry-run and additive recovery
 - [x] cross-workspace profile and viewer-state hardening
+- [x] read-only Render deployment observation and exact-commit health verification
+- [x] destructive application recovery rehearsal in isolated temporary data roots
 
-## Active programme
+## Completed active programmes
 
 ### 1. DizyPaper Fidelity V2
 
@@ -64,7 +66,7 @@ Improve simulation realism without claiming exchange-exact fills.
 - [x] clearer isolated versus cross-margin assumptions
 - [x] migration-safe history and backup support
 
-Depth-sensitive visible-book execution is complete across entries, manual exits, Reverse, Flatten All and automatic stop/target/liquidation exits, including persistent partial risk exits. Maintenance tiers now use snapshotted public contract increment fields with explicit flat fallback, liquidation is separated from bankruptcy price, and isolated collateral is fenced from the shared single-asset USDT cross pool. Cross liquidation is re-audited against all current cross positions and their last known marks. Migration-safe history and backup support is complete: Manual Paper account v2/v3 records migrate deterministically to v4, fill economics are hash-preserved with unavailable evidence declared rather than invented, full backup v1 files are integrity-verified before migration to v2, and dry-run/apply fingerprints remain stable. DizyPaper Fidelity V2 is complete.
+Depth-sensitive visible-book execution is complete across entries, manual exits, Reverse, Flatten All and automatic stop/target/liquidation exits, including persistent partial risk exits. Maintenance tiers use snapshotted public contract increment fields with explicit flat fallback, liquidation is separated from bankruptcy price, and isolated collateral is fenced from the shared single-asset USDT cross pool. Cross liquidation is re-audited against all current cross positions and their last known marks. Manual Paper v2/v3 records migrate deterministically to v4, fill economics are hash-preserved with unavailable evidence declared rather than invented, full backup v1 files are integrity-verified before migration to v2, and dry-run/apply fingerprints remain stable.
 
 ### 2. Workflow and accessibility polish
 
@@ -78,19 +80,11 @@ Driven by real use rather than speculative redesign.
 - [x] focus order, screen-reader and reduced-motion audit
 - [x] empty, delayed and recovery state polish
 
-First-run onboarding now opens once per user and offers bounded paths into the terminal, DizyAcademy or Manual Paper. It remains reopenable from the terminal toolbar, distinguishes simulation from live execution and includes responsive, keyboard and reduced-motion behaviour.
+First-run onboarding opens once per user and offers bounded paths into the terminal, DizyAcademy or Manual Paper. Saved layouts retain named account-scoped snapshots of sanitised market, timeframe, chart view, strategy, risk and DizyFlow state. Commands and Recent provide deterministic navigation and continuation without bypassing owner/viewer permissions.
 
-Empty, delayed and recovery states now use one deterministic language contract across DizyCharts/DizyFlow, DizyScanner, DizyStructure and DizyBackup. Existing native feed and validation signals are translated into explicit empty, delayed, recovering, offline or failed guidance, each declaring what remains preserved and offering a bounded retry, reload or choose-another-file action without changing market, strategy, simulator or recovery logic.
+The responsive and accessibility contracts keep protected workspaces contained on phones and tablets, preserve intentionally wide internal scroll regions, provide skip navigation, modal focus containment/restoration, forced-colour handling and reduced motion. Global Commands and Recent controls reserve the live DizyBrain dock width so the sidebar collapse and close controls remain reachable at every desktop resize.
 
-Saved workspace layouts now retain up to 12 named, account-scoped snapshots of the sanitised market, timeframe, chart view, strategy, risk and DizyFlow profile. Duplicate names update deterministically, viewer sessions remain read-only, and built-in research, clean-price and order-flow presets can be applied without bypassing the existing profile sanitiser.
-
-The protected-workspace command palette now opens with Ctrl/Cmd+K, filters deterministic navigation and existing terminal launch actions, keeps owner-only operations hidden from viewers and carries terminal launch requests safely across workspace navigation. A standalone ? shortcut opens a keyboard reference containing only implemented palette, focus and DizyFlow DOM controls.
-
-Recent workflow shortcuts now combine three existing sources of truth: account-scoped market/timeframe changes, newest-first Journal entries and browser-local DizyAcademy progress. Owner market history is retained atomically without blocking profile saves, viewer history stays in the browser, Journal links open exact retained entries, and Academy links restore the exact last or next lesson without forcing later manual navigation back to an old lesson.
-
-The responsive audit now applies one protected-workspace contract above the existing page-specific breakpoints: narrow screens retain every navigation destination through internal horizontal scrolling, intentionally wide tables remain inside their own scroll regions, global Commands and Recent tools respect safe areas without covering terminal-owned controls, and modal workflows are bounded to the dynamic viewport. Chromium verifies phone and small-tablet containment across DizyCharts, DizyScanner, DizyStructure, DizyPerformance, DizyJournal, DizyAcademy, DizyBackup and DizyOps.
-
-The accessibility workflow audit now provides a first-focus skip link and deterministic main-content target on every protected route, traps keyboard focus inside the active modal, restores focus to the launcher after dismissal, and applies consistent focus-visible styling including forced-colour support. A shared reduced-motion contract removes non-essential animation, transition delay and smooth scrolling when the operating system requests reduced motion. Chromium verifies keyboard-only skip navigation, modal wrapping, focus restoration, accessible dialog names, landmarks, live status output and computed reduced-motion behaviour.
+## Active programme
 
 ### 3. Read-only exchange connection and shadow mode
 
@@ -107,12 +101,21 @@ No order permission.
 ### 4. Independent audit
 
 - [ ] Codex or independent engineering review
-- [ ] authentication and storage threat review
+- [x] authentication and storage threat review
 - [ ] simulator accounting audit
 - [ ] Replay future-leakage audit
 - [ ] backup restore and conflict audit
-- [ ] browser accessibility review
-- [ ] deployment and recovery rehearsal
+- [ ] browser accessibility independent review
+- [x] deployment observation and application recovery rehearsal
+
+The authentication and storage review is recorded in [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md). It hardens fail-closed feature flags, session parsing and fallback behaviour, outage throttling, request-origin boundaries, owner-ID/path isolation and auth-database permissions while documenting accepted beta limitations.
+
+Deployment/recovery evidence now has two completed layers:
+
+1. a read-only GitHub Actions rehearsal that authenticates to Render, resolves the configured DizyTrades service, waits for an expected commit and verifies the simulation-only health contract;
+2. a destructive application-level export/dry-run/restore rehearsal in fresh temporary data roots with tamper rejection, owner isolation, stable fingerprints and idempotency.
+
+A destructive provider persistent-disk snapshot rollback is not required for the current simulation beta. It is moved to the guarded-execution security milestone, where isolated infrastructure and any associated cost can be justified before real exchange credentials or funds exist.
 
 ## Research programme
 
@@ -160,7 +163,8 @@ Live execution remains disabled until all earlier operational, security and reco
 
 - [ ] isolated execution service
 - [ ] encrypted credential custody
-- [ ] MFA and hardened sessions
+- [ ] MFA and hardened database-backed sessions
+- [ ] shared authentication and abuse rate limiting for multi-instance deployment
 - [ ] server-side order preview and risk validation
 - [ ] idempotent order submission
 - [ ] acknowledgement and reconciliation
@@ -169,6 +173,7 @@ Live execution remains disabled until all earlier operational, security and reco
 - [ ] stale-price rejection
 - [ ] global and per-user kill switches
 - [ ] immutable audit trail
+- [ ] controlled provider persistent-disk snapshot rollback and service-restart rehearsal
 - [ ] restricted test-account rollout
 - [ ] independent security approval
 
@@ -180,7 +185,7 @@ Useful for public charting, market study, deterministic signals, order-flow obse
 
 ### Operational Research Platform — in progress
 
-Complete when Paper Fidelity V2, accessibility, recovery rehearsal and independent audit are stable.
+DizyPaper Fidelity V2, workflow/accessibility, deployment observation, application recovery rehearsal and the authentication/storage threat review are complete. This milestone closes after the remaining independent engineering, simulator, Replay, backup-conflict and browser-accessibility reviews are stable.
 
 ### Read-only Account Companion — future
 
@@ -188,9 +193,9 @@ Complete when private account state can be reconciled safely without any exchang
 
 ### Guarded Trading Platform — conditional future
 
-Complete only after credential, risk, reconciliation, shutdown and audit requirements pass independent review.
+Complete only after credential, risk, reconciliation, shutdown, provider-recovery and audit requirements pass independent review.
 
-## Delivery rules
+## Delivery and cost rules
 
 - One focused concern per pull request.
 - Work from current `main`.
@@ -201,3 +206,5 @@ Complete only after credential, risk, reconciliation, shutdown and audit require
 - Prefer deterministic, explainable behaviour over black-box output.
 - Research observations remain informational until validated.
 - Live trading remains disabled until the final security milestone is complete.
+- Prefer the existing Render services, GitHub Actions and free tooling.
+- Do not create paid services, disks, databases, APIs or subscriptions without explicit owner approval.
