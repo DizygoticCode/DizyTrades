@@ -32,6 +32,7 @@ jobs:
       - run: npm ci
       - name: Apply accounting review fixes
         run: |
+          sed -i 's/\\n function validatedContractOrder/\\nfunction validatedContractOrder/' scripts/pr149-review/01-accounting-fixes.mjs
           node scripts/pr149-review/01-accounting-fixes.mjs
           node scripts/pr149-review/02-backup-reconciliation.mjs
           node scripts/pr149-review/03-review-tests.mjs
