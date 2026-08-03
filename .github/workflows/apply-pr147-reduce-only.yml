@@ -36,6 +36,13 @@ jobs:
           node scripts/pr147/02-lifecycles.mjs
           node scripts/pr147/03-boundaries.mjs
           node scripts/pr147/04-tests-roadmap.mjs
+      - name: Inspect generated lifecycle boundary
+        run: |
+          node - <<'NODE'
+          const {readFileSync}=require('node:fs');
+          const lines=readFileSync('app/lib/manual-paper.ts','utf8').split('\n');
+          for(let i=56;i<72;i++) console.log(String(i+1).padStart(4,' ')+': '+(lines[i]??''));
+          NODE
       - name: Focused reduce-only and automatic-risk tests
         run: node --conditions=react-server --import tsx --test tests/manual-paper-reduce-only.test.mjs tests/manual-paper-depth-auto-risk.test.mjs
       - name: Full unit suite
