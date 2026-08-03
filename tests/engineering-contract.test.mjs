@@ -7,10 +7,12 @@ import {
 } from "node:fs";
 import { join, relative } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { productionResponseHeaders } from "../next.config.ts";
 
 const repositoryRoot = new URL("../", import.meta.url);
+const repositoryRootPath = fileURLToPath(repositoryRoot);
 const read = (path) => readFileSync(new URL(path, repositoryRoot), "utf8");
 const runtimeVersion = read(".node-version").trim();
 const packageJson = JSON.parse(read("package.json"));
@@ -115,7 +117,6 @@ function trackedSourceFiles() {
     "node_modules",
     "test-results",
   ]);
-  const rootPath = new URL(repositoryRoot).pathname;
   const files = [];
   const visit = (directory) => {
     for (const name of readdirSync(directory)) {
@@ -123,19 +124,26 @@ function trackedSourceFiles() {
       const path = join(directory, name);
       const info = statSync(path);
       if (info.isDirectory()) visit(path);
-      else files.push(relative(rootPath, path).replaceAll("\\", "/"));
+      else files.push(relative(repositoryRootPath, path).replaceAll("\\", "/"));
     }
   };
-  visit(rootPath);
+  visit(repositoryRootPath);
   return files;
 }
 
 test("repository contains no committed environment, backup or database payload", () => {
   assert.equal(existsSync(new URL(".env", repositoryRoot)), false);
-  const forbidden = trackedSourceFiles().filter((path) =>
-    /(^|\/)(?:\.env(?:\..+)?|dizytrades-backup-.*\.json|.*\.(?:sqlite|sqlite3|db))$/i.test(
-      path,
-    ),
-  );
+  assert.equal(existsSync(new URL(".env.example", repositoryRoot)), true);
+  const forbidden = trackedSourceFiles().filter((path) => {
+    const name = path.split("/").at(-1) ?? "";
+    const environmentPayload =
+      name === ".env" ||
+      (name.startsWith(".env.") && name !== ".env.example");
+    return (
+      environmentPayload ||
+      /^dizytrades-backup-.*\.json$/i.test(name) ||
+      /\.(?:sqlite|sqlite3|db)$/i.test(name)
+    );
+  });
   assert.deepEqual(forbidden, []);
 });
