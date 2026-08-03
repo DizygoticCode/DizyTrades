@@ -16,6 +16,8 @@ import { HistoricalDizyFlowCaptureManager } from "./lib/historical-dizyflow-capt
 import { HistoricalDizyFlowEventAdapter } from "./lib/historical-dizyflow-events";
 import {clampContractLeverage,isMexcStepAligned,leverageStopsForContract,quantizeMexcExecutionPrice,quantizeMexcStep,sizeMexcContractOrder,type MexcContractMetadata} from "./lib/mexc-contract-metadata";
 type Mode = "fixed-margin" | "fixed-notional" | "equity-percent" | "risk-percent";
+type FundingRate={symbol:string;fundingRate:number;minFundingRate:number;maxFundingRate:number;collectCycleHours:number;nextSettleTime:number;observedAt:number;source:"mexc-public-funding-rate"};
+type FundingPayment={paymentId:string;tradeId:string;symbol:string;side:"long"|"short";settleTime:number;observedAt:number;price:number;priceSource:"fair"|"last";notional:number;fundingRate:number;calculatedCashDelta:number;cashDelta:number;balanceCapped:boolean;source:"mexc-public-funding-history";calculationMethod:"observed-risk-price-notional";resultingBalance:number};
 type Position = {
   tradeId: string;
   marketKey: string;
@@ -41,6 +43,11 @@ type Position = {
   feeSource?: "mexc-public-contract" | "legacy-settings-fallback";
   makerFeeRate?: number;
   takerFeeRate?: number;
+  fundingRate?: number;
+  fundingCollectCycleHours?: number;
+  nextFundingTime?: number;
+  fundingSource?: "mexc-public-funding-rate";
+  fundingPnl?: number;
   riskPriceSource: "fair" | "last";
   lastRiskPrice: number;
   stopLoss?: number;
@@ -74,6 +81,8 @@ type Account = {
   cashBalance: number;
   realisedPnl: number;
   fees: number;
+  fundingPnl: number;
+  fundingPayments: FundingPayment[];
   positions: Record<string, Position>;
   fills: Fill[];
   settings: {
@@ -127,13 +136,13 @@ export function ManualPaperTicket({
     [collapsed, setCollapsed] = useState(false),
     [hidden, setHidden] = useState(false),
     [height, setHeight] = useState(390);
-  const [riskState,setRiskState]=useState<{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null>(null),[contract,setContract]=useState<MexcContractMetadata|null>(null);
+  const [riskState,setRiskState]=useState<{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null>(null),[contract,setContract]=useState<MexcContractMetadata|null>(null),[funding,setFunding]=useState<FundingRate|null>(null);
   const captureManager=useRef(new HistoricalDizyFlowCaptureManager()),eventAdapter=useRef(new HistoricalDizyFlowEventAdapter()),previousPosition=useRef<Position|null>(null),finalizeTimers=useRef(new Set<number>()),retryManager=useRef<HistoricalDizyFlowCaptureManager|null>(null);
   const [captureStatus,setCaptureStatus]=useState<ReturnType<HistoricalDizyFlowCaptureManager["status"]>>({state:"buffering",tradeId:null,marketKey:null,symbol:null,sampleCount:0,eventCount:0,skippedDuplicates:0,sampleLimitReached:false,eventLimitReached:false}),[captureError,setCaptureError]=useState(""),[captureWarning,setCaptureWarning]=useState("");
   const load = useCallback(async () => {
     const response = await fetch(`/api/manual-paper?symbol=${encodeURIComponent(symbol)}`);
     if (response.ok)
-      {const payload=(await response.json()) as { account: Account;riskPrice?:{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null;contract?:MexcContractMetadata|null },nextContract=payload.contract??null;setAccount(payload.account);setRiskState(payload.riskPrice??null);setContract(nextContract);if(nextContract)setLeverage(current=>String(clampContractLeverage(Number(current),nextContract)))}
+      {const payload=(await response.json()) as { account: Account;riskPrice?:{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null;contract?:MexcContractMetadata|null;funding?:FundingRate|null },nextContract=payload.contract??null;setAccount(payload.account);setRiskState(payload.riskPrice??null);setContract(nextContract);setFunding(payload.funding??null);if(nextContract)setLeverage(current=>String(clampContractLeverage(Number(current),nextContract)))}
   }, [symbol]);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external account synchronisation
@@ -202,6 +211,14 @@ export function ManualPaperTicket({
     feeRate=contract?.takerFeeRate??(account?.settings.commissionPct??0)/100,
     feeSource=contract?"MEXC public contract":"Legacy settings fallback",
     fee = Math.max(0,notional*feeRate),
+    fundingRate=funding?.fundingRate??position?.fundingRate??0,
+    fundingCycle=funding?.collectCycleHours??position?.fundingCollectCycleHours??0,
+    fundingSource=funding?.source??position?.fundingSource??null,
+    fundingNotional=position?position.quantity*mark:notional,
+    fundingSide=position?.side??side,
+    estimatedFunding=(fundingSide==="long"?-1:1)*fundingNotional*fundingRate,
+    nextFundingTime=funding?.nextSettleTime??position?.nextFundingTime??0,
+    lastFundingPayment=account?.fundingPayments?.at(-1),
     liquidation=quantity>0?estimateLiquidation({side,entryPrice:executionPrice,quantity,marginMode,assignedMargin:margin,crossCollateral:equity,entryFee:fee,maintenanceMarginRate:contract?.maintenanceMarginRate??(account?.settings.maintenanceMarginPct??.5)/100,liquidationPenaltyRate:(account?.settings.liquidationPenaltyPct??.1)/100}):NaN,
     riskAmount=stopLoss&&quantity?Math.abs(executionPrice-Number(stopLoss))*quantity:0,
     rewardRisk=stopLoss&&takeProfit&&riskAmount?Math.abs(Number(takeProfit)-executionPrice)*quantity/riskAmount:0,
@@ -551,6 +568,10 @@ export function ManualPaperTicket({
                 ["Maker reference", contract?`${(contract.makerFeeRate*100).toFixed(4)}%`:`${(account?.settings.makerCommissionPct??0).toFixed(4)}% fallback`],
                 ["Fee source", feeSource],
                 ["Estimated fee", money(fee)],
+                ["Funding rate", fundingSource?`${(fundingRate*100).toFixed(4)}% · ${fundingCycle}h`:"Unavailable"],
+                ["Next funding", nextFundingTime?new Date(nextFundingTime).toLocaleString():"Unavailable"],
+                ["Est. next funding", fundingSource?`${estimatedFunding>=0?"Receive":"Pay"} ${money(Math.abs(estimatedFunding))}`:"Unavailable"],
+                ["Funding source", fundingSource??"Unavailable"],
                 ["Risk amount", money(riskAmount)],
                 ["Estimated liquidation", Number.isFinite(liquidation)?money(liquidation):"—"],
                 ["Reward / risk", rewardRisk?`${rewardRisk.toFixed(2)}×`:"—"],
@@ -568,6 +589,7 @@ export function ManualPaperTicket({
               {invalidPriceStep&&contract?<span>Stop loss and take profit must use {contract.priceUnit} price increments.</span>:null}
               <span>Immediate Manual Paper actions assume market execution and taker liquidity. Public fee rates do not include account-specific discounts or promotions.</span>
               {!stopLoss?<span>No stop loss — estimated liquidation remains active.</span>:null}
+              {fundingSource?<span>Funding uses public settled rates with the observed {riskState?.source??position?.riskPriceSource??"risk"} price as an explicit notional approximation.</span>:null}
               {marginMode==="cross"?<span>Cross collateral is a simulator approximation, not MEXC-exact.</span>:null}
               {riskState?.source!=="fair"?<span>Fair price unavailable — explicit Last-price fallback{riskState?.stale?" (last valid mark preserved)":""}.</span>:null}
               <span>Fees and slippage are assumptions. No profit prediction or financial advice.</span>
@@ -752,6 +774,8 @@ export function ManualPaperTicket({
                 {[
                   ["Starting balance", money(account?.startingBalance ?? 0)],
                   ["Cash balance", money(account?.cashBalance ?? 0)],
+                  ["Funding P/L", money(account?.fundingPnl ?? 0)],
+                  ["Last funding", lastFundingPayment?`${lastFundingPayment.cashDelta>=0?"Received":"Paid"} ${money(Math.abs(lastFundingPayment.cashDelta))} · ${lastFundingPayment.source}`:"None"],
                   ["Available balance", money(summary.availableBalance)],
                   ["Used margin", money(summary.usedMargin)],
                   ["Unrealised P/L", money(summary.unrealised)],
