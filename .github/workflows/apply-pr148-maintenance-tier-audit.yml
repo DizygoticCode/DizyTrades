@@ -34,6 +34,7 @@ jobs:
         run: |
           node scripts/pr148/01-risk-model.mjs
           node scripts/pr148/01a-liquidation-position-basis.mjs
+          node scripts/pr148/01b-risk-level-null-normalisation.mjs
           node scripts/pr148/02-manual-paper.mjs
           node scripts/pr148/02a-integration-fixes.mjs
           node scripts/pr148/03-boundaries.mjs
