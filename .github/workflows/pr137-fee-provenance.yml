@@ -30,7 +30,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Apply exact source patch
-        run: node scripts/pr137/apply.mjs
+        run: node scripts/pr137/prepare.mjs && node scripts/pr137/apply.mjs
       - name: Focused fee provenance tests
         run: node --conditions=react-server --import tsx --test tests/manual-paper-fees.test.mjs tests/manual-paper.test.mjs tests/mexc-contract-metadata.test.mjs
       - name: Full unit suite
