@@ -74,8 +74,18 @@ test("contract sizing floors to valid volume without exceeding requested notiona
   assert.equal(sizing.quantity, 0.049);
   assert.equal(sizing.notional, 122.50049);
   assert.ok(sizing.notional <= 123.456);
-  const maxEdge=sizeMexcContractOrder((value.maxVol+.5)*2500*value.contractSize,2500,value);
-  assert.equal(maxEdge.contractVolume,value.maxVol);
+
+  const rawMaximumEdge = value.maxVol + value.volUnit / 2;
+  assert.equal(
+    quantizeMexcStep(rawMaximumEdge, value.volUnit, "floor"),
+    value.maxVol,
+  );
+  const maximumEdge = sizeMexcContractOrder(
+    rawMaximumEdge * 2500 * value.contractSize,
+    2500,
+    value,
+  );
+  assert.equal(maximumEdge.contractVolume, value.maxVol);
 });
 
 test("contract sizing rejects exchange minimum and maximum violations", () => {
@@ -127,5 +137,6 @@ test("Manual Paper ticket requires contract rules and previews contract precisio
   assert.match(source, /!publicPrice \|\|\s*!contract \|\|\s*invalidAmount/);
   assert.match(source, /maintenanceMarginRate:contract\?\.maintenanceMarginRate\?\?/);
   assert.match(source, /sizeMexcContractOrder/);
+  assert.match(source, /steppedContractVolume/);
   assert.match(source, /contractVolume/);
 });
