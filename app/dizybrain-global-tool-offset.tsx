@@ -18,14 +18,13 @@ export function DizyBrainGlobalToolOffset() {
   useEffect(() => {
     const body = document.body;
     let observed: HTMLElement | null = null;
-    const resizeObserver = new ResizeObserver(() => update());
 
     const clear = () => {
       body.removeAttribute(ATTRIBUTE);
       body.style.removeProperty(PROPERTY);
     };
 
-    const update = () => {
+    function update() {
       const surface = visibleDizyBrainSurface();
       if (surface !== observed) {
         resizeObserver.disconnect();
@@ -45,8 +44,9 @@ export function DizyBrainGlobalToolOffset() {
       if (body.getAttribute(ATTRIBUTE) !== "true") {
         body.setAttribute(ATTRIBUTE, "true");
       }
-    };
+    }
 
+    const resizeObserver = new ResizeObserver(update);
     const mutationObserver = new MutationObserver(update);
     mutationObserver.observe(body, { childList: true, subtree: true });
     window.addEventListener("resize", update);
