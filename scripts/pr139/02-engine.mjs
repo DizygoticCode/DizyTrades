@@ -3,7 +3,7 @@ import { replaceExact, replaceRegex } from "./utils.mjs";
 await replaceExact(
   "app/lib/manual-paper.ts",
   `entryFee:fee,...feeSnapshot,riskPriceSource`,
-  `entryFee:fee,...feeSnapshot,...fundingPositionSnapshot(funding),fundingPnl:0,riskPriceSource`
+  `entryFee:fee,...feeSnapshot,...fundingPositionSnapshot(funding),fundingPnl:0,lastFundingSettlementAt:Date.parse(timestamp),riskPriceSource`
 );
 
 await replaceExact(
@@ -17,10 +17,10 @@ await replaceRegex(
   `closeReason,grossPnl:pnl,fundingPnl,netPnl:net,realisedPnl:net,resultingBalance`
 );
 
-await replaceRegex(
+await replaceExact(
   "app/lib/manual-paper.ts",
-  /export async function markManualPosition\(.*?\}\)\nfunction validateKey/s,
-  `export async function syncManualFunding(userId:string,symbol:string,riskPrice:number,source:RiskPriceSource,current?:MexcFundingRateSnapshot,history:readonly MexcFundingSettlement[]=[]){return serial(userId,async()=>{const account=await readManualAccount(userId),position=account.positions[symbol];if(!position)return account;applyFundingHistory(account,userId,position,riskPrice,source,current,history);account.updatedAt=new Date().toISOString();await writeManualAccount(userId,account);return account})}\nexport async function markManualPosition(userId:string,symbol:string,riskPrice:number,source:RiskPriceSource,current?:MexcFundingRateSnapshot,history:readonly MexcFundingSettlement[]=[]){return serial(userId,async()=>{const account=await readManualAccount(userId),position=account.positions[symbol];if(!position)return account;applyFundingHistory(account,userId,position,riskPrice,source,current,history);position.lastRiskPrice=riskPrice;position.riskPriceSource=source;const reason=evaluatePaperClose({side:position.side,riskPrice,stopLoss:position.stopLoss,takeProfit:position.takeProfit,estimatedLiquidation:position.estimatedLiquidation});if(reason)closeAt(account,userId,symbol,riskPrice,\`auto-\${reason}-\${Date.now()}\`,reason);account.updatedAt=new Date().toISOString();await writeManualAccount(userId,account);return account})}\nfunction validateKey`
+  `export async function markManualPosition(userId:string,symbol:string,riskPrice:number,source:RiskPriceSource){return serial(userId,async()=>{const account=await readManualAccount(userId),position=account.positions[symbol];if(!position)return account;position.lastRiskPrice=riskPrice;position.riskPriceSource=source;const reason=evaluatePaperClose({side:position.side,riskPrice,stopLoss:position.stopLoss,takeProfit:position.takeProfit,estimatedLiquidation:position.estimatedLiquidation});if(reason)closeAt(account,userId,symbol,riskPrice,\`auto-\${reason}-\${Date.now()}\`,reason);account.updatedAt=new Date().toISOString();await writeManualAccount(userId,account);return account})}`,
+  `export async function syncManualFunding(userId:string,symbol:string,riskPrice:number,source:RiskPriceSource,current?:MexcFundingRateSnapshot,history:readonly MexcFundingSettlement[]=[]){return serial(userId,async()=>{const account=await readManualAccount(userId),position=account.positions[symbol];if(!position)return account;applyFundingHistory(account,userId,position,riskPrice,source,current,history);account.updatedAt=new Date().toISOString();await writeManualAccount(userId,account);return account})}\nexport async function markManualPosition(userId:string,symbol:string,riskPrice:number,source:RiskPriceSource,current?:MexcFundingRateSnapshot,history:readonly MexcFundingSettlement[]=[]){return serial(userId,async()=>{const account=await readManualAccount(userId),position=account.positions[symbol];if(!position)return account;applyFundingHistory(account,userId,position,riskPrice,source,current,history);position.lastRiskPrice=riskPrice;position.riskPriceSource=source;const reason=evaluatePaperClose({side:position.side,riskPrice,stopLoss:position.stopLoss,takeProfit:position.takeProfit,estimatedLiquidation:position.estimatedLiquidation});if(reason)closeAt(account,userId,symbol,riskPrice,\`auto-\${reason}-\${Date.now()}\`,reason);account.updatedAt=new Date().toISOString();await writeManualAccount(userId,account);return account})}`
 );
 
 await replaceExact(
