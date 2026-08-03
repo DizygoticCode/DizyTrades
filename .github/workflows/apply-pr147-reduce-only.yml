@@ -37,24 +37,22 @@ jobs:
           node scripts/pr147/02-lifecycles.mjs
           node scripts/pr147/03-boundaries.mjs
           node scripts/pr147/04-tests-roadmap.mjs
-      - name: Focused reduce-only and automatic-risk tests
-        run: node --conditions=react-server --import tsx --test tests/manual-paper-reduce-only.test.mjs tests/manual-paper-depth-auto-risk.test.mjs
-      - name: Full unit suite
-        run: npm test
-      - name: Lint
-        run: npm run lint
-      - name: Production build
-        run: npm run build
-      - name: Remove temporary patch machinery
-        run: rm -rf scripts/pr147 .github/workflows/apply-pr147-reduce-only.yml
-      - name: Commit validated implementation
+      - name: Print failing legacy test bodies
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No validated product changes were produced."
-            exit 1
-          fi
-          git commit -m "Enforce reduce-only paper exits"
-          git push origin HEAD:feature/dizypaper-reduce-only-semantics
+          node - <<'NODE'
+          const {readFileSync}=require('node:fs');
+          const cases=[
+            ['tests/manual-paper.test.mjs','Manual Paper opens, partially closes, reverses and liquidates isolated positions'],
+            ['tests/manual-paper.test.mjs','cross margin liquidation boundary improves with account collateral'],
+            ['tests/manual-paper.test.mjs','manual order execution enforces MEXC contract volume and price steps'],
+            ['tests/manual-paper-depth-exits.test.mjs','manual exit depth evidence survives backup and rejects tampering'],
+          ];
+          for(const [path,title] of cases){
+            const s=readFileSync(path,'utf8'),i=s.indexOf(title);
+            console.log('\n===== '+title+' @ '+i+' =====');
+            console.log(i<0?'NOT FOUND':s.slice(Math.max(0,i-20),i+2600));
+          }
+          NODE
+      - name: Print failing test diagnostics
+        run: |
+          node --conditions=react-server --import tsx --test --test-name-pattern="Manual Paper opens, partially closes|cross margin liquidation boundary|manual order execution enforces|manual exit depth evidence survives" tests/manual-paper.test.mjs tests/manual-paper-depth-exits.test.mjs || true
