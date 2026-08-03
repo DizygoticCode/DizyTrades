@@ -6,7 +6,12 @@ test("viewer navigates and opens verified keyboard help through the palette", as
   await expect(page).toHaveURL(/\/terminal$/);
 
   const skip = page.getByRole("button", { name: "Skip onboarding" });
-  if (await skip.isVisible().catch(() => false)) await skip.click();
+  const appeared = await skip
+    .waitFor({ state: "visible", timeout: 1_500 })
+    .then(() => true)
+    .catch(() => false);
+  if (appeared) await skip.click();
+  await expect(page.locator(".first-run-onboarding-backdrop")).toHaveCount(0);
 
   await page.keyboard.press("Control+K");
   const palette = page.getByRole("dialog", { name: "DizyTrades command palette" });
