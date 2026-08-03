@@ -236,7 +236,7 @@ test("modal background is inert and cannot receive programmatic focus", async ({
     name: "DizyTrades command palette",
   });
   const search = dialog.getByRole("combobox", { name: "Search commands" });
-  const trigger = page.getByRole("button", { name: /Commands/ });
+  const trigger = page.getByRole("button", { name: "Commands ⌘K" });
   await expect(search).toBeFocused();
   await expect
     .poll(() => trigger.evaluate((element) => Boolean(element.closest("[inert]"))))
