@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { CommandPaletteMounted } from "./command-palette-mounted";
 import "./globals.css";
 import "./responsive-audit.css";
+import "./accessibility-audit.css";
 import "./brand-rollout.css";
 import "./marketing/real-feature-visuals.css";
 

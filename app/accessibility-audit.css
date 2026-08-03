@@ -1,0 +1,59 @@
+/* Shared keyboard, focus and motion contract for protected DizyTrades workspaces. */
+
+.accessibility-skip-link {
+  position: fixed;
+  z-index: 30000;
+  top: max(8px, env(safe-area-inset-top));
+  left: max(8px, env(safe-area-inset-left));
+  padding: 10px 14px;
+  color: #07111d;
+  border: 2px solid currentColor;
+  border-radius: 8px;
+  background: #a9ddff;
+  box-shadow: 0 10px 34px #000a;
+  font-size: 13px;
+  font-weight: 850;
+  text-decoration: none;
+  transform: translateY(calc(-100% - 24px));
+  transition: transform 140ms ease-out;
+}
+
+.accessibility-skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+body:has(.command-palette-floating)
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid #8fd3ff;
+  outline-offset: 3px;
+}
+
+body:has(.command-palette-floating) main:focus-visible {
+  outline: 3px solid #8fd3ff;
+  outline-offset: -3px;
+}
+
+@media (forced-colors: active) {
+  .accessibility-skip-link,
+  body:has(.command-palette-floating)
+    :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 3px solid CanvasText;
+    outline-offset: 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto !important;
+  }
+
+  body:has(.command-palette-floating) *,
+  body:has(.command-palette-floating) *::before,
+  body:has(.command-palette-floating) *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
