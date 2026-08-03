@@ -44,7 +44,33 @@ jobs:
       - name: Focused migration and Paper evidence tests
         run: node --conditions=react-server --import tsx --test tests/manual-paper-history.test.mjs tests/user-backup-migration.test.mjs tests/user-backup.test.mjs tests/manual-paper-funding.test.mjs tests/manual-paper-margin-lifecycle.test.mjs tests/manual-paper-risk-tiers.test.mjs tests/manual-paper-reduce-only.test.mjs tests/manual-paper-depth-auto-risk.test.mjs
       - name: Full unit suite
-        run: npm test
+        shell: bash
+        run: |
+          set +e
+          npm test > /tmp/pr150-full-suite.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "===== PR 150 COMPACT FAILURE REPORT ====="
+            node <<'NODE'
+          const fs=require('node:fs');
+          const lines=fs.readFileSync('/tmp/pr150-full-suite.log','utf8').split(/\r?\n/);
+          const starts=[];
+          for(let i=0;i<lines.length;i++)if(/^not ok\s+\d+\s+-\s+/.test(lines[i])||/^# Subtest:/.test(lines[i])&&/^not ok\s+\d+\s+-\s+/.test(lines[i+1]||''))starts.push(i);
+          if(!starts.length){
+            console.log(lines.filter(line=>/not ok|ERR_|AssertionError|Error:|failureType:|location:/.test(line)).slice(-300).join('\n'));
+          }else{
+            for(const start of starts){
+              let end=Math.min(lines.length,start+80);
+              for(let i=start+1;i<Math.min(lines.length,start+80);i++)if(/^# Subtest:/.test(lines[i])||/^ok\s+\d+\s+-\s+/.test(lines[i])||/^not ok\s+\d+\s+-\s+/.test(lines[i])){end=i;break}
+              console.log(lines.slice(start,end).join('\n'));
+              console.log('---');
+            }
+          }
+          NODE
+            echo "===== END COMPACT FAILURE REPORT ====="
+            exit "$status"
+          fi
+          cat /tmp/pr150-full-suite.log
       - name: Lint
         run: npm run lint
       - name: Production build
