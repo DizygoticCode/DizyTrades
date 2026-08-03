@@ -1,6 +1,17 @@
 import type { RiskSettings } from "./config";
 import type { Candle, StrategyAnalysis } from "./strategy";
 
+export type SignalPositionSizing = Readonly<{
+  calculationMethod: "risk-stop-notional-leverage-cap-v1";
+  configuredRiskCash: number;
+  riskCash: number;
+  quantity: number;
+  notional: number;
+  initialMargin: number;
+  notionalCap: number;
+  capSource: "risk-percent" | "maximum-notional" | "leverage-capacity";
+}>;
+
 export type PaperTrade = {
   id: string;
   direction: "long" | "short";
@@ -14,6 +25,11 @@ export type PaperTrade = {
   positionSize?: number;
   riskPct?: number;
   leverage?: number;
+  riskCash?: number;
+  notional?: number;
+  initialMargin?: number;
+  sizingMethod?: SignalPositionSizing["calculationMethod"];
+  sizingCapSource?: SignalPositionSizing["capSource"];
   rMultiple?: number;
   pnl: number;
   pnlPct: number;
@@ -29,6 +45,10 @@ export type BacktestSummary = {
   returnPct: number;
   maxDrawdownPct: number;
   trades: number;
+  completedTrades?: number;
+  openTrades?: number;
+  realisedPnl?: number;
+  markedPnl?: number;
   wins: number;
   winRatePct: number;
   profitFactor: number | null;
@@ -41,11 +61,52 @@ const emptySummary = (equity: number): BacktestSummary => ({
   returnPct: 0,
   maxDrawdownPct: 0,
   trades: 0,
+  completedTrades: 0,
+  openTrades: 0,
+  realisedPnl: 0,
+  markedPnl: 0,
   wins: 0,
   winRatePct: 0,
   profitFactor: null,
   closedTrades: [],
 });
+
+export function sizeSimulatedSignalPosition(input: {
+  equity: number;
+  entry: number;
+  riskDistance: number;
+  risk: RiskSettings;
+}): SignalPositionSizing {
+  const leverage = Math.max(1, input.risk.leverage);
+  const configuredRiskCash = Math.max(0, input.equity) * (input.risk.riskPct / 100);
+  const maximumNotional = Math.max(0, input.risk.maxNotional);
+  const leverageCapacity = Math.max(0, input.equity) * leverage;
+  const notionalCap = Math.min(maximumNotional, leverageCapacity);
+  const notionalRiskCash = input.entry > 0
+    ? notionalCap * input.riskDistance / input.entry
+    : 0;
+  const riskCash = Math.max(0, Math.min(configuredRiskCash, notionalRiskCash));
+  const quantity = input.riskDistance > 0 ? riskCash / input.riskDistance : 0;
+  const notional = quantity * input.entry;
+  const initialMargin = leverage > 0 ? notional / leverage : 0;
+  const tolerance = Math.max(1e-9, riskCash * 1e-10);
+  const capSource: SignalPositionSizing["capSource"] =
+    Math.abs(riskCash - configuredRiskCash) <= tolerance
+      ? "risk-percent"
+      : maximumNotional <= leverageCapacity
+        ? "maximum-notional"
+        : "leverage-capacity";
+  return Object.freeze({
+    calculationMethod: "risk-stop-notional-leverage-cap-v1",
+    configuredRiskCash,
+    riskCash,
+    quantity,
+    notional,
+    initialMargin,
+    notionalCap,
+    capSource,
+  });
+}
 
 export function simulateConfirmedSignals(
   candles: Candle[],
@@ -91,11 +152,9 @@ export function simulateConfirmedSignals(
     const tp2 = direction === "long"
       ? entry + riskDistance * risk.tp2
       : entry - riskDistance * risk.tp2;
-    const riskCash = Math.min(
-      equity * (risk.riskPct / 100),
-      risk.maxNotional / Math.max(risk.leverage, 1),
-    );
-    const quantity = riskCash / riskDistance;
+    const sizing = sizeSimulatedSignalPosition({ equity, entry, riskDistance, risk });
+    const { riskCash, quantity } = sizing;
+    if (riskCash <= 0 || quantity <= 0) continue;
     let realised = 0;
     let tp1Hit = false;
     let exit = entry;
@@ -188,6 +247,11 @@ export function simulateConfirmedSignals(
       positionSize: quantity,
       riskPct: risk.riskPct,
       leverage: risk.leverage,
+      riskCash: sizing.riskCash,
+      notional: sizing.notional,
+      initialMargin: sizing.initialMargin,
+      sizingMethod: sizing.calculationMethod,
+      sizingCapSource: sizing.capSource,
       rMultiple: riskCash > 0 ? realised / riskCash : 0,
       pnl: realised,
       pnlPct: equityBefore > 0 ? (realised / equityBefore) * 100 : 0,
@@ -199,15 +263,19 @@ export function simulateConfirmedSignals(
     nextAvailableIndex = exitIndex + 1;
   }
 
-  const grossProfit = trades
+  const completed = trades.filter((trade) => trade.exitReason !== "MARK");
+  const openTrades = trades.length - completed.length;
+  const grossProfit = completed
     .filter((trade) => trade.pnl > 0)
     .reduce((sum, trade) => sum + trade.pnl, 0);
   const grossLoss = Math.abs(
-    trades
+    completed
       .filter((trade) => trade.pnl < 0)
       .reduce((sum, trade) => sum + trade.pnl, 0),
   );
-  const wins = trades.filter((trade) => trade.pnl > 0).length;
+  const wins = completed.filter((trade) => trade.pnl > 0).length;
+  const realisedPnl = trades.reduce((sum, trade) => sum + trade.realisedPnl, 0);
+  const markedPnl = equity - initialEquity - realisedPnl;
 
   return {
     initialEquity,
@@ -215,8 +283,12 @@ export function simulateConfirmedSignals(
     returnPct: ((equity - initialEquity) / initialEquity) * 100,
     maxDrawdownPct,
     trades: trades.length,
+    completedTrades: completed.length,
+    openTrades,
+    realisedPnl,
+    markedPnl,
     wins,
-    winRatePct: trades.length ? (wins / trades.length) * 100 : 0,
+    winRatePct: completed.length ? (wins / completed.length) * 100 : 0,
     profitFactor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? null : 0,
     closedTrades: trades,
   };
