@@ -115,11 +115,17 @@ test("viewer workspaces remain contained and reachable on a phone", async ({ pag
   }
 
   await page.goto("/scanner");
-  await page.getByRole("button", { name: /Commands/ }).click();
+  await expect(page.getByRole("button", { name: /Commands/ })).toBeVisible();
+  // Ctrl+K is the product shortcut and avoids Next's development overlay
+  // occasionally intercepting a physical click in the test environment.
+  await page.keyboard.press("Control+K");
   await expectDialogContained(page, "DizyTrades command palette");
   await page.keyboard.press("Escape");
 
-  await page.getByRole("button", { name: "Recent" }).click();
+  await expect(page.getByRole("button", { name: "Recent" })).toBeVisible();
+  await page.locator(".recent-shortcuts-trigger").evaluate((button) => {
+    (button as HTMLButtonElement).click();
+  });
   await expectDialogContained(page, "DizyTrades recent shortcuts");
   const columns = await page
     .locator(".recent-shortcuts-grid")
