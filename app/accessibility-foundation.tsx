@@ -49,6 +49,40 @@ export function currentModalDialog() {
     .at(-1) ?? null;
 }
 
+function modalBackgroundElements(dialog: HTMLElement) {
+  const background = new Set<HTMLElement>();
+  let current: HTMLElement = dialog;
+  while (current.parentElement) {
+    const parent = current.parentElement;
+    for (const sibling of Array.from(parent.children)) {
+      if (sibling !== current && sibling instanceof HTMLElement) {
+        background.add(sibling);
+      }
+    }
+    if (parent === document.body) break;
+    current = parent;
+  }
+  return [...background];
+}
+
+/**
+ * `aria-modal` describes the relationship, while `inert` enforces it for
+ * keyboard, pointer and accessibility-tree navigation. Preserve any inert
+ * state that belonged to the page before the dialog opened.
+ */
+export function isolateModalBackground(dialog: HTMLElement) {
+  const changed = modalBackgroundElements(dialog).map((element) => ({
+    element,
+    hadInert: element.hasAttribute("inert"),
+  }));
+  for (const { element } of changed) element.setAttribute("inert", "");
+  return () => {
+    for (const { element, hadInert } of changed) {
+      if (!hadInert) element.removeAttribute("inert");
+    }
+  };
+}
+
 function focusMainContent() {
   const main = document.querySelector<HTMLElement>("main");
   if (!main) return;
@@ -83,10 +117,12 @@ export function AccessibilityFoundation() {
 
     let trackedDialog: HTMLElement | null = null;
     let opener: HTMLElement | null = null;
+    let restoreIsolation = () => {};
 
     const synchroniseModal = () => {
       const dialog = currentModalDialog();
       if (dialog && dialog !== trackedDialog) {
+        restoreIsolation();
         const activeElement = document.activeElement;
         if (
           activeElement instanceof HTMLElement &&
@@ -95,9 +131,12 @@ export function AccessibilityFoundation() {
           opener = activeElement;
         }
         trackedDialog = dialog;
+        restoreIsolation = isolateModalBackground(dialog);
         document.body.dataset.modalOpen = "true";
       } else if (!dialog && trackedDialog) {
         trackedDialog = null;
+        restoreIsolation();
+        restoreIsolation = () => {};
         delete document.body.dataset.modalOpen;
         const restore = opener;
         opener = null;
@@ -140,6 +179,7 @@ export function AccessibilityFoundation() {
     return () => {
       observer.disconnect();
       document.removeEventListener("keydown", trapFocus, true);
+      restoreIsolation();
       delete document.body.dataset.modalOpen;
     };
   }, [active, pathname]);
