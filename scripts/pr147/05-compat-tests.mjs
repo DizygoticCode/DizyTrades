@@ -36,7 +36,7 @@ const replaceOnce = (source, search, replacement, label) => {
   source = replaceOnce(
     source,
     'assert.match(source,/Fresh public DizyFlow depth is unavailable for this market action/)',
-    'assert.match(source,/Fresh public DizyFlow depth is unavailable for this market action/);assert.match(source,/function reduceOnlyTarget\(body:Record<string,unknown>\)/)',
+    'assert.match(source,/Fresh public DizyFlow depth is unavailable for this market action/);assert.ok(source.includes("function reduceOnlyTarget(body:Record<string,unknown>)"))',
     "close route target parser contract",
   );
   await writeFile(path, source);
