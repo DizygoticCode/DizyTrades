@@ -33,7 +33,7 @@ const text = (value: unknown, maximum: number) =>
 export function normaliseWorkspaceLayoutName(value: unknown) {
   const name = text(value, MAX_WORKSPACE_LAYOUT_NAME);
   if (!name) throw new Error("Workspace name is required.");
-  if (/^[.\-_ ]+$/.test(name)) throw new Error("Workspace name must contain a letter or number.");
+  if (!/[\p{L}\p{N}]/u.test(name)) throw new Error("Workspace name must contain a letter or number.");
   return name;
 }
 
@@ -77,6 +77,28 @@ export function sanitiseSavedWorkspaceLayouts(value: unknown): readonly SavedWor
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
       .slice(0, MAX_WORKSPACE_LAYOUTS),
   );
+}
+
+export function validateWorkspaceLayoutBackupCollection(
+  value: unknown,
+): readonly SavedWorkspaceLayout[] {
+  if (value === undefined) return Object.freeze([]);
+  if (!Array.isArray(value) || value.length > MAX_WORKSPACE_LAYOUTS) {
+    throw new Error("Backup workspace layouts are invalid.");
+  }
+  const layouts = value.map((candidate, index) => {
+    const layout = sanitiseSavedWorkspaceLayout(candidate);
+    if (!layout) throw new Error(`Backup workspace layout ${index} is invalid.`);
+    return layout;
+  });
+  if (new Set(layouts.map((layout) => layout.id)).size !== layouts.length) {
+    throw new Error("Backup workspace layout IDs are duplicated.");
+  }
+  const names = layouts.map((layout) => layout.name.toLocaleLowerCase());
+  if (new Set(names).size !== names.length) {
+    throw new Error("Backup workspace layout names are duplicated.");
+  }
+  return Object.freeze(layouts);
 }
 
 export function workspaceLayoutSummary(layout: SavedWorkspaceLayout): WorkspaceLayoutSummary {
