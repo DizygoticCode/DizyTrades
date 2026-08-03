@@ -70,12 +70,12 @@ export function buildDizyBrainBeginnerOverview(snapshot: DizyBrainSnapshot, repl
         : snapshot.activeConfluence > 0
           ? "Setup forming"
           : "No setup";
-  const confidenceLabel = confidencePercent >= 80 ? "Strong evidence" : confidencePercent >= 60 ? "Moderate evidence" : confidencePercent >= 40 ? "Early evidence" : "Insufficient evidence";
+  const confidenceLabel = confidencePercent >= 80 ? "Strong support" : confidencePercent >= 60 ? "Moderate support" : confidencePercent >= 40 ? "Early support" : "Weak support";
   const reasons: string[] = [];
-  reasons.push(snapshot.marketBias === "Neutral" ? "Market bias is currently neutral" : snapshot.marketBias + " market bias");
-  reasons.push(snapshot.marketPhase ? snapshot.marketPhase + " structure phase" : "No clear structure phase yet");
-  reasons.push(snapshot.activeConfluence + " of 5 setup checks currently agree");
   if (snapshot.confirmedSignal) reasons.push(snapshot.confirmedSignal + " confirmed on the latest closed candle");
+  reasons.push(snapshot.activeConfluence + " of 5 setup checks currently agree");
+  reasons.push(snapshot.marketBias === "Neutral" ? "Market bias is currently neutral" : snapshot.marketBias + " market bias");
+  if (reasons.length < 3) reasons.push(snapshot.marketPhase ? snapshot.marketPhase + " structure phase" : "No clear structure phase yet");
   const summary = replay
     ? "This is historical evidence for review, not a live setup."
     : snapshot.qualified && snapshot.confirmedSignal
