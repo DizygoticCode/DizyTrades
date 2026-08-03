@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/render-rehearsal.yml"
+      - ".node-version"
       - "scripts/render-rehearsal.mjs"
       - "tests/render-rehearsal.test.mjs"
       - "docs/RENDER_REHEARSAL.md"
@@ -13,6 +14,7 @@ on:
       - agent/render-rehearsal
     paths:
       - ".github/workflows/render-rehearsal.yml"
+      - ".node-version"
       - "scripts/render-rehearsal.mjs"
       - "tests/render-rehearsal.test.mjs"
       - "docs/RENDER_REHEARSAL.md"
@@ -44,7 +46,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: ".node-version"
 
       - name: Verify rehearsal helpers
         run: node --test tests/render-rehearsal.test.mjs
