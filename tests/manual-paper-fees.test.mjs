@@ -4,6 +4,7 @@ import {
   legacyMarketTakerFeeSnapshot,
   mexcPublicMarketTakerFeeSnapshot,
   paperExecutionFee,
+  positionMarketTakerFeeSnapshot,
 } from "../app/lib/manual-paper-fees.ts";
 
 const contract = {
@@ -42,7 +43,8 @@ test("public MEXC fee snapshots model immediate executions as taker fills", () =
 });
 
 test("legacy fee fallback remains explicit and separately labelled", () => {
-  assert.deepEqual(legacyMarketTakerFeeSnapshot(0.06, 0.02), {
+  const fallback = legacyMarketTakerFeeSnapshot(0.06, 0.02);
+  assert.deepEqual(fallback, {
     executionType: "market",
     liquidityRole: "taker",
     feeRate: 0.0006,
@@ -50,6 +52,13 @@ test("legacy fee fallback remains explicit and separately labelled", () => {
     makerFeeRate: 0.0002,
     takerFeeRate: 0.0006,
   });
+  assert.deepEqual(
+    positionMarketTakerFeeSnapshot(
+      {},
+      { commissionPct: 0.06, makerCommissionPct: 0.02 },
+    ),
+    fallback,
+  );
 });
 
 test("Manual Paper persists public fee provenance through open, partial close, reversal and backup", async () => {
