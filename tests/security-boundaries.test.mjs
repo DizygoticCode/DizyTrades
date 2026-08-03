@@ -13,7 +13,7 @@ import {
   issueSession,
   parseSessionToken,
   VIEWER_USER,
-} from "../app/lib/auth.ts";
+} from "../app/lib/auth-session.ts";
 import { readJournal } from "../app/lib/journal-store.ts";
 import {
   requestIp,
