@@ -72,7 +72,12 @@ export async function authenticateUser(identifier: string, password: string) {
 }
 
 export function issueSession(user: AuthUser) {
-  return createDatabaseSession(user, SESSION_MAX_AGE_SECONDS) || createSessionToken(user);
+  const databaseToken = createDatabaseSession(user, SESSION_MAX_AGE_SECONDS);
+  if (databaseToken) return databaseToken;
+  if (user.role === "owner" || user.role === "admin" || user.role === "viewer") {
+    return createSessionToken(user);
+  }
+  return null;
 }
 
 export async function currentUser() {
