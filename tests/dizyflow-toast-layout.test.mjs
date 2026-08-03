@@ -8,31 +8,29 @@ const [component, css, globals] = await Promise.all([
   readFile("app/globals.css", "utf8"),
 ]);
 
-test("DizyFlow activity notification is a compact bounded floating overlay", () => {
+test("DizyFlow activity notification owns a compact reserved toolbar lane", () => {
   assert.match(component, /styles\.rail/);
   assert.match(component, /styles\.card/);
   assert.match(component, /DizyFlow activity/);
-  assert.ok(css.includes("position: fixed !important;"));
-  assert.ok(css.includes("inline-size: min(292px, calc(100vw - 24px));"));
-  assert.ok(css.includes("pointer-events: none;"));
-  assert.ok(css.includes("min-block-size: 60px;"));
-  assert.ok(globals.includes(".flow-toast-rail{position:fixed!important"));
-  assert.ok(!globals.includes(".flow-toast-rail{position:static!important"));
+  assert.ok(css.includes("position: static !important;"));
+  assert.ok(css.includes("inline-size: clamp(228px, 18vw, 258px);"));
+  assert.ok(css.includes("min-block-size: 32px;"));
+  assert.ok(css.includes("block-size: 30px;"));
+  assert.ok(globals.includes(".flow-toast-rail{position:static!important"));
+  assert.ok(!globals.includes(".flow-toast-rail{position:fixed!important"));
 });
 
-test("toast placement and content cannot resize the terminal toolbar", () => {
-  assert.ok(globals.includes(".flow-toast-rail.top-left{left:18px!important"));
-  assert.ok(globals.includes(".flow-toast-rail.top-centre{left:50%!important"));
-  assert.ok(globals.includes(".flow-toast-rail.top-right{right:18px!important"));
-  assert.ok(css.includes(":global(.top-left)"));
-  assert.ok(css.includes(":global(.top-centre)"));
-  assert.ok(css.includes(":global(.top-right)"));
-  assert.ok(!css.includes("inline-size: clamp(340px, 26vw, 440px)"));
+test("toolbar toast cannot cover neighbouring controls", () => {
+  assert.ok(globals.includes("top:auto!important"));
+  assert.ok(globals.includes(".flow-toast-rail.top-left,.flow-toast-rail.top-centre,.flow-toast-rail.top-right{left:auto!important;right:auto!important;transform:none!important}"));
+  assert.ok(css.includes("flex: 0 1 258px;"));
+  assert.ok(css.includes("overflow: hidden;"));
   assert.ok(css.includes("text-overflow: ellipsis;"));
-  assert.ok(css.includes("box-shadow: 0 12px 30px"));
+  assert.ok(css.includes("box-shadow: none;"));
+  assert.ok(!css.includes("position: fixed"));
 });
 
-test("floating activity toast has stable expiry and accessible controls", () => {
+test("toolbar activity toast retains stable expiry and accessible controls", () => {
   assert.match(component, /const activeAlertId = activeAlert\?\.id \?\? null/);
   assert.match(component, /\[activeAlertId, paused, settings\.alerts\.durationMs\]/);
   assert.doesNotMatch(component, /\[paused, settings\.alerts\.durationMs, visible\]/);
