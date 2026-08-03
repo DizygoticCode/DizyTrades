@@ -30,7 +30,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Apply funding review corrections
-        run: node scripts/pr139-review/apply.mjs
+        run: node scripts/pr139-review/launch.mjs
       - name: Focused funding accounting tests
         run: node --conditions=react-server --import tsx --test tests/manual-paper-funding.test.mjs tests/manual-paper-fees.test.mjs tests/manual-paper.test.mjs
       - name: Full unit suite
