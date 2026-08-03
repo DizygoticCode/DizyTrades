@@ -49,6 +49,29 @@ export function currentModalDialog() {
     .at(-1) ?? null;
 }
 
+function focusMainContent() {
+  const main = document.querySelector<HTMLElement>("main");
+  if (!main) return;
+
+  // The page owns the server-rendered main element. Add a temporary focus
+  // target only after explicit user activation, avoiding hydration changes.
+  const originalId = main.getAttribute("id");
+  const originalTabIndex = main.getAttribute("tabindex");
+  if (!originalId) main.id = "main-content";
+  if (originalTabIndex === null) main.tabIndex = -1;
+
+  const restore = () => {
+    if (originalId === null) main.removeAttribute("id");
+    else main.id = originalId;
+    if (originalTabIndex === null) main.removeAttribute("tabindex");
+    else main.setAttribute("tabindex", originalTabIndex);
+  };
+
+  main.addEventListener("blur", restore, { once: true });
+  main.focus({ preventScroll: true });
+  main.scrollIntoView({ block: "start", behavior: "auto" });
+}
+
 export function AccessibilityFoundation() {
   const pathname = usePathname();
   const active = protectedPrefixes.some(
@@ -57,12 +80,6 @@ export function AccessibilityFoundation() {
 
   useEffect(() => {
     if (!active) return;
-
-    const main = document.querySelector<HTMLElement>("main");
-    if (main) {
-      main.id = "main-content";
-      if (!main.hasAttribute("tabindex")) main.tabIndex = -1;
-    }
 
     let trackedDialog: HTMLElement | null = null;
     let opener: HTMLElement | null = null;
@@ -134,11 +151,8 @@ export function AccessibilityFoundation() {
       className="accessibility-skip-link"
       href="#main-content"
       onClick={(event) => {
-        const main = document.getElementById("main-content");
-        if (!main) return;
         event.preventDefault();
-        main.focus();
-        main.scrollIntoView({ block: "start", behavior: "auto" });
+        focusMainContent();
       }}
     >
       Skip to main content
