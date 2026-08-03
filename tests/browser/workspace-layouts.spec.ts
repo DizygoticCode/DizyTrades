@@ -13,10 +13,12 @@ test("owner can save update and delete a named terminal workspace", async ({ pag
   await page.getByRole("button", { name: "Open DizyTrades" }).click();
   await expect(page).toHaveURL(/\/terminal$/);
 
+  const layoutsButton = page.getByRole("button", { name: "Layouts" });
+  await expect(layoutsButton).toBeVisible();
   const skip = page.getByRole("button", { name: "Skip onboarding" });
   if (await skip.isVisible().catch(() => false)) await skip.click();
 
-  await page.getByRole("button", { name: "Layouts" }).click();
+  await layoutsButton.click();
   const dialog = page.getByRole("dialog", {
     name: "Save the whole setup, not just the symbol.",
   });
