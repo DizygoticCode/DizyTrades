@@ -36,7 +36,12 @@ jobs:
       - name: Full unit suite
         run: npm test
       - name: Lint
-        run: npm run lint
+        run: |
+          set +e
+          npm run lint > /tmp/pr141-lint.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then tail -n 120 /tmp/pr141-lint.log; fi
+          exit "$status"
       - name: Production build
         run: npm run build
       - name: Remove temporary patch machinery
