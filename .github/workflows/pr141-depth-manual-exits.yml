@@ -38,9 +38,11 @@ jobs:
       - name: Lint
         run: |
           set +e
-          npm run lint > /tmp/pr141-lint.log 2>&1
+          npx eslint . --ignore-pattern .next --format json > /tmp/pr141-lint.json
           status=$?
-          if [ "$status" -ne 0 ]; then tail -n 120 /tmp/pr141-lint.log; fi
+          if [ "$status" -ne 0 ]; then
+            node -e 'const fs=require("fs");for(const file of JSON.parse(fs.readFileSync("/tmp/pr141-lint.json","utf8")))for(const m of file.messages)console.log(`${file.filePath}:${m.line}:${m.column} ${m.ruleId??"parse"} ${m.message}`)'
+          fi
           exit "$status"
       - name: Production build
         run: npm run build
