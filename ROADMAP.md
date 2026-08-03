@@ -64,7 +64,7 @@ Improve simulation realism without claiming exchange-exact fills.
 - [ ] clearer isolated versus cross-margin assumptions
 - [ ] migration-safe history and backup support
 
-Next slice: depth-sensitive slippage and partial-fill modelling.
+Current slice: visible-book market-entry walking and partial entry fills. Close, reversal and automatic risk-exit depth lifecycle follows before this roadmap item is complete.
 
 ### 2. Workflow and accessibility polish
 
