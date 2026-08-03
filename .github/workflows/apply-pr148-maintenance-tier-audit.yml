@@ -34,8 +34,10 @@ jobs:
         run: |
           node scripts/pr148/01-risk-model.mjs
           node scripts/pr148/02-manual-paper.mjs
+          node scripts/pr148/02a-integration-fixes.mjs
           node scripts/pr148/03-boundaries.mjs
           node scripts/pr148/04-tests-roadmap.mjs
+          node scripts/pr148/04a-test-contract-fixes.mjs
       - name: Focused maintenance tier and bankruptcy tests
         run: node --conditions=react-server --import tsx --test tests/manual-paper-risk-tiers.test.mjs tests/manual-paper-risk-tier-source.test.mjs tests/manual-paper-engine.test.mjs tests/mexc-contract-metadata.test.mjs tests/manual-paper-reduce-only.test.mjs tests/manual-paper-depth-auto-risk.test.mjs
       - name: Full unit suite
