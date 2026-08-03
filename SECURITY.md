@@ -5,7 +5,8 @@
 DizyTrades is an active research, education and simulation platform. It is not a live exchange executor.
 
 - `LIVE_TRADING_ENABLED` must remain `false`.
-- No private MEXC API client or exchange order route exists.
+- A server-only MEXC Futures private read transport exists, but no private credentials, credential store, browser form or application API route is configured.
+- No private exchange write client or order route exists.
 - No browser workflow requests or stores exchange credentials.
 - The public health and diagnostics surfaces must continue to report live execution as disabled.
 
@@ -20,6 +21,16 @@ DizyCharts, DizyScanner, DizyStructure and DizyFlow use documented public MEXC d
 A forming candle is display-only and cannot confirm a DizySignals signal, historical fact or paper entry. Public-feed failure must degrade visibly to delayed, stale or unavailable states rather than fabricating continuity.
 
 TradingView Explorer remains an isolated official read-only widget. It is not scraped, read from, injected with DizySignals or used for simulation.
+
+## Private account-read foundation
+
+The first Read-only Account Companion foundation is recorded in [docs/MEXC_PRIVATE_READONLY_BOUNDARY.md](docs/MEXC_PRIVATE_READONLY_BOUNDARY.md).
+
+The server-only transport accepts typed endpoint IDs only. It fixes the provider origin, constructs only `GET` requests and allowlists endpoints documented as requiring Account read or Trade read permission. Callers cannot submit a raw host, URL, path or HTTP method.
+
+The foundation has no credential configuration or persistence. It is not reachable from a browser or application API route and does not connect a real exchange account. Real credentials remain blocked until a separate reviewed design provides per-user server-side custody, encryption, revocation, permission attestation, IP-whitelist guidance and proof that no write/trading permission is enabled.
+
+The read-only policy must never be broadened automatically in response to a provider permission error. Account modification, transaction modification and trading permission remain forbidden.
 
 ## Authentication and roles
 
@@ -103,7 +114,7 @@ Use unique throwaway passwords, never commit or reuse them, and retain salted sc
 - Public accounts have no MFA, email verification or self-service password reset.
 - Local audit JSONL is operational evidence, not immutable externally anchored security logging.
 - Render host and persistent-disk security remain inside the provider trust boundary.
-- The application must continue storing simulation and review data only, not exchange secrets.
+- The application continues storing simulation and review data only. The private read-only transport has no configured credentials or user-data persistence.
 
 ## Requirements before exchange write permission
 
