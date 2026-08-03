@@ -1,0 +1,58 @@
+name: Build PR 150 migration-safe history
+
+on:
+  push:
+    branches:
+      - feature/dizypaper-migration-safe-history-backups
+
+concurrency:
+  group: pr150-migration-safe-history
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dizypaper-migration-safe-history-backups
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply versioned migration implementation
+        run: |
+          node scripts/pr150/01-history-module.mjs
+          node scripts/pr150/02-manual-paper.mjs
+          node scripts/pr150/03-manual-backup.mjs
+          node scripts/pr150/04-user-backup-model.mjs
+          node scripts/pr150/05-user-backup-store.mjs
+          node scripts/pr150/06-ui-roadmap-tests.mjs
+          node scripts/pr150/07-strict-current-schema.mjs
+      - name: Focused migration and Paper evidence tests
+        run: node --conditions=react-server --import tsx --test tests/manual-paper-history.test.mjs tests/user-backup-migration.test.mjs tests/user-backup.test.mjs tests/manual-paper-funding.test.mjs tests/manual-paper-margin-lifecycle.test.mjs tests/manual-paper-risk-tiers.test.mjs tests/manual-paper-reduce-only.test.mjs tests/manual-paper-depth-auto-risk.test.mjs
+      - name: Full unit suite
+        run: npm test
+      - name: Lint
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+      - name: Remove temporary migration machinery
+        run: rm -rf scripts/pr150 .github/workflows/pr150-migration-safe-history.yml
+      - name: Commit clean implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No product changes were produced."
+            exit 1
+          fi
+          git commit -m "Add migration-safe DizyPaper history and backups"
+          git push origin HEAD:feature/dizypaper-migration-safe-history-backups
