@@ -7,6 +7,16 @@
  * bounded modal surfaces and internal scrolling for deliberately wide data.
  */
 
+@media (min-width: 761px) {
+  /* DizyBrain is a resizable right-hand dock. Keep the global Commands and
+     Recent triggers immediately outside its measured surface so its collapse
+     and close controls always remain reachable. */
+  body[data-dizybrain-tool-offset="true"] .command-palette-floating,
+  body[data-dizybrain-tool-offset="true"] .recent-shortcuts-trigger {
+    right: calc(var(--dizybrain-global-tool-offset, 0px) + 12px) !important;
+  }
+}
+
 @media (max-width: 760px) {
   body:has(.command-palette-floating) {
     max-width: 100%;

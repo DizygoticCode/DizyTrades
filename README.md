@@ -23,7 +23,7 @@
 
 ## What DizyTrades has become
 
-DizyTrades began as an independent chart and strategy simulator. It is now one connected workflow for market discovery, closed-candle analysis, order-flow context, practice execution, historical reconstruction, structured review and realised performance measurement.
+DizyTrades began as an independent chart and strategy simulator. It is now one connected workflow for market discovery, confirmed-candle analysis, public order-flow context, realistic practice execution, historical reconstruction, structured review and realised performance measurement.
 
 ```text
 DizyScanner
@@ -58,7 +58,8 @@ The primary multi-timeframe market terminal.
 - support/resistance, VWAP, moving averages and Volume Profile
 - Fibonacci, Elliott-lite, Wyckoff-lite, triangles and regression channels
 - manual trendlines, rays, channels, rectangles, notes and measurements
-- saved per-user market, timeframe and appearance state
+- named account-scoped layouts plus built-in research, price-action and order-flow presets
+- saved per-user market, timeframe, chart, strategy, risk and DizyFlow state
 
 ### DizySignals
 
@@ -74,11 +75,13 @@ Confirmed-candle confluence analysis with explicit qualification and rejection e
 
 An explanation and review workspace rather than a prediction engine.
 
-- current setup direction, bias, phase and separate long/short evidence
+- beginner-first market summary and setup state
+- current direction, bias, phase and separate long/short evidence
 - configured qualification threshold and confirmed-signal provenance
 - Flow, Position, Replay, Journal, Behaviour and Diagnostics modules
 - deterministic historical trade reviews
 - recurring behaviour observations across reviewed trades
+- resizable full-height dock with keyboard and responsive behaviour
 
 ### DizyFlow
 
@@ -114,14 +117,17 @@ A dedicated closed-candle market-structure workspace.
 
 ### DizyPaper
 
-Manual and signal-driven simulation without real funds.
+Manual and signal-driven simulation without real funds. DizyPaper Fidelity V2 is complete.
 
 - fixed-margin, fixed-notional, equity-percentage and risk-percentage sizing
-- isolated and cross-margin approximations
-- leverage, fees, slippage and estimated liquidation
-- Fair/Mark-first risk pricing with Last fallback
-- partial close, reversal, flatten and completed-trade history
-- explicit simulator assumptions rather than exchange-exact claims
+- official public contract precision, price ticks, volume steps and symbol leverage limits
+- public maker/taker fee provenance and funding-payment modelling
+- visible-book entries and exits with depth-sensitive slippage and honest partial fills
+- reduce-only Close, Reverse, Flatten All and automatic risk exits
+- position-size-aware maintenance tiers, liquidation and separate bankruptcy-price evidence
+- explicit isolated collateral and single-asset USDT cross-margin approximation
+- migration-safe history and integrity-verified backup support
+- no claim of exchange queue priority or exchange-exact liquidation
 
 ### DizyJournal
 
@@ -177,7 +183,7 @@ Unified on-chain market discovery using public providers.
 
 ### DizyOps
 
-Owner-only bounded production diagnostics.
+Owner/admin bounded production diagnostics.
 
 - deployed commit and runtime identity
 - storage and retained-evidence status
@@ -193,7 +199,21 @@ Owner-scoped data export and additive recovery.
 - local parsing plus server dry-run validation
 - explicit conflict and warning reporting
 - additive recovery that preserves existing records
+- migration-safe Paper and backup schemas
 - credentials, session tokens and authentication records excluded
+- automated destructive application restore rehearsal in isolated temporary data roots
+
+### Workflow and accessibility
+
+The protected workspace now includes:
+
+- optional first-run onboarding with truthful simulation boundaries
+- Ctrl/Cmd+K command palette and verified keyboard reference
+- recent market, Journal and Academy continuation shortcuts
+- responsive phone and small-tablet containment
+- skip navigation, modal focus containment and focus restoration
+- forced-colour support and a shared reduced-motion contract
+- explicit empty, delayed, recovering, offline and failed states
 
 ## Product principles
 
@@ -211,12 +231,12 @@ Owner-scoped data export and additive recovery.
 ### Available now
 
 - [x] Public marketing site and real view-only terminal
-- [x] User accounts, isolated profiles and saved chart workspaces
+- [x] Public accounts, isolated profiles and saved named workspaces
 - [x] DizyCharts, DizySignals and DizyBrain
 - [x] DizyFlow Market Depth, DOM, retained liquidity and public trades
 - [x] DizyScanner watchlists and multi-symbol analysis
 - [x] DizyStructure session, anchored-value and swing workspace
-- [x] DizyPaper manual and signal simulations
+- [x] DizyPaper Fidelity V2 simulation and accounting model
 - [x] DizyJournal, Guided Review and Behaviour analysis
 - [x] DizyReplay with Historical DizyFlow
 - [x] DizyPerformance realised analytics
@@ -224,15 +244,22 @@ Owner-scoped data export and additive recovery.
 - [x] DizyAcademy curriculum and progress tracking
 - [x] DizyOps production diagnostics
 - [x] DizyBackup export, dry-run and additive recovery
-- [x] lint, unit tests, production build and Chromium smoke CI gates
+- [x] onboarding, Commands, Recent, responsive and accessibility programme
+- [x] lint, full deterministic tests, production build and Chromium gates
+- [x] read-only Render deployment observation
+- [x] isolated application recovery rehearsal
+- [x] authentication and storage threat review
 
-### Next engineering programme
+### Active next programmes
 
-- [ ] DizyPaper Fidelity V2: contract precision, funding, maker/taker execution and deeper fill realism
-- [ ] workflow and accessibility polish based on real use
-- [ ] read-only exchange account connection and shadow reconciliation
-- [ ] independent security and correctness audit
-- [ ] guarded execution readiness only after all safety milestones pass
+- [ ] remaining independent engineering and correctness audits
+- [ ] simulator accounting and Replay future-leakage review
+- [ ] backup conflict and independent browser-accessibility review
+- [ ] server-side read-only MEXC connection and shadow reconciliation
+- [ ] DizyQuant microstructure research with Replay/statistical validation
+- [ ] guarded execution readiness only after every security milestone passes
+
+A destructive provider persistent-disk snapshot rollback is deliberately deferred until the guarded-execution security milestone. It is not required for the current private simulation beta and will not create another paid service merely to tick a box.
 
 Live trading is deliberately **not** part of the current beta.
 
@@ -273,6 +300,8 @@ The repository currently contains:
 
 `LIVE_TRADING_ENABLED=false` is a required deployment boundary. Any future exchange connection begins read-only and server-side. Encrypted credential custody, reconciliation, idempotency, account limits, emergency shutdown and independent review are mandatory before execution can be considered.
 
+The active authentication and storage findings, remediations and accepted beta limitations are documented in [SECURITY.md](SECURITY.md) and [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md).
+
 ## Local development
 
 ### Requirements
@@ -291,7 +320,7 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-Place generated `salt:hash` values in the matching password-hash environment variables and set `SESSION_SECRET` to at least 32 random characters. Temporary plaintext test passwords require `ALLOW_TEST_PLAINTEXT_PASSWORDS=true` and are blocked whenever live trading is enabled.
+Place generated `salt:hash` values in the matching password-hash environment variables and set `SESSION_SECRET` to at least 32 random characters. Public signup and legacy emergency access must each be explicitly enabled. Temporary plaintext test passwords require `ALLOW_TEST_PLAINTEXT_PASSWORDS=true` and are blocked whenever live trading is enabled.
 
 ## Validation
 
@@ -302,13 +331,17 @@ npm run build
 npm run test:e2e
 ```
 
-GitHub Actions validates lint, the full deterministic test suite, the Next.js production build and a Chromium browser-smoke workflow. Failure diagnostics include Playwright screenshots, video and traces where applicable.
+GitHub Actions validates lint, the full deterministic test suite, the Next.js production build and Chromium. Separate workflows verify the configured Render service read-only and exercise application recovery in isolated temporary filesystems. Failure diagnostics include Playwright screenshots, video and traces where applicable.
 
 ## Deployment and recovery
 
 The beta is deployed on Render as one Node service with persistent storage mounted under `/var/data`, automatic deploys from `main` and `/api/health` monitoring.
 
-A persistent disk is not itself a backup. Use DizyBackup to retain dated exports outside Render and validate recovery through the dry-run workflow. One attached disk supports one service instance; managed database/object storage is required before horizontal scaling.
+The read-only deployment rehearsal authenticates from GitHub Actions, resolves the configured DizyTrades service, waits for the expected commit and verifies the public simulation-only health contract without changing Render.
+
+The isolated recovery rehearsal uses the real backup engine to export, validate, dry-run and restore representative user data into fresh temporary data roots. It verifies owner isolation, tamper rejection, stable fingerprints and idempotency without touching production.
+
+A persistent disk is not itself a backup. Keep dated DizyBackup exports outside Render. The provider snapshot-rollback procedure is destructive and remains deferred until live-execution security work justifies an isolated infrastructure exercise.
 
 ## Pattern and data limitations
 

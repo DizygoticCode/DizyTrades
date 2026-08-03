@@ -9,7 +9,8 @@ export type AuthUser = { id: string; name: string; email: string; role: UserRole
 export type ConfiguredUser = AuthUser & { passwordHash: string; plaintextPassword: string };
 
 export const normaliseIdentifier = (value: string) => value.trim().toLowerCase();
-export const publicSignupEnabled = () => process.env.PUBLIC_SIGNUP_ENABLED !== "false";
+export const publicSignupEnabled = () => process.env.PUBLIC_SIGNUP_ENABLED === "true";
+export const legacyAuthFallbackEnabled = () => process.env.LEGACY_AUTH_FALLBACK_ENABLED === "true";
 
 function testPlaintextPasswordsAllowed() {
   return process.env.ALLOW_TEST_PLAINTEXT_PASSWORDS === "true" && process.env.LIVE_TRADING_ENABLED !== "true";
@@ -55,8 +56,9 @@ export async function verifyPassword(password: string, encoded: string) {
   if (N !== 16384 || r !== 8 || p !== 1) return false;
   const salt = Buffer.from(parts[3], "base64url");
   const expected = Buffer.from(parts[4], "base64url");
+  if (salt.length !== 16 || expected.length !== 64) return false;
   const derived = await scrypt(password, salt, expected.length, { N, r, p, maxmem: 32 * 1024 * 1024 });
-  return expected.length > 0 && timingSafeEqual(derived, expected);
+  return timingSafeEqual(derived, expected);
 }
 
 export function withoutSecrets(user: ConfiguredUser): AuthUser {
@@ -64,7 +66,7 @@ export function withoutSecrets(user: ConfiguredUser): AuthUser {
 }
 
 export async function authenticateLegacyUser(identifier: string, password: string): Promise<AuthUser | null> {
-  if (process.env.LEGACY_AUTH_FALLBACK_ENABLED === "false") return null;
+  if (!legacyAuthFallbackEnabled()) return null;
   const user = configuredUsers().find((candidate) => candidate.email === normaliseIdentifier(identifier));
   if (!user) return null;
   const matches = testPlaintextPasswordsAllowed() && user.plaintextPassword

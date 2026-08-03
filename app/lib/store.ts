@@ -9,6 +9,7 @@ import {
   sanitiseTerminalSettings,
   type UserTerminalSettings,
 } from "./config";
+import { safeOwnerId } from "./security-boundaries";
 
 type UserRecord = {
   version: 1;
@@ -24,8 +25,7 @@ type UserRecord = {
 };
 
 const root = () => process.env.DATA_DIR || join(process.cwd(), ".data");
-const safeUserId = (userId: string) => userId.replace(/[^a-z0-9_-]/gi, "");
-const userPath = (userId: string) => join(root(), "users", `${safeUserId(userId)}.json`);
+const userPath = (userId: string) => join(root(), "users", `${safeOwnerId(userId, "profile owner")}.json`);
 
 async function ensureDirectories() {
   await mkdir(join(root(), "users"), { recursive: true });
@@ -53,7 +53,8 @@ export async function readUserRecord(userId: string): Promise<UserRecord> {
         ? parsed.paperRuns.slice(-50) as UserRecord["paperRuns"]
         : [],
     };
-  } catch {
+  } catch (reason) {
+    if (reason instanceof Error && reason.message.includes("Invalid profile owner identifier")) throw reason;
     return initialRecord();
   }
 }
@@ -120,8 +121,8 @@ export async function appendAudit(
   await ensureDirectories();
   const entry = {
     at: new Date().toISOString(),
-    userId: safeUserId(userId),
-    action,
+    userId: safeOwnerId(userId, "audit owner"),
+    action: action.slice(0, 120),
     details,
   };
   await appendFile(
