@@ -100,9 +100,16 @@ const hashPattern = /^[a-f0-9]{64}$/;
 const eventIdPattern = /^mexc-shadow-\d+-[a-f0-9]{20}$/;
 const symbolPattern = /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
 const currencyPattern = /^[A-Z0-9]{1,20}$/;
+const failureReasonPattern = /^[a-z0-9-]{1,64}$/;
+const sensitiveFieldPattern =
+  /api[_-]?key|api[_-]?secret|signature|password|authorization|cookie|session[_-]?token/i;
 
 function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function canonicalValue(value: unknown, seen: Set<object>): unknown {
@@ -145,17 +152,20 @@ export function canonicalMexcShadowAuditJson(value: unknown) {
 }
 
 function scopeDigest(scopeId: string) {
-  if (
-    typeof scopeId !== "string" ||
-    scopeId.trim().length < 1 ||
-    scopeId.trim().length > 256
-  ) {
+  if (typeof scopeId !== "string") {
     throw new MexcShadowAuditError(
       "invalid-scope",
       "Shadow audit scope is invalid.",
     );
   }
-  return sha256(`mexc-shadow-scope:v1:${scopeId}`);
+  const normalised = scopeId.trim();
+  if (normalised.length < 1 || normalised.length > 256) {
+    throw new MexcShadowAuditError(
+      "invalid-scope",
+      "Shadow audit scope is invalid.",
+    );
+  }
+  return sha256(`mexc-shadow-scope:v1:${normalised}`);
 }
 
 function occurredAt(value: number) {
@@ -250,19 +260,219 @@ export function mexcShadowAuditPayload(
   if (!source || typeof source !== "object") {
     throw new MexcShadowAuditError("invalid-source", "Shadow audit source is invalid.");
   }
+  let payload: MexcShadowAuditPayload;
   switch (source.sourceType) {
     case "account-state":
-      return accountStatePayload(source.state);
+      payload = accountStatePayload(source.state);
+      break;
     case "reconciliation":
-      return reconciliationPayload(source.report);
+      payload = reconciliationPayload(source.report);
+      break;
     case "order-preview":
-      return previewPayload(source.preview);
+      payload = previewPayload(source.preview);
+      break;
     default:
       throw new MexcShadowAuditError(
         "invalid-source",
         "Shadow audit source type is unsupported.",
       );
   }
+  assertMexcShadowAuditPayloadIsMinimised(payload);
+  return payload;
+}
+
+function exactKeys(
+  record: Readonly<Record<string, unknown>>,
+  expected: readonly string[],
+) {
+  const actual = Object.keys(record).sort();
+  const wanted = [...expected].sort();
+  return actual.length === wanted.length &&
+    actual.every((key, index) => key === wanted[index]);
+}
+
+function positiveSafeInteger(value: unknown) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function nonNegativeSafeInteger(value: unknown) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function nullablePositiveSafeInteger(value: unknown) {
+  return value === null || positiveSafeInteger(value);
+}
+
+function nullableNonNegativeSafeInteger(value: unknown) {
+  return value === null || nonNegativeSafeInteger(value);
+}
+
+function payloadErrors(payload: unknown) {
+  const errors: string[] = [];
+  if (!isRecord(payload) || typeof payload.kind !== "string") {
+    return ["payload is not a supported object"];
+  }
+  try {
+    assertMexcShadowAuditPayloadIsMinimised(payload as MexcShadowAuditPayload);
+  } catch {
+    errors.push("payload is not minimised");
+  }
+
+  switch (payload.kind) {
+    case "account-state-evaluated": {
+      const expected = [
+        "kind",
+        "status",
+        "decisionEligible",
+        "observedAtMs",
+        "assetCount",
+        "positionCount",
+        "failureReason",
+        "providerCode",
+      ];
+      if (!exactKeys(payload, expected)) errors.push("account payload fields are invalid");
+      if (!(["fresh", "stale", "unavailable"] as const).includes(payload.status as never)) {
+        errors.push("account payload status is invalid");
+      }
+      if (typeof payload.decisionEligible !== "boolean") {
+        errors.push("account decision eligibility is invalid");
+      }
+      if (!nullablePositiveSafeInteger(payload.observedAtMs)) {
+        errors.push("account observation time is invalid");
+      }
+      if (!nullableNonNegativeSafeInteger(payload.assetCount)) {
+        errors.push("account asset count is invalid");
+      }
+      if (!nullableNonNegativeSafeInteger(payload.positionCount)) {
+        errors.push("account position count is invalid");
+      }
+      if (
+        payload.failureReason !== null &&
+        (typeof payload.failureReason !== "string" ||
+          !failureReasonPattern.test(payload.failureReason))
+      ) {
+        errors.push("account failure reason is invalid");
+      }
+      if (!nullableNonNegativeSafeInteger(payload.providerCode)) {
+        errors.push("account provider code is invalid");
+      }
+      if (payload.status === "fresh") {
+        if (payload.decisionEligible !== true) errors.push("fresh account is not decision eligible");
+        if (
+          payload.observedAtMs === null ||
+          payload.assetCount === null ||
+          payload.positionCount === null ||
+          payload.failureReason !== null ||
+          payload.providerCode !== null
+        ) {
+          errors.push("fresh account payload is inconsistent");
+        }
+      } else if (payload.status === "stale") {
+        if (payload.decisionEligible !== false) errors.push("stale account is decision eligible");
+        if (
+          payload.observedAtMs === null ||
+          payload.assetCount === null ||
+          payload.positionCount === null ||
+          payload.failureReason === null
+        ) {
+          errors.push("stale account payload is inconsistent");
+        }
+      } else if (payload.status === "unavailable") {
+        if (payload.decisionEligible !== false) errors.push("unavailable account is decision eligible");
+        if (
+          payload.observedAtMs !== null ||
+          payload.assetCount !== null ||
+          payload.positionCount !== null ||
+          payload.failureReason === null
+        ) {
+          errors.push("unavailable account payload is inconsistent");
+        }
+      }
+      break;
+    }
+    case "reconciliation-computed": {
+      const expected = [
+        "kind",
+        "exchangeObservedAtMs",
+        "settlementCurrency",
+        "aligned",
+        "different",
+        "incomparable",
+        "exchangeOnly",
+        "paperOnly",
+        "ambiguousExchange",
+        "reportDigest",
+      ];
+      if (!exactKeys(payload, expected)) errors.push("reconciliation payload fields are invalid");
+      if (!positiveSafeInteger(payload.exchangeObservedAtMs)) {
+        errors.push("reconciliation observation time is invalid");
+      }
+      if (
+        typeof payload.settlementCurrency !== "string" ||
+        !currencyPattern.test(payload.settlementCurrency)
+      ) {
+        errors.push("reconciliation settlement currency is invalid");
+      }
+      for (const field of [
+        "aligned",
+        "different",
+        "incomparable",
+        "exchangeOnly",
+        "paperOnly",
+        "ambiguousExchange",
+      ] as const) {
+        if (!nonNegativeSafeInteger(payload[field])) {
+          errors.push(`reconciliation ${field} count is invalid`);
+        }
+      }
+      if (typeof payload.reportDigest !== "string" || !hashPattern.test(payload.reportDigest)) {
+        errors.push("reconciliation report digest is invalid");
+      }
+      break;
+    }
+    case "order-preview-computed": {
+      const expected = [
+        "kind",
+        "exchangeObservedAtMs",
+        "symbol",
+        "side",
+        "marginMode",
+        "status",
+        "blockerCount",
+        "blockerDigest",
+        "previewDigest",
+      ];
+      if (!exactKeys(payload, expected)) errors.push("preview payload fields are invalid");
+      if (!positiveSafeInteger(payload.exchangeObservedAtMs)) {
+        errors.push("preview observation time is invalid");
+      }
+      if (typeof payload.symbol !== "string" || !symbolPattern.test(payload.symbol)) {
+        errors.push("preview symbol is invalid");
+      }
+      if (payload.side !== "long" && payload.side !== "short") {
+        errors.push("preview side is invalid");
+      }
+      if (payload.marginMode !== "isolated" && payload.marginMode !== "cross") {
+        errors.push("preview margin mode is invalid");
+      }
+      if (payload.status !== "calculable" && payload.status !== "blocked") {
+        errors.push("preview status is invalid");
+      }
+      if (!nonNegativeSafeInteger(payload.blockerCount)) {
+        errors.push("preview blocker count is invalid");
+      }
+      if (typeof payload.blockerDigest !== "string" || !hashPattern.test(payload.blockerDigest)) {
+        errors.push("preview blocker digest is invalid");
+      }
+      if (typeof payload.previewDigest !== "string" || !hashPattern.test(payload.previewDigest)) {
+        errors.push("preview digest is invalid");
+      }
+      break;
+    }
+    default:
+      errors.push("payload kind is unsupported");
+  }
+  return errors;
 }
 
 function eventCore(input: Readonly<{
@@ -282,6 +492,69 @@ function eventCore(input: Readonly<{
   });
 }
 
+function selfEventErrors(event: unknown) {
+  const errors: string[] = [];
+  if (!isRecord(event)) return ["event is not an object"];
+  if (event.schemaVersion !== MEXC_SHADOW_AUDIT_SCHEMA_VERSION) {
+    errors.push("event has an unsupported schema");
+  }
+  if (!positiveSafeInteger(event.sequence)) {
+    errors.push("event has an invalid sequence");
+  }
+  if (typeof event.scopeDigest !== "string" || !hashPattern.test(event.scopeDigest)) {
+    errors.push("event has an invalid scope digest");
+  }
+  if (!positiveSafeInteger(event.occurredAtMs)) {
+    errors.push("event has an invalid event time");
+  }
+  if (
+    event.previousHash !== null &&
+    (typeof event.previousHash !== "string" || !hashPattern.test(event.previousHash))
+  ) {
+    errors.push("event has an invalid previous hash");
+  }
+  const currentPayloadErrors = payloadErrors(event.payload);
+  errors.push(...currentPayloadErrors);
+  if (typeof event.eventHash !== "string" || !hashPattern.test(event.eventHash)) {
+    errors.push("event has an invalid event hash");
+  }
+  if (typeof event.eventId !== "string" || !eventIdPattern.test(event.eventId)) {
+    errors.push("event has a malformed event ID");
+  }
+  if (
+    positiveSafeInteger(event.sequence) &&
+    typeof event.scopeDigest === "string" &&
+    hashPattern.test(event.scopeDigest) &&
+    positiveSafeInteger(event.occurredAtMs) &&
+    (event.previousHash === null ||
+      (typeof event.previousHash === "string" && hashPattern.test(event.previousHash))) &&
+    currentPayloadErrors.length === 0
+  ) {
+    try {
+      const expectedHash = sha256(
+        canonicalMexcShadowAuditJson(
+          eventCore({
+            sequence: event.sequence,
+            previousHash: event.previousHash,
+            scopeDigest: event.scopeDigest,
+            occurredAtMs: event.occurredAtMs,
+            payload: event.payload as MexcShadowAuditPayload,
+          }),
+        ),
+      );
+      if (event.eventHash !== expectedHash) {
+        errors.push("event hash does not match its content");
+      }
+      if (event.eventId !== `mexc-shadow-${event.sequence}-${expectedHash.slice(0, 20)}`) {
+        errors.push("event has an invalid event ID");
+      }
+    } catch {
+      errors.push("event cannot be canonicalised");
+    }
+  }
+  return [...new Set(errors)];
+}
+
 export function appendMexcShadowAuditEvent(input: Readonly<{
   previous: MexcShadowAuditEvent | null;
   scopeId: string;
@@ -291,8 +564,8 @@ export function appendMexcShadowAuditEvent(input: Readonly<{
   const digest = scopeDigest(input.scopeId);
   const time = occurredAt(input.occurredAtMs);
   if (input.previous) {
-    const previousVerification = verifyMexcShadowAuditChain([input.previous]);
-    if (!previousVerification.valid || input.previous.scopeDigest !== digest) {
+    const previousErrors = selfEventErrors(input.previous);
+    if (previousErrors.length > 0 || input.previous.scopeDigest !== digest) {
       throw new MexcShadowAuditError(
         "invalid-previous-event",
         "Previous shadow audit event is invalid or belongs to another scope.",
@@ -309,6 +582,7 @@ export function appendMexcShadowAuditEvent(input: Readonly<{
   const sequence = (input.previous?.sequence ?? 0) + 1;
   const previousHash = input.previous?.eventHash ?? null;
   const payload = mexcShadowAuditPayload(input.source);
+  assertMexcShadowAuditPayloadIsMinimised(payload);
   const core = eventCore({
     sequence,
     previousHash,
@@ -324,80 +598,38 @@ export function appendMexcShadowAuditEvent(input: Readonly<{
   });
 }
 
-function eventErrors(
+function chainEventErrors(
   event: unknown,
   index: number,
   previous: MexcShadowAuditEvent | null,
   expectedScope: string | null,
 ) {
-  const errors: string[] = [];
-  if (!event || typeof event !== "object" || Array.isArray(event)) {
-    return [`event ${index + 1} is not an object`];
+  const errors = selfEventErrors(event).map(
+    (error) => `event ${index + 1} ${error}`,
+  );
+  if (!isRecord(event)) return errors;
+  if (event.sequence !== index + 1) {
+    errors.push(`event ${index + 1} has an invalid chain sequence`);
   }
-  const candidate = event as Partial<MexcShadowAuditEvent>;
-  if (candidate.schemaVersion !== MEXC_SHADOW_AUDIT_SCHEMA_VERSION) {
-    errors.push(`event ${index + 1} has an unsupported schema`);
-  }
-  if (!Number.isSafeInteger(candidate.sequence) || candidate.sequence !== index + 1) {
-    errors.push(`event ${index + 1} has an invalid sequence`);
+  const expectedPreviousHash = previous?.eventHash ?? null;
+  if (event.previousHash !== expectedPreviousHash) {
+    errors.push(`event ${index + 1} has an invalid chain previous hash`);
   }
   if (
-    typeof candidate.scopeDigest !== "string" ||
-    !hashPattern.test(candidate.scopeDigest)
+    expectedScope &&
+    typeof event.scopeDigest === "string" &&
+    event.scopeDigest !== expectedScope
   ) {
-    errors.push(`event ${index + 1} has an invalid scope digest`);
-  } else if (expectedScope && candidate.scopeDigest !== expectedScope) {
     errors.push(`event ${index + 1} changes audit scope`);
   }
   if (
-    !Number.isSafeInteger(candidate.occurredAtMs) ||
-    (candidate.occurredAtMs ?? 0) <= 0 ||
-    (previous && (candidate.occurredAtMs ?? 0) < previous.occurredAtMs)
+    previous &&
+    typeof event.occurredAtMs === "number" &&
+    event.occurredAtMs < previous.occurredAtMs
   ) {
-    errors.push(`event ${index + 1} has an invalid event time`);
+    errors.push(`event ${index + 1} moves event time backwards`);
   }
-  const expectedPreviousHash = previous?.eventHash ?? null;
-  if (candidate.previousHash !== expectedPreviousHash) {
-    errors.push(`event ${index + 1} has an invalid previous hash`);
-  }
-  if (!candidate.payload || typeof candidate.payload !== "object") {
-    errors.push(`event ${index + 1} has an invalid payload`);
-  }
-  if (
-    typeof candidate.eventHash !== "string" ||
-    !hashPattern.test(candidate.eventHash)
-  ) {
-    errors.push(`event ${index + 1} has an invalid event hash`);
-  } else if (candidate.payload && candidate.scopeDigest && candidate.occurredAtMs) {
-    try {
-      const expectedHash = sha256(
-        canonicalMexcShadowAuditJson(
-          eventCore({
-            sequence: candidate.sequence as number,
-            previousHash: candidate.previousHash ?? null,
-            scopeDigest: candidate.scopeDigest,
-            occurredAtMs: candidate.occurredAtMs,
-            payload: candidate.payload,
-          }),
-        ),
-      );
-      if (expectedHash !== candidate.eventHash) {
-        errors.push(`event ${index + 1} hash does not match its content`);
-      }
-      if (candidate.eventId !== `mexc-shadow-${candidate.sequence}-${expectedHash.slice(0, 20)}`) {
-        errors.push(`event ${index + 1} has an invalid event ID`);
-      }
-    } catch {
-      errors.push(`event ${index + 1} cannot be canonicalised`);
-    }
-  }
-  if (
-    typeof candidate.eventId !== "string" ||
-    !eventIdPattern.test(candidate.eventId)
-  ) {
-    errors.push(`event ${index + 1} has a malformed event ID`);
-  }
-  return errors;
+  return [...new Set(errors)];
 }
 
 export function verifyMexcShadowAuditChain(
@@ -416,13 +648,11 @@ export function verifyMexcShadowAuditChain(
   let previous: MexcShadowAuditEvent | null = null;
   let expectedScope: string | null = null;
   for (const [index, event] of events.entries()) {
-    const currentErrors = eventErrors(event, index, previous, expectedScope);
+    const currentErrors = chainEventErrors(event, index, previous, expectedScope);
     errors.push(...currentErrors);
     if (currentErrors.length === 0) {
       previous = event as MexcShadowAuditEvent;
       expectedScope ??= previous.scopeDigest;
-    } else {
-      previous = null;
     }
   }
   return Object.freeze({
@@ -438,11 +668,7 @@ export function assertMexcShadowAuditPayloadIsMinimised(
   payload: MexcShadowAuditPayload,
 ) {
   const serialised = canonicalMexcShadowAuditJson(payload);
-  if (
-    /api[_-]?key|api[_-]?secret|signature|password|authorization|cookie|session[_-]?token/i.test(
-      serialised,
-    )
-  ) {
+  if (sensitiveFieldPattern.test(serialised)) {
     throw new MexcShadowAuditError(
       "invalid-source",
       "Shadow audit payload contains a forbidden secret-bearing field.",
