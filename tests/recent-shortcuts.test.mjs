@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readFile } from "node:fs/promises";
 import { DEFAULT_TERMINAL_SETTINGS } from "../app/lib/config.ts";
 import {
   marketShortcutChanged,
@@ -105,13 +104,16 @@ test("Academy continuation accepts only known lesson slugs", () => {
 });
 
 test("recent UI uses real profile Journal and Academy sources", async () => {
-  const [mounted, panel, profile, workspaces, school] = await Promise.all([
-    readFile("app/command-palette-mounted.tsx", "utf8"),
-    readFile("app/recent-shortcuts.tsx", "utf8"),
-    readFile("app/api/profile/route.ts", "utf8"),
-    readFile("app/api/workspaces/route.ts", "utf8"),
-    readFile("app/school/academy-recent-tracker.tsx", "utf8"),
-  ]);
+  const [mounted, panel, profile, workspaces, school, journalPage, journalTracker] =
+    await Promise.all([
+      readFile("app/command-palette-mounted.tsx", "utf8"),
+      readFile("app/recent-shortcuts.tsx", "utf8"),
+      readFile("app/api/profile/route.ts", "utf8"),
+      readFile("app/api/workspaces/route.ts", "utf8"),
+      readFile("app/school/academy-recent-tracker.tsx", "utf8"),
+      readFile("app/journal/page.tsx", "utf8"),
+      readFile("app/journal/journal-recent-tracker.tsx", "utf8"),
+    ]);
   assert.match(mounted, /<RecentShortcuts \/>/);
   assert.match(panel, /fetch\("\/api\/journal"/);
   assert.match(panel, /fetch\("\/api\/recent-shortcuts"/);
@@ -121,4 +123,7 @@ test("recent UI uses real profile Journal and Academy sources", async () => {
   assert.match(profile, /recent-market\.recorded/);
   assert.match(workspaces, /recordRecentMarketShortcut/);
   assert.match(school, /pendingSlug = null/);
+  assert.match(journalPage, /<JournalRecentTracker \/>/);
+  assert.match(journalTracker, /entry\.id === requested/);
+  assert.match(journalTracker, /\.journal-list button\.entry-row/);
 });
