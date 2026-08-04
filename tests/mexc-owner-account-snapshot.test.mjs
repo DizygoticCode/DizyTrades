@@ -16,6 +16,26 @@ const readyEnvironment = Object.freeze({
   LIVE_TRADING_ENABLED: "false",
 });
 
+function connectionControl(overrides = {}) {
+  return Object.freeze({
+    schemaVersion: "mexc-owner-connection-control/1.0.0",
+    state: "active",
+    generation: 0,
+    updatedAtMs: null,
+    reason: "initial-active",
+    integrity: "missing-default",
+    localPrivateReadsBlocked: false,
+    privateConfigurationPresent: true,
+    credentialPairPresent: true,
+    permissionAttestationPresent: true,
+    companionEnabledFlag: "true",
+    credentialRemovalConfirmed: false,
+    message: null,
+    digest: null,
+    ...overrides,
+  });
+}
+
 function asset(overrides = {}) {
   return {
     currency: "USDT",
@@ -93,6 +113,7 @@ test("disabled owner connection returns not-configured without a private request
 
   assert.equal(output.policyVersion, MEXC_OWNER_ACCOUNT_SNAPSHOT_POLICY_VERSION);
   assert.equal(output.accountScope, "owner");
+  assert.equal(output.connectionControl.state, "active");
   assert.equal(output.activation.state, "disabled");
   assert.equal(output.state.status, "unavailable");
   assert.equal(output.state.failure.reason, "not-configured");
@@ -109,6 +130,7 @@ test("ready owner connection reads only balances and open positions", async () =
     },
   );
 
+  assert.equal(output.connectionControl.localPrivateReadsBlocked, false);
   assert.equal(output.activation.readyForPrivateReads, true);
   assert.equal(output.state.status, "fresh");
   assert.equal(output.state.decisionEligible, true);
@@ -137,6 +159,45 @@ test("ready owner connection reads only balances and open positions", async () =
   const serialised = JSON.stringify(output);
   assert.doesNotMatch(serialised, /owner-key-123|owner-secret-123456789/);
   assert.doesNotMatch(serialised, /ApiKey|Signature|signed headers/i);
+});
+
+test("local shutdown seal blocks before credentials are required or provider fetch is called", async () => {
+  let fetchCalls = 0;
+  let controlReads = 0;
+  const sealed = connectionControl({
+    state: "sealed",
+    generation: 3,
+    updatedAtMs: 1_699_999_999_000,
+    reason: "owner-emergency-shutdown",
+    integrity: "verified",
+    localPrivateReadsBlocked: true,
+    digest: "a".repeat(64),
+  });
+  const output = await refreshOwnerMexcAccountSnapshot(
+    { environment: readyEnvironment },
+    {
+      now: () => 1_700_000_000_000,
+      readConnectionControl: async (environment) => {
+        controlReads += 1;
+        assert.equal(environment.OWNER_MEXC_READONLY_API_KEY, "owner-key-123");
+        return sealed;
+      },
+      fetch: async () => {
+        fetchCalls += 1;
+        throw new Error("must not fetch");
+      },
+    },
+  );
+
+  assert.equal(controlReads, 1);
+  assert.equal(fetchCalls, 0);
+  assert.equal(output.connectionControl, sealed);
+  assert.equal(output.activation.state, "disabled");
+  assert.equal(output.activation.configured, false);
+  assert.equal(output.activation.readyForPrivateReads, false);
+  assert.equal(output.state.status, "unavailable");
+  assert.equal(output.state.failure.reason, "not-configured");
+  assert.doesNotMatch(JSON.stringify(output), /owner-key-123|owner-secret-123456789/);
 });
 
 test("provider permission failure becomes safe unavailable account state", async () => {

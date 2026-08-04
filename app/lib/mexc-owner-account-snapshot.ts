@@ -15,19 +15,25 @@ import {
   type MexcPrivateReadResult,
 } from "./mexc-private-readonly";
 import {
+  readOwnerMexcConnectionControl,
+  scrubMexcPrivateEnvironmentForLocalSeal,
+  type MexcOwnerConnectionControlReport,
+} from "./mexc-owner-connection-control";
+import {
   buildMexcReadOnlyCredentialActivationReport,
   requireMexcReadOnlyCredentials,
   type MexcReadOnlyCredentialActivationReport,
 } from "./mexc-readonly-credential-activation";
 
 export const MEXC_OWNER_ACCOUNT_SNAPSHOT_POLICY_VERSION =
-  "mexc-owner-account-snapshot/1.0.0" as const;
+  "mexc-owner-account-snapshot/1.1.0" as const;
 export const MEXC_OWNER_ACCOUNT_SNAPSHOT_MAX_AGE_MS = 15_000;
 export const MEXC_OWNER_ACCOUNT_RECEIVE_WINDOW_SECONDS = 10;
 
 export type MexcOwnerAccountSnapshotRefreshResult = Readonly<{
   policyVersion: typeof MEXC_OWNER_ACCOUNT_SNAPSHOT_POLICY_VERSION;
   accountScope: "owner";
+  connectionControl: MexcOwnerConnectionControlReport;
   activation: MexcReadOnlyCredentialActivationReport;
   state: MexcAccountAvailabilityState;
 }>;
@@ -45,6 +51,7 @@ type RefreshInput = Readonly<{
 type RefreshDependencies = Readonly<{
   fetch?: typeof fetch;
   now?: () => number;
+  readConnectionControl?: typeof readOwnerMexcConnectionControl;
 }>;
 
 function accountReadResult(
@@ -67,12 +74,14 @@ function accountReadResult(
 }
 
 function result(
+  connectionControl: MexcOwnerConnectionControlReport,
   activation: MexcReadOnlyCredentialActivationReport,
   state: MexcAccountAvailabilityState,
 ): MexcOwnerAccountSnapshotRefreshResult {
   return Object.freeze({
     policyVersion: MEXC_OWNER_ACCOUNT_SNAPSHOT_POLICY_VERSION,
     accountScope: "owner" as const,
+    connectionControl,
     activation,
     state,
   });
@@ -84,11 +93,26 @@ export async function refreshOwnerMexcAccountSnapshot(
 ): Promise<MexcOwnerAccountSnapshotRefreshResult> {
   const environment = input.environment ?? process.env;
   const now = dependencies.now ?? Date.now;
-  const activation = buildMexcReadOnlyCredentialActivationReport(environment);
+  const connectionControl = await (
+    dependencies.readConnectionControl ?? readOwnerMexcConnectionControl
+  )(environment);
   const evaluatedAtMs = now();
 
+  if (connectionControl.localPrivateReadsBlocked) {
+    const activation = buildMexcReadOnlyCredentialActivationReport(
+      scrubMexcPrivateEnvironmentForLocalSeal(environment),
+    );
+    return result(
+      connectionControl,
+      activation,
+      createMexcAccountNotConfiguredState(evaluatedAtMs),
+    );
+  }
+
+  const activation = buildMexcReadOnlyCredentialActivationReport(environment);
   if (!activation.readyForPrivateReads) {
     return result(
+      connectionControl,
       activation,
       createMexcAccountNotConfiguredState(evaluatedAtMs),
     );
@@ -119,6 +143,7 @@ export async function refreshOwnerMexcAccountSnapshot(
     );
 
     return result(
+      connectionControl,
       activation,
       transitionMexcAccountAvailability({
         previous: input.previous ?? null,
@@ -131,6 +156,7 @@ export async function refreshOwnerMexcAccountSnapshot(
     );
   } catch (error) {
     return result(
+      connectionControl,
       activation,
       transitionMexcAccountAvailability({
         previous: input.previous ?? null,
