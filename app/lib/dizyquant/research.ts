@@ -1,12 +1,12 @@
 export const DIZYQUANT_RESEARCH_SCHEMA_VERSION=1 as const;
-export const DIZYQUANT_METRIC_SET_VERSION="dizyquant-candidates/1.2.0" as const;
+export const DIZYQUANT_METRIC_SET_VERSION="dizyquant-candidates/1.3.0" as const;
 
 export type DizyQuantEvidenceGrade="snapshot-grade"|"continuous-stream-grade";
 export type DizyQuantAvailability="fresh"|"stale"|"gapped"|"unavailable";
 export type DizyQuantReplayAvailability="fresh"|"gapped"|"unavailable";
 export type DizyQuantPromotionStatus="informational"|"experimental"|"validated"|"rejected";
 export type DizyQuantSourceKind="depth-snapshot"|"depth-stream"|"public-trades"|"retained-liquidity"|"replay";
-export type DizyQuantUnit="price"|"ticks"|"basis-points"|"percent"|"quote-notional"|"base-quantity"|"milliseconds"|"count"|"basis-points-per-million-quote";
+export type DizyQuantUnit="price"|"ticks"|"basis-points"|"percent"|"percentage-points"|"quote-notional"|"base-quantity"|"milliseconds"|"count"|"basis-points-per-million-quote";
 
 const candidateDefinitions=[
  {id:"spread-price",version:1,label:"Quoted spread price",unit:"price",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Best ask minus best bid in provider price units."},
@@ -39,9 +39,23 @@ const candidateDefinitions=[
  {id:"midpoint-change-10s-bps",version:1,label:"Midpoint change over 10 seconds",unit:"basis-points",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Closing midpoint minus opening midpoint expressed in basis points of the opening midpoint."},
  {id:"flow-aligned-response-10s-bps",version:1,label:"Flow-aligned midpoint response",unit:"basis-points",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Midpoint change signed so positive values align with net public aggressor flow."},
  {id:"flow-efficiency-bps-per-million-10s",version:1,label:"Flow-aligned response per million",unit:"basis-points-per-million-quote",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Flow-aligned midpoint response divided by gross public aggressor notional in millions."},
- {id:"liquidity-added-30s",version:1,label:"Displayed liquidity added over 30 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Observed increase in displayed book notional over a thirty-second event-time window."},
- {id:"liquidity-removed-30s",version:1,label:"Displayed liquidity removed over 30 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Observed decrease in displayed book notional over a thirty-second event-time window."},
- {id:"liquidity-centre-shift-bps",version:1,label:"Liquidity centre shift",unit:"basis-points",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Movement of the visible-liquidity centre of mass relative to midpoint."},
+ {id:"liquidity-added-30s",version:1,label:"Displayed liquidity added over 30 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Cumulative positive displayed-depth changes across consecutive price-level states."},
+ {id:"liquidity-removed-30s",version:1,label:"Displayed liquidity removed over 30 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Cumulative negative displayed-depth changes across consecutive price-level states."},
+ {id:"bid-liquidity-added-30s",version:1,label:"Bid liquidity added over 30 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Cumulative positive displayed bid-depth changes across the event window."},
+ {id:"ask-liquidity-added-30s",version:1,label:"Ask liquidity added over 30 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Cumulative positive displayed ask-depth changes across the event window."},
+ {id:"bid-liquidity-removed-30s",version:1,label:"Bid liquidity removed over 30 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Cumulative negative displayed bid-depth changes across the event window."},
+ {id:"ask-liquidity-removed-30s",version:1,label:"Ask liquidity removed over 30 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Cumulative negative displayed ask-depth changes across the event window."},
+ {id:"liquidity-turnover-30s",version:1,label:"Displayed liquidity turnover over 30 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Displayed liquidity additions plus removals across the event window."},
+ {id:"liquidity-turnover-vs-opening-depth-30s",version:1,label:"Liquidity turnover versus opening depth",unit:"percent",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Displayed liquidity turnover divided by opening displayed depth notional."},
+ {id:"bid-same-price-persistence-30s",version:1,label:"Bid same-price persistence",unit:"percent",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Opening bid notional still displayed at the same price after thirty seconds."},
+ {id:"ask-same-price-persistence-30s",version:1,label:"Ask same-price persistence",unit:"percent",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Opening ask notional still displayed at the same price after thirty seconds."},
+ {id:"same-price-liquidity-persistence-30s",version:1,label:"Combined same-price persistence",unit:"percent",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Opening displayed notional still present at the same side and price after thirty seconds."},
+ {id:"opening-cluster-survival-30s",version:1,label:"Opening cluster survival",unit:"percent",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Share of upper-quartile opening price levels retaining at least half their displayed notional at the same price."},
+ {id:"liquidity-centre-shift-bps",version:1,label:"Signed liquidity centre shift",unit:"basis-points",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Closing minus opening signed visible-liquidity centre relative to each frame midpoint."},
+ {id:"liquidity-absolute-distance-shift-30s-bps",version:1,label:"Absolute liquidity distance shift",unit:"basis-points",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Closing minus opening visible-notional-weighted absolute distance from midpoint."},
+ {id:"bid-centre-distance-shift-30s-bps",version:1,label:"Bid centre distance shift",unit:"basis-points",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Closing minus opening bid-notional-weighted absolute distance from midpoint."},
+ {id:"ask-centre-distance-shift-30s-bps",version:1,label:"Ask centre distance shift",unit:"basis-points",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Closing minus opening ask-notional-weighted absolute distance from midpoint."},
+ {id:"near-depth-concentration-shift-25-of-100bps-30s",version:1,label:"Near-depth concentration shift",unit:"percentage-points",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Closing minus opening share of visible 100-bps depth located inside twenty-five basis points."},
  {id:"resilience-recovery-ms",version:1,label:"Liquidity recovery time",unit:"milliseconds",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Elapsed event time for spread or nearby depth to recover after a defined liquidity shock."},
 ] as const;
 

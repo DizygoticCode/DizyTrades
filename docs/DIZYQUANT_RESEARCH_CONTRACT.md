@@ -14,7 +14,7 @@ The research boundary provides:
 - a repository contract proving that no production consumer currently imports DizyQuant;
 - `decisionEligible: false`, `signalEligible: false` and `signalInfluence: forbidden` on every current output.
 
-The second slice adds pure snapshot-grade spread and ladder-state formulas. The third slice adds pure continuous-stream-grade aggressive-flow and flow-response formulas. There is still no user interface, alert, Paper input, Scanner input or signal contribution.
+The second slice adds pure snapshot-grade spread and ladder-state formulas. The third slice adds pure continuous-stream-grade aggressive-flow and flow-response formulas. The fourth slice adds pure continuous-stream-grade displayed-liquidity turnover, persistence and migration formulas. There is still no user interface, alert, Paper input, Scanner input or signal contribution.
 
 ## Evidence grades
 
@@ -37,7 +37,7 @@ Required for measurements that infer changes through event time, including:
 - displayed liquidity additions and removals;
 - liquidity migration;
 - replenishment and withdrawal persistence;
-- consumption efficiency;
+- visible-depth pressure and turnover;
 - resilience and recovery time;
 - absorption or exhaustion candidates.
 
@@ -147,7 +147,67 @@ The calculator fails unavailable for:
 - invalid midpoint or opening-depth context;
 - aggregate or derived numeric overflow.
 
-## Candidate metric set v1.2
+## Liquidity-migration formula set 1.0.0
+
+The liquidity-migration calculator consumes a bounded sequence of complete displayed price-level states over one exact thirty-second closed interval. The opening state must occur at `from`, the closing state at `to`, and every intermediate frame must be strictly event-time ordered inside the interval.
+
+A frame contains public price ticks, displayed bid and ask contract quantities, the reviewed public price step, contract size and frame midpoint. Each frame must contain at least one positive bid and ask level, no duplicate price ticks, no price carrying both sides, and no bid at or above midpoint or ask at or below midpoint.
+
+### Displayed additions, removals and turnover
+
+For each consecutive frame pair and each side-price coordinate:
+
+- positive quote-notional change contributes to displayed liquidity added;
+- negative quote-notional change contributes to displayed liquidity removed;
+- turnover equals additions plus removals;
+- turnover versus opening depth equals turnover divided by opening displayed depth.
+
+Turnover counts repeated removal and replacement even when the opening and closing books are identical. This is intentional: endpoint net change and path turnover are different measurements.
+
+### Same-price persistence
+
+For each opening side-price coordinate:
+
+- retained notional is the smaller of opening and closing displayed notional at that same side and price;
+- bid, ask and combined persistence divide retained opening notional by the related opening total.
+
+Same-price persistence does not prove that the same underlying orders survived. MEXC public depth has no public order identity, so cancellation followed by replacement at the same level is observationally indistinguishable.
+
+### Opening cluster survival
+
+Opening clusters are the upper quartile of positive displayed level notionals on each side. A cluster survives when closing displayed notional at the same side and price is at least fifty percent of its opening notional.
+
+This is a versioned descriptive rule, not a wall-quality score, spoofing detector or participant classifier.
+
+### Centre and concentration shifts
+
+For each endpoint frame:
+
+- signed liquidity centre is visible-notional-weighted signed distance from midpoint in basis points;
+- absolute liquidity distance is visible-notional-weighted absolute distance from midpoint;
+- bid and ask centre distances are calculated separately;
+- near-depth concentration is the share of displayed depth inside 100 bps that lies inside 25 bps.
+
+Slice-four outputs report closing minus opening values. Positive absolute-distance shifts mean displayed liquidity moved outward in aggregate; negative values mean it became more concentrated near midpoint. If either endpoint has no depth inside 100 bps, near-depth concentration shift remains unavailable rather than becoming zero.
+
+### Liquidity-migration unavailable boundaries
+
+The calculator fails unavailable for:
+
+- a window other than exactly thirty seconds;
+- missing opening or closing endpoint states;
+- fewer than two or more than 128 frames;
+- more than 2,000 levels in one frame;
+- unsafe or unordered event timestamps;
+- malformed runtime arrays or levels;
+- duplicate, crossed or wrong-side price ticks;
+- missing bid or ask depth;
+- invalid price step, contract size, midpoint or quantity;
+- aggregate or derived numeric overflow.
+
+A complete unchanged book is valid evidence with zero turnover and one hundred percent persistence. Unproven sequence continuity retains descriptive values but classifies the research snapshot as gapped.
+
+## Candidate metric set v1.3
 
 The registry contains stable identities for:
 
@@ -159,8 +219,12 @@ The registry contains stable identities for:
 - ten-second notional and trade-count imbalance;
 - buy and sell flow versus opening opposite-side 25-bps displayed depth;
 - ten-second midpoint change, flow-aligned response and response per million quote;
-- later displayed-liquidity additions and removals;
-- later liquidity-centre shift;
+- thirty-second bid, ask and combined displayed additions, removals and turnover;
+- turnover relative to opening displayed depth;
+- bid, ask and combined same-price persistence;
+- upper-quartile opening-cluster survival;
+- signed centre, absolute distance and side-specific distance shifts;
+- near-depth concentration shift in percentage points;
 - later liquidity recovery time.
 
 All metrics remain **informational** and signal-ineligible.
@@ -210,8 +274,8 @@ The existing low-memory DizyFlow limits remain authoritative.
 
 1. research schema and source-quality contract — complete;
 2. spread and ladder-state metrics — complete as a pure formula layer;
-3. aggressive-flow and consumption metrics — implemented as a pure formula layer;
-4. liquidity migration and persistence;
+3. aggressive-flow and visible-depth pressure metrics — complete as a pure formula layer;
+4. liquidity migration and persistence — implemented as a pure formula layer;
 5. resilience, replenishment and candidate-event studies;
 6. Replay/statistical laboratory and bounded research presentation.
 
