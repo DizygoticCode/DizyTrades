@@ -5,6 +5,11 @@ export function feedAgeStatus(ageMs:number,liveMs=2000,staleMs=5000):FlowStatus{
 export function depthPresentationStatus(ageMs:number,hasValidBook:boolean,hasEnvelope=true):"CONNECTING"|"LIVE"|"DELAYED"|"OFFLINE"{
  if(!hasEnvelope)return "CONNECTING";if(!hasValidBook||ageMs>15_000)return "OFFLINE";return ageMs>5_000?"DELAYED":"LIVE";
 }
+export function latestReceiptTime(current:number|null,candidate:number|null):number|null{
+ if(candidate===null)return current;
+ if(current===null)return candidate;
+ return Math.max(current,candidate);
+}
 export type StableDepthStatus="CONNECTING"|"LIVE"|"STALE"|"ERROR";
 export function stableDepthStatus({hasSnapshot,ageMs,endpointFailed,staleMs=5000}:{hasSnapshot:boolean;ageMs:number;endpointFailed:boolean;staleMs?:number}):StableDepthStatus{
  if(!hasSnapshot)return endpointFailed?"ERROR":"CONNECTING";
