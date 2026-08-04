@@ -1,6 +1,6 @@
 # DizyTrades Architecture
 
-This document describes the current boundaries between public market data, deterministic analysis, simulation, replay, review, analytics, operations and future exchange connectivity.
+This document describes the current boundaries between public market data, deterministic analysis, microstructure research, simulation, replay, review, analytics, operations and future exchange connectivity.
 
 The enduring mission lives in [VISION.md](VISION.md). Delivery order lives in [ROADMAP.md](ROADMAP.md).
 
@@ -15,13 +15,13 @@ Typed live market state + bounded retained history
         ┌──────────┼──────────┬─────────────┐
         ↓          ↓          ↓             ↓
    DizyCharts   DizyFlow   DizyScanner  DizyStructure
-        ↓          ↓          ↓             ↓
-     DizySignals ──────────────┴─────────────┘
-        ↓
-     DizyBrain
-        ↓
-      DizyPaper
-        ↓
+        ↓          ├──────────────→ DizyQuant pure metrics
+     DizySignals   │                        ↓
+        ↓          │             Replay/statistical laboratory
+     DizyBrain     │                        ↓
+        ↓          │             retain / reject / promote later
+      DizyPaper    │
+        ↓          └──────────────→ bounded /research registry
    DizyJournal
         ↓
     DizyReplay ← Historical Replay Memory
@@ -33,12 +33,15 @@ Typed live market state + bounded retained history
 
 Authentication, profiles, workspaces, Paper accounts, Journals, retained evidence, backups and audit storage sit beside the public market-data path. They must not be mixed into provider transport.
 
+DizyQuant is a parallel research path, not a shortcut into DizySignals. Its public page exposes definitions and status only; it does not load live values or raw order-book messages.
+
 ## Product surfaces
 
 ### Public
 
 - marketing site
 - view-only terminal launcher
+- bounded read-only DizyQuant research registry
 - DizyAcademy
 - DizyDEX discovery
 - sign-in and signup
@@ -70,7 +73,7 @@ Transport responsibilities:
 - timeout, retry and recovery handling
 - sequence, duplicate and stale protection
 
-Transport code must not contain user-interface assumptions, strategy rules or Paper accounting.
+Transport code must not contain user-interface assumptions, strategy rules, Paper accounting or research-promotion decisions.
 
 Every external value is validated before entering shared state:
 
@@ -95,7 +98,7 @@ The platform must keep these concepts separate:
 - live state versus replay state
 - observed evidence versus trader reflection
 - simulation assumptions versus exchange facts
-- informational research versus validated signal evidence
+- informational research versus experimental hypotheses versus validated signal evidence
 
 Rendered DOM text must never substitute for typed application state.
 
@@ -119,7 +122,9 @@ Responsibilities:
 - typed qualification and rejection reasons
 - strategy and simulation inputs
 
-DizySignals must not scrape rendered labels, consume TradingView widget state, treat current order-book imbalance as prediction or accept DizyQuant metrics without validation and explicit promotion.
+DizySignals must not scrape rendered labels, consume TradingView widget state, treat current order-book imbalance as prediction or accept DizyQuant metrics without representative validation and a separately reviewed promotion change.
+
+The repository contract keeps every current DizyQuant metric `signalEligible: false`, every research snapshot `decisionEligible: false`, and signal influence `forbidden`.
 
 ## DizyBrain
 
@@ -144,6 +149,34 @@ DizyFlow owns public microstructure state beneath the candles:
 - typed DizyFlow Intelligence snapshots
 
 Visible queue is approximate because hidden liquidity, venue priority, amendments, cancellations and latency are unavailable. A diagnostic proving retained data exists does not automatically prove every customer-facing visual rendered correctly.
+
+## DizyQuant
+
+DizyQuant is a versioned market-microstructure research boundary built from public depth, public trades and retained-liquidity evidence.
+
+Current implementation:
+
+1. immutable metric registry and evidence-quality contract;
+2. snapshot-grade spread and visible-ladder measurements;
+3. continuous-stream aggressive-flow and visible-depth-pressure measurements;
+4. displayed-liquidity turnover, persistence and migration;
+5. shock resilience, replenishment and two explicitly experimental depth-only candidate flags;
+6. deterministic Replay/statistical laboratory plus a bounded read-only presentation model.
+
+The registry currently contains 67 stable metric identities: 65 informational and two experimental. None are validated, decision-eligible or signal-eligible.
+
+Evidence states are explicit:
+
+- **fresh** — usable observation age with required continuity proven;
+- **stale** — values exist but exceed the live age boundary;
+- **gapped** — values exist but required continuity is absent or broken;
+- **unavailable** — no finite metric value exists.
+
+The Replay lab uses an ordered training prefix and held-out suffix, deterministic circular-rotation null comparisons and bounded expanding-prefix walk-forward checks. It may recommend retaining an experimental formula, rejecting its current form or recording insufficient evidence. It cannot promote a metric automatically.
+
+The public `/research` route consumes only the frozen presentation model. It displays metric identities, units, evidence grades, status, completed slices and safeguards. It exposes no live research values, raw depth, trade streams, account data or signal inputs.
+
+Detailed formula and promotion rules live in [docs/DIZYQUANT_RESEARCH_CONTRACT.md](docs/DIZYQUANT_RESEARCH_CONTRACT.md).
 
 ## DizyScanner
 
@@ -177,21 +210,21 @@ Missing boundary candles, incomplete periods and unavailable feeds must remain u
 
 ## DizyPaper
 
-DizyPaper is isolated from live execution.
+DizyPaper is isolated from live execution. Fidelity V2 is complete and remains an approximation rather than an exchange matching-engine claim.
 
 Responsibilities:
 
 - manual and signal-driven simulated orders
 - margin, notional and quantity sizing
 - isolated and cross-margin approximations
-- leverage, fee and slippage modelling
+- leverage, fee, funding and slippage modelling
+- depth-sensitive entries and exits with honest partial fills
 - unrealised and realised P&L
-- stop, target and estimated-liquidation modelling
+- stop, target, maintenance-tier, liquidation and bankruptcy modelling
+- reduce-only, reverse and flatten behaviour
 - per-user account and fill history
 
-Fair/Mark is the preferred risk source when available. A chart display selector must not alter the simulator's authoritative risk source.
-
-Future Fidelity V2 work belongs in deterministic pure helpers and validated server boundaries, not React presentation code. Existing fills and backups must remain migration-safe.
+Fair/Mark is the preferred risk source when available. A chart display selector must not alter the simulator's authoritative risk source. Existing fills and backups remain migration-safe.
 
 ## DizyJournal
 
@@ -221,6 +254,8 @@ Retained/derivable history ─→ Replay clock ─→ Replay projections
 The replay clock controls the revealed closed-candle prefix. Signals and Brain explanations rebuild from that prefix. Playback, stepping and viewport following must not mutate live feed state or current Paper positions.
 
 Historical DizyFlow may select only prior-or-exact retained samples within a strict age boundary. It must never interpolate, select a future sample or substitute current live flow.
+
+DizyQuant study observations must likewise preserve exact time, symbol, metric identity, coverage and evidence status. Held-out outcomes must never alter a training-prefix model.
 
 ## DizyPerformance
 
@@ -274,28 +309,6 @@ Restore requirements:
 - owner-scoped backups
 
 Writes are atomic where file-backed and serialised where concurrent mutation could corrupt state. Persistent disk supports one service instance; horizontal scaling requires shared managed storage.
-
-## DizyQuant research boundary
-
-DizyQuant measures observable microstructure. It is not a secret market-maker detector and does not automatically influence signals.
-
-```text
-Typed DizyFlow observations
-            ↓
-Pure versioned metrics
-            ↓
-Replay-compatible snapshot
-            ↓
-Statistical validation
-            ↓
-Informational / Experimental / Validated
-            ↓
-Explicit promotion decision
-            ↓
-Optional DizySignals evidence
-```
-
-Every metric defines source data, units, sampling window, unavailable behaviour, deterministic formula, version, retention needs, status and limitations.
 
 ## Live-execution boundary
 
