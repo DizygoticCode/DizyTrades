@@ -8,22 +8,22 @@ test("Account Companion page authorises the owner before any private refresh", a
   assert.doesNotMatch(source, /^\s*["']use client["'];/m);
   assert.match(source, /const user = await requireUser\(\)/);
   assert.match(source, /if \(user\.role !== "owner"\) redirect\("\/terminal"\)/);
-  assert.match(source, /await refreshOwnerMexcAccountSnapshot\(\)/);
-  assert.ok(
-    source.indexOf('user.role !== "owner"') <
-      source.indexOf("refreshOwnerMexcAccountSnapshot()"),
-  );
+  assert.match(source, /await refreshOwnerMexcAccountCompanion\(\)/);
+  const authorisationIndex = source.indexOf('user.role !== "owner"');
+  const refreshIndex = source.indexOf("refreshOwnerMexcAccountCompanion()");
+  assert.ok(authorisationIndex >= 0 && refreshIndex > authorisationIndex);
   assert.match(source, /export const dynamic = "force-dynamic"/);
   assert.match(source, /export const revalidate = 0/);
 });
 
-test("Account Companion page renders safe status, balance and position fields", async () => {
+test("Account Companion page renders safe account and provider risk context", async () => {
   const source = await readFile("app/account/page.tsx", "utf8");
 
   for (const text of [
     "DizyAccount Companion",
     "Balances",
     "Positions",
+    "Risk limits",
     "availableBalance",
     "positionMargin",
     "unrealizedPnl",
@@ -31,10 +31,16 @@ test("Account Companion page renders safe status, balance and position fields", 
     "liquidationPrice",
     "initialMargin",
     "realisedPnl",
+    "maxLeverage",
+    "maxVolume",
+    "maintenanceMarginRate",
+    "initialMarginRate",
+    "attentionReasons",
   ]) {
     assert.match(source, new RegExp(text));
   }
   assert.match(source, /Write permission requested: no/);
+  assert.match(source, /Provider risk context is not a liquidation oracle/);
   assert.match(source, /No key, secret, signature or signed request material/);
   assert.doesNotMatch(
     source,
@@ -57,5 +63,8 @@ test("terminal exposes DizyAccount only through an owner-derived flag", async ()
     terminal,
     /showAccountCompanion=\{user\.role === "owner"\}/,
   );
-  assert.doesNotMatch(topbar, /mexc-owner-account-snapshot|mexc-private-readonly/);
+  assert.doesNotMatch(
+    topbar,
+    /mexc-owner-account-(?:snapshot|companion)|mexc-private-readonly/,
+  );
 });
