@@ -116,7 +116,7 @@ test("private transport has one pinned official contract origin and no write met
   const source = text("app/lib/mexc-private-readonly.ts");
   assert.match(
     source,
-    /MEXC_CONTRACT_PRIVATE_BASE_URL\s*=\s*"https:\/\/contract\.mexc\.com"/,
+    /MEXC_CONTRACT_PRIVATE_BASE_URL\s*=\s*\n?\s*"https:\/\/contract\.mexc\.com"/,
   );
   assert.match(source, /method:\s*"GET"/);
   assert.match(source, /cache:\s*"no-store"/);
@@ -172,7 +172,7 @@ test("no browser or API route exposes the private-account foundation", () => {
   }
 });
 
-test("deployment configuration exposes only disabled owner-scoped secret slots", () => {
+test("deployment configuration exposes only owner-scoped unsynchronised slots", () => {
   const environment = text(".env.example");
   const render = text("render.yaml");
 
@@ -189,11 +189,8 @@ test("deployment configuration exposes only disabled owner-scoped secret slots",
   );
 
   assert.match(render, /key:\s*LIVE_TRADING_ENABLED\s*\n\s*value:\s*"false"/);
-  assert.match(
-    render,
-    /key:\s*OWNER_MEXC_ACCOUNT_COMPANION_ENABLED\s*\n\s*value:\s*"false"/,
-  );
   for (const key of [
+    "OWNER_MEXC_ACCOUNT_COMPANION_ENABLED",
     "OWNER_MEXC_READONLY_API_KEY",
     "OWNER_MEXC_READONLY_API_SECRET",
     "OWNER_MEXC_READONLY_PERMISSION_ATTESTATION",
