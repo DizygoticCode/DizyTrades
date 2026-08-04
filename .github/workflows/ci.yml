@@ -20,45 +20,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - name: Diagnose complete deterministic suite
-        shell: bash
-        run: |
-          set +e
-          npm test 2>&1 | tee /tmp/dizytrades-deterministic.tap
-          status=${PIPESTATUS[0]}
-          if [ "$status" -ne 0 ]; then
-            python - <<'PY'
-          from pathlib import Path
-
-          lines = Path("/tmp/dizytrades-deterministic.tap").read_text(errors="replace").splitlines()
-          for index, line in enumerate(lines):
-              if not line.startswith("not ok "):
-                  continue
-              title = line.split(" - ", 1)[-1].strip()
-              location = ""
-              error = ""
-              for detail in lines[index + 1:index + 25]:
-                  stripped = detail.strip()
-                  if stripped.startswith(("ok ", "not ok ")):
-                      break
-                  if stripped.startswith("location:"):
-                      location = stripped.split(":", 1)[1].strip().strip("'\"")
-                  elif stripped.startswith("error:"):
-                      error = stripped.split(":", 1)[1].strip().strip("'\"")
-              file = location
-              marker = "/DizyTrades/"
-              if marker in file:
-                  file = file.split(marker, 1)[1].split(":", 1)[0]
-              message = f"{title}: {error or 'see deterministic TAP output'}"
-              message = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-              if file.startswith("tests/"):
-                  print(f"::error file={file},title=Deterministic test failure::{message}")
-              else:
-                  print(f"::error title=Deterministic test failure::{message}")
-              break
-          PY
-            exit "$status"
-          fi
+      - run: npm test
       - run: npm run build
 
   browser-smoke:
