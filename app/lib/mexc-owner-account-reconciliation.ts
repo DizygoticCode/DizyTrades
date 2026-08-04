@@ -183,7 +183,9 @@ export async function reconcileOwnerMexcAccountWithDizyPaper(
       exchangeState: input.companion.account.state,
       paperAccount,
       marks: markValues,
-      settlementCurrency: input.settlementCurrency,
+      ...(input.settlementCurrency === undefined
+        ? {}
+        : { settlementCurrency: input.settlementCurrency }),
     });
     return Object.freeze({
       policyVersion: MEXC_OWNER_ACCOUNT_RECONCILIATION_POLICY_VERSION,
