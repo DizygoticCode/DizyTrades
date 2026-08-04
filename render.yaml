@@ -24,7 +24,7 @@ services:
       - key: LIVE_TRADING_ENABLED
         value: "false"
       - key: OWNER_MEXC_ACCOUNT_COMPANION_ENABLED
-        value: "false"
+        sync: false
       - key: OWNER_MEXC_READONLY_API_KEY
         sync: false
       - key: OWNER_MEXC_READONLY_API_SECRET
