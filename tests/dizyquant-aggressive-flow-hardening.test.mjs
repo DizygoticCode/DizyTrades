@@ -6,10 +6,13 @@ const fromMs=2_000_000,toMs=fromMs+DIZYQUANT_AGGRESSIVE_FLOW_WINDOW_MS;
 const baseTrade={tradeId:"trade-1",timestampMs:fromMs,price:100,quantity:1,notional:100,side:"buy"};
 const input=overrides=>({trades:[baseTrade],windowFromMs:fromMs,windowToMs:toMs,sequenceContinuous:true,hasGaps:false,openingMidpoint:100,closingMidpoint:100,openingBidDepth25Bps:1_000,openingAskDepth25Bps:1_000,...overrides});
 
-test("normalised public trade identity rejects whitespace duplicate aliases",()=>{
- const state=calculateDizyQuantAggressiveFlow(input({trades:[baseTrade,{...baseTrade,tradeId:" trade-1 ",timestampMs:fromMs+1}]}));
- assert.equal(state.valid,false);
- assert.match(state.limitations[0],/identity/);
+test("normalised public trade identity rejects aliases and malformed runtime values",()=>{
+ const duplicate=calculateDizyQuantAggressiveFlow(input({trades:[baseTrade,{...baseTrade,tradeId:" trade-1 ",timestampMs:fromMs+1}]}));
+ const malformed=calculateDizyQuantAggressiveFlow(input({trades:[{...baseTrade,tradeId:42}]}));
+ for(const state of[duplicate,malformed]){
+  assert.equal(state.valid,false);
+  assert.match(state.limitations[0],/identity/);
+ }
 });
 
 test("event windows and trade times require safe integer milliseconds",()=>{
