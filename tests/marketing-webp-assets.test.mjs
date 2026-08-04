@@ -12,7 +12,9 @@ const assets = [
 ];
 
 function dimensions(buffer) {
+  assert.ok(buffer.length >= 30, "WebP asset must contain a complete container header");
   assert.equal(buffer.subarray(0, 4).toString("ascii"), "RIFF");
+  assert.equal(buffer.readUInt32LE(4) + 8, buffer.length, "RIFF length must match the binary file");
   assert.equal(buffer.subarray(8, 12).toString("ascii"), "WEBP");
   const chunk = buffer.subarray(12, 16).toString("ascii");
   if (chunk === "VP8X") {
