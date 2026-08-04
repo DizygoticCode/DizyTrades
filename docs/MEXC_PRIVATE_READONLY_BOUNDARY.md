@@ -42,7 +42,7 @@ For an allowed GET request, the server:
 2. validates and canonicalises declared parameters;
 3. builds the request target from API key, request time and canonical query string;
 4. signs the target with HMAC-SHA256 using the API secret;
-5. sends one `GET` request to `https://contract.mexc.com` with no body, no cache and redirects disabled;
+5. sends one `GET` request to `https://api.mexc.com` with no body, no cache and redirects disabled;
 6. enforces a bounded timeout and response-size limit;
 7. returns typed data and provenance without returning credentials or request headers.
 
