@@ -14,7 +14,7 @@ The research boundary provides:
 - a repository contract proving that no production consumer currently imports DizyQuant;
 - `decisionEligible: false`, `signalEligible: false` and `signalInfluence: forbidden` on every current output.
 
-The second slice adds pure snapshot-grade spread and ladder-state formulas. There is still no user interface, alert, Paper input, Scanner input or signal contribution.
+The second slice adds pure snapshot-grade spread and ladder-state formulas. The third slice adds pure continuous-stream-grade aggressive-flow and flow-response formulas. There is still no user interface, alert, Paper input, Scanner input or signal contribution.
 
 ## Evidence grades
 
@@ -62,7 +62,8 @@ A book is unavailable when:
 - a level contains a non-finite or negative value;
 - prices are duplicated or not strictly sorted;
 - the best bid is locked with or above the best ask;
-- contract size or price step is unavailable.
+- contract size or price step is unavailable;
+- derived midpoint, spread, notional or weighting arithmetic is non-finite.
 
 ### Quoted spread
 
@@ -94,15 +95,70 @@ Inside one hundred basis points:
 
 When no visible depth exists inside one hundred basis points, both measurements remain unavailable. A valid wide-spread book may still publish spread metrics while nearby-depth metrics remain unavailable.
 
-## Candidate metric set v1.1
+## Aggressive-flow formula set 1.0.0
 
-The registry now contains stable identities for:
+The aggressive-flow calculator consumes one exact ten-second half-open event window `[from, to)`. Public trades must be event-time ordered, remain inside the window and have unique normalised trade identities. The calculator accepts at most 100,000 public trades in one window.
+
+A complete zero-trade window is valid evidence of zero observed public activity. It is not converted to unavailable. A partial or unproven stream may retain descriptive totals, but the research envelope classifies the result as gapped.
+
+### Public aggressor flow
+
+Provider-labelled public trades are aggregated into:
+
+- buy-aggressor notional;
+- sell-aggressor notional;
+- gross aggressive notional;
+- net aggressive notional, defined as buy minus sell;
+- aggressive-flow imbalance, defined as net divided by gross;
+- buy and sell execution counts;
+- trade-count imbalance, defined as buy count minus sell count divided by total count.
+
+When gross notional or total trade count is zero, the related imbalance remains unavailable rather than becoming a fabricated neutral value.
+
+### Flow versus opening displayed depth
+
+When opening visible 25-bps depth is available:
+
+- buy-flow pressure = buy-aggressor notional divided by opening displayed ask notional inside 25 bps;
+- sell-flow pressure = sell-aggressor notional divided by opening displayed bid notional inside 25 bps.
+
+These are descriptive pressure ratios. They do not claim that every public trade consumed the displayed opening book, because depth can replenish, retreat or trade away from the opening ladder.
+
+### Midpoint response and flow efficiency
+
+When opening and closing midpoint are available:
+
+- midpoint change = `(closing midpoint - opening midpoint) / opening midpoint × 10,000`;
+- flow-aligned response signs midpoint change by net aggressive flow so positive values represent movement aligned with the observed net flow;
+- flow efficiency = flow-aligned response divided by gross aggressive notional in millions of quote currency.
+
+These measurements describe observed co-movement. They do not establish causality, predict continuation or qualify a trading signal.
+
+### Aggressive-flow unavailable boundaries
+
+The calculator fails unavailable for:
+
+- non-integer or unsafe event timestamps;
+- a window other than exactly ten seconds;
+- trades outside the half-open window;
+- out-of-order trades;
+- missing or duplicate normalised trade identities;
+- invalid price, quantity, notional or aggressor side;
+- invalid midpoint or opening-depth context;
+- aggregate or derived numeric overflow.
+
+## Candidate metric set v1.2
+
+The registry contains stable identities for:
 
 - spread price, ticks and basis points;
 - bid depth, ask depth and imbalance at 10, 25, 50 and 100 basis points;
 - depth-weighted distance inside 100 basis points;
 - near-depth concentration from 25 versus 100 basis points;
-- later aggressive-flow imbalance;
+- ten-second buy, sell, gross and net public aggressor notional;
+- ten-second notional and trade-count imbalance;
+- buy and sell flow versus opening opposite-side 25-bps displayed depth;
+- ten-second midpoint change, flow-aligned response and response per million quote;
 - later displayed-liquidity additions and removals;
 - later liquidity-centre shift;
 - later liquidity recovery time.
@@ -132,6 +188,8 @@ A negative result is a valid research outcome.
 
 MEXC public Futures depth is aggregated by price level. DizyTrades does not receive public individual-order identity, trader identity, true queue position, hidden liquidity or matching-engine intent.
 
+Public aggressor-side labels follow provider semantics and can describe observed public market flow. They do not reveal private intent, participant identity, hidden executions or the exact order path through the matching engine.
+
 DizyQuant may describe displayed-depth movement, turnover, persistence and public aggressive trading. It must not claim to identify spoofing, institutional intent, individual participants or actual queue priority.
 
 ## Production resource boundary
@@ -151,8 +209,8 @@ The existing low-memory DizyFlow limits remain authoritative.
 ## Planned focused slices
 
 1. research schema and source-quality contract — complete;
-2. spread and ladder-state metrics — implemented by the pure formula layer;
-3. aggressive-flow and consumption metrics;
+2. spread and ladder-state metrics — complete as a pure formula layer;
+3. aggressive-flow and consumption metrics — implemented as a pure formula layer;
 4. liquidity migration and persistence;
 5. resilience, replenishment and candidate-event studies;
 6. Replay/statistical laboratory and bounded research presentation.

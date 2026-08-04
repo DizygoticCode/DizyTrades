@@ -1,12 +1,12 @@
 export const DIZYQUANT_RESEARCH_SCHEMA_VERSION=1 as const;
-export const DIZYQUANT_METRIC_SET_VERSION="dizyquant-candidates/1.1.0" as const;
+export const DIZYQUANT_METRIC_SET_VERSION="dizyquant-candidates/1.2.0" as const;
 
 export type DizyQuantEvidenceGrade="snapshot-grade"|"continuous-stream-grade";
 export type DizyQuantAvailability="fresh"|"stale"|"gapped"|"unavailable";
 export type DizyQuantReplayAvailability="fresh"|"gapped"|"unavailable";
 export type DizyQuantPromotionStatus="informational"|"experimental"|"validated"|"rejected";
 export type DizyQuantSourceKind="depth-snapshot"|"depth-stream"|"public-trades"|"retained-liquidity"|"replay";
-export type DizyQuantUnit="price"|"ticks"|"basis-points"|"percent"|"quote-notional"|"base-quantity"|"milliseconds";
+export type DizyQuantUnit="price"|"ticks"|"basis-points"|"percent"|"quote-notional"|"base-quantity"|"milliseconds"|"count"|"basis-points-per-million-quote";
 
 const candidateDefinitions=[
  {id:"spread-price",version:1,label:"Quoted spread price",unit:"price",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Best ask minus best bid in provider price units."},
@@ -26,7 +26,19 @@ const candidateDefinitions=[
  {id:"depth-imbalance-100bps",version:1,label:"Depth imbalance within 100 bps",unit:"percent",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Bid-versus-ask visible notional imbalance inside one hundred basis points of midpoint."},
  {id:"depth-weighted-distance-100bps",version:1,label:"Depth-weighted distance within 100 bps",unit:"basis-points",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Visible-notional-weighted absolute distance from midpoint inside one hundred basis points."},
  {id:"near-depth-concentration-25-of-100bps",version:1,label:"Near-depth concentration",unit:"percent",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Visible notional inside twenty-five basis points divided by visible notional inside one hundred basis points."},
- {id:"aggressive-flow-imbalance-10s",version:1,label:"Aggressive flow imbalance over 10 seconds",unit:"percent",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Signed public-trade notional imbalance over a ten-second event-time window."},
+ {id:"aggressive-buy-notional-10s",version:1,label:"Aggressive buy notional over 10 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Provider-labelled public buy-aggressor notional in the ten-second event window."},
+ {id:"aggressive-sell-notional-10s",version:1,label:"Aggressive sell notional over 10 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Provider-labelled public sell-aggressor notional in the ten-second event window."},
+ {id:"aggressive-gross-notional-10s",version:1,label:"Gross aggressive notional over 10 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Public buy-aggressor plus sell-aggressor notional in the ten-second event window."},
+ {id:"aggressive-net-notional-10s",version:1,label:"Net aggressive notional over 10 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Public buy-aggressor minus sell-aggressor notional in the ten-second event window."},
+ {id:"aggressive-flow-imbalance-10s",version:1,label:"Aggressive flow imbalance over 10 seconds",unit:"percent",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Net public aggressor notional divided by gross public aggressor notional."},
+ {id:"aggressive-buy-trade-count-10s",version:1,label:"Aggressive buy trade count over 10 seconds",unit:"count",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Count of provider-labelled public buy-aggressor executions in the event window."},
+ {id:"aggressive-sell-trade-count-10s",version:1,label:"Aggressive sell trade count over 10 seconds",unit:"count",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Count of provider-labelled public sell-aggressor executions in the event window."},
+ {id:"aggressive-trade-count-imbalance-10s",version:1,label:"Aggressive trade-count imbalance over 10 seconds",unit:"percent",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Buy-aggressor count minus sell-aggressor count divided by total public trade count."},
+ {id:"buy-flow-vs-opening-ask-depth-25bps",version:1,label:"Buy flow versus opening ask depth",unit:"percent",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Buy-aggressor notional divided by opening displayed ask notional inside twenty-five basis points."},
+ {id:"sell-flow-vs-opening-bid-depth-25bps",version:1,label:"Sell flow versus opening bid depth",unit:"percent",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Sell-aggressor notional divided by opening displayed bid notional inside twenty-five basis points."},
+ {id:"midpoint-change-10s-bps",version:1,label:"Midpoint change over 10 seconds",unit:"basis-points",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Closing midpoint minus opening midpoint expressed in basis points of the opening midpoint."},
+ {id:"flow-aligned-response-10s-bps",version:1,label:"Flow-aligned midpoint response",unit:"basis-points",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Midpoint change signed so positive values align with net public aggressor flow."},
+ {id:"flow-efficiency-bps-per-million-10s",version:1,label:"Flow-aligned response per million",unit:"basis-points-per-million-quote",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Flow-aligned midpoint response divided by gross public aggressor notional in millions."},
  {id:"liquidity-added-30s",version:1,label:"Displayed liquidity added over 30 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Observed increase in displayed book notional over a thirty-second event-time window."},
  {id:"liquidity-removed-30s",version:1,label:"Displayed liquidity removed over 30 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Observed decrease in displayed book notional over a thirty-second event-time window."},
  {id:"liquidity-centre-shift-bps",version:1,label:"Liquidity centre shift",unit:"basis-points",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Movement of the visible-liquidity centre of mass relative to midpoint."},
