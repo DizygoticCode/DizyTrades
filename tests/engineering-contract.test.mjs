@@ -96,7 +96,7 @@ test("global response headers retain the browser security boundary", () => {
     "object-src 'none'",
     "base-uri 'self'",
     "frame-ancestors 'self'",
-    "wss://contract.mexc.com",
+    "wss://api.mexc.com",
     "https://*.tradingview.com",
   ]) {
     assert.ok(csp.includes(directive), `CSP is missing ${directive}`);

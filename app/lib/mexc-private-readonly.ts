@@ -4,7 +4,7 @@ import { createHmac } from "node:crypto";
 
 export const MEXC_PRIVATE_READONLY_POLICY_VERSION =
   "mexc-private-readonly/1.0.0" as const;
-export const MEXC_CONTRACT_PRIVATE_BASE_URL = "https://contract.mexc.com" as const;
+export const MEXC_CONTRACT_PRIVATE_BASE_URL = "https://api.mexc.com" as const;
 export const MEXC_PRIVATE_RESPONSE_MAX_BYTES = 1_000_000;
 export const MEXC_PRIVATE_REQUEST_TIMEOUT_MS = 8_000;
 

@@ -10,7 +10,7 @@ export async function GET(request:Request){
  try{
   const market=(await getMexcMarkets(AbortSignal.timeout(4500))).find(value=>value.symbol===symbol);
   if(!market)return NextResponse.json({error:"Unknown or unavailable symbol."},{status:400});
-  const response=await fetch(`https://contract.mexc.com/api/v1/contract/deals/${encodeURIComponent(symbol)}?limit=${limit}`,{signal:AbortSignal.timeout(5500),cache:"no-store",headers:{accept:"application/json"}});
+  const response=await fetch(`https://api.mexc.com/api/v1/contract/deals/${encodeURIComponent(symbol)}?limit=${limit}`,{signal:AbortSignal.timeout(5500),cache:"no-store",headers:{accept:"application/json"}});
   const raw:unknown=await response.json();if(!response.ok)throw Error(`MEXC HTTP ${response.status}`);
   // Returning the normalised public fields keeps exchange quirks out of browser
   // code. No credentials are used or accepted by this route.
