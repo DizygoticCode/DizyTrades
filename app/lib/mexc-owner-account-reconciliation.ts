@@ -107,7 +107,7 @@ async function observeMarks(
   const bySymbol = new Map<string, number | undefined>();
   for (const position of positions) {
     if (!bySymbol.has(position.symbol)) {
-      bySymbol.set(position.symbol, position.lastRiskPrice);
+      bySymbol.set(position.symbol, position.lastRiskPrice ?? undefined);
     }
   }
   const observations = await Promise.all(
