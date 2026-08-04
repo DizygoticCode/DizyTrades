@@ -16,8 +16,10 @@ export function CommandPaletteMounted() {
     <>
       <AccessibilityFoundation />
       <DizyBrainGlobalToolOffset />
-      <CommandPalette />
-      <RecentShortcuts />
+      <div className="global-command-dock" aria-label="Global terminal shortcuts">
+        <CommandPalette />
+        <RecentShortcuts />
+      </div>
     </>
   ) : null;
 }
