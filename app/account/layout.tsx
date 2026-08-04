@@ -24,6 +24,9 @@ export default function AccountCompanionLayout({ children }: { children: ReactNo
         <Link href="/account/audit" style={{ color: "#b8dce2", textDecoration: "none" }}>
           Immutable audit ledger
         </Link>
+        <Link href="/account/control" style={{ color: "#ffd479", textDecoration: "none" }}>
+          Connection shutdown
+        </Link>
       </nav>
       {children}
     </>
