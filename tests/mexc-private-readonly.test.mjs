@@ -22,7 +22,7 @@ const credentials = Object.freeze({
 test("private capability manifest is GET-only and has no write capability", () => {
   const manifest = mexcPrivateReadCapabilityManifest();
   assert.equal(manifest.policyVersion, "mexc-private-readonly/1.0.0");
-  assert.equal(manifest.baseOrigin, "https://contract.mexc.com");
+  assert.equal(manifest.baseOrigin, "https://api.mexc.com");
   assert.deepEqual(manifest.methods, ["GET"]);
   assert.equal(manifest.writeCapability, false);
   assert.deepEqual(manifest.permissions, ["account-read", "trade-read"]);
