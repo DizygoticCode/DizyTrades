@@ -44,7 +44,7 @@ export type DizyQuantAggressiveFlowState=Readonly<{
 const finitePositive=(value:number)=>Number.isFinite(value)&&value>0;
 const finiteNonNegative=(value:number)=>Number.isFinite(value)&&value>=0;
 const validNullable=(value:number|null,allowZero:boolean)=>value===null||(allowZero?finiteNonNegative(value):finitePositive(value));
-const normalisedTradeId=(value:string)=>{const clean=value.trim();return clean.length>0&&clean.length<=160&&!/[\u0000-\u001f]/.test(clean)?clean:null};
+const normalisedTradeId=(value:unknown)=>{if(typeof value!=="string")return null;const clean=value.trim();return clean.length>0&&clean.length<=160&&!/[\u0000-\u001f]/.test(clean)?clean:null};
 const frozenValues=(values:Partial<Record<DizyQuantMetricId,number|null>>)=>Object.freeze(values)as DizyQuantAggressiveFlowValues;
 
 function unavailable(reason:string):DizyQuantAggressiveFlowState{
