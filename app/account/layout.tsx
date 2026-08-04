@@ -21,6 +21,9 @@ export default function AccountCompanionLayout({ children }: { children: ReactNo
         <Link href="/account/preview" style={{ color: "#64e9e0", textDecoration: "none" }}>
           Hypothetical order preview
         </Link>
+        <Link href="/account/audit" style={{ color: "#b8dce2", textDecoration: "none" }}>
+          Immutable audit ledger
+        </Link>
       </nav>
       {children}
     </>

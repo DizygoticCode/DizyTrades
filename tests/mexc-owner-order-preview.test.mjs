@@ -81,7 +81,39 @@ function request(overrides = {}) {
   };
 }
 
-test("owner preview projects a new DizyPaper position beside fresh MEXC state", async () => {
+function auditEntry(kind = "hypothetical-order-preview") {
+  return Object.freeze({
+    schemaVersion: "mexc-owner-shadow-audit/1.0.0",
+    sequence: 1,
+    eventId: "event0001",
+    ownerDigest: "a".repeat(64),
+    recordedAtMs: 1_000_100,
+    kind,
+    sourcePolicyVersion: MEXC_OWNER_ORDER_PREVIEW_POLICY_VERSION,
+    previousDigest: null,
+    payload: Object.freeze({ stored: true }),
+    digest: "b".repeat(64),
+  });
+}
+
+function appendAudit(assertion = () => {}) {
+  return async (userId, input) => {
+    assertion(userId, input);
+    return auditEntry(input.kind);
+  };
+}
+
+function dependencies(overrides = {}) {
+  return {
+    readPaperAccount: async () => newManualAccount(),
+    loadPublicMark: async () => ({ price: 100, source: "fair" }),
+    loadContract: async () => contract(),
+    appendAudit: appendAudit(),
+    ...overrides,
+  };
+}
+
+test("owner preview projects and audits a new DizyPaper position beside fresh MEXC state", async () => {
   const result = await previewOwnerMexcOrder(
     {
       userId: "rob",
@@ -101,6 +133,15 @@ test("owner preview projects a new DizyPaper position beside fresh MEXC state", 
         assert.equal(symbol, "BTC_USDT");
         return contract();
       },
+      appendAudit: appendAudit((userId, input) => {
+        assert.equal(userId, "rob");
+        assert.equal(input.kind, "hypothetical-order-preview");
+        assert.equal(input.payload.request.symbol, "BTC_USDT");
+        assert.equal(input.payload.projectedPaper.positionMargin, 100);
+        assert.equal(input.payload.executable, false);
+        assert.equal(input.payload.exchangeWriteCapability, "none");
+        assert.doesNotMatch(JSON.stringify(input), /apiKey|apiSecret|signature|authorization/i);
+      }),
     },
   );
 
@@ -117,10 +158,11 @@ test("owner preview projects a new DizyPaper position beside fresh MEXC state", 
   assert.equal(result.projectedPaper.availableMargin, 9899.7);
   assert.equal(result.projectedPaper.openPositionCount, 1);
   assert.equal(result.exchangeObserved.equity, "10000");
+  assert.equal(result.audit.kind, "hypothetical-order-preview");
   assert.equal(Object.isFrozen(result), true);
 });
 
-test("non-fresh private state blocks before paper or public market reads", async () => {
+test("non-fresh private state blocks before paper, public market or audit reads", async () => {
   let reads = 0;
   const result = await previewOwnerMexcOrder(
     {
@@ -141,11 +183,16 @@ test("non-fresh private state blocks before paper or public market reads", async
         reads += 1;
         return contract();
       },
+      appendAudit: async () => {
+        reads += 1;
+        return auditEntry();
+      },
     },
   );
 
   assert.equal(result.status, "blocked");
   assert.equal(result.reason, "account-state-not-fresh");
+  assert.equal(result.audit, null);
   assert.equal(reads, 0);
 });
 
@@ -173,35 +220,26 @@ test("existing DizyPaper symbols are blocked rather than modelling an ambiguous 
 
   const result = await previewOwnerMexcOrder(
     { userId: "rob", companion: companion(), request: request() },
-    {
-      readPaperAccount: async () => paper,
-      loadPublicMark: async () => ({ price: 100, source: "fair" }),
-      loadContract: async () => contract(),
-    },
+    dependencies({ readPaperAccount: async () => paper }),
   );
 
   assert.equal(result.status, "unavailable");
   assert.equal(result.reason, "existing-paper-position");
+  assert.equal(result.audit, null);
   assert.match(result.failure.message, /add, reduce and reversal/i);
 });
 
 test("invalid sizing, exits and insufficient paper equity fail closed", async () => {
-  const dependencies = {
-    readPaperAccount: async () => newManualAccount(),
-    loadPublicMark: async () => ({ price: 100, source: "fair" }),
-    loadContract: async () => contract(),
-  };
-
   const badStop = await previewOwnerMexcOrder(
     { userId: "rob", companion: companion(), request: request({ stopLoss: 101 }) },
-    dependencies,
+    dependencies(),
   );
   assert.equal(badStop.status, "unavailable");
   assert.equal(badStop.reason, "invalid-request");
 
   const excessive = await previewOwnerMexcOrder(
     { userId: "rob", companion: companion(), request: request({ amount: 20_000 }) },
-    dependencies,
+    dependencies(),
   );
   assert.equal(excessive.status, "unavailable");
   assert.match(excessive.failure.message, /equity|margin/i);
@@ -209,4 +247,20 @@ test("invalid sizing, exits and insufficient paper equity fail closed", async ()
   const serialised = JSON.stringify([badStop, excessive]);
   assert.doesNotMatch(serialised, /apiKey|apiSecret|signature|authorization|credential/i);
   assert.doesNotMatch(serialised, /requestMexcPrivateRead|submitManualOrder|cancel/i);
+});
+
+test("audit persistence failure blocks an otherwise valid preview", async () => {
+  const result = await previewOwnerMexcOrder(
+    { userId: "rob", companion: companion(), request: request() },
+    dependencies({
+      appendAudit: async () => {
+        throw new Error("audit disk unavailable");
+      },
+    }),
+  );
+
+  assert.equal(result.status, "unavailable");
+  assert.equal(result.reason, "audit-persistence-failed");
+  assert.equal(result.audit, null);
+  assert.match(result.failure.message, /audit disk unavailable/i);
 });

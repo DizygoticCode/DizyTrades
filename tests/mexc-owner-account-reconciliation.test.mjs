@@ -119,6 +119,28 @@ function paperAccount() {
   };
 }
 
+function auditEntry(kind = "account-reconciliation") {
+  return Object.freeze({
+    schemaVersion: "mexc-owner-shadow-audit/1.0.0",
+    sequence: 1,
+    eventId: "event0001",
+    ownerDigest: "a".repeat(64),
+    recordedAtMs: 1_000_200,
+    kind,
+    sourcePolicyVersion: MEXC_OWNER_ACCOUNT_RECONCILIATION_POLICY_VERSION,
+    previousDigest: null,
+    payload: Object.freeze({ stored: true }),
+    digest: "b".repeat(64),
+  });
+}
+
+function appendAudit(assertion = () => {}) {
+  return async (userId, input) => {
+    assertion(userId, input);
+    return auditEntry(input.kind);
+  };
+}
+
 test("owner coordinator reconciles fresh MEXC state with the stored DizyPaper account", async () => {
   const previousMarks = [];
   const result = await reconcileOwnerMexcAccountWithDizyPaper(
@@ -135,6 +157,13 @@ test("owner coordinator reconciles fresh MEXC state with the stored DizyPaper ac
         previousMarks.push([symbol, previous]);
         return { price: 110, source: "fair" };
       },
+      appendAudit: appendAudit((userId, input) => {
+        assert.equal(userId, "rob");
+        assert.equal(input.kind, "account-reconciliation");
+        assert.equal(input.payload.accountSnapshot.assets[0].currency, "USDT");
+        assert.equal(input.payload.reconciliation.summary.aligned, 1);
+        assert.doesNotMatch(JSON.stringify(input), /apiKey|apiSecret|signature|authorization/i);
+      }),
     },
   );
 
@@ -155,10 +184,11 @@ test("owner coordinator reconciles fresh MEXC state with the stored DizyPaper ac
     },
   ]);
   assert.equal(result.paperAccount.openPositionCount, 1);
+  assert.equal(result.audit.kind, "account-reconciliation");
   assert.equal(Object.isFrozen(result), true);
 });
 
-test("missing public marks remain explicit without blocking position reconciliation", async () => {
+test("missing public marks remain explicit without blocking audited position reconciliation", async () => {
   const result = await reconcileOwnerMexcAccountWithDizyPaper(
     {
       userId: "rob",
@@ -169,6 +199,7 @@ test("missing public marks remain explicit without blocking position reconciliat
       loadPublicMark: async () => {
         throw new Error("ticker temporarily unavailable");
       },
+      appendAudit: appendAudit(),
     },
   );
 
@@ -178,11 +209,13 @@ test("missing public marks remain explicit without blocking position reconciliat
   assert.equal(result.report.account.equity.comparable, false);
   assert.equal(result.marks[0].status, "unavailable");
   assert.match(result.marks[0].message, /ticker temporarily unavailable/i);
+  assert.equal(result.audit.sequence, 1);
 });
 
-test("non-fresh MEXC state blocks before paper storage or marks are touched", async () => {
+test("non-fresh MEXC state blocks before paper storage, marks or audit are touched", async () => {
   let paperReads = 0;
   let markReads = 0;
+  let auditWrites = 0;
   const stale = exchangeState({ nowMs: 2_000_000, receivedAtMs: 1_000_000 });
   assert.equal(stale.status, "stale");
 
@@ -197,6 +230,10 @@ test("non-fresh MEXC state blocks before paper storage or marks are touched", as
         markReads += 1;
         return { price: 110, source: "fair" };
       },
+      appendAudit: async () => {
+        auditWrites += 1;
+        return auditEntry();
+      },
     },
   );
 
@@ -204,15 +241,17 @@ test("non-fresh MEXC state blocks before paper storage or marks are touched", as
   assert.equal(result.reason, "account-state-not-fresh");
   assert.equal(paperReads, 0);
   assert.equal(markReads, 0);
+  assert.equal(auditWrites, 0);
 });
 
-test("paper-account and reconciliation failures are safe and credential-free", async () => {
+test("paper-account, reconciliation and audit failures are safe and credential-free", async () => {
   const unavailable = await reconcileOwnerMexcAccountWithDizyPaper(
     { userId: "rob", companion: companion(exchangeState()) },
     {
       readPaperAccount: async () => {
         throw new Error("paper file unavailable");
       },
+      appendAudit: appendAudit(),
     },
   );
   assert.equal(unavailable.status, "unavailable");
@@ -225,12 +264,26 @@ test("paper-account and reconciliation failures are safe and credential-free", a
     {
       readPaperAccount: async () => invalid,
       loadPublicMark: async () => ({ price: 110, source: "fair" }),
+      appendAudit: appendAudit(),
     },
   );
   assert.equal(failed.status, "unavailable");
   assert.equal(failed.failure.reason, "reconciliation-failed");
 
-  const serialised = JSON.stringify([unavailable, failed]);
+  const auditFailed = await reconcileOwnerMexcAccountWithDizyPaper(
+    { userId: "rob", companion: companion(exchangeState()) },
+    {
+      readPaperAccount: async () => paperAccount(),
+      loadPublicMark: async () => ({ price: 110, source: "fair" }),
+      appendAudit: async () => {
+        throw new Error("audit disk unavailable");
+      },
+    },
+  );
+  assert.equal(auditFailed.status, "unavailable");
+  assert.equal(auditFailed.failure.reason, "audit-persistence-failed");
+
+  const serialised = JSON.stringify([unavailable, failed, auditFailed]);
   assert.doesNotMatch(serialised, /apiKey|apiSecret|signature|authorization|credential/i);
   assert.doesNotMatch(serialised, /submit|cancel|execute|changeLeverage/i);
 });
