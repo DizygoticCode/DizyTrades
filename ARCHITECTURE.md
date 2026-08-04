@@ -172,7 +172,7 @@ Evidence states are explicit:
 - **gapped** — values exist but required continuity is absent or broken;
 - **unavailable** — no finite metric value exists.
 
-The Replay lab uses an ordered training prefix and held-out suffix, deterministic circular-rotation null comparisons and bounded expanding-prefix walk-forward checks. It may recommend retaining an experimental formula, rejecting its current form or recording insufficient evidence. It cannot promote a metric automatically.
+The Replay lab uses an ordered training prefix and held-out suffix, deterministic circular-rotation null comparisons and bounded expanding-prefix walk-forward checks. It may recommend retaining an experimental formula, rejecting its current form or recording insufficient evidence. Every result is emitted with `promotionEligible: false`; promotion requires a separate reviewed change.
 
 The public `/research` route consumes only the frozen presentation model. It displays metric identities, units, evidence grades, status, completed slices and safeguards. It exposes no live research values, raw depth, trade streams, account data or signal inputs.
 
