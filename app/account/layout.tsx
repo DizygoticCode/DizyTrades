@@ -1,7 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-export default function AccountCompanionLayout({ children }: { children: ReactNode }) {
+import { readOwnerMexcConnectionControl } from "../lib/mexc-owner-connection-control";
+
+export default async function AccountCompanionLayout({ children }: { children: ReactNode }) {
+  const control = await readOwnerMexcConnectionControl();
   return (
     <>
       <nav
@@ -28,6 +31,23 @@ export default function AccountCompanionLayout({ children }: { children: ReactNo
           Connection shutdown
         </Link>
       </nav>
+      {control.localPrivateReadsBlocked ? (
+        <div
+          role="status"
+          style={{
+            padding: "11px 32px",
+            borderBottom: "1px solid #73353d",
+            color: "#ffe7e9",
+            background: "#3b151b",
+            fontWeight: 750,
+          }}
+        >
+          Private MEXC reads are locally sealed. No private provider request will be attempted.{" "}
+          <Link href="/account/control" style={{ color: "#ffd479" }}>
+            Review shutdown and credential-removal status
+          </Link>
+        </div>
+      ) : null}
       {children}
     </>
   );
