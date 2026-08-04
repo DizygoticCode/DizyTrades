@@ -29,9 +29,10 @@ const base=(overrides={})=>({
 
 test("candidate metric registry is versioned, unique and signal-ineligible",()=>{
  assert.equal(DIZYQUANT_RESEARCH_SCHEMA_VERSION,1);
- assert.equal(DIZYQUANT_METRIC_SET_VERSION,"dizyquant-candidates/1.0.0");
+ assert.equal(DIZYQUANT_METRIC_SET_VERSION,"dizyquant-candidates/1.1.0");
  assert.equal(new Set(DIZYQUANT_METRIC_DEFINITIONS.map(value=>value.id)).size,DIZYQUANT_METRIC_DEFINITIONS.length);
- assert.ok(DIZYQUANT_METRIC_DEFINITIONS.length>=7);
+ assert.ok(DIZYQUANT_METRIC_DEFINITIONS.length>=22);
+ assert.deepEqual(DIZYQUANT_METRIC_DEFINITIONS.filter(value=>value.evidenceGrade==="snapshot-grade").map(value=>value.id).slice(0,3),["spread-price","spread-ticks","spread-bps"]);
  for(const definition of DIZYQUANT_METRIC_DEFINITIONS){
   assert.equal(definition.version,1);
   assert.equal(definition.promotionStatus,"informational");
