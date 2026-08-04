@@ -8,7 +8,7 @@ import {
 } from "./mexc-private-readonly";
 
 export const MEXC_READONLY_PERMISSION_PROOF_VERSION =
-  "mexc-readonly-permission-proof/1.0.0" as const;
+  "mexc-readonly-permission-proof/1.1.0" as const;
 
 const expectedEndpoints = Object.freeze([
   Object.freeze({
@@ -118,7 +118,7 @@ export function buildMexcReadOnlyPermissionProof() {
   const checks = Object.freeze({
     transportPolicyVersionExact:
       manifest.policyVersion === MEXC_PRIVATE_READONLY_POLICY_VERSION,
-    baseOriginPinned: manifest.baseOrigin === "https://api.mexc.com",
+    baseOriginPinned: manifest.baseOrigin === "https://contract.mexc.com",
     methodSetExact: canonicalJson(methods) === canonicalJson(["GET"]),
     permissionSetExact:
       canonicalJson(permissions) === canonicalJson(["account-read", "trade-read"]),
