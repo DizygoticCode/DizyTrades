@@ -11,9 +11,13 @@ import {
   type MexcDizyPaperReconciliation,
 } from "./mexc-dizypaper-reconciliation";
 import type { MexcOwnerAccountCompanionRefreshResult } from "./mexc-owner-account-companion";
+import {
+  appendOwnerMexcShadowAudit,
+  type MexcOwnerShadowAuditEntry,
+} from "./mexc-owner-shadow-audit";
 
 export const MEXC_OWNER_ACCOUNT_RECONCILIATION_POLICY_VERSION =
-  "mexc-owner-account-reconciliation/1.0.0" as const;
+  "mexc-owner-account-reconciliation/1.1.0" as const;
 
 const NO_MARKS: readonly [] = Object.freeze([]);
 
@@ -39,6 +43,7 @@ export type MexcOwnerAccountReconciliationState =
         openPositionCount: number;
       }>;
       marks: readonly MexcOwnerPaperMarkObservation[];
+      audit: MexcOwnerShadowAuditEntry;
       failure: null;
     }>
   | Readonly<{
@@ -50,6 +55,7 @@ export type MexcOwnerAccountReconciliationState =
       report: null;
       paperAccount: null;
       marks: readonly [];
+      audit: null;
       failure: null;
     }>
   | Readonly<{
@@ -60,17 +66,23 @@ export type MexcOwnerAccountReconciliationState =
       report: null;
       paperAccount: null;
       marks: readonly MexcOwnerPaperMarkObservation[];
+      audit: null;
       failure: Readonly<{
-        reason: "paper-account-unavailable" | "reconciliation-failed";
+        reason:
+          | "paper-account-unavailable"
+          | "reconciliation-failed"
+          | "audit-persistence-failed";
         message: string;
       }>;
     }>;
 
 type MarkResult = Readonly<{ price: number; source: string }>;
+type AppendAudit = typeof appendOwnerMexcShadowAudit;
 
 type Dependencies = Readonly<{
   readPaperAccount?: (userId: string) => Promise<ManualAccount>;
   loadPublicMark?: (symbol: string, previous?: number) => Promise<MarkResult>;
+  appendAudit?: AppendAudit;
 }>;
 
 function blocked(): MexcOwnerAccountReconciliationState {
@@ -83,7 +95,26 @@ function blocked(): MexcOwnerAccountReconciliationState {
     report: null,
     paperAccount: null,
     marks: NO_MARKS,
+    audit: null,
     failure: null,
+  });
+}
+
+function unavailable(
+  reason: Extract<MexcOwnerAccountReconciliationState, { status: "unavailable" }>["failure"]["reason"],
+  message: string,
+  marks: readonly MexcOwnerPaperMarkObservation[] = NO_MARKS,
+): MexcOwnerAccountReconciliationState {
+  return Object.freeze({
+    policyVersion: MEXC_OWNER_ACCOUNT_RECONCILIATION_POLICY_VERSION,
+    status: "unavailable" as const,
+    displayEligible: false as const,
+    decisionEligible: false as const,
+    report: null,
+    paperAccount: null,
+    marks,
+    audit: null,
+    failure: Object.freeze({ reason, message }),
   });
 }
 
@@ -142,6 +173,59 @@ async function observeMarks(
   return Object.freeze(observations);
 }
 
+function auditPayload(
+  companion: MexcOwnerAccountCompanionRefreshResult,
+  report: MexcDizyPaperReconciliation,
+  marks: readonly MexcOwnerPaperMarkObservation[],
+) {
+  if (companion.account.state.status !== "fresh") {
+    throw new TypeError("Fresh account state is required for shadow audit persistence.");
+  }
+  const snapshot = companion.account.state.snapshot;
+  return Object.freeze({
+    accountSnapshot: Object.freeze({
+      observedAtMs: snapshot.observedAtMs,
+      assets: Object.freeze(snapshot.assets.map((asset) => Object.freeze({
+        currency: asset.currency,
+        equity: asset.equity,
+        availableBalance: asset.availableBalance,
+        cashBalance: asset.cashBalance,
+        positionMargin: asset.positionMargin,
+        unrealizedPnl: asset.unrealizedPnl,
+        frozenBalance: asset.frozenBalance,
+      }))),
+      positions: Object.freeze(snapshot.positions.map((position) => Object.freeze({
+        symbol: position.symbol,
+        side: position.side,
+        marginMode: position.marginMode,
+        state: position.state,
+        holdVolume: position.holdVolume,
+        holdAveragePrice: position.holdAveragePrice,
+        liquidationPrice: position.liquidationPrice,
+        initialMargin: position.initialMargin,
+        realisedPnl: position.realisedPnl,
+        leverage: position.leverage,
+        adlLevel: position.adlLevel,
+      }))),
+    }),
+    reconciliation: Object.freeze({
+      calculationMethod: report.calculationMethod,
+      settlementCurrency: report.settlementCurrency,
+      paperUpdatedAt: report.paperUpdatedAt,
+      summary: report.summary,
+      account: report.account,
+      positions: report.positions,
+      warnings: report.warnings,
+    }),
+    marks: Object.freeze(marks.map((mark) => Object.freeze({
+      symbol: mark.symbol,
+      status: mark.status,
+      price: mark.price,
+      source: mark.source,
+    }))),
+  });
+}
+
 export async function reconcileOwnerMexcAccountWithDizyPaper(
   input: Readonly<{
     userId: string;
@@ -154,23 +238,15 @@ export async function reconcileOwnerMexcAccountWithDizyPaper(
 
   const readPaperAccount = dependencies.readPaperAccount ?? readManualAccount;
   const loadPublicMark = dependencies.loadPublicMark ?? defaultMarkLoader;
+  const appendAudit = dependencies.appendAudit ?? appendOwnerMexcShadowAudit;
   let paperAccount: ManualAccount;
   try {
     paperAccount = await readPaperAccount(input.userId);
   } catch (error) {
-    return Object.freeze({
-      policyVersion: MEXC_OWNER_ACCOUNT_RECONCILIATION_POLICY_VERSION,
-      status: "unavailable" as const,
-      displayEligible: false as const,
-      decisionEligible: false as const,
-      report: null,
-      paperAccount: null,
-      marks: NO_MARKS,
-      failure: Object.freeze({
-        reason: "paper-account-unavailable" as const,
-        message: safeMessage(error, "DizyPaper account could not be loaded."),
-      }),
-    });
+    return unavailable(
+      "paper-account-unavailable",
+      safeMessage(error, "DizyPaper account could not be loaded."),
+    );
   }
 
   const marks = await observeMarks(paperAccount, loadPublicMark);
@@ -180,8 +256,9 @@ export async function reconcileOwnerMexcAccountWithDizyPaper(
       .map((mark) => [mark.symbol, mark.price as number]),
   );
 
+  let report: MexcDizyPaperReconciliation;
   try {
-    const report = reconcileMexcAccountWithDizyPaper({
+    report = reconcileMexcAccountWithDizyPaper({
       exchangeState: input.companion.account.state,
       paperAccount,
       marks: markValues,
@@ -189,37 +266,42 @@ export async function reconcileOwnerMexcAccountWithDizyPaper(
         ? {}
         : { settlementCurrency: input.settlementCurrency }),
     });
-    return Object.freeze({
-      policyVersion: MEXC_OWNER_ACCOUNT_RECONCILIATION_POLICY_VERSION,
-      status: "fresh" as const,
-      displayEligible: true as const,
-      decisionEligible: false as const,
-      report,
-      paperAccount: Object.freeze({
-        updatedAt: paperAccount.updatedAt,
-        cashBalance: paperAccount.cashBalance,
-        startingBalance: paperAccount.startingBalance,
-        openPositionCount: Object.keys(paperAccount.positions).length,
-      }),
-      marks,
-      failure: null,
-    });
   } catch (error) {
     const fallback = error instanceof MexcDizyPaperReconciliationError
       ? "MEXC and DizyPaper state could not be reconciled safely."
       : "Account reconciliation failed.";
-    return Object.freeze({
-      policyVersion: MEXC_OWNER_ACCOUNT_RECONCILIATION_POLICY_VERSION,
-      status: "unavailable" as const,
-      displayEligible: false as const,
-      decisionEligible: false as const,
-      report: null,
-      paperAccount: null,
-      marks,
-      failure: Object.freeze({
-        reason: "reconciliation-failed" as const,
-        message: safeMessage(error, fallback),
-      }),
-    });
+    return unavailable("reconciliation-failed", safeMessage(error, fallback), marks);
   }
+
+  let audit: MexcOwnerShadowAuditEntry;
+  try {
+    audit = await appendAudit(input.userId, {
+      kind: "account-reconciliation",
+      sourcePolicyVersion: MEXC_OWNER_ACCOUNT_RECONCILIATION_POLICY_VERSION,
+      payload: auditPayload(input.companion, report, marks),
+    });
+  } catch (error) {
+    return unavailable(
+      "audit-persistence-failed",
+      safeMessage(error, "Immutable shadow audit persistence failed."),
+      marks,
+    );
+  }
+
+  return Object.freeze({
+    policyVersion: MEXC_OWNER_ACCOUNT_RECONCILIATION_POLICY_VERSION,
+    status: "fresh" as const,
+    displayEligible: true as const,
+    decisionEligible: false as const,
+    report,
+    paperAccount: Object.freeze({
+      updatedAt: paperAccount.updatedAt,
+      cashBalance: paperAccount.cashBalance,
+      startingBalance: paperAccount.startingBalance,
+      openPositionCount: Object.keys(paperAccount.positions).length,
+    }),
+    marks,
+    audit,
+    failure: null,
+  });
 }
