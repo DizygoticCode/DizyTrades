@@ -121,12 +121,15 @@ async function files(root){
  return out;
 }
 
-test("DizyQuant has no production consumer or DizySignals influence",async()=>{
- const offenders=[];
+test("DizyQuant has only one bounded presentation consumer and no DizySignals influence",async()=>{
+ const allowed=new Set([path.join("app","research","page.tsx")]),offenders=[];
  for(const file of await files("app")){
   if(file.startsWith(path.join("app","lib","dizyquant")))continue;
   const source=await readFile(file,"utf8");
-  if(/dizyquant/i.test(source))offenders.push(file);
+  if(/dizyquant/i.test(source)&&!allowed.has(file))offenders.push(file);
  }
  assert.deepEqual(offenders,[]);
+ const page=await readFile(path.join("app","research","page.tsx"),"utf8");
+ assert.match(page,/buildDizyQuantResearchPresentation/);
+ assert.doesNotMatch(page,/DizySignals|order-flow|depth-collector|RawTrade|live-order/i);
 });
