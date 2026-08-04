@@ -1,11 +1,13 @@
 import "server-only";
 
 import { createHmac } from "node:crypto";
+import { MEXC_REST_ORIGIN } from "./market/mexc-shared.ts";
 
 export const MEXC_PRIVATE_READONLY_POLICY_VERSION =
   "mexc-private-readonly/1.1.0" as const;
-export const MEXC_CONTRACT_PRIVATE_BASE_URL =
-  "https://contract.mexc.com" as const;
+export const MEXC_PRIVATE_REST_BASE_URL = MEXC_REST_ORIGIN;
+/** @deprecated Compatibility alias; private HTTPS reads use api.mexc.com. */
+export const MEXC_CONTRACT_PRIVATE_BASE_URL = MEXC_PRIVATE_REST_BASE_URL;
 export const MEXC_PRIVATE_RESPONSE_MAX_BYTES = 1_000_000;
 export const MEXC_PRIVATE_REQUEST_TIMEOUT_MS = 8_000;
 
@@ -322,7 +324,7 @@ export function buildMexcPrivateReadUrl(input: {
     );
   }
   const query = canonicalMexcPrivateGetParameters(queryParameters);
-  const url = new URL(path, MEXC_CONTRACT_PRIVATE_BASE_URL);
+  const url = new URL(path, MEXC_PRIVATE_REST_BASE_URL);
   url.search = query;
   return Object.freeze({ endpoint, url, query });
 }
@@ -341,7 +343,7 @@ export function classifyMexcPrivateFailure(code: number): MexcPrivateReadFailure
 export function mexcPrivateReadCapabilityManifest() {
   return Object.freeze({
     policyVersion: MEXC_PRIVATE_READONLY_POLICY_VERSION,
-    baseOrigin: new URL(MEXC_CONTRACT_PRIVATE_BASE_URL).origin,
+    baseOrigin: new URL(MEXC_PRIVATE_REST_BASE_URL).origin,
     methods: Object.freeze(["GET"] as const),
     permissions: Object.freeze(
       [...new Set(MEXC_PRIVATE_READ_ENDPOINTS.map((endpoint) => endpoint.permission))].sort(),
