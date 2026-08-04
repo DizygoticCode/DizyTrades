@@ -20,6 +20,7 @@ DizyTrades is one professional workspace composed of focused modules that share 
 - **DizySignals** — confirmed-candle deterministic qualification
 - **DizyBrain** — typed explanation, historical review and behaviour aggregation
 - **DizyFlow** — Market Depth, DOM, public trades and retained liquidity
+- **DizyQuant** — versioned public-market microstructure research with evidence grades, Replay validation and a bounded read-only registry
 - **DizyScanner** — bounded multi-symbol discovery using the same signal engine
 - **DizyStructure** — sessions, anchored VWAP, confirmed swings and timeframe alignment
 - **DizyDEX** — public on-chain market discovery
@@ -37,7 +38,6 @@ DizyTrades is one professional workspace composed of focused modules that share 
 
 - **DizyOps** — bounded production health and storage diagnostics
 - **DizyBackup** — integrity-checked export, dry-run and additive recovery
-- **DizyQuant** — future measurable microstructure research
 
 The application should feel like one evidence chain rather than a collection of unrelated pages.
 
@@ -49,6 +49,11 @@ Discover with DizyScanner
 Build context with DizyStructure
         ↓
 Observe in DizyCharts and DizyFlow
+        ├──────────────→ Measure hypotheses in DizyQuant
+        │                       ↓
+        │              Replay and statistical review
+        │                       ↓
+        │              Retain, reject or separately promote
         ↓
 Understand qualification with DizySignals and DizyBrain
         ↓
@@ -67,6 +72,8 @@ Learn in DizyAcademy
 Improve discipline and repeat
 ```
 
+DizyQuant is deliberately a parallel research path. Its observations do not enter DizySignals merely because they can be calculated or displayed.
+
 Every module should strengthen observation, explanation, practice, review, validation, recovery or learning. Features that do not improve this chain should be treated as possible scope creep.
 
 ## Evidence hierarchy
@@ -79,7 +86,7 @@ DizyTrades distinguishes several forms of information that must never be silentl
 4. **Retained historical evidence** — immutable candles, compact flow samples and review snapshots captured for a trade.
 5. **Trader reflection** — notes, quality, discipline, mood and guided answers.
 6. **Aggregated observations** — performance and behaviour patterns across reviewed samples.
-7. **Research hypotheses** — candidate DizyQuant measurements not yet validated for signal use.
+7. **Research hypotheses** — informational or experimental DizyQuant measurements that remain ineligible for signal use until separately promoted.
 
 A result from one layer must not masquerade as another. Current live flow must not fill a historical gap. Missing fees must not become zero. A setup score must not become a profit probability. A winning trade must not become proof of good process.
 
@@ -90,18 +97,20 @@ Every analytical idea follows the same pipeline:
 ```text
 Observe
    ↓
-Measure
+Measure with a versioned formula
+   ↓
+Preserve exact evidence quality
    ↓
 Replay
    ↓
-Validate
+Test against held-out and null baselines
    ↓
-Analyse statistics
+Improve, retain experimentally or reject
    ↓
-Improve or reject
-   ↓
-Only then consider DizySignals
+Only then consider a separate DizySignals promotion
 ```
+
+The DizyQuant foundation implements this workflow with 67 stable metric identities, snapshot-grade and continuous-stream-grade evidence, fresh/stale/gapped/unavailable states, deterministic serialisation, a bounded Replay laboratory and explicit promotion status. Sixty-five metrics are informational, two depth-only candidate flags are experimental, and none are validated or signal-eligible.
 
 Validation should include representative samples, false-positive and false-negative analysis, regime sensitivity, parameter stability, explicit missing-data treatment and out-of-sample or walk-forward checks where practical.
 
@@ -118,6 +127,7 @@ A valid reconstruction may include:
 - DizyBrain snapshot provenance
 - immutable Paper entry and exit facts
 - retained Historical DizyFlow samples and events
+- versioned DizyQuant research observations with exact coverage and gap state
 - unavailable, stale and gap metadata
 - the resulting trade outcome
 
