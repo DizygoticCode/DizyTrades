@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { requireUser } from "../lib/auth";
 import { refreshOwnerMexcAccountCompanion } from "../lib/mexc-owner-account-companion";
+import { reconcileOwnerMexcAccountWithDizyPaper } from "../lib/mexc-owner-account-reconciliation";
 import styles from "./account.module.css";
 
 export const dynamic = "force-dynamic";
@@ -19,11 +20,27 @@ function titleCase(value: string) {
     .join(" ");
 }
 
+function comparisonLabel(comparison: Readonly<{
+  comparable: boolean;
+  withinTolerance: boolean | null;
+}>) {
+  if (!comparison.comparable) return "Not comparable";
+  return comparison.withinTolerance ? "Within tolerance" : "Different";
+}
+
+function displayNumber(value: number | null) {
+  return value === null ? "—" : String(value);
+}
+
 export default async function AccountCompanionPage() {
   const user = await requireUser();
   if (user.role !== "owner") redirect("/terminal");
 
   const companion = await refreshOwnerMexcAccountCompanion();
+  const reconciliation = await reconcileOwnerMexcAccountWithDizyPaper({
+    userId: user.id,
+    companion,
+  });
   const { activation, state } = companion.account;
   const risk = companion.risk;
   const snapshot = state.status === "fresh" || state.status === "stale"
@@ -37,9 +54,9 @@ export default async function AccountCompanionPage() {
           <p className={styles.eyebrow}>OWNER-ONLY · READ-ONLY MEXC FUTURES</p>
           <h1>DizyAccount Companion</h1>
           <p className={styles.intro}>
-            Live balances, open positions and provider risk context from the
-            owner-scoped MEXC key. This surface cannot place, cancel or modify
-            exchange orders.
+            Live balances, open positions, provider risk context and deterministic
+            DizyPaper reconciliation from the owner-scoped MEXC key. This surface
+            cannot place, cancel, modify or automatically correct exchange orders.
           </p>
         </div>
         <nav className={styles.actions} aria-label="Account Companion actions">
@@ -82,6 +99,19 @@ export default async function AccountCompanionPage() {
                 : risk.status === "blocked"
                   ? "Requires fresh account state"
                   : risk.failure.message}
+          </small>
+        </article>
+        <article className={styles.statusCard}>
+          <span>Shadow reconciliation</span>
+          <strong data-status={reconciliation.status === "fresh" ? "fresh" : "unavailable"}>
+            {titleCase(reconciliation.status)}
+          </strong>
+          <small>
+            {reconciliation.status === "fresh"
+              ? `${reconciliation.report.summary.aligned} aligned · ${reconciliation.report.summary.different} different`
+              : reconciliation.status === "blocked"
+                ? "Requires fresh MEXC state"
+                : reconciliation.failure.message}
           </small>
         </article>
         <article className={styles.statusCard}>
@@ -130,6 +160,13 @@ export default async function AccountCompanionPage() {
           {risk.failure.providerCode === null
             ? ""
             : ` MEXC code ${risk.failure.providerCode}.`}
+        </section>
+      ) : null}
+
+      {reconciliation.status === "unavailable" ? (
+        <section className={styles.warning} role="status">
+          <strong>DizyPaper reconciliation unavailable.</strong>{" "}
+          {reconciliation.failure.message} Neither account was changed.
         </section>
       ) : null}
 
@@ -274,6 +311,108 @@ export default async function AccountCompanionPage() {
                 state or exchange-exact liquidation behaviour.
               </p>
             </section>
+          ) : null}
+
+          {reconciliation.status === "fresh" ? (
+            <>
+              <section className={styles.section} aria-labelledby="account-reconciliation-title">
+                <div className={styles.sectionHeading}>
+                  <div>
+                    <p className={styles.eyebrow}>REAL MEXC ↔ DIZYPAPER SHADOW STATE</p>
+                    <h2 id="account-reconciliation-title">Account reconciliation</h2>
+                  </div>
+                  <span>
+                    {reconciliation.report.summary.aligned} aligned · {reconciliation.report.summary.different} different · {reconciliation.report.summary.incomparable} incomparable
+                  </span>
+                </div>
+                <div className={styles.tableWrap}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Measure</th>
+                        <th>MEXC</th>
+                        <th>DizyPaper</th>
+                        <th>Difference</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {([
+                        ["Available cash", reconciliation.report.account.availableCash],
+                        ["Equity", reconciliation.report.account.equity],
+                        ["Position margin", reconciliation.report.account.positionMargin],
+                        ["Unrealised P/L", reconciliation.report.account.unrealizedPnl],
+                      ] as const).map(([label, comparison]) => (
+                        <tr key={label}>
+                          <th scope="row">{label}</th>
+                          <td>{comparison.exchangeValue ?? "—"}</td>
+                          <td>{displayNumber(comparison.paperValue)}</td>
+                          <td>{displayNumber(comparison.difference)}</td>
+                          <td>{comparisonLabel(comparison)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className={styles.contextNote}>
+                  DizyPaper is a separate hypothetical account. Differences are
+                  observations, not errors and not automatic corrections. Paper
+                  state updated {new Date(reconciliation.paperAccount.updatedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "medium", timeZone: "UTC" })} UTC.
+                </p>
+              </section>
+
+              <section className={styles.section} aria-labelledby="position-reconciliation-title">
+                <div className={styles.sectionHeading}>
+                  <div>
+                    <p className={styles.eyebrow}>POSITION-BY-POSITION COMPARISON</p>
+                    <h2 id="position-reconciliation-title">Position reconciliation</h2>
+                  </div>
+                  <span>{reconciliation.report.positions.length} identities</span>
+                </div>
+                {reconciliation.report.positions.length === 0 ? (
+                  <p className={styles.empty}>Neither account has an open position to compare.</p>
+                ) : (
+                  <div className={styles.tableWrap}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Symbol / side</th>
+                          <th>Status</th>
+                          <th>Margin mode</th>
+                          <th>Leverage</th>
+                          <th>Contracts</th>
+                          <th>Entry</th>
+                          <th>Margin</th>
+                          <th>Liquidation</th>
+                          <th>Context</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reconciliation.report.positions.map((position) => (
+                          <tr key={position.key}>
+                            <th scope="row">{position.symbol} · {titleCase(position.side)}</th>
+                            <td>{titleCase(position.status)}</td>
+                            <td>{position.marginModeMatches === null ? "—" : position.marginModeMatches ? "Match" : "Different"}</td>
+                            <td>{position.leverageMatches === null ? "—" : position.leverageMatches ? "Match" : "Different"}</td>
+                            <td>{comparisonLabel(position.contractVolume)}</td>
+                            <td>{comparisonLabel(position.entryPrice)}</td>
+                            <td>{comparisonLabel(position.margin)}</td>
+                            <td>{comparisonLabel(position.liquidationPrice)}</td>
+                            <td>{position.warnings.length === 0 ? "Comparable" : position.warnings.join(" ")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <p className={styles.contextNote}>
+                  Public marks: {reconciliation.marks.length === 0
+                    ? "not required"
+                    : reconciliation.marks.map((mark) => `${mark.symbol} ${mark.status === "fresh" ? `${mark.price} (${mark.source})` : "unavailable"}`).join(" · ")}.
+                  Reconciliation is informational and never mutates MEXC or DizyPaper.
+                </p>
+              </section>
+            </>
           ) : null}
 
           <footer className={styles.provenance}>
