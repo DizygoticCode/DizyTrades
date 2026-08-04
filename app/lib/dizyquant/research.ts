@@ -1,16 +1,31 @@
 export const DIZYQUANT_RESEARCH_SCHEMA_VERSION=1 as const;
-export const DIZYQUANT_METRIC_SET_VERSION="dizyquant-candidates/1.0.0" as const;
+export const DIZYQUANT_METRIC_SET_VERSION="dizyquant-candidates/1.1.0" as const;
 
 export type DizyQuantEvidenceGrade="snapshot-grade"|"continuous-stream-grade";
 export type DizyQuantAvailability="fresh"|"stale"|"gapped"|"unavailable";
 export type DizyQuantReplayAvailability="fresh"|"gapped"|"unavailable";
 export type DizyQuantPromotionStatus="informational"|"experimental"|"validated"|"rejected";
 export type DizyQuantSourceKind="depth-snapshot"|"depth-stream"|"public-trades"|"retained-liquidity"|"replay";
-export type DizyQuantUnit="basis-points"|"percent"|"quote-notional"|"base-quantity"|"milliseconds";
+export type DizyQuantUnit="price"|"ticks"|"basis-points"|"percent"|"quote-notional"|"base-quantity"|"milliseconds";
 
 const candidateDefinitions=[
- {id:"spread-bps",version:1,label:"Quoted spread",unit:"basis-points",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Best-ask minus best-bid expressed relative to midpoint."},
- {id:"depth-imbalance-25bps",version:1,label:"Depth imbalance within 25 bps",unit:"percent",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Bid-versus-ask visible notional imbalance inside 25 basis points of midpoint."},
+ {id:"spread-price",version:1,label:"Quoted spread price",unit:"price",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Best ask minus best bid in provider price units."},
+ {id:"spread-ticks",version:1,label:"Quoted spread ticks",unit:"ticks",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Quoted spread divided by the reviewed public price step."},
+ {id:"spread-bps",version:1,label:"Quoted spread",unit:"basis-points",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Best ask minus best bid expressed relative to midpoint."},
+ {id:"bid-depth-10bps",version:1,label:"Bid depth within 10 bps",unit:"quote-notional",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Visible bid notional inside ten basis points of midpoint."},
+ {id:"ask-depth-10bps",version:1,label:"Ask depth within 10 bps",unit:"quote-notional",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Visible ask notional inside ten basis points of midpoint."},
+ {id:"depth-imbalance-10bps",version:1,label:"Depth imbalance within 10 bps",unit:"percent",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Bid-versus-ask visible notional imbalance inside ten basis points of midpoint."},
+ {id:"bid-depth-25bps",version:1,label:"Bid depth within 25 bps",unit:"quote-notional",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Visible bid notional inside twenty-five basis points of midpoint."},
+ {id:"ask-depth-25bps",version:1,label:"Ask depth within 25 bps",unit:"quote-notional",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Visible ask notional inside twenty-five basis points of midpoint."},
+ {id:"depth-imbalance-25bps",version:1,label:"Depth imbalance within 25 bps",unit:"percent",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Bid-versus-ask visible notional imbalance inside twenty-five basis points of midpoint."},
+ {id:"bid-depth-50bps",version:1,label:"Bid depth within 50 bps",unit:"quote-notional",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Visible bid notional inside fifty basis points of midpoint."},
+ {id:"ask-depth-50bps",version:1,label:"Ask depth within 50 bps",unit:"quote-notional",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Visible ask notional inside fifty basis points of midpoint."},
+ {id:"depth-imbalance-50bps",version:1,label:"Depth imbalance within 50 bps",unit:"percent",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Bid-versus-ask visible notional imbalance inside fifty basis points of midpoint."},
+ {id:"bid-depth-100bps",version:1,label:"Bid depth within 100 bps",unit:"quote-notional",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Visible bid notional inside one hundred basis points of midpoint."},
+ {id:"ask-depth-100bps",version:1,label:"Ask depth within 100 bps",unit:"quote-notional",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Visible ask notional inside one hundred basis points of midpoint."},
+ {id:"depth-imbalance-100bps",version:1,label:"Depth imbalance within 100 bps",unit:"percent",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Bid-versus-ask visible notional imbalance inside one hundred basis points of midpoint."},
+ {id:"depth-weighted-distance-100bps",version:1,label:"Depth-weighted distance within 100 bps",unit:"basis-points",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Visible-notional-weighted absolute distance from midpoint inside one hundred basis points."},
+ {id:"near-depth-concentration-25-of-100bps",version:1,label:"Near-depth concentration",unit:"percent",evidenceGrade:"snapshot-grade",promotionStatus:"informational",description:"Visible notional inside twenty-five basis points divided by visible notional inside one hundred basis points."},
  {id:"aggressive-flow-imbalance-10s",version:1,label:"Aggressive flow imbalance over 10 seconds",unit:"percent",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Signed public-trade notional imbalance over a ten-second event-time window."},
  {id:"liquidity-added-30s",version:1,label:"Displayed liquidity added over 30 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Observed increase in displayed book notional over a thirty-second event-time window."},
  {id:"liquidity-removed-30s",version:1,label:"Displayed liquidity removed over 30 seconds",unit:"quote-notional",evidenceGrade:"continuous-stream-grade",promotionStatus:"informational",description:"Observed decrease in displayed book notional over a thirty-second event-time window."},
