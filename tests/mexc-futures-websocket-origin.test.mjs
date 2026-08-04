@@ -3,13 +3,22 @@ import {readdir,readFile} from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import {
+  ACTIVE_MEXC_FUTURES_WS_URL,
+  DEPTH_TRANSPORT,
+  DOM_PUBLISH_MS,
   DepthCollector,
   MEXC_FUTURES_WS_URL,
   parseMexcFuturesWsUrl,
 } from "../app/lib/order-flow/depth-collector.ts";
+import {
+  MEXC_REST_ORIGIN,
+  MEXC_SPOT_WS_URL,
+  parseMexcRestOrigin,
+} from "../app/lib/market/mexc-shared.ts";
 
-const current="wss://api.mexc.com/edge";
-const retiredWsOrigin=["wss://","contract",".","mexc",".","com"].join("");
+const futuresWs=["wss://","contract",".","mexc",".","com","/edge"].join("");
+const wrongFuturesWs=["wss://","api",".","mexc",".","com","/edge"].join("");
+const retiredRest=["https://","contract",".","mexc",".","com"].join("");
 const textExtensions=new Set([".ts",".tsx",".js",".mjs",".json",".yaml",".yml",".md"]);
 
 async function textFiles(root){
@@ -23,17 +32,27 @@ async function textFiles(root){
  return result;
 }
 
-test("MEXC futures websocket origin is current and safely configurable",()=>{
- assert.equal(MEXC_FUTURES_WS_URL,current);
- assert.equal(parseMexcFuturesWsUrl(undefined),current);
- assert.equal(parseMexcFuturesWsUrl("wss://api.mexc.com/edge/"),current);
- assert.equal(parseMexcFuturesWsUrl(`${retiredWsOrigin}/edge`),current);
- assert.equal(parseMexcFuturesWsUrl("https://api.mexc.com/edge"),current);
- assert.equal(parseMexcFuturesWsUrl("wss://example.com/edge"),current);
- assert.equal(parseMexcFuturesWsUrl("wss://api.mexc.com/ws"),current);
+test("MEXC transport split keeps REST and WebSocket hosts distinct",()=>{
+ assert.equal(MEXC_REST_ORIGIN,"https://api.mexc.com");
+ assert.equal(parseMexcRestOrigin(undefined),MEXC_REST_ORIGIN);
+ assert.equal(parseMexcRestOrigin("https://api.mexc.com/"),MEXC_REST_ORIGIN);
+ assert.equal(parseMexcRestOrigin(retiredRest),MEXC_REST_ORIGIN);
+ assert.equal(MEXC_FUTURES_WS_URL,futuresWs);
+ assert.equal(ACTIVE_MEXC_FUTURES_WS_URL,futuresWs);
+ assert.equal(parseMexcFuturesWsUrl(undefined),futuresWs);
+ assert.equal(parseMexcFuturesWsUrl(`${futuresWs}/`),futuresWs);
+ assert.equal(parseMexcFuturesWsUrl(wrongFuturesWs),futuresWs);
+ assert.equal(parseMexcFuturesWsUrl("https://contract.mexc.com/edge"),futuresWs);
+ assert.equal(parseMexcFuturesWsUrl("wss://example.com/edge"),futuresWs);
+ assert.equal(MEXC_SPOT_WS_URL,"wss://wbs-api.mexc.com/ws");
 });
 
-test("WS transport opens the configured futures endpoint",()=>{
+test("Render-bounded depth defaults are websocket-first and coalesced",()=>{
+ assert.equal(DEPTH_TRANSPORT,"ws");
+ assert.equal(DOM_PUBLISH_MS,125);
+});
+
+test("WS transport opens the canonical futures endpoint",()=>{
  let opened=null,closed=false;
  const socket={
   readyState:0,
@@ -49,17 +68,17 @@ test("WS transport opens the configured futures endpoint",()=>{
   {transport:"ws"},
  );
  collector.start();
- assert.equal(opened,current);
+ assert.equal(opened,futuresWs);
  collector.stop();
  assert.equal(closed,true);
 });
 
-test("retired MEXC futures websocket origin is absent from repository text",async()=>{
+test("wrong MEXC transport origins are absent from repository runtime text",async()=>{
  const files=await textFiles(".");
  const offenders=[];
  for(const file of files){
   const source=await readFile(file,"utf8");
-  if(source.includes(retiredWsOrigin))offenders.push(file);
+  if(source.includes(wrongFuturesWs)||source.includes(retiredRest))offenders.push(file);
  }
  assert.deepEqual(offenders,[]);
 });
