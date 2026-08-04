@@ -15,6 +15,8 @@ import type { MexcOwnerAccountCompanionRefreshResult } from "./mexc-owner-accoun
 export const MEXC_OWNER_ACCOUNT_RECONCILIATION_POLICY_VERSION =
   "mexc-owner-account-reconciliation/1.0.0" as const;
 
+const NO_MARKS: readonly [] = Object.freeze([]);
+
 export type MexcOwnerPaperMarkObservation = Readonly<{
   symbol: string;
   status: "fresh" | "unavailable";
@@ -80,7 +82,7 @@ function blocked(): MexcOwnerAccountReconciliationState {
     reason: "account-state-not-fresh" as const,
     report: null,
     paperAccount: null,
-    marks: Object.freeze([]),
+    marks: NO_MARKS,
     failure: null,
   });
 }
@@ -163,7 +165,7 @@ export async function reconcileOwnerMexcAccountWithDizyPaper(
       decisionEligible: false as const,
       report: null,
       paperAccount: null,
-      marks: Object.freeze([]),
+      marks: NO_MARKS,
       failure: Object.freeze({
         reason: "paper-account-unavailable" as const,
         message: safeMessage(error, "DizyPaper account could not be loaded."),
