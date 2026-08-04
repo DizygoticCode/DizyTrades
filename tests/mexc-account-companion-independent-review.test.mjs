@@ -58,7 +58,7 @@ test("review: private provider capability is an explicit GET-only allowlist", ()
   const manifest = mexcPrivateReadCapabilityManifest();
   assert.deepEqual(manifest.methods, ["GET"]);
   assert.equal(manifest.writeCapability, false);
-  assert.equal(manifest.baseOrigin, "https://contract.mexc.com");
+  assert.equal(manifest.baseOrigin, "https://api.mexc.com");
   assert.deepEqual(
     manifest.endpoints.map(({ method }) => method),
     ["GET", "GET", "GET", "GET", "GET"],
