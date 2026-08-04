@@ -146,7 +146,7 @@ test("ready owner connection reads only balances and open positions", async () =
     ],
   );
   for (const { parsed, init } of calls) {
-    assert.equal(parsed.origin, "https://contract.mexc.com");
+    assert.equal(parsed.origin, "https://api.mexc.com");
     assert.equal(init.method, "GET");
     assert.equal(init.body, undefined);
     assert.equal(init.cache, "no-store");

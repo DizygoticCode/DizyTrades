@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  MEXC_CONTRACT_PRIVATE_BASE_URL,
+  MEXC_FUTURES_PRIVATE_BASE_URL,
   MEXC_PRIVATE_READ_ENDPOINTS,
   MexcPrivateReadOnlyError,
   buildMexcPrivateReadUrl,
@@ -18,11 +18,13 @@ const credentials = Object.freeze({
   apiKey: "test-api-key",
   apiSecret: "test-secret",
 });
+const retiredRestOrigin = "https://contract.mexc.com";
 
-test("private capability manifest is GET-only and has no write capability", () => {
+test("private capability manifest is GET-only on the current REST origin", () => {
   const manifest = mexcPrivateReadCapabilityManifest();
-  assert.equal(manifest.policyVersion, "mexc-private-readonly/1.1.0");
-  assert.equal(manifest.baseOrigin, "https://contract.mexc.com");
+  assert.equal(manifest.policyVersion, "mexc-private-readonly/1.2.0");
+  assert.equal(manifest.baseOrigin, "https://api.mexc.com");
+  assert.notEqual(manifest.baseOrigin, retiredRestOrigin);
   assert.deepEqual(manifest.methods, ["GET"]);
   assert.equal(manifest.writeCapability, false);
   assert.deepEqual(manifest.permissions, ["account-read", "trade-read"]);
@@ -82,9 +84,10 @@ test("private GET signature follows the documented HMAC target", () => {
   );
 });
 
-test("endpoint builder accepts only declared read parameters and identities", () => {
+test("endpoint builder uses current REST origin and declared read identities only", () => {
   const assets = buildMexcPrivateReadUrl({ endpoint: "all-assets" });
-  assert.equal(assets.url.href, `${MEXC_CONTRACT_PRIVATE_BASE_URL}/api/v1/private/account/assets`);
+  assert.equal(assets.url.href, `${MEXC_FUTURES_PRIVATE_BASE_URL}/api/v1/private/account/assets`);
+  assert.equal(assets.url.origin, "https://api.mexc.com");
   assert.equal(assets.query, "");
 
   const asset = buildMexcPrivateReadUrl({
@@ -93,7 +96,7 @@ test("endpoint builder accepts only declared read parameters and identities", ()
   });
   assert.equal(
     asset.url.href,
-    `${MEXC_CONTRACT_PRIVATE_BASE_URL}/api/v1/private/account/asset/USDT`,
+    `${MEXC_FUTURES_PRIVATE_BASE_URL}/api/v1/private/account/asset/USDT`,
   );
   assert.equal(asset.endpoint.permission, "account-read");
 
@@ -103,9 +106,10 @@ test("endpoint builder accepts only declared read parameters and identities", ()
   });
   assert.equal(
     positions.url.href,
-    `${MEXC_CONTRACT_PRIVATE_BASE_URL}/api/v1/private/position/open_positions?symbol=BTC_USDT`,
+    `${MEXC_FUTURES_PRIVATE_BASE_URL}/api/v1/private/position/open_positions?symbol=BTC_USDT`,
   );
   assert.equal(positions.endpoint.permission, "trade-read");
+  assert.equal(positions.url.href.startsWith(retiredRestOrigin), false);
 
   assert.throws(
     () =>
@@ -137,7 +141,7 @@ test("endpoint builder accepts only declared read parameters and identities", ()
   );
 });
 
-test("transport sends one signed no-store GET without a body or redirect", async () => {
+test("owner transport sends one signed no-store GET to the current REST route", async () => {
   let observed = null;
   const result = await requestMexcPrivateRead(
     {
@@ -164,8 +168,9 @@ test("transport sends one signed no-store GET without a body or redirect", async
 
   assert.equal(
     observed.url,
-    `${MEXC_CONTRACT_PRIVATE_BASE_URL}/api/v1/private/position/open_positions?symbol=BTC_USDT`,
+    `${MEXC_FUTURES_PRIVATE_BASE_URL}/api/v1/private/position/open_positions?symbol=BTC_USDT`,
   );
+  assert.equal(observed.url.startsWith(retiredRestOrigin), false);
   assert.equal(observed.init.method, "GET");
   assert.equal(observed.init.cache, "no-store");
   assert.equal(observed.init.redirect, "error");

@@ -7,8 +7,8 @@ import {getLiquidityTape} from "./liquidity-tape.ts";
 const enabled=(value:string|undefined,fallback:boolean)=>value==null?fallback:value.toLowerCase()==="true";
 const integer=(value:string|undefined,fallback:number,min:number,max=Number.MAX_SAFE_INTEGER)=>{const parsed=Number(value);return Number.isFinite(parsed)?Math.min(max,Math.max(min,Math.floor(parsed))):fallback};
 export const LOW_MEMORY_MODE=enabled(process.env.DIZYFLOW_LOW_MEMORY_MODE,true);
-export const DEPTH_TRANSPORT=(process.env.DIZYFLOW_DEPTH_TRANSPORT??(LOW_MEMORY_MODE?"rest":"ws")).toLowerCase()==="ws"?"ws":"rest";
-export function parseDepthPollMs(value=process.env.MEXC_DEPTH_POLL_MS){return integer(value,LOW_MEMORY_MODE?2_000:2_000,250,60_000)}
+export const DEPTH_TRANSPORT=(process.env.DIZYFLOW_DEPTH_TRANSPORT??"ws").toLowerCase()==="ws"?"ws":"rest";
+export function parseDepthPollMs(value=process.env.MEXC_DEPTH_POLL_MS){return integer(value,2_000,250,60_000)}
 export const DEPTH_POLL_MS=parseDepthPollMs(),DEPTH_STALE_MS=Math.max(5_000,DEPTH_POLL_MS*5);
 export const HISTORY_MINUTES=integer(process.env.DIZYFLOW_HISTORY_MINUTES,LOW_MEMORY_MODE?5:30,1,240);
 export const HISTORY_SAMPLE_MS=integer(process.env.DIZYFLOW_HISTORY_SAMPLE_MS,LOW_MEMORY_MODE?2_000:1_000,250,60_000);
@@ -18,10 +18,11 @@ export const MAX_COLLECTORS=integer(process.env.DIZYFLOW_MAX_COLLECTORS,LOW_MEMO
 export const COLLECTOR_IDLE_MS=integer(process.env.DIZYFLOW_COLLECTOR_IDLE_MS,LOW_MEMORY_MODE?30_000:60_000,0,3_600_000);
 export const MAX_HEATMAP_RECORDS=integer(process.env.DIZYFLOW_MAX_HEATMAP_RECORDS,LOW_MEMORY_MODE?5_000:50_000,100,200_000);
 const REST_BASE=(process.env.MEXC_FUTURES_REST_BASE_URL??"https://api.mexc.com").replace(/\/$/,"");
-const DEFAULT_FUTURES_WS_URL="wss://api.mexc.com/edge";
-export function parseMexcFuturesWsUrl(value=process.env.MEXC_FUTURES_WS_URL){const candidate=(value??DEFAULT_FUTURES_WS_URL).trim();try{const url=new URL(candidate),path=url.pathname.replace(/\/+$/,"")||"/";if(url.protocol!=="wss:"||url.username||url.password||url.port||url.search||url.hash||path!=="/edge"||url.hostname!=="api.mexc.com")return DEFAULT_FUTURES_WS_URL;return DEFAULT_FUTURES_WS_URL}catch{return DEFAULT_FUTURES_WS_URL}}
+const DEFAULT_FUTURES_WS_URL="wss://contract.mexc.com/edge";
+export function parseMexcFuturesWsUrl(value=process.env.MEXC_FUTURES_WS_URL){const candidate=(value??DEFAULT_FUTURES_WS_URL).trim();try{const url=new URL(candidate),path=url.pathname.replace(/\/+$/,"")||"/";if(url.protocol!=="wss:"||url.username||url.password||url.port||url.search||url.hash||path!=="/edge"||url.hostname!=="contract.mexc.com")return DEFAULT_FUTURES_WS_URL;return DEFAULT_FUTURES_WS_URL}catch{return DEFAULT_FUTURES_WS_URL}}
 export const MEXC_FUTURES_WS_URL=parseMexcFuturesWsUrl();
-const TIMEOUT_MS=5_000,DOM_INTERVAL_MS=250,WS_HEALTH_POLL_MS=30_000;
+export const DEPTH_PUBLICATION_MS=125;
+const TIMEOUT_MS=5_000,DOM_INTERVAL_MS=DEPTH_PUBLICATION_MS,WS_HEALTH_POLL_MS=30_000;
 const symbolPattern=/^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
 export function normalizeDepthSymbol(value:string){const symbol=value.trim().toUpperCase().replace(/[-/]/g,"_");return symbolPattern.test(symbol)?symbol:null}
 type Fetcher=typeof fetch;

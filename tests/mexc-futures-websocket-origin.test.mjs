@@ -1,65 +1,78 @@
 import assert from "node:assert/strict";
-import {readdir,readFile} from "node:fs/promises";
-import path from "node:path";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   DepthCollector,
+  DEPTH_PUBLICATION_MS,
+  DEPTH_TRANSPORT,
   MEXC_FUTURES_WS_URL,
   parseMexcFuturesWsUrl,
 } from "../app/lib/order-flow/depth-collector.ts";
+import { mexcPrivateReadCapabilityManifest } from "../app/lib/mexc-private-readonly.ts";
 
-const current="wss://api.mexc.com/edge";
-const retiredWsOrigin=["wss://","contract",".","mexc",".","com"].join("");
-const textExtensions=new Set([".ts",".tsx",".js",".mjs",".json",".yaml",".yml",".md"]);
+const currentWs = "wss://contract.mexc.com/edge";
+const currentRest = "https://api.mexc.com";
+const wrongWs = "wss://api.mexc.com/edge";
+const retiredRest = "https://contract.mexc.com";
 
-async function textFiles(root){
- const result=[];
- for(const entry of await readdir(root,{withFileTypes:true})){
-  if([".git",".next","node_modules","playwright-report","test-results"].includes(entry.name))continue;
-  const target=path.join(root,entry.name);
-  if(entry.isDirectory())result.push(...await textFiles(target));
-  else if(textExtensions.has(path.extname(entry.name))||entry.name===".env.example")result.push(target);
- }
- return result;
-}
-
-test("MEXC futures websocket origin is current and safely configurable",()=>{
- assert.equal(MEXC_FUTURES_WS_URL,current);
- assert.equal(parseMexcFuturesWsUrl(undefined),current);
- assert.equal(parseMexcFuturesWsUrl("wss://api.mexc.com/edge/"),current);
- assert.equal(parseMexcFuturesWsUrl(`${retiredWsOrigin}/edge`),current);
- assert.equal(parseMexcFuturesWsUrl("https://api.mexc.com/edge"),current);
- assert.equal(parseMexcFuturesWsUrl("wss://example.com/edge"),current);
- assert.equal(parseMexcFuturesWsUrl("wss://api.mexc.com/ws"),current);
+test("MEXC futures websocket origin is exact and safely configurable", () => {
+  assert.equal(MEXC_FUTURES_WS_URL, currentWs);
+  assert.equal(parseMexcFuturesWsUrl(undefined), currentWs);
+  assert.equal(parseMexcFuturesWsUrl(`${currentWs}/`), currentWs);
+  assert.equal(parseMexcFuturesWsUrl(wrongWs), currentWs);
+  assert.equal(parseMexcFuturesWsUrl("https://contract.mexc.com/edge"), currentWs);
+  assert.equal(parseMexcFuturesWsUrl("wss://example.com/edge"), currentWs);
+  assert.equal(parseMexcFuturesWsUrl("wss://contract.mexc.com/ws"), currentWs);
 });
 
-test("WS transport opens the configured futures endpoint",()=>{
- let opened=null,closed=false;
- const socket={
-  readyState:0,
-  addEventListener(){},
-  send(){},
-  close(){closed=true},
- };
- const collector=new DepthCollector(
-  "BTC_USDT",
-  async()=>new Response("{}",{status:503}),
-  Date.now,
-  url=>{opened=url;return socket},
-  {transport:"ws"},
- );
- collector.start();
- assert.equal(opened,current);
- collector.stop();
- assert.equal(closed,true);
+test("DizyFlow opens the native futures websocket first with bounded publication", () => {
+  let opened = null;
+  let closed = false;
+  const socket = {
+    readyState: 0,
+    addEventListener() {},
+    send() {},
+    close() {
+      closed = true;
+    },
+  };
+  const collector = new DepthCollector(
+    "BTC_USDT",
+    async () => new Response("{}", { status: 503 }),
+    Date.now,
+    (url) => {
+      opened = url;
+      return socket;
+    },
+    { transport: "ws" },
+  );
+  collector.start();
+  assert.equal(opened, currentWs);
+  assert.equal(DEPTH_TRANSPORT, "ws");
+  assert.equal(DEPTH_PUBLICATION_MS, 125);
+  collector.stop();
+  assert.equal(closed, true);
 });
 
-test("retired MEXC futures websocket origin is absent from repository text",async()=>{
- const files=await textFiles(".");
- const offenders=[];
- for(const file of files){
-  const source=await readFile(file,"utf8");
-  if(source.includes(retiredWsOrigin))offenders.push(file);
- }
- assert.deepEqual(offenders,[]);
+test("owner private reads use current REST origin while websocket config remains separate", async () => {
+  const manifest = mexcPrivateReadCapabilityManifest();
+  const [privateSource, realtimeSource, environment, render, nextConfig] = await Promise.all([
+    readFile("app/lib/mexc-private-readonly.ts", "utf8"),
+    readFile("app/lib/market/use-mexc-realtime.ts", "utf8"),
+    readFile(".env.example", "utf8"),
+    readFile("render.yaml", "utf8"),
+    readFile("next.config.ts", "utf8"),
+  ]);
+
+  assert.equal(manifest.baseOrigin, currentRest);
+  assert.equal(privateSource.includes(`"${retiredRest}"`), false);
+  assert.match(privateSource, /MEXC_FUTURES_PRIVATE_BASE_URL\s*=\s*"https:\/\/api\.mexc\.com"/);
+  assert.match(realtimeSource, /MEXC_FUTURES_PUBLIC_WS_URL\s*=\s*"wss:\/\/contract\.mexc\.com\/edge"/);
+  assert.match(environment, /^MEXC_FUTURES_REST_BASE_URL=https:\/\/api\.mexc\.com$/m);
+  assert.match(environment, /^MEXC_FUTURES_WS_URL=wss:\/\/contract\.mexc\.com\/edge$/m);
+  assert.match(environment, /^DIZYFLOW_DEPTH_TRANSPORT=ws$/m);
+  assert.match(render, /key:\s*MEXC_FUTURES_WS_URL\s*\n\s*value:\s*wss:\/\/contract\.mexc\.com\/edge/);
+  assert.match(render, /key:\s*DIZYFLOW_DEPTH_TRANSPORT\s*\n\s*value:\s*ws/);
+  assert.match(nextConfig, /wss:\/\/contract\.mexc\.com/);
+  assert.equal(realtimeSource.includes(wrongWs), false);
 });

@@ -6,7 +6,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline' https://*.tradingview.com",
   "img-src 'self' data: blob: https://*.tradingview.com",
   "frame-src https://*.tradingview.com",
-  "connect-src 'self' https://*.tradingview.com wss://api.mexc.com",
+  "connect-src 'self' https://*.tradingview.com wss://contract.mexc.com",
   "font-src 'self' data: https://*.tradingview.com",
   "object-src 'none'",
   "base-uri 'self'",
