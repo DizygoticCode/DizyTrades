@@ -1,0 +1,85 @@
+/* Focused recovery for the August 2026 terminal regressions.
+   DizyBrain owns its existing dock unchanged. */
+
+@media (min-width: 761px) {
+  /* Reserve an actual topbar lane for the global workflow tools. */
+  body:has(.command-palette-floating) .topbar {
+    padding-right: 232px;
+  }
+
+  .command-palette-floating,
+  body[data-dizybrain-tool-offset="true"] .command-palette-floating {
+    top: 13px !important;
+    right: 96px !important;
+  }
+
+  .recent-shortcuts-trigger,
+  body[data-dizybrain-tool-offset="true"] .recent-shortcuts-trigger {
+    top: 14px !important;
+    right: 12px !important;
+  }
+
+  /* General Settings is a terminal-level dock, not a third column attached to
+     the chart/DOM workspace. The primary column reserves its width, while the
+     existing DizyBrain offset keeps both independent docks side by side. */
+  .terminal-primary-column:has(.settings-panel) {
+    padding-right: 342px;
+  }
+
+  .settings-panel {
+    position: absolute !important;
+    z-index: var(--layer-drawer, 50);
+    top: 0;
+    right: var(--dizybrain-global-tool-offset, 0px);
+    bottom: 0;
+    width: 342px;
+    min-width: 342px;
+    height: auto;
+    box-shadow: -16px 0 42px rgba(0, 0, 0, 0.38);
+  }
+
+  .workspace,
+  .workspace.panel-closed {
+    grid-template-areas: "chart" !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .workspace:has(.dizyflow-dom),
+  .workspace.panel-closed:has(.dizyflow-dom) {
+    grid-template-areas: "chart dom" !important;
+    grid-template-columns: minmax(0, 1fr) var(--dom-width, 230px) !important;
+  }
+}
+
+/* The alert summary can contain an activity type, side and secondary detail.
+   Do not crop it into the former 32px toolbar slot. */
+.flow-toast-rail {
+  min-height: 48px !important;
+  max-height: 64px !important;
+  flex-basis: 282px !important;
+  overflow: hidden;
+}
+
+.flow-toast-rail article {
+  min-height: 46px;
+  align-items: flex-start;
+  padding: 8px 10px;
+}
+
+.flow-toast-rail article span {
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.flow-toast-rail article small {
+  overflow: visible;
+  white-space: normal;
+}
+
+@media (max-width: 760px) {
+  .flow-toast-rail {
+    min-height: 46px !important;
+    max-height: 58px !important;
+    flex-basis: auto !important;
+  }
+}
