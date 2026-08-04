@@ -35,7 +35,7 @@ No slice adds a credential store, browser credential form, private API route, or
 The proof also requires:
 
 - transport policy version match;
-- origin pinned to `https://contract.mexc.com`;
+- origin pinned to `https://api.mexc.com`;
 - method set exactly `GET`;
 - permission set exactly Account read and Trade read;
 - unique endpoint identities;
