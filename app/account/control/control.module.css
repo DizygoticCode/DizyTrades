@@ -1,0 +1,86 @@
+.panel {
+  max-width: 1500px;
+  margin: 0 auto 18px;
+  padding: 22px;
+  border: 1px solid #203641;
+  border-radius: 12px;
+  background: rgba(10, 24, 30, 0.92);
+}
+
+.panel h2,
+.panel h3 {
+  margin-top: 0;
+}
+
+.steps {
+  margin: 14px 0 0;
+  padding-left: 24px;
+  color: #c7d8df;
+  line-height: 1.7;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+  max-width: 760px;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.field span {
+  color: #a9bdc8;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.field input,
+.field textarea {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #4e3840;
+  border-radius: 8px;
+  color: #fff1f3;
+  background: #160d11;
+  font: inherit;
+}
+
+.field textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.shutdown {
+  width: fit-content;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid #ff7b88;
+  border-radius: 8px;
+  color: #fff7f8;
+  background: #7b2230;
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.code {
+  display: inline-block;
+  padding: 3px 7px;
+  border: 1px solid #59434a;
+  border-radius: 5px;
+  color: #ffd9dd;
+  background: #170d11;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.good {
+  color: #72f1bd;
+}
+
+.danger {
+  color: #ff909b;
+}
