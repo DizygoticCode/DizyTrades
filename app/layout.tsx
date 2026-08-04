@@ -4,6 +4,7 @@ import "./globals.css";
 import "./responsive-audit.css";
 import "./accessibility-audit.css";
 import "./brand-rollout.css";
+import "./terminal-regression-fixes.css";
 import "./marketing/real-feature-visuals.css";
 
 export const metadata: Metadata = {
