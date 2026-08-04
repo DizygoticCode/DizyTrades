@@ -39,6 +39,7 @@ export class MexcReadOnlyCredentialActivationError extends Error {
 
 export type MexcReadOnlyCredentialActivationReport = Readonly<{
   policyVersion: typeof MEXC_READONLY_CREDENTIAL_ACTIVATION_VERSION;
+  accountScope: "owner";
   state: MexcReadOnlyCredentialActivationState;
   credentialSource: "server-environment";
   configured: boolean;
@@ -62,9 +63,9 @@ const requestedPermissions = Object.freeze([
 ] as const);
 const printableNonWhitespace = /^[\x21-\x7e]+$/;
 const privateEnvironmentKeys = Object.freeze([
-  "MEXC_READONLY_API_KEY",
-  "MEXC_READONLY_API_SECRET",
-  "MEXC_READONLY_PERMISSION_ATTESTATION",
+  "OWNER_MEXC_READONLY_API_KEY",
+  "OWNER_MEXC_READONLY_API_SECRET",
+  "OWNER_MEXC_READONLY_PERMISSION_ATTESTATION",
 ] as const);
 
 function clean(value: string | undefined) {
@@ -77,7 +78,7 @@ function enabledFlag(value: string | undefined) {
   if (normalised === "true") return true;
   throw new MexcReadOnlyCredentialActivationError(
     "invalid-enabled-flag",
-    "MEXC Account Companion enablement must be exactly true or false.",
+    "Owner MEXC Account Companion enablement must be exactly true or false.",
   );
 }
 
@@ -110,7 +111,7 @@ function validateCredentialText(
   ) {
     throw new MexcReadOnlyCredentialActivationError(
       "invalid-credentials",
-      "MEXC read-only credentials are not configured correctly.",
+      "Owner MEXC read-only credentials are not configured correctly.",
     );
   }
 }
@@ -128,6 +129,7 @@ function activationCore(input: {
 }) {
   return Object.freeze({
     policyVersion: MEXC_READONLY_CREDENTIAL_ACTIVATION_VERSION,
+    accountScope: "owner" as const,
     state: input.state,
     credentialSource: "server-environment" as const,
     configured: input.configured,
@@ -156,10 +158,12 @@ function parseMexcReadOnlyCredentialActivation(environment: Environment) {
     );
   }
 
-  const enabled = enabledFlag(environment.MEXC_ACCOUNT_COMPANION_ENABLED);
-  const apiKey = clean(environment.MEXC_READONLY_API_KEY);
-  const apiSecret = clean(environment.MEXC_READONLY_API_SECRET);
-  const attestation = clean(environment.MEXC_READONLY_PERMISSION_ATTESTATION);
+  const enabled = enabledFlag(environment.OWNER_MEXC_ACCOUNT_COMPANION_ENABLED);
+  const apiKey = clean(environment.OWNER_MEXC_READONLY_API_KEY);
+  const apiSecret = clean(environment.OWNER_MEXC_READONLY_API_SECRET);
+  const attestation = clean(
+    environment.OWNER_MEXC_READONLY_PERMISSION_ATTESTATION,
+  );
   const hasPrivateConfiguration = privateEnvironmentKeys.some((key) =>
     Boolean(clean(environment[key])),
   );
@@ -168,7 +172,7 @@ function parseMexcReadOnlyCredentialActivation(environment: Environment) {
     if (hasPrivateConfiguration) {
       throw new MexcReadOnlyCredentialActivationError(
         "disabled-with-private-configuration",
-        "MEXC private configuration is present while Account Companion is disabled.",
+        "Owner MEXC private configuration is present while Account Companion is disabled.",
       );
     }
     const core = activationCore({
@@ -190,13 +194,13 @@ function parseMexcReadOnlyCredentialActivation(environment: Environment) {
   if (clean(environment.LIVE_TRADING_ENABLED).toLowerCase() !== "false") {
     throw new MexcReadOnlyCredentialActivationError(
       "live-trading-enabled",
-      "MEXC Account Companion requires LIVE_TRADING_ENABLED=false.",
+      "Owner MEXC Account Companion requires LIVE_TRADING_ENABLED=false.",
     );
   }
   if (!apiKey || !apiSecret) {
     throw new MexcReadOnlyCredentialActivationError(
       "incomplete-credentials",
-      "MEXC read-only credentials must be configured as a complete server-side pair.",
+      "Owner MEXC read-only credentials must be configured as a complete server-side pair.",
     );
   }
   validateCredentialText(apiKey, "key");
@@ -204,7 +208,7 @@ function parseMexcReadOnlyCredentialActivation(environment: Environment) {
   if (attestation !== MEXC_READONLY_PERMISSION_ATTESTATION) {
     throw new MexcReadOnlyCredentialActivationError(
       "missing-read-only-attestation",
-      "MEXC read-only permission attestation is missing or invalid.",
+      "Owner MEXC read-only permission attestation is missing or invalid.",
     );
   }
 
@@ -238,7 +242,7 @@ export function requireMexcReadOnlyCredentials(
   if (!parsed.credentials || !parsed.report.readyForPrivateReads) {
     throw new MexcReadOnlyCredentialActivationError(
       "not-ready",
-      "MEXC Account Companion is not ready for private reads.",
+      "Owner MEXC Account Companion is not ready for private reads.",
     );
   }
   return parsed.credentials;
