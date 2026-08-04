@@ -11,10 +11,11 @@ import {
 
 const readyEnvironment = Object.freeze({
   LIVE_TRADING_ENABLED: "false",
-  MEXC_ACCOUNT_COMPANION_ENABLED: "true",
-  MEXC_READONLY_API_KEY: "test-read-key-1234567890",
-  MEXC_READONLY_API_SECRET: "test-read-secret-12345678901234567890",
-  MEXC_READONLY_PERMISSION_ATTESTATION,
+  OWNER_MEXC_ACCOUNT_COMPANION_ENABLED: "true",
+  OWNER_MEXC_READONLY_API_KEY: "test-read-key-1234567890",
+  OWNER_MEXC_READONLY_API_SECRET: "test-read-secret-12345678901234567890",
+  OWNER_MEXC_READONLY_PERMISSION_ATTESTATION:
+    MEXC_READONLY_PERMISSION_ATTESTATION,
 });
 
 function failureKind(action, kind) {
@@ -25,15 +26,16 @@ function failureKind(action, kind) {
   });
 }
 
-test("disabled activation is safe, deterministic and credential-free", () => {
+test("disabled owner activation is safe, deterministic and credential-free", () => {
   const environment = {
     LIVE_TRADING_ENABLED: "false",
-    MEXC_ACCOUNT_COMPANION_ENABLED: "false",
+    OWNER_MEXC_ACCOUNT_COMPANION_ENABLED: "false",
   };
   const first = buildMexcReadOnlyCredentialActivationReport(environment);
   const second = buildMexcReadOnlyCredentialActivationReport(environment);
 
   assert.equal(first.policyVersion, MEXC_READONLY_CREDENTIAL_ACTIVATION_VERSION);
+  assert.equal(first.accountScope, "owner");
   assert.equal(first.state, "disabled");
   assert.equal(first.configured, false);
   assert.equal(first.readyForPrivateReads, false);
@@ -54,10 +56,11 @@ test("disabled activation is safe, deterministic and credential-free", () => {
   );
 });
 
-test("complete server-only configuration becomes ready without exposing credentials in the report", () => {
+test("complete owner server-only configuration becomes ready without exposing credentials in the report", () => {
   const report = buildMexcReadOnlyCredentialActivationReport(readyEnvironment);
   const credentials = requireMexcReadOnlyCredentials(readyEnvironment);
 
+  assert.equal(report.accountScope, "owner");
   assert.equal(report.state, "ready");
   assert.equal(report.configured, true);
   assert.equal(report.readyForPrivateReads, true);
@@ -67,52 +70,59 @@ test("complete server-only configuration becomes ready without exposing credenti
   assert.equal(report.liveTradingEnabled, false);
   assert.equal(report.browserExposureForbidden, true);
   assert.deepEqual(credentials, {
-    apiKey: readyEnvironment.MEXC_READONLY_API_KEY,
-    apiSecret: readyEnvironment.MEXC_READONLY_API_SECRET,
+    apiKey: readyEnvironment.OWNER_MEXC_READONLY_API_KEY,
+    apiSecret: readyEnvironment.OWNER_MEXC_READONLY_API_SECRET,
   });
   assert.ok(Object.isFrozen(credentials));
 
   const serialised = JSON.stringify(report);
-  assert.doesNotMatch(serialised, new RegExp(readyEnvironment.MEXC_READONLY_API_KEY));
-  assert.doesNotMatch(serialised, new RegExp(readyEnvironment.MEXC_READONLY_API_SECRET));
+  assert.doesNotMatch(
+    serialised,
+    new RegExp(readyEnvironment.OWNER_MEXC_READONLY_API_KEY),
+  );
+  assert.doesNotMatch(
+    serialised,
+    new RegExp(readyEnvironment.OWNER_MEXC_READONLY_API_SECRET),
+  );
   assert.doesNotMatch(serialised, /apiKey|apiSecret|signature|authorization/i);
 });
 
-test("activation fails closed on partial, dormant or malformed private configuration", () => {
+test("owner activation fails closed on partial, dormant or malformed private configuration", () => {
   failureKind(
     () => buildMexcReadOnlyCredentialActivationReport({
       LIVE_TRADING_ENABLED: "false",
-      MEXC_ACCOUNT_COMPANION_ENABLED: "true",
-      MEXC_READONLY_API_KEY: "test-read-key-1234567890",
-      MEXC_READONLY_PERMISSION_ATTESTATION,
+      OWNER_MEXC_ACCOUNT_COMPANION_ENABLED: "true",
+      OWNER_MEXC_READONLY_API_KEY: "test-read-key-1234567890",
+      OWNER_MEXC_READONLY_PERMISSION_ATTESTATION:
+        MEXC_READONLY_PERMISSION_ATTESTATION,
     }),
     "incomplete-credentials",
   );
   failureKind(
     () => buildMexcReadOnlyCredentialActivationReport({
       LIVE_TRADING_ENABLED: "false",
-      MEXC_ACCOUNT_COMPANION_ENABLED: "false",
-      MEXC_READONLY_API_KEY: "test-read-key-1234567890",
+      OWNER_MEXC_ACCOUNT_COMPANION_ENABLED: "false",
+      OWNER_MEXC_READONLY_API_KEY: "test-read-key-1234567890",
     }),
     "disabled-with-private-configuration",
   );
   failureKind(
     () => buildMexcReadOnlyCredentialActivationReport({
       ...readyEnvironment,
-      MEXC_READONLY_API_SECRET: "contains whitespace and is invalid",
+      OWNER_MEXC_READONLY_API_SECRET: "contains whitespace and is invalid",
     }),
     "invalid-credentials",
   );
   failureKind(
     () => buildMexcReadOnlyCredentialActivationReport({
       ...readyEnvironment,
-      MEXC_ACCOUNT_COMPANION_ENABLED: "perhaps",
+      OWNER_MEXC_ACCOUNT_COMPANION_ENABLED: "perhaps",
     }),
     "invalid-enabled-flag",
   );
 });
 
-test("activation rejects live trading, missing attestation and browser-prefixed secrets", () => {
+test("owner activation rejects live trading, missing attestation and browser-prefixed secrets", () => {
   failureKind(
     () => buildMexcReadOnlyCredentialActivationReport({
       ...readyEnvironment,
@@ -123,26 +133,27 @@ test("activation rejects live trading, missing attestation and browser-prefixed 
   failureKind(
     () => buildMexcReadOnlyCredentialActivationReport({
       ...readyEnvironment,
-      MEXC_READONLY_PERMISSION_ATTESTATION: "account-read+trade-read+write",
+      OWNER_MEXC_READONLY_PERMISSION_ATTESTATION:
+        "account-read+trade-read+write",
     }),
     "missing-read-only-attestation",
   );
   failureKind(
     () => buildMexcReadOnlyCredentialActivationReport({
       ...readyEnvironment,
-      NEXT_PUBLIC_MEXC_API_SECRET: "browser-secret-must-fail",
+      NEXT_PUBLIC_OWNER_MEXC_API_SECRET: "browser-secret-must-fail",
     }),
     "browser-exposed-credential",
   );
 });
 
-test("activation errors never echo credential values", () => {
+test("owner activation errors never echo credential values", () => {
   const secret = "private-secret-that-must-not-appear";
   try {
     buildMexcReadOnlyCredentialActivationReport({
       ...readyEnvironment,
-      MEXC_READONLY_API_SECRET: secret,
-      MEXC_READONLY_PERMISSION_ATTESTATION: "wrong",
+      OWNER_MEXC_READONLY_API_SECRET: secret,
+      OWNER_MEXC_READONLY_PERMISSION_ATTESTATION: "wrong",
     });
     assert.fail("Expected activation to fail.");
   } catch (error) {
