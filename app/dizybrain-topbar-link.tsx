@@ -50,8 +50,21 @@ export function DizyBrainTopbarLink() {
             border-color: #20dcd3;
             box-shadow: 0 0 14px #13d8d12b;
           }
+          .dizyquant-topbar-link {
+            color: #c8a7ff;
+            border-color: #65479a;
+            background: linear-gradient(180deg, #1d1530, #110d1d);
+            box-shadow: inset 0 0 12px #9c6cff16;
+          }
+          .dizyquant-topbar-link:hover,
+          .dizyquant-topbar-link:focus-visible {
+            color: #f1e8ff;
+            border-color: #a97cff;
+            box-shadow: 0 0 14px #9c6cff33;
+          }
         `}</style>
       </button>
+      <a className="nav-tab dizyquant-topbar-link" href="/research" title="Open bounded DizyQuant microstructure research">∑ DizyQuant</a>
       <a className="nav-tab dizyscanner-topbar-link" href="/scanner" title="Open multi-symbol DizyScanner">⌕ DizyScanner</a>
       <a className="nav-tab dizystructure-topbar-link" href="/structure" title="Open advanced closed-candle market structure">⌁ DizyStructure</a>
       <a className="nav-tab dizyperformance-topbar-link" href="/performance" title="Open realised performance dashboard">▥ DizyPerformance</a>

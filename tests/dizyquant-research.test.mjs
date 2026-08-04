@@ -122,8 +122,8 @@ async function files(root){
 }
 
 test("DizyQuant has only bounded presentation consumers and no DizySignals influence",async()=>{
- const researchPage=path.join("app","research","page.tsx"),marketingPage=path.join("app","marketing","marketing-page.tsx"),siteHeader=path.join("app","marketing","site-header.tsx");
- const allowed=new Set([researchPage,marketingPage,siteHeader]),offenders=[];
+ const researchPage=path.join("app","research","page.tsx"),marketingPage=path.join("app","marketing","marketing-page.tsx"),siteHeader=path.join("app","marketing","site-header.tsx"),terminalTopbar=path.join("app","dizybrain-topbar-link.tsx");
+ const allowed=new Set([researchPage,marketingPage,siteHeader,terminalTopbar]),offenders=[];
  for(const file of await files("app")){
   if(file.startsWith(path.join("app","lib","dizyquant")))continue;
   const source=await readFile(file,"utf8");
@@ -133,7 +133,7 @@ test("DizyQuant has only bounded presentation consumers and no DizySignals influ
  const page=await readFile(researchPage,"utf8");
  assert.match(page,/buildDizyQuantResearchPresentation/);
  assert.doesNotMatch(page,/DizySignals|order-flow|depth-collector|RawTrade|live-order/i);
- for(const file of[marketingPage,siteHeader]){
+ for(const file of[marketingPage,siteHeader,terminalTopbar]){
   const source=await readFile(file,"utf8"),imports=source.split("\n").filter(line=>/^\s*import\b/.test(line)).join("\n");
   assert.match(source,/DizyQuant/);
   assert.doesNotMatch(imports,/dizyquant|order-flow|depth-collector|RawTrade|live-order/i);
