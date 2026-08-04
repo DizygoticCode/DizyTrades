@@ -52,7 +52,7 @@ export type DizyQuantLiquidityMigrationState=Readonly<{
 
 type NormalisedLevel={price:number;bidNotional:number;askNotional:number};
 type NormalisedFrame={timestampMs:number;midpoint:number;levels:Map<number,NormalisedLevel>};
-type FrameStats={total:number;bid:number;ask:number;signedCentreBps:number;absoluteDistanceBps:number;bidDistanceBps:number;askDistanceBps:number;nearConcentrationPct:number};
+type FrameStats={total:number;bid:number;ask:number;signedCentreBps:number;absoluteDistanceBps:number;bidDistanceBps:number;askDistanceBps:number;nearConcentrationPct:number|null};
 
 const finitePositive=(value:number)=>Number.isFinite(value)&&value>0;
 const finiteNonNegative=(value:number)=>Number.isFinite(value)&&value>=0;
@@ -61,10 +61,10 @@ function unavailable(reason:string):DizyQuantLiquidityMigrationState{
  return Object.freeze({formulaVersion:DIZYQUANT_LIQUIDITY_MIGRATION_FORMULA_VERSION,valid:false,complete:false,windowFromMs:null,windowToMs:null,frameCount:0,openingDepthNotional:null,closingDepthNotional:null,bidAddedNotional:null,askAddedNotional:null,bidRemovedNotional:null,askRemovedNotional:null,addedNotional:null,removedNotional:null,turnoverNotional:null,turnoverVsOpeningDepthPct:null,bidSamePricePersistencePct:null,askSamePricePersistencePct:null,samePricePersistencePct:null,openingClusterCount:0,survivingOpeningClusterCount:0,openingClusterSurvivalPct:null,signedCentreShiftBps:null,absoluteDistanceShiftBps:null,bidDistanceShiftBps:null,askDistanceShiftBps:null,nearDepthConcentrationShiftPctPoints:null,values:frozenValues({}),limitations:Object.freeze([reason])});
 }
 function normaliseFrame(frame:DizyQuantLiquidityFrame,priceStep:number,contractSize:number):NormalisedFrame|null{
- if(!Number.isSafeInteger(frame.timestampMs)||!finitePositive(frame.midpoint)||!frame.levels.length||frame.levels.length>DIZYQUANT_MAX_LEVELS_PER_FRAME)return null;
+ if(!frame||typeof frame!=="object"||!Number.isSafeInteger(frame.timestampMs)||!finitePositive(frame.midpoint)||!Array.isArray(frame.levels)||!frame.levels.length||frame.levels.length>DIZYQUANT_MAX_LEVELS_PER_FRAME)return null;
  const levels=new Map<number,NormalisedLevel>();let positiveBid=false,positiveAsk=false;
  for(const level of frame.levels){
-  if(!Number.isSafeInteger(level.priceTick)||level.priceTick<=0||!finiteNonNegative(level.bidContracts)||!finiteNonNegative(level.askContracts)||level.bidContracts>0&&level.askContracts>0||levels.has(level.priceTick))return null;
+  if(!level||typeof level!=="object"||!Number.isSafeInteger(level.priceTick)||level.priceTick<=0||!finiteNonNegative(level.bidContracts)||!finiteNonNegative(level.askContracts)||level.bidContracts>0&&level.askContracts>0||levels.has(level.priceTick))return null;
   const price=level.priceTick*priceStep;if(!finitePositive(price))return null;
   if(level.bidContracts>0&&price>=frame.midpoint||level.askContracts>0&&price<=frame.midpoint)return null;
   const bidNotional=price*level.bidContracts*contractSize,askNotional=price*level.askContracts*contractSize;
@@ -83,7 +83,7 @@ function frameStats(frame:NormalisedFrame):FrameStats|null{
   if(Math.abs(offset)<=100+1e-9)within100+=notional;if(Math.abs(offset)<=25+1e-9)near25+=notional;
  }
  const derived=[total,bid,ask,signed,absolute,bidDistance,askDistance,near25,within100];if(derived.some(value=>!Number.isFinite(value))||total<=0||bid<=0||ask<=0)return null;
- return{total,bid,ask,signedCentreBps:signed/total,absoluteDistanceBps:absolute/total,bidDistanceBps:bidDistance/bid,askDistanceBps:askDistance/ask,nearConcentrationPct:within100>0?near25/within100*100:0};
+ return{total,bid,ask,signedCentreBps:signed/total,absoluteDistanceBps:absolute/total,bidDistanceBps:bidDistance/bid,askDistanceBps:askDistance/ask,nearConcentrationPct:within100>0?near25/within100*100:null};
 }
 const sideNotional=(level:NormalisedLevel|undefined,side:"bid"|"ask")=>level?.[side==="bid"?"bidNotional":"askNotional"]??0;
 function persistence(opening:NormalisedFrame,closing:NormalisedFrame,side:"bid"|"ask"){
@@ -98,7 +98,7 @@ export function calculateDizyQuantLiquidityMigration(input:DizyQuantLiquidityMig
  if(!Number.isSafeInteger(windowFromMs)||!Number.isSafeInteger(windowToMs)||windowFromMs<=0||windowToMs-windowFromMs!==DIZYQUANT_LIQUIDITY_MIGRATION_WINDOW_MS)return unavailable("Liquidity migration research requires one exact thirty-second event window.");
  if(!finitePositive(input.priceStep)||!finitePositive(input.contractSize))return unavailable("Price step or contract size is unavailable or invalid.");
  if(input.sourceKind!=="depth-stream"&&input.sourceKind!=="retained-liquidity")return unavailable("Liquidity migration source kind is invalid.");
- if(input.frames.length<2||input.frames.length>DIZYQUANT_MAX_LIQUIDITY_FRAMES)return unavailable("Liquidity migration requires a bounded sequence with opening and closing states.");
+ if(!Array.isArray(input.frames)||input.frames.length<2||input.frames.length>DIZYQUANT_MAX_LIQUIDITY_FRAMES)return unavailable("Liquidity migration requires a bounded sequence with opening and closing states.");
  const frames:NormalisedFrame[]=[];let prior=-Infinity;
  for(const frame of input.frames){const value=normaliseFrame(frame,input.priceStep,input.contractSize);if(!value||value.timestampMs<=prior||value.timestampMs<windowFromMs||value.timestampMs>windowToMs)return unavailable("Liquidity frames are invalid, outside coverage or not strictly event-time ordered.");prior=value.timestampMs;frames.push(value)}
  if(frames[0].timestampMs!==windowFromMs||frames.at(-1)!.timestampMs!==windowToMs)return unavailable("Opening and closing liquidity states must match the exact coverage endpoints.");
@@ -115,12 +115,13 @@ export function calculateDizyQuantLiquidityMigration(input:DizyQuantLiquidityMig
  const clusters=[...openingClusters(opening,"bid").map(value=>({...value,side:"bid"as const})),...openingClusters(opening,"ask").map(value=>({...value,side:"ask"as const}))];
  const survivingClusters=clusters.filter(cluster=>sideNotional(closing.levels.get(cluster.tick),cluster.side)>=cluster.notional*.5).length;
  const turnoverVsOpening=openingTotal>0?turnover/openingTotal*100:null,samePricePersistence=openingTotal>0?retainedTotal/openingTotal*100:null,clusterSurvival=clusters.length?survivingClusters/clusters.length*100:null;
- const signedCentreShift=closingStats.signedCentreBps-openingStats.signedCentreBps,absoluteDistanceShift=closingStats.absoluteDistanceBps-openingStats.absoluteDistanceBps,bidDistanceShift=closingStats.bidDistanceBps-openingStats.bidDistanceBps,askDistanceShift=closingStats.askDistanceBps-openingStats.askDistanceBps,nearConcentrationShift=closingStats.nearConcentrationPct-openingStats.nearConcentrationPct;
+ const signedCentreShift=closingStats.signedCentreBps-openingStats.signedCentreBps,absoluteDistanceShift=closingStats.absoluteDistanceBps-openingStats.absoluteDistanceBps,bidDistanceShift=closingStats.bidDistanceBps-openingStats.bidDistanceBps,askDistanceShift=closingStats.askDistanceBps-openingStats.askDistanceBps,nearConcentrationShift=openingStats.nearConcentrationPct!==null&&closingStats.nearConcentrationPct!==null?closingStats.nearConcentrationPct-openingStats.nearConcentrationPct:null;
  const derived=[turnoverVsOpening,bidPersistence.pct,askPersistence.pct,samePricePersistence,clusterSurvival,signedCentreShift,absoluteDistanceShift,bidDistanceShift,askDistanceShift,nearConcentrationShift];if(derived.some(value=>value!==null&&!Number.isFinite(value)))return unavailable("Liquidity migration derived arithmetic overflowed.");
  const values:Partial<Record<DizyQuantMetricId,number|null>>={
   "liquidity-added-30s":added,"liquidity-removed-30s":removed,"bid-liquidity-added-30s":bidAdded,"ask-liquidity-added-30s":askAdded,"bid-liquidity-removed-30s":bidRemoved,"ask-liquidity-removed-30s":askRemoved,"liquidity-turnover-30s":turnover,"liquidity-turnover-vs-opening-depth-30s":turnoverVsOpening,"bid-same-price-persistence-30s":bidPersistence.pct,"ask-same-price-persistence-30s":askPersistence.pct,"same-price-liquidity-persistence-30s":samePricePersistence,"opening-cluster-survival-30s":clusterSurvival,"liquidity-centre-shift-bps":signedCentreShift,"liquidity-absolute-distance-shift-30s-bps":absoluteDistanceShift,"bid-centre-distance-shift-30s-bps":bidDistanceShift,"ask-centre-distance-shift-30s-bps":askDistanceShift,"near-depth-concentration-shift-25-of-100bps-30s":nearConcentrationShift,
  };
  const limitations=["Displayed price-level depth only; individual orders, hidden liquidity and participant identity are unavailable.","Same-price persistence and cluster survival do not prove that the same underlying orders remained displayed."];
+ if(openingStats.nearConcentrationPct===null||closingStats.nearConcentrationPct===null)limitations.push("Opening or closing depth inside one hundred basis points is absent; near-depth concentration shift is unavailable.");
  if(input.sequenceContinuous!==true||input.hasGaps)limitations.push("Depth continuity is not proven; values remain gapped research only.");
  return Object.freeze({formulaVersion:DIZYQUANT_LIQUIDITY_MIGRATION_FORMULA_VERSION,valid:true,complete:input.sequenceContinuous===true&&!input.hasGaps,windowFromMs,windowToMs,frameCount:frames.length,openingDepthNotional:openingStats.total,closingDepthNotional:closingStats.total,bidAddedNotional:bidAdded,askAddedNotional:askAdded,bidRemovedNotional:bidRemoved,askRemovedNotional:askRemoved,addedNotional:added,removedNotional:removed,turnoverNotional:turnover,turnoverVsOpeningDepthPct:turnoverVsOpening,bidSamePricePersistencePct:bidPersistence.pct,askSamePricePersistencePct:askPersistence.pct,samePricePersistencePct:samePricePersistence,openingClusterCount:clusters.length,survivingOpeningClusterCount:survivingClusters,openingClusterSurvivalPct:clusterSurvival,signedCentreShiftBps:signedCentreShift,absoluteDistanceShiftBps:absoluteDistanceShift,bidDistanceShiftBps:bidDistanceShift,askDistanceShiftBps:askDistanceShift,nearDepthConcentrationShiftPctPoints:nearConcentrationShift,values:frozenValues(values),limitations:Object.freeze(limitations)});
 }
