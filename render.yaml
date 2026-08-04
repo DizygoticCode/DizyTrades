@@ -38,11 +38,15 @@ services:
       - key: DIZYFLOW_LOW_MEMORY_MODE
         value: "true"
       - key: DIZYFLOW_DEPTH_TRANSPORT
-        value: rest
+        value: ws
+      - key: MEXC_FUTURES_REST_BASE_URL
+        value: https://api.mexc.com
       - key: MEXC_FUTURES_WS_URL
-        value: wss://api.mexc.com/edge
+        value: wss://contract.mexc.com/edge
       - key: MEXC_DEPTH_POLL_MS
         value: "2000"
+      - key: DIZYFLOW_DOM_PUBLISH_MS
+        value: "125"
       - key: DIZYFLOW_HISTORY_MINUTES
         value: "5"
       - key: DIZYFLOW_HISTORY_SAMPLE_MS
