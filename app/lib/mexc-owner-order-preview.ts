@@ -21,9 +21,13 @@ import {
   type MexcContractMetadata,
 } from "./mexc-contract-metadata";
 import type { MexcOwnerAccountCompanionRefreshResult } from "./mexc-owner-account-companion";
+import {
+  appendOwnerMexcShadowAudit,
+  type MexcOwnerShadowAuditEntry,
+} from "./mexc-owner-shadow-audit";
 
 export const MEXC_OWNER_ORDER_PREVIEW_POLICY_VERSION =
-  "mexc-owner-order-preview/1.0.0" as const;
+  "mexc-owner-order-preview/1.1.0" as const;
 
 export type MexcOwnerOrderPreviewRequest = Readonly<{
   symbol: string;
@@ -85,6 +89,7 @@ export type MexcOwnerOrderPreviewState =
         combinedObservedAndHypotheticalExposure: number;
       }>;
       warnings: readonly string[];
+      audit: MexcOwnerShadowAuditEntry;
       failure: null;
     }>
   | Readonly<{
@@ -95,6 +100,7 @@ export type MexcOwnerOrderPreviewState =
       executable: false;
       exchangeWriteCapability: "none";
       reason: "account-state-not-fresh";
+      audit: null;
       failure: null;
     }>
   | Readonly<{
@@ -110,7 +116,9 @@ export type MexcOwnerOrderPreviewState =
         | "public-market-unavailable"
         | "existing-paper-position"
         | "insufficient-paper-equity"
-        | "preview-calculation-failed";
+        | "preview-calculation-failed"
+        | "audit-persistence-failed";
+      audit: null;
       failure: Readonly<{
         message: string;
       }>;
@@ -121,10 +129,13 @@ type PublicMark = Readonly<{
   source: "fair" | "last";
 }>;
 
+type AppendAudit = typeof appendOwnerMexcShadowAudit;
+
 type Dependencies = Readonly<{
   readPaperAccount?: (userId: string) => Promise<ManualAccount>;
   loadPublicMark?: (symbol: string, previous?: number) => Promise<PublicMark>;
   loadContract?: (symbol: string) => Promise<MexcContractMetadata>;
+  appendAudit?: AppendAudit;
 }>;
 
 class PreviewError extends Error {
@@ -157,6 +168,7 @@ function unavailable(
     executable: false as const,
     exchangeWriteCapability: "none" as const,
     reason,
+    audit: null,
     failure: Object.freeze({ message }),
   });
 }
@@ -293,6 +305,7 @@ export async function previewOwnerMexcOrder(
       executable: false as const,
       exchangeWriteCapability: "none" as const,
       reason: "account-state-not-fresh" as const,
+      audit: null,
       failure: null,
     });
   }
@@ -307,6 +320,7 @@ export async function previewOwnerMexcOrder(
   const readPaper = dependencies.readPaperAccount ?? readManualAccount;
   const loadMark = dependencies.loadPublicMark ?? defaultMarkLoader;
   const loadContract = dependencies.loadContract ?? latestPublicContractMetadata;
+  const appendAudit = dependencies.appendAudit ?? appendOwnerMexcShadowAudit;
 
   let paper: ManualAccount;
   try {
@@ -413,6 +427,68 @@ export async function previewOwnerMexcOrder(
         ? []
         : ["MEXC did not return a USDT asset row, so account-level exchange values are unavailable."]),
     ]);
+    const market = Object.freeze({
+      price: mark.price,
+      priceSource: mark.source,
+      contractVolume: order.contractVolume,
+      contractSize: order.contractSize,
+      quantity: order.quantity,
+      notional: order.notional,
+      takerFeeRate: contract.takerFeeRate,
+    });
+    const paperBefore = Object.freeze({
+      cashBalance: paper.cashBalance,
+      equity: equityBefore,
+      usedMargin: usedBefore,
+      availableMargin: availableBefore,
+      openPositionCount: Object.keys(paper.positions).length,
+    });
+    const projectedPaper = Object.freeze({
+      cashBalance: projectedCash,
+      equity: projectedEquity,
+      usedMargin: projectedUsed,
+      availableMargin: projectedAvailable,
+      positionMargin,
+      entryFee,
+      estimatedLiquidation: liquidation.estimatedLiquidation,
+      bankruptcyPrice: liquidation.bankruptcyPrice,
+      grossExposure: order.notional,
+      openPositionCount: Object.keys(paper.positions).length + 1,
+    });
+    const exchangeObserved = Object.freeze({
+      observedAtMs: snapshot.observedAtMs,
+      settlementCurrency: "USDT" as const,
+      assetPresent: settlementAsset !== null,
+      equity: settlementAsset?.equity ?? null,
+      availableBalance: settlementAsset?.availableBalance ?? null,
+      positionMargin: settlementAsset?.positionMargin ?? null,
+      matchingSymbolPositionCount: matchingPositions.length,
+      matchingSymbolGrossExposure: exchangeExposure,
+      combinedObservedAndHypotheticalExposure: exchangeExposure + order.notional,
+    });
+
+    let audit: MexcOwnerShadowAuditEntry;
+    try {
+      audit = await appendAudit(input.userId, {
+        kind: "hypothetical-order-preview",
+        sourcePolicyVersion: MEXC_OWNER_ORDER_PREVIEW_POLICY_VERSION,
+        payload: Object.freeze({
+          request: checked,
+          market,
+          paperBefore,
+          projectedPaper,
+          exchangeObserved,
+          warnings,
+          executable: false,
+          exchangeWriteCapability: "none",
+        }),
+      });
+    } catch (error) {
+      const message = error instanceof Error && error.message.trim().length <= 220
+        ? error.message.trim()
+        : "Immutable shadow audit persistence failed.";
+      return unavailable("audit-persistence-failed", message || "Shadow audit unavailable.");
+    }
 
     return Object.freeze({
       policyVersion: MEXC_OWNER_ORDER_PREVIEW_POLICY_VERSION,
@@ -422,46 +498,12 @@ export async function previewOwnerMexcOrder(
       executable: false as const,
       exchangeWriteCapability: "none" as const,
       request: checked,
-      market: Object.freeze({
-        price: mark.price,
-        priceSource: mark.source,
-        contractVolume: order.contractVolume,
-        contractSize: order.contractSize,
-        quantity: order.quantity,
-        notional: order.notional,
-        takerFeeRate: contract.takerFeeRate,
-      }),
-      paperBefore: Object.freeze({
-        cashBalance: paper.cashBalance,
-        equity: equityBefore,
-        usedMargin: usedBefore,
-        availableMargin: availableBefore,
-        openPositionCount: Object.keys(paper.positions).length,
-      }),
-      projectedPaper: Object.freeze({
-        cashBalance: projectedCash,
-        equity: projectedEquity,
-        usedMargin: projectedUsed,
-        availableMargin: projectedAvailable,
-        positionMargin,
-        entryFee,
-        estimatedLiquidation: liquidation.estimatedLiquidation,
-        bankruptcyPrice: liquidation.bankruptcyPrice,
-        grossExposure: order.notional,
-        openPositionCount: Object.keys(paper.positions).length + 1,
-      }),
-      exchangeObserved: Object.freeze({
-        observedAtMs: snapshot.observedAtMs,
-        settlementCurrency: "USDT" as const,
-        assetPresent: settlementAsset !== null,
-        equity: settlementAsset?.equity ?? null,
-        availableBalance: settlementAsset?.availableBalance ?? null,
-        positionMargin: settlementAsset?.positionMargin ?? null,
-        matchingSymbolPositionCount: matchingPositions.length,
-        matchingSymbolGrossExposure: exchangeExposure,
-        combinedObservedAndHypotheticalExposure: exchangeExposure + order.notional,
-      }),
+      market,
+      paperBefore,
+      projectedPaper,
+      exchangeObserved,
       warnings,
+      audit,
       failure: null,
     });
   } catch (error) {
