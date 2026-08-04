@@ -18,7 +18,7 @@ export default function DizyQuantResearchPage(){
    <p>DizyQuant measures public market microstructure, records exact evidence quality and tests candidate formulas without silently promoting them into trading logic.</p>
    <div className={styles.heroActions}><Link href="/explore">Open Terminal</Link><a href="https://github.com/DizygoticCode/DizyTrades/blob/main/docs/DIZYQUANT_RESEARCH_CONTRACT.md" target="_blank" rel="noopener noreferrer">Read Research Contract</a></div>
   </section>
-  <section className={styles.warning} aria-label="Research safety boundary"><strong>No live research values are loaded here.</strong><span>No raw book stream is exposed, no metric is decision-eligible and DizyQuant remains forbidden from influencing DizySignals.</span></section>
+  <section className={styles.warning} aria-label="Research safety boundary"><strong>No live research values are loaded here.</strong><span>No raw book stream is exposed, no metric is decision-eligible and DizyQuant remains forbidden from influencing production signal logic.</span></section>
   <section className={styles.stats} aria-label="DizyQuant registry summary">
    <article><span>{research.totalMetricCount}</span><p>versioned metric identities</p></article>
    <article><span>{research.snapshotGradeCount}</span><p>snapshot-grade metrics</p></article>
