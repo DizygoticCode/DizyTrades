@@ -1,0 +1,150 @@
+/* Terminal regression corrections kept separate so the legacy global cascade cannot
+   silently reintroduce the same layout failures. Imported after all base styles. */
+
+/* Command and Recent are one toolbar control group, not unrelated floating widgets. */
+.global-command-dock {
+  position: fixed;
+  z-index: 9000;
+  top: 76px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100vw - 24px);
+}
+
+.global-command-dock .command-palette-floating,
+.global-command-dock .recent-shortcuts-trigger {
+  position: static !important;
+  inset: auto !important;
+  min-height: 32px;
+  height: 32px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+body:has(.market-toolbar) .market-toolbar {
+  padding-right: 206px;
+}
+
+/* Settings is an independent terminal sidebar. It no longer becomes a third
+   workspace grid column attached to the DOM. */
+.workspace,
+.workspace.panel-closed {
+  grid-template-areas: "chart" !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.workspace:has(.dizyflow-dom),
+.workspace.panel-closed:has(.dizyflow-dom) {
+  grid-template-areas: "chart dom" !important;
+  grid-template-columns: minmax(0, 1fr) var(--dom-width, 230px) !important;
+}
+
+.terminal-primary-column:has(.settings-panel) {
+  margin-right: 342px;
+}
+
+.settings-panel {
+  position: fixed !important;
+  z-index: 49;
+  top: 62px;
+  right: 0;
+  bottom: 0;
+  width: 342px;
+  max-width: min(92vw, 342px);
+  height: auto !important;
+  min-height: 0;
+  border-left: 1px solid #342b4b;
+  background: linear-gradient(180deg, #0d111c, #090c14);
+  box-shadow: -18px 0 50px #0009;
+}
+
+body:has(.dizybrain-workspace:not(.drawer)) .settings-panel {
+  right: var(--brain-width, 390px);
+}
+
+body:has(.dizybrain-rail) .settings-panel {
+  right: 52px;
+}
+
+/* DOM rows must fit the configured DOM width. The old 270px hard minimum
+   recreated a horizontal scrollbar whenever the sidebar was narrower. */
+.dizyflow-dom .dom-head,
+.dizyflow-dom .dom-row {
+  width: 100%;
+  min-width: 0 !important;
+}
+
+.dizyflow-dom .dom-head > *,
+.dizyflow-dom .dom-row > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dizyflow-dom .dom-book {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+.dizyflow-dom .dom-tools {
+  flex-wrap: wrap;
+}
+
+/* Large-activity alerts need enough height for the event and price/notional
+   evidence; the 32px compression clipped Buy Wall / Market Sell messages. */
+.flow-toast-rail {
+  block-size: 44px !important;
+  min-block-size: 44px !important;
+  max-block-size: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+}
+
+.flow-toast-rail > article {
+  block-size: 42px !important;
+  min-block-size: 42px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 5px 7px !important;
+}
+
+@media (max-width: 900px) {
+  body:has(.market-toolbar) .market-toolbar {
+    padding-top: 48px;
+    padding-right: 10px;
+  }
+
+  .global-command-dock {
+    top: 68px;
+    right: 10px;
+  }
+
+  .terminal-primary-column:has(.settings-panel) {
+    margin-right: 0;
+  }
+
+  .settings-panel,
+  body:has(.dizybrain-workspace:not(.drawer)) .settings-panel,
+  body:has(.dizybrain-rail) .settings-panel {
+    z-index: 80;
+    right: 0;
+    width: min(92vw, 360px);
+    max-width: min(92vw, 360px);
+    box-shadow: -18px 0 50px #000c;
+  }
+}
+
+@media (max-width: 560px) {
+  .global-command-dock .command-palette-floating kbd {
+    display: none;
+  }
+
+  .global-command-dock .command-palette-floating,
+  .global-command-dock .recent-shortcuts-trigger {
+    padding-inline: 8px;
+    font-size: 9px;
+  }
+}
