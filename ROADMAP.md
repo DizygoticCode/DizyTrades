@@ -131,15 +131,17 @@ See [docs/DIZYQUANT_RESEARCH_CONTRACT.md](docs/DIZYQUANT_RESEARCH_CONTRACT.md) a
 
 No order permission and no browser-held exchange credentials.
 
-- [ ] server-side read-only MEXC credentials
-- [ ] explicit proof that no write permission is requested
-- [ ] balance, position and account-health ingestion
-- [ ] stale/private-data failure handling
+- [x] owner-scoped server-side read-only MEXC credential activation
+- [x] executable proof that the software requests no write capability
+- [ ] live balance, position and account-health ingestion
+- [ ] stale/private-data failure handling on real provider reads
 - [ ] exchange-state reconciliation
 - [ ] hypothetical order preview beside real account state
-- [ ] immutable shadow audit log
-- [ ] owner-controlled credential removal and shutdown
+- [ ] immutable persistent shadow audit log
+- [ ] owner-controlled credential removal and shutdown workflow
 - [ ] independent review of the complete read-only boundary
+
+The credential activation contract is documented in [docs/MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION.md](docs/MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION.md). Operator read-only attestation and the GET-only software proof are distinct from provider-side permission introspection.
 
 This programme must not create an order route or weaken `LIVE_TRADING_ENABLED=false`.
 
@@ -210,9 +212,9 @@ Useful for public charting, market study, deterministic signals, public order-fl
 
 DizyPaper Fidelity V2, workflow/accessibility, DizyQuant’s six-slice foundation, deployment observation, application recovery rehearsal and focused independent reviews are complete. Runtime, production-boundary and repository assumptions are executable CI contracts.
 
-### Read-only Account Companion — next
+### Read-only Account Companion — in progress
 
-Complete when private account state can be reconciled safely without any exchange write permission.
+The owner credential boundary and GET-only proof are complete. The milestone completes when live private account state can be ingested, labelled for freshness and reconciled safely without any exchange write permission.
 
 ### Evidence-qualified DizyQuant promotion — conditional
 
