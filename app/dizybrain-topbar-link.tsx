@@ -19,7 +19,9 @@ function getServerSnapshot() {
   return null;
 }
 
-export function DizyBrainTopbarLink() {
+export function DizyBrainTopbarLink({
+  showAccountCompanion = false,
+}: Readonly<{ showAccountCompanion?: boolean }>) {
   const target = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   if (!target) return null;
@@ -62,9 +64,24 @@ export function DizyBrainTopbarLink() {
             border-color: #a97cff;
             box-shadow: 0 0 14px #9c6cff33;
           }
+          .dizyaccount-topbar-link {
+            color: #86f2cf;
+            border-color: #36795f;
+            background: linear-gradient(180deg, #10271f, #0a1713);
+            box-shadow: inset 0 0 12px #42e3ad16;
+          }
+          .dizyaccount-topbar-link:hover,
+          .dizyaccount-topbar-link:focus-visible {
+            color: #e2fff5;
+            border-color: #61e8b8;
+            box-shadow: 0 0 14px #42e3ad30;
+          }
         `}</style>
       </button>
       <a className="nav-tab dizyquant-topbar-link" href="/research" title="Open bounded DizyQuant microstructure research">∑ DizyQuant</a>
+      {showAccountCompanion ? (
+        <a className="nav-tab dizyaccount-topbar-link" href="/account" title="Open owner-only read-only MEXC Account Companion">◉ DizyAccount</a>
+      ) : null}
       <a className="nav-tab dizyscanner-topbar-link" href="/scanner" title="Open multi-symbol DizyScanner">⌕ DizyScanner</a>
       <a className="nav-tab dizystructure-topbar-link" href="/structure" title="Open advanced closed-candle market structure">⌁ DizyStructure</a>
       <a className="nav-tab dizyperformance-topbar-link" href="/performance" title="Open realised performance dashboard">▥ DizyPerformance</a>

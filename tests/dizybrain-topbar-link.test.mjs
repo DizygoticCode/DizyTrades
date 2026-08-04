@@ -14,5 +14,8 @@ test("DizyBrain is discoverable from the terminal topbar", async () => {
   assert.match(link, /\.topbar \.system-strip/);
   assert.match(link, /DizyBrain/);
   assert.match(link, /\.dizybrain-launch/);
-  assert.match(page, /<DizyBrainTopbarLink \/>/);
+  assert.match(
+    page,
+    /<DizyBrainTopbarLink\s+showAccountCompanion=\{user\.role === "owner"\}\s*\/>/,
+  );
 });
