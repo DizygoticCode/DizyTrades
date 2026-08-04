@@ -3,6 +3,7 @@ export const DIZYQUANT_METRIC_SET_VERSION="dizyquant-candidates/1.0.0" as const;
 
 export type DizyQuantEvidenceGrade="snapshot-grade"|"continuous-stream-grade";
 export type DizyQuantAvailability="fresh"|"stale"|"gapped"|"unavailable";
+export type DizyQuantReplayAvailability="fresh"|"gapped"|"unavailable";
 export type DizyQuantPromotionStatus="informational"|"experimental"|"validated"|"rejected";
 export type DizyQuantSourceKind="depth-snapshot"|"depth-stream"|"public-trades"|"retained-liquidity"|"replay";
 export type DizyQuantUnit="basis-points"|"percent"|"quote-notional"|"base-quantity"|"milliseconds";
@@ -19,62 +20,27 @@ const candidateDefinitions=[
 
 export type DizyQuantMetricId=typeof candidateDefinitions[number]["id"];
 export type DizyQuantMetricDefinition=Readonly<{
- id:DizyQuantMetricId;
- version:1;
- label:string;
- unit:DizyQuantUnit;
- evidenceGrade:DizyQuantEvidenceGrade;
- promotionStatus:DizyQuantPromotionStatus;
- description:string;
- signalEligible:false;
+ id:DizyQuantMetricId;version:1;label:string;unit:DizyQuantUnit;evidenceGrade:DizyQuantEvidenceGrade;
+ promotionStatus:DizyQuantPromotionStatus;description:string;signalEligible:false;
 }>;
-
 export const DIZYQUANT_METRIC_DEFINITIONS=Object.freeze(candidateDefinitions.map(value=>Object.freeze({...value,signalEligible:false as const}))) as readonly DizyQuantMetricDefinition[];
 const definitionById=new Map<DizyQuantMetricId,DizyQuantMetricDefinition>(DIZYQUANT_METRIC_DEFINITIONS.map(value=>[value.id,value]));
 
 export type DizyQuantMetricObservation=Readonly<{
- id:DizyQuantMetricId;
- version:1;
- unit:DizyQuantUnit;
- promotionStatus:DizyQuantPromotionStatus;
- value:number|null;
- signalEligible:false;
+ id:DizyQuantMetricId;version:1;unit:DizyQuantUnit;promotionStatus:DizyQuantPromotionStatus;value:number|null;signalEligible:false;
 }>;
-
 export type DizyQuantCoverage=Readonly<{fromMs:number|null;toMs:number|null}>;
 export type DizyQuantResearchSnapshot=Readonly<{
- schemaVersion:typeof DIZYQUANT_RESEARCH_SCHEMA_VERSION;
- metricSetVersion:typeof DIZYQUANT_METRIC_SET_VERSION;
- symbol:string;
- sourceTimeMs:number;
- evaluatedAtMs:number;
- ageMs:number;
- maxAgeMs:number;
- evidenceGrade:DizyQuantEvidenceGrade;
- availability:DizyQuantAvailability;
- sequenceContinuous:boolean|null;
- hasGaps:boolean;
- sourceKinds:readonly DizyQuantSourceKind[];
- coverage:DizyQuantCoverage;
- metrics:readonly DizyQuantMetricObservation[];
- availableMetricCount:number;
- limitations:readonly string[];
- decisionEligible:false;
- signalInfluence:"forbidden";
+ schemaVersion:typeof DIZYQUANT_RESEARCH_SCHEMA_VERSION;metricSetVersion:typeof DIZYQUANT_METRIC_SET_VERSION;
+ symbol:string;sourceTimeMs:number;evaluatedAtMs:number;ageMs:number;maxAgeMs:number;evidenceGrade:DizyQuantEvidenceGrade;
+ availability:DizyQuantAvailability;sequenceContinuous:boolean|null;hasGaps:boolean;sourceKinds:readonly DizyQuantSourceKind[];
+ coverage:DizyQuantCoverage;metrics:readonly DizyQuantMetricObservation[];availableMetricCount:number;limitations:readonly string[];
+ decisionEligible:false;signalInfluence:"forbidden";
 }>;
-
 export type BuildDizyQuantResearchSnapshotInput=Readonly<{
- symbol:string;
- sourceTimeMs:number;
- evaluatedAtMs:number;
- maxAgeMs:number;
- evidenceGrade:DizyQuantEvidenceGrade;
- sequenceContinuous:boolean|null;
- hasGaps:boolean;
- sourceKinds:readonly DizyQuantSourceKind[];
- coverage:DizyQuantCoverage;
- values:Readonly<Partial<Record<DizyQuantMetricId,number|null>>>;
- limitations?:readonly string[];
+ symbol:string;sourceTimeMs:number;evaluatedAtMs:number;maxAgeMs:number;evidenceGrade:DizyQuantEvidenceGrade;
+ sequenceContinuous:boolean|null;hasGaps:boolean;sourceKinds:readonly DizyQuantSourceKind[];coverage:DizyQuantCoverage;
+ values:Readonly<Partial<Record<DizyQuantMetricId,number|null>>>;limitations?:readonly string[];
 }>;
 
 const symbolPattern=/^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
@@ -101,11 +67,16 @@ export function buildDizyQuantResearchSnapshot(input:BuildDizyQuantResearchSnaps
  return Object.freeze({schemaVersion:DIZYQUANT_RESEARCH_SCHEMA_VERSION,metricSetVersion:DIZYQUANT_METRIC_SET_VERSION,symbol,sourceTimeMs,evaluatedAtMs,ageMs:Math.max(0,evaluatedAtMs-sourceTimeMs),maxAgeMs,evidenceGrade:input.evidenceGrade,availability,sequenceContinuous:input.sequenceContinuous,hasGaps:input.hasGaps,sourceKinds:Object.freeze(sourceKinds),coverage:Object.freeze({fromMs,toMs}),metrics:Object.freeze(metrics),availableMetricCount:metrics.filter(value=>value.value!==null).length,limitations,decisionEligible:false,signalInfluence:"forbidden"});
 }
 
-export type DizyQuantReplaySnapshot=Readonly<Omit<DizyQuantResearchSnapshot,"evaluatedAtMs"|"ageMs"|"maxAgeMs"|"decisionEligible">>;
+export type DizyQuantReplaySnapshot=Readonly<{
+ schemaVersion:typeof DIZYQUANT_RESEARCH_SCHEMA_VERSION;metricSetVersion:typeof DIZYQUANT_METRIC_SET_VERSION;
+ symbol:string;sourceTimeMs:number;evidenceGrade:DizyQuantEvidenceGrade;availability:DizyQuantReplayAvailability;
+ sequenceContinuous:boolean|null;hasGaps:boolean;sourceKinds:readonly DizyQuantSourceKind[];coverage:DizyQuantCoverage;
+ metrics:readonly DizyQuantMetricObservation[];availableMetricCount:number;limitations:readonly string[];signalInfluence:"forbidden";
+}>;
+const replayAvailability=(value:DizyQuantAvailability):DizyQuantReplayAvailability=>value==="stale"?"fresh":value;
 export function toDizyQuantReplaySnapshot(snapshot:DizyQuantResearchSnapshot):DizyQuantReplaySnapshot{
- return Object.freeze({schemaVersion:snapshot.schemaVersion,metricSetVersion:snapshot.metricSetVersion,symbol:snapshot.symbol,sourceTimeMs:snapshot.sourceTimeMs,evidenceGrade:snapshot.evidenceGrade,availability:snapshot.availability,sequenceContinuous:snapshot.sequenceContinuous,hasGaps:snapshot.hasGaps,sourceKinds:snapshot.sourceKinds,coverage:snapshot.coverage,metrics:snapshot.metrics,availableMetricCount:snapshot.availableMetricCount,limitations:snapshot.limitations,signalInfluence:"forbidden"});
+ return Object.freeze({schemaVersion:snapshot.schemaVersion,metricSetVersion:snapshot.metricSetVersion,symbol:snapshot.symbol,sourceTimeMs:snapshot.sourceTimeMs,evidenceGrade:snapshot.evidenceGrade,availability:replayAvailability(snapshot.availability),sequenceContinuous:snapshot.sequenceContinuous,hasGaps:snapshot.hasGaps,sourceKinds:snapshot.sourceKinds,coverage:snapshot.coverage,metrics:snapshot.metrics,availableMetricCount:snapshot.availableMetricCount,limitations:snapshot.limitations,signalInfluence:"forbidden"});
 }
-
 function canonical(value:unknown):string{
  if(value===null)return"null";if(typeof value==="string"||typeof value==="boolean")return JSON.stringify(value);if(typeof value==="number"){if(!Number.isFinite(value))throw Error("Unsafe DizyQuant canonical value");return JSON.stringify(value)}if(Array.isArray(value))return`[${value.map(canonical).join(",")}]`;if(typeof value==="object"){const record=value as Record<string,unknown>;return`{${Object.keys(record).sort().map(key=>`${JSON.stringify(key)}:${canonical(record[key])}`).join(",")}}`}throw Error("Unsafe DizyQuant canonical value");
 }
