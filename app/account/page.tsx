@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { requireUser } from "../lib/auth";
-import { refreshOwnerMexcAccountSnapshot } from "../lib/mexc-owner-account-snapshot";
+import { refreshOwnerMexcAccountCompanion } from "../lib/mexc-owner-account-companion";
 import styles from "./account.module.css";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +23,9 @@ export default async function AccountCompanionPage() {
   const user = await requireUser();
   if (user.role !== "owner") redirect("/terminal");
 
-  const refresh = await refreshOwnerMexcAccountSnapshot();
-  const { activation, state } = refresh;
+  const companion = await refreshOwnerMexcAccountCompanion();
+  const { activation, state } = companion.account;
+  const risk = companion.risk;
   const snapshot = state.status === "fresh" || state.status === "stale"
     ? state.snapshot
     : null;
@@ -36,8 +37,9 @@ export default async function AccountCompanionPage() {
           <p className={styles.eyebrow}>OWNER-ONLY · READ-ONLY MEXC FUTURES</p>
           <h1>DizyAccount Companion</h1>
           <p className={styles.intro}>
-            Live balances and open positions from the owner-scoped MEXC key. This
-            surface cannot place, cancel or modify exchange orders.
+            Live balances, open positions and provider risk context from the
+            owner-scoped MEXC key. This surface cannot place, cancel or modify
+            exchange orders.
           </p>
         </div>
         <nav className={styles.actions} aria-label="Account Companion actions">
@@ -65,6 +67,21 @@ export default async function AccountCompanionPage() {
               : state.status === "stale"
                 ? `${state.ageMs} ms old · display only`
                 : "No trusted private snapshot"}
+          </small>
+        </article>
+        <article className={styles.statusCard}>
+          <span>Risk context</span>
+          <strong data-status={risk.status === "fresh" ? "fresh" : risk.status === "not-applicable" ? "fresh" : "unavailable"}>
+            {titleCase(risk.status)}
+          </strong>
+          <small>
+            {risk.status === "fresh"
+              ? `${risk.snapshot.summary.coveredPositionCount}/${risk.snapshot.summary.openPositionCount} positions covered`
+              : risk.status === "not-applicable"
+                ? "No open position requires a risk tier"
+                : risk.status === "blocked"
+                  ? "Requires fresh account state"
+                  : risk.failure.message}
           </small>
         </article>
         <article className={styles.statusCard}>
@@ -102,6 +119,17 @@ export default async function AccountCompanionPage() {
           Values below are retained for labelled display only and cannot drive a
           decision. Reason: {titleCase(state.staleReason)}.
           {state.failure ? ` ${state.failure.message}` : ""}
+        </section>
+      ) : null}
+
+      {risk.status === "unavailable" ? (
+        <section className={styles.warning} role="status">
+          <strong>Provider risk context unavailable.</strong>{" "}
+          The balance and position snapshot remains valid, but tier/MMR/IMR
+          context could not be refreshed. {risk.failure.message}
+          {risk.failure.providerCode === null
+            ? ""
+            : ` MEXC code ${risk.failure.providerCode}.`}
         </section>
       ) : null}
 
@@ -191,13 +219,73 @@ export default async function AccountCompanionPage() {
             )}
           </section>
 
+          {risk.status === "fresh" ? (
+            <section className={styles.section} aria-labelledby="account-risk-title">
+              <div className={styles.sectionHeading}>
+                <div>
+                  <p className={styles.eyebrow}>PROVIDER RISK CONTEXT · INFORMATIONAL</p>
+                  <h2 id="account-risk-title">Risk limits</h2>
+                </div>
+                <span>{risk.snapshot.summary.attentionPositionCount} need attention</span>
+              </div>
+              <div className={styles.tableWrap}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Symbol</th>
+                      <th>Side</th>
+                      <th>Level</th>
+                      <th>Current / max leverage</th>
+                      <th>Current / max contracts</th>
+                      <th>MMR</th>
+                      <th>IMR</th>
+                      <th>ADL</th>
+                      <th>Context</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {risk.snapshot.positions.map((position) => (
+                      <tr key={position.positionId}>
+                        <th scope="row">{position.symbol}</th>
+                        <td>{titleCase(position.side)}</td>
+                        <td>{position.riskLimit?.level ?? "Unavailable"}</td>
+                        <td>
+                          {position.leverage}× / {position.riskLimit ? `${position.riskLimit.maxLeverage}×` : "—"}
+                        </td>
+                        <td>
+                          {position.holdVolume} / {position.riskLimit?.maxVolume ?? "—"}
+                        </td>
+                        <td>{position.riskLimit?.maintenanceMarginRate ?? "—"}</td>
+                        <td>{position.riskLimit?.initialMarginRate ?? "—"}</td>
+                        <td>{position.adlLevel ?? "—"}</td>
+                        <td>
+                          {position.attentionReasons.length === 0
+                            ? "Within observed provider limits"
+                            : position.attentionReasons.map(titleCase).join(", ")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className={styles.contextNote}>
+                Provider risk context is not a liquidation oracle. It does not
+                include pending-order exposure, future tier changes, matching-engine
+                state or exchange-exact liquidation behaviour.
+              </p>
+            </section>
+          ) : null}
+
           <footer className={styles.provenance}>
-            Observed {new Date(snapshot.observedAtMs).toLocaleString("en-GB", {
+            Account observed {new Date(snapshot.observedAtMs).toLocaleString("en-GB", {
               dateStyle: "medium",
               timeStyle: "medium",
               timeZone: "UTC",
             })} UTC from {snapshot.provenance.reads.map((read) => read.endpoint).join(" + ")}.
-            No key, secret, signature or signed request material is present in this page model.
+            {risk.status === "fresh"
+              ? ` Risk context observed ${new Date(risk.snapshot.observedAtMs).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "medium", timeZone: "UTC" })} UTC from risk-limits.`
+              : ""}
+            {" "}No key, secret, signature or signed request material is present in this page model.
           </footer>
         </>
       ) : null}
