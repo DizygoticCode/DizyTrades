@@ -85,7 +85,7 @@ test("runtime proof matches the exact reviewed GET/read endpoint matrix", () => 
   const proof = buildMexcReadOnlyPermissionProof();
   assert.equal(proof.proofVersion, MEXC_READONLY_PERMISSION_PROOF_VERSION);
   assert.equal(proof.generatedFrom, "runtime-capability-manifest");
-  assert.equal(proof.baseOrigin, "https://contract.mexc.com");
+  assert.equal(proof.baseOrigin, "https://api.mexc.com");
   assert.deepEqual(proof.methods, ["GET"]);
   assert.deepEqual(proof.permissions, ["account-read", "trade-read"]);
   assert.deepEqual(proof.endpoints, expectedEndpoints);
@@ -115,7 +115,7 @@ test("private transport has one pinned origin and no write method or body", () =
   const source = text("app/lib/mexc-private-readonly.ts");
   assert.match(
     source,
-    /MEXC_CONTRACT_PRIVATE_BASE_URL\s*=\s*"https:\/\/contract\.mexc\.com"/,
+    /MEXC_CONTRACT_PRIVATE_BASE_URL\s*=\s*"https:\/\/api\.mexc\.com"/,
   );
   assert.match(source, /method:\s*"GET"/);
   assert.match(source, /cache:\s*"no-store"/);
