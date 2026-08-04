@@ -31,6 +31,8 @@ services:
         value: "true"
       - key: DIZYFLOW_DEPTH_TRANSPORT
         value: rest
+      - key: MEXC_FUTURES_WS_URL
+        value: wss://api.mexc.com/edge
       - key: MEXC_DEPTH_POLL_MS
         value: "2000"
       - key: DIZYFLOW_HISTORY_MINUTES
