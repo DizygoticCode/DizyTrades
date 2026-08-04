@@ -45,22 +45,27 @@ export function calculateDizyQuantLadderState(book:BookView,contractSize:number,
  if(!uniquePrices(book.bids)||!uniquePrices(book.asks))return unavailable("Depth contains duplicate price levels.");
  const bestBid=book.bids[0].price,bestAsk=book.asks[0].price;
  if(bestBid>=bestAsk)return unavailable("Locked or crossed depth is unavailable for ladder research.");
- const midpoint=(bestBid+bestAsk)/2,spreadPrice=bestAsk-bestBid,spreadTicks=spreadPrice/priceStep,spreadBps=spreadPrice/midpoint*10_000;
+ if([...book.bids,...book.asks].some(level=>!Number.isFinite(notional(level,contractSize))))return unavailable("Depth notional exceeds the numeric boundary.");
+ const spreadPrice=bestAsk-bestBid,midpoint=bestBid+spreadPrice/2,spreadTicks=spreadPrice/priceStep,spreadBps=spreadPrice/midpoint*10_000;
+ if(!finitePositive(midpoint)||!finitePositive(spreadPrice)||!Number.isFinite(spreadTicks)||!Number.isFinite(spreadBps))return unavailable("Derived spread values exceed the numeric boundary.");
  const values:Partial<Record<DizyQuantMetricId,number|null>>={"spread-price":spreadPrice,"spread-ticks":spreadTicks,"spread-bps":spreadBps};
  const bands:DizyQuantLadderBand[]=[];
  for(const bps of DIZYQUANT_DEPTH_BANDS_BPS){
   const bidFloor=midpoint*(1-bps/10_000),askCeiling=midpoint*(1+bps/10_000);
   const bidNotional=totalNotional(book.bids.filter(level=>level.price>=bidFloor),contractSize);
   const askNotional=totalNotional(book.asks.filter(level=>level.price<=askCeiling),contractSize);
-  const denominator=bidNotional+askNotional,imbalancePct=denominator>0?(bidNotional-askNotional)/denominator*100:null;
+  const denominator=bidNotional+askNotional;
+  if(!Number.isFinite(bidNotional)||!Number.isFinite(askNotional)||!Number.isFinite(denominator))return unavailable("Aggregated depth exceeds the numeric boundary.");
+  const imbalancePct=denominator>0?(bidNotional-askNotional)/denominator*100:null;
   values[`bid-depth-${bps}bps` as DizyQuantMetricId]=bidNotional;
   values[`ask-depth-${bps}bps` as DizyQuantMetricId]=askNotional;
   values[`depth-imbalance-${bps}bps` as DizyQuantMetricId]=imbalancePct;
   bands.push(Object.freeze({bps,bidNotional,askNotional,imbalancePct}));
  }
  const within100=[...book.bids.filter(level=>level.price>=midpoint*.99),...book.asks.filter(level=>level.price<=midpoint*1.01)];
- const total100=totalNotional(within100,contractSize);
- const weightedDistanceBps100=total100>0?within100.reduce((sum,level)=>sum+notional(level,contractSize)*Math.abs(level.price-midpoint)/midpoint*10_000,0)/total100:null;
+ const total100=totalNotional(within100,contractSize),weightedNumerator=within100.reduce((sum,level)=>sum+notional(level,contractSize)*Math.abs(level.price-midpoint)/midpoint*10_000,0);
+ if(!Number.isFinite(total100)||!Number.isFinite(weightedNumerator))return unavailable("Weighted depth exceeds the numeric boundary.");
+ const weightedDistanceBps100=total100>0?weightedNumerator/total100:null;
  const band25=bands.find(value=>value.bps===25)!,band100=bands.find(value=>value.bps===100)!;
  const near25=band25.bidNotional+band25.askNotional,all100=band100.bidNotional+band100.askNotional;
  const nearDepthConcentrationPct=all100>0?near25/all100*100:null;
