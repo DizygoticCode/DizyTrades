@@ -291,11 +291,11 @@ function exactKeys(
     actual.every((key, index) => key === wanted[index]);
 }
 
-function positiveSafeInteger(value: unknown) {
+function positiveSafeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-function nonNegativeSafeInteger(value: unknown) {
+function nonNegativeSafeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
@@ -495,6 +495,19 @@ function eventCore(input: Readonly<{
 function selfEventErrors(event: unknown) {
   const errors: string[] = [];
   if (!isRecord(event)) return ["event is not an object"];
+  const expectedEnvelope = [
+    "schemaVersion",
+    "eventId",
+    "sequence",
+    "previousHash",
+    "eventHash",
+    "scopeDigest",
+    "occurredAtMs",
+    "payload",
+  ];
+  if (!exactKeys(event, expectedEnvelope)) {
+    errors.push("event envelope fields are invalid");
+  }
   if (event.schemaVersion !== MEXC_SHADOW_AUDIT_SCHEMA_VERSION) {
     errors.push("event has an unsupported schema");
   }
