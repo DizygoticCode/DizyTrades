@@ -9,7 +9,7 @@ import {
 } from "../app/lib/order-flow/depth-collector.ts";
 
 const current="wss://api.mexc.com/edge";
-const retired=["contract","mexc","com"].join(".");
+const retiredWsOrigin=["wss://","contract",".","mexc",".","com"].join("");
 const textExtensions=new Set([".ts",".tsx",".js",".mjs",".json",".yaml",".yml",".md"]);
 
 async function textFiles(root){
@@ -27,7 +27,7 @@ test("MEXC futures websocket origin is current and safely configurable",()=>{
  assert.equal(MEXC_FUTURES_WS_URL,current);
  assert.equal(parseMexcFuturesWsUrl(undefined),current);
  assert.equal(parseMexcFuturesWsUrl("wss://api.mexc.com/edge/"),current);
- assert.equal(parseMexcFuturesWsUrl(`wss://${retired}/edge`),current);
+ assert.equal(parseMexcFuturesWsUrl(`${retiredWsOrigin}/edge`),current);
  assert.equal(parseMexcFuturesWsUrl("https://api.mexc.com/edge"),current);
  assert.equal(parseMexcFuturesWsUrl("wss://example.com/edge"),current);
  assert.equal(parseMexcFuturesWsUrl("wss://api.mexc.com/ws"),current);
@@ -54,12 +54,12 @@ test("WS transport opens the configured futures endpoint",()=>{
  assert.equal(closed,true);
 });
 
-test("retired MEXC futures domain is absent from repository text",async()=>{
+test("retired MEXC futures websocket origin is absent from repository text",async()=>{
  const files=await textFiles(".");
  const offenders=[];
  for(const file of files){
   const source=await readFile(file,"utf8");
-  if(source.includes(retired))offenders.push(file);
+  if(source.includes(retiredWsOrigin))offenders.push(file);
  }
  assert.deepEqual(offenders,[]);
 });

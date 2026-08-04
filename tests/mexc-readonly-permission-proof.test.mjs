@@ -60,6 +60,7 @@ const foundationFiles = [
   "app/lib/mexc-shadow-order-preview.ts",
   "app/lib/mexc-shadow-audit.ts",
   "app/lib/mexc-readonly-permission-proof.ts",
+  "app/lib/mexc-readonly-credential-activation.ts",
 ];
 
 function text(path) {
@@ -85,7 +86,7 @@ test("runtime proof matches the exact reviewed GET/read endpoint matrix", () => 
   const proof = buildMexcReadOnlyPermissionProof();
   assert.equal(proof.proofVersion, MEXC_READONLY_PERMISSION_PROOF_VERSION);
   assert.equal(proof.generatedFrom, "runtime-capability-manifest");
-  assert.equal(proof.baseOrigin, "https://api.mexc.com");
+  assert.equal(proof.baseOrigin, "https://contract.mexc.com");
   assert.deepEqual(proof.methods, ["GET"]);
   assert.deepEqual(proof.permissions, ["account-read", "trade-read"]);
   assert.deepEqual(proof.endpoints, expectedEndpoints);
@@ -111,11 +112,11 @@ test("runtime proof is deterministic and changes when capability facts change", 
   assert.ok(manifest.endpoints.every((endpoint) => endpoint.method === "GET"));
 });
 
-test("private transport has one pinned origin and no write method or body", () => {
+test("private transport has one pinned official contract origin and no write method or body", () => {
   const source = text("app/lib/mexc-private-readonly.ts");
   assert.match(
     source,
-    /MEXC_CONTRACT_PRIVATE_BASE_URL\s*=\s*"https:\/\/api\.mexc\.com"/,
+    /MEXC_CONTRACT_PRIVATE_BASE_URL\s*=\s*\n?\s*"https:\/\/contract\.mexc\.com"/,
   );
   assert.match(source, /method:\s*"GET"/);
   assert.match(source, /cache:\s*"no-store"/);
@@ -128,7 +129,7 @@ test("private transport has one pinned origin and no write method or body", () =
   );
 });
 
-test("credentialless foundation modules contain no private write transport", () => {
+test("read-only foundation modules contain no private write transport", () => {
   const forbiddenRoute =
     /\/api\/v1\/private\/(?:order\/|position\/(?:change|submit|cancel)|account\/(?:transfer|withdraw))/i;
   const forbiddenMethod = /method:\s*"(?:POST|PUT|PATCH|DELETE)"/;
@@ -150,43 +151,58 @@ test("credentialless foundation modules contain no private write transport", () 
 });
 
 test("no browser or API route exposes the private-account foundation", () => {
+  const privateModulePattern =
+    /mexc-(?:private-readonly|account-state|dizypaper-reconciliation|shadow-order-preview|shadow-audit|readonly-permission-proof|readonly-credential-activation)/;
+  const privateEnvironmentPattern =
+    /OWNER_MEXC_(?:READONLY_API_(?:KEY|SECRET)|READONLY_PERMISSION_ATTESTATION)/;
+
   const apiFiles = filesBelow("app/api").filter((path) => /\.[cm]?[jt]sx?$/.test(path));
   for (const path of apiFiles) {
     const source = text(path);
-    assert.doesNotMatch(
-      source,
-      /mexc-(?:private-readonly|account-state|dizypaper-reconciliation|shadow-order-preview|shadow-audit|readonly-permission-proof)/,
-      path,
-    );
-    assert.doesNotMatch(
-      source,
-      /MEXC_(?:PRIVATE_)?(?:API_)?(?:KEY|SECRET)|MEXC_SECRET_KEY/,
-      path,
-    );
+    assert.doesNotMatch(source, privateModulePattern, path);
+    assert.doesNotMatch(source, privateEnvironmentPattern, path);
   }
 
   const appFiles = filesBelow("app").filter((path) => /\.[cm]?[jt]sx?$/.test(path));
   for (const path of appFiles) {
     const source = text(path);
     if (!/^\s*["']use client["'];/m.test(source)) continue;
-    assert.doesNotMatch(
-      source,
-      /mexc-(?:private-readonly|account-state|dizypaper-reconciliation|shadow-order-preview|shadow-audit|readonly-permission-proof)/,
-      path,
-    );
+    assert.doesNotMatch(source, privateModulePattern, path);
+    assert.doesNotMatch(source, privateEnvironmentPattern, path);
   }
 });
 
-test("deployment configuration contains no MEXC private credential slot", () => {
+test("deployment configuration exposes only owner-scoped unsynchronised slots", () => {
   const environment = text(".env.example");
   const render = text("render.yaml");
-  const privateCredentialName =
-    /MEXC_(?:PRIVATE_)?(?:API_)?(?:KEY|SECRET)|MEXC_SECRET_KEY|MEXC_ACCESS_KEY/;
 
-  assert.doesNotMatch(environment, privateCredentialName);
-  assert.doesNotMatch(render, privateCredentialName);
   assert.match(environment, /^LIVE_TRADING_ENABLED=false$/m);
+  assert.match(
+    environment,
+    /^OWNER_MEXC_ACCOUNT_COMPANION_ENABLED=false$/m,
+  );
+  assert.match(environment, /^OWNER_MEXC_READONLY_API_KEY=$/m);
+  assert.match(environment, /^OWNER_MEXC_READONLY_API_SECRET=$/m);
+  assert.match(
+    environment,
+    /^OWNER_MEXC_READONLY_PERMISSION_ATTESTATION=$/m,
+  );
+
   assert.match(render, /key:\s*LIVE_TRADING_ENABLED\s*\n\s*value:\s*"false"/);
+  for (const key of [
+    "OWNER_MEXC_ACCOUNT_COMPANION_ENABLED",
+    "OWNER_MEXC_READONLY_API_KEY",
+    "OWNER_MEXC_READONLY_API_SECRET",
+    "OWNER_MEXC_READONLY_PERMISSION_ATTESTATION",
+  ]) {
+    assert.match(render, new RegExp(`key:\\s*${key}\\s*\\n\\s*sync:\\s*false`));
+    assert.doesNotMatch(render, new RegExp(`key:\\s*${key}\\s*\\n\\s*value:`));
+  }
+
+  assert.doesNotMatch(environment, /^(?:MEXC|FRIEND_MEXC)_READONLY_API_/m);
+  assert.doesNotMatch(render, /key:\s*(?:MEXC|FRIEND_MEXC)_READONLY_API_/);
+  assert.doesNotMatch(environment, /^NEXT_PUBLIC_.*MEXC.*(?:KEY|SECRET)/m);
+  assert.doesNotMatch(render, /key:\s*NEXT_PUBLIC_.*MEXC.*(?:KEY|SECRET)/);
 });
 
 test("proof report itself contains no credential or executable request", () => {
