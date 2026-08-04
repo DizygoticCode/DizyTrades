@@ -48,7 +48,7 @@ test("one exact Node runtime is shared by package, Render and every workflow", (
   }
 });
 
-test("production blueprint remains simulation-only and hash-only", () => {
+test("production blueprint remains simulation-only with explicit emergency access", () => {
   const render = read("render.yaml");
   assert.match(
     render,
@@ -56,10 +56,14 @@ test("production blueprint remains simulation-only and hash-only", () => {
   );
   assert.match(
     render,
-    /key: ALLOW_TEST_PLAINTEXT_PASSWORDS\n\s+value: ["']false["']/,
+    /key: LEGACY_AUTH_FALLBACK_ENABLED\n\s+value: ["']true["']/,
   );
-  assert.doesNotMatch(render, /^\s*- key: ROB_PASSWORD\s*$/m);
-  assert.doesNotMatch(render, /^\s*- key: FRIEND_PASSWORD\s*$/m);
+  assert.match(
+    render,
+    /key: ALLOW_TEST_PLAINTEXT_PASSWORDS\n\s+value: ["']true["']/,
+  );
+  assert.match(render, /^\s*- key: ROB_PASSWORD\s*$/m);
+  assert.match(render, /^\s*- key: FRIEND_PASSWORD\s*$/m);
   assert.match(render, /^\s*- key: ROB_PASSWORD_HASH\s*$/m);
   assert.match(render, /^\s*- key: FRIEND_PASSWORD_HASH\s*$/m);
   assert.doesNotMatch(render, /MEXC_(?:API_KEY|SECRET|PRIVATE_KEY)/);

@@ -20,11 +20,13 @@ The repository now has one authoritative `.node-version`. The exact same version
 
 A runtime-version change triggers both operational rehearsals as well as normal CI.
 
-### Production Blueprint exposed unused plaintext-password slots
+### Production emergency-login configuration did not match the deployed beta
 
-Plaintext authentication is disabled in production, but the Blueprint still declared optional `ROB_PASSWORD` and `FRIEND_PASSWORD` environment variables. Those unused slots increased the chance that a future operator would populate a weaker authentication path accidentally.
+The engineering review initially classified `ROB_PASSWORD` and `FRIEND_PASSWORD` as unused and removed their Blueprint slots while forcing `ALLOW_TEST_PLAINTEXT_PASSWORDS=false`. That assumption was wrong for the deployed private beta: Rob and Nick still use those server-side Render secrets for their stable `rob` and `friend` emergency identities.
 
-The production Blueprint now exposes only hash-based emergency-account credentials and keeps `ALLOW_TEST_PLAINTEXT_PASSWORDS=false`. The engineering contract rejects plaintext password slots, private exchange-key names and any accidental `LIVE_TRADING_ENABLED=true` configuration.
+The Blueprint now retains both plaintext and hash slots, explicitly enables the legacy plaintext path for the current simulation-only service, and keeps `LIVE_TRADING_ENABLED=false`. The application already blocks plaintext authentication whenever live trading is enabled. Rob and Nick can migrate independently to `ROB_PASSWORD_HASH` and `FRIEND_PASSWORD_HASH`; after both hashes are verified, the plaintext secrets and compatibility flag can be removed in a separate focused change.
+
+The engineering contract requires the current emergency slots, legacy fallback and simulation-only boundary while continuing to reject private exchange-key names and any accidental `LIVE_TRADING_ENABLED=true` configuration.
 
 ### Browser hardening relied mostly on CSP
 
@@ -51,7 +53,7 @@ The project depended on manual discovery of outdated npm packages and GitHub Act
 The review adds executable contracts that fail CI when:
 
 - Node versions drift across package, workflows and Render;
-- the production Blueprint enables live trading or plaintext-password slots;
+- the production Blueprint enables live trading, drops the currently required emergency-login slots or permits private exchange-key configuration;
 - required browser security headers disappear;
 - maintenance automation becomes unbounded;
 - a real `.env` payload, user backup or SQLite/database file is committed.
@@ -69,6 +71,10 @@ The reviewed branch is validated by three independent GitHub Actions boundaries:
 No workflow reads or prints secret values. The Render rehearsal is observation-only.
 
 ## Accepted engineering debt
+
+### Temporary plaintext emergency credentials
+
+Rob and Nick's Render-held plaintext passwords remain a compatibility mechanism for the private simulation beta. They are server-side secrets, are never committed, require the explicit legacy and plaintext flags, and are rejected whenever live trading is enabled. Hash migration remains preferable and should remove the plaintext variables once both accounts have been verified with the generated hashes.
 
 ### Large client modules
 
