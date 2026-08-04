@@ -96,11 +96,16 @@ test("global response headers retain the browser security boundary", () => {
     "object-src 'none'",
     "base-uri 'self'",
     "frame-ancestors 'self'",
-    "wss://api.mexc.com",
+    "wss://contract.mexc.com",
     "https://*.tradingview.com",
   ]) {
     assert.ok(csp.includes(directive), `CSP is missing ${directive}`);
   }
+  assert.doesNotMatch(
+    csp,
+    /wss:\/\/api\.mexc\.com/,
+    "MEXC REST origin must not be accepted as a WebSocket origin",
+  );
 });
 
 test("dependency maintenance is bounded and low-noise", () => {
