@@ -2,7 +2,7 @@
 
 DizyTrades is a transparent, deterministic crypto research, simulation and review platform. The enduring mission lives in [VISION.md](VISION.md); technical boundaries live in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-This roadmap reflects the merged product as of August 2026. Items are not promises of dates. They move only after focused implementation, automated validation and review.
+This roadmap reflects merged `main` as of August 2026. Items are not promises of dates. They move only after focused implementation, automated validation and review.
 
 ## Current product generation — complete
 
@@ -16,12 +16,13 @@ This roadmap reflects the merged product as of August 2026. Items are not promis
 - [x] DizySignals confirmed-candle confluence engine
 - [x] DizyBrain typed explanation workspace
 - [x] DizyFlow Market Depth, DOM, retained liquidity and public trades
+- [x] DizyQuant versioned microstructure registry, Replay lab and bounded `/research` page
 - [x] bounded production diagnostics and feed-health states
 
 ### Professional workflow
 
 - [x] DizyPaper manual and signal simulations
-- [x] isolated/cross margin approximations, leverage and liquidation estimates
+- [x] DizyPaper Fidelity V2 execution, funding, margin and liquidation approximations
 - [x] DizyJournal immutable trade reviews, notes, tags and statistics
 - [x] deterministic Replay Engine
 - [x] retained Historical Replay Memory
@@ -31,12 +32,14 @@ This roadmap reflects the merged product as of August 2026. Items are not promis
 - [x] Guided Historical Trade Review
 - [x] continuous replay playback and viewport following
 
-### Discovery and analytics
+### Discovery, research and analytics
 
 - [x] saved watchlists and bounded DizyScanner
 - [x] DizyStructure sessions, anchored VWAP, swings and timeframe alignment
 - [x] DizyPerformance realised PnL, drawdown, expectancy and breakdowns
 - [x] DizyAcademy current-product workflow curriculum
+- [x] DizyQuant snapshot-grade and continuous-stream-grade formula layers
+- [x] DizyQuant held-out, null-baseline and walk-forward laboratory
 
 ### Reliability and operations
 
@@ -48,12 +51,11 @@ This roadmap reflects the merged product as of August 2026. Items are not promis
 - [x] cross-workspace profile and viewer-state hardening
 - [x] read-only Render deployment observation and exact-commit health verification
 - [x] destructive application recovery rehearsal in isolated temporary data roots
+- [x] authentication/storage, simulator-accounting, Replay, backup-conflict and browser-accessibility reviews
 
-## Completed active programmes
+## Completed programmes
 
 ### 1. DizyPaper Fidelity V2
-
-Improve simulation realism without claiming exchange-exact fills.
 
 - [x] official contract metadata boundary per symbol
 - [x] quantity and price-step enforcement
@@ -66,11 +68,9 @@ Improve simulation realism without claiming exchange-exact fills.
 - [x] clearer isolated versus cross-margin assumptions
 - [x] migration-safe history and backup support
 
-Depth-sensitive visible-book execution is complete across entries, manual exits, Reverse, Flatten All and automatic stop/target/liquidation exits, including persistent partial risk exits. Maintenance tiers use snapshotted public contract increment fields with explicit flat fallback, liquidation is separated from bankruptcy price, and isolated collateral is fenced from the shared single-asset USDT cross pool. Cross liquidation is re-audited against all current cross positions and their last known marks. Manual Paper v2/v3 records migrate deterministically to v4, fill economics are hash-preserved with unavailable evidence declared rather than invented, full backup v1 files are integrity-verified before migration to v2, and dry-run/apply fingerprints remain stable.
+The simulator is more realistic without claiming exchange-exact fills, queue priority or liquidation behaviour.
 
 ### 2. Workflow and accessibility polish
-
-Driven by real use rather than speculative redesign.
 
 - [x] saved workspace layouts and presets
 - [x] command palette and keyboard reference
@@ -80,27 +80,9 @@ Driven by real use rather than speculative redesign.
 - [x] focus order, screen-reader and reduced-motion audit
 - [x] empty, delayed and recovery state polish
 
-First-run onboarding opens once per user and offers bounded paths into the terminal, DizyAcademy or Manual Paper. Saved layouts retain named account-scoped snapshots of sanitised market, timeframe, chart view, strategy, risk and DizyFlow state. Commands and Recent provide deterministic navigation and continuation without bypassing owner/viewer permissions.
+### 3. Independent correctness and security reviews
 
-The responsive and accessibility contracts keep protected workspaces contained on phones and tablets, preserve intentionally wide internal scroll regions, provide skip navigation, modal focus containment/restoration, forced-colour handling and reduced motion. Global Commands and Recent controls reserve the live DizyBrain dock width so the sidebar collapse and close controls remain reachable at every desktop resize.
-
-## Active programme
-
-### 3. Read-only exchange connection and shadow mode
-
-No order permission.
-
-- [ ] server-side read-only MEXC credentials
-- [ ] balance, position and account-health ingestion
-- [ ] exchange-state reconciliation
-- [ ] hypothetical order preview beside real account state
-- [ ] immutable shadow audit log
-- [ ] stale/private-data failure handling
-- [ ] explicit proof that no write permission is requested
-
-### 4. Independent audit — complete
-
-- [x] Codex or independent engineering review
+- [x] independent engineering review
 - [x] authentication and storage threat review
 - [x] simulator accounting audit
 - [x] Replay future-leakage audit
@@ -108,68 +90,99 @@ No order permission.
 - [x] browser accessibility independent review
 - [x] deployment observation and application recovery rehearsal
 
-The independent engineering review is recorded in [docs/INDEPENDENT_ENGINEERING_REVIEW.md](docs/INDEPENDENT_ENGINEERING_REVIEW.md). It establishes one exact Node runtime across package tooling, CI, operational rehearsals and Render; preserves the deployed simulation-only emergency login until Rob and Nick migrate to password hashes; adds browser response hardening, bounded dependency maintenance and executable repository contracts.
+Evidence is recorded in:
 
-The authentication and storage review is recorded in [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md). It hardens fail-closed feature flags, session parsing and fallback behaviour, outage throttling, request-origin boundaries, owner-ID/path isolation and auth-database permissions while documenting accepted beta limitations.
+- [docs/INDEPENDENT_ENGINEERING_REVIEW.md](docs/INDEPENDENT_ENGINEERING_REVIEW.md)
+- [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md)
+- [docs/SIMULATOR_ACCOUNTING_AUDIT.md](docs/SIMULATOR_ACCOUNTING_AUDIT.md)
+- [docs/REPLAY_FUTURE_LEAKAGE_AUDIT.md](docs/REPLAY_FUTURE_LEAKAGE_AUDIT.md)
+- [docs/BACKUP_RESTORE_CONFLICT_AUDIT.md](docs/BACKUP_RESTORE_CONFLICT_AUDIT.md)
+- [docs/BROWSER_ACCESSIBILITY_INDEPENDENT_REVIEW.md](docs/BROWSER_ACCESSIBILITY_INDEPENDENT_REVIEW.md)
 
-The simulator accounting review is recorded in [docs/SIMULATOR_ACCOUNTING_AUDIT.md](docs/SIMULATOR_ACCOUNTING_AUDIT.md). It adds executable Manual Paper cash, fee, funding and settlement reconciliation; corrects signal-simulator maximum-notional sizing; and keeps open mark-to-market positions out of completed win-rate and profit-factor statistics.
+A destructive provider persistent-disk snapshot rollback is intentionally deferred to the guarded-execution security milestone, when isolated infrastructure and cost can be justified.
 
-The Replay temporal-boundary review is recorded in [docs/REPLAY_FUTURE_LEAKAGE_AUDIT.md](docs/REPLAY_FUTURE_LEAKAGE_AUDIT.md). It replaces timestamp ceiling jumps with a shared exact-or-prior selector and adds adversarial evidence across interactive Replay, Journal launch, retained closed-candle memory, Historical DizyFlow and DizyBrain historical-review prefixes.
+### 4. DizyQuant research foundation — complete
 
-The backup conflict review is recorded in [docs/BACKUP_RESTORE_CONFLICT_AUDIT.md](docs/BACKUP_RESTORE_CONFLICT_AUDIT.md). It rejects same-ID/different-content Paper runs, prevents additive profile or Journal truncation, preflights retained-evidence count and byte limits and repeats profile/Journal checks at write time.
+The six focused implementation slices are complete:
 
-The independent browser accessibility review is recorded in [docs/BROWSER_ACCESSIBILITY_INDEPENDENT_REVIEW.md](docs/BROWSER_ACCESSIBILITY_INDEPENDENT_REVIEW.md). It inspects Chromium's computed accessibility tree and rendered DOM across representative public and viewer workspaces, enforces modal background isolation and removes the duplicate Manual Paper main landmark.
+- [x] source-quality contract, stable identities and Replay-safe snapshots
+- [x] spread and visible-ladder state
+- [x] public aggressive flow and visible-depth pressure
+- [x] displayed-liquidity migration, turnover and persistence
+- [x] shock resilience, replenishment and experimental candidate events
+- [x] deterministic Replay/statistical laboratory and bounded public presentation
 
-Deployment/recovery evidence now has two completed layers:
+Current registry state:
 
-1. a read-only GitHub Actions rehearsal that authenticates to Render, resolves the configured DizyTrades service, waits for an expected commit and verifies the simulation-only health contract;
-2. a destructive application-level export/dry-run/restore rehearsal in fresh temporary data roots with tamper rejection, owner isolation, stable fingerprints and idempotency.
+- [x] 67 stable metric identities
+- [x] 65 informational metrics
+- [x] two experimental depth-only candidate flags
+- [x] zero validated metrics
+- [x] zero decision-eligible or signal-eligible metrics
+- [x] repository firewall against unreviewed DizySignals influence
 
-A destructive provider persistent-disk snapshot rollback is not required for the current simulation beta. It is moved to the guarded-execution security milestone, where isolated infrastructure and any associated cost can be justified before real exchange credentials or funds exist.
+The implementation programme is finished. DizyQuant is not “finished science”: representative evidence campaigns and explicit retain/reject/promotion decisions remain ongoing research work.
 
-## Research programme
+See [docs/DIZYQUANT_RESEARCH_CONTRACT.md](docs/DIZYQUANT_RESEARCH_CONTRACT.md) and the bounded public `/research` page.
 
-DizyQuant remains informational until Replay and statistical validation support promotion.
+## Active programme
 
-### Candidate microstructure research
+### 5. Read-only MEXC Account Companion and shadow reconciliation
 
-- [ ] liquidity-ladder balance, skew and migration
-- [ ] replenishment and withdrawal persistence
-- [ ] aggressive-consumption efficiency
-- [ ] queue depletion and turnover
-- [ ] spread regimes
-- [ ] cluster persistence and retreat
-- [ ] absorption and exhaustion candidates
+No order permission and no browser-held exchange credentials.
 
-### Validation gate
+- [ ] server-side read-only MEXC credentials
+- [ ] explicit proof that no write permission is requested
+- [ ] balance, position and account-health ingestion
+- [ ] stale/private-data failure handling
+- [ ] exchange-state reconciliation
+- [ ] hypothetical order preview beside real account state
+- [ ] immutable shadow audit log
+- [ ] owner-controlled credential removal and shutdown
+- [ ] independent review of the complete read-only boundary
 
-Every candidate must define:
+This programme must not create an order route or weaken `LIVE_TRADING_ENABLED=false`.
 
-- [ ] typed source data and units
-- [ ] deterministic formula and version
-- [ ] stale and unavailable behaviour
-- [ ] Replay-compatible snapshot
-- [ ] representative historical sample
-- [ ] false-positive and false-negative analysis
-- [ ] regime sensitivity
-- [ ] out-of-sample or walk-forward checks where practical
-- [ ] informational, experimental or validated status
-- [ ] explicit promotion decision before any DizySignals influence
+## Next focused programme
+
+### 6. Liquidity heatmap presentation and DizyFlow evidence quality
+
+The retained evidence engine and migration metrics exist. The customer-facing heatmap must now be reviewed as a visual product rather than assumed correct because data is retained.
+
+- [ ] compare the current heatmap with retained liquidity evidence end to end
+- [ ] replace or repair unstable rendering and timeframe behaviour
+- [ ] make live, delayed, stale, gapped and unavailable states unmistakable
+- [ ] verify viewport, aggregation and price-bucket behaviour
+- [ ] keep raw stream volume bounded on Render Starter
+- [ ] add representative browser visual/regression coverage
+- [ ] preserve the distinction between displayed liquidity and executed volume
+
+## Ongoing DizyQuant evidence campaigns
+
+These are research operations, not another foundation rewrite.
+
+- [ ] collect representative, continuity-qualified samples across selected symbols and regimes
+- [ ] run Replay studies for candidate metrics and outcomes
+- [ ] compare null, baseline and walk-forward performance
+- [ ] analyse false positives, false negatives and sensitivity
+- [ ] record retain, reject or revise decisions per formula version
+- [ ] propose a separate promotion PR only if evidence warrants it
+
+No metric enters DizySignals merely because the infrastructure exists or a single historical sample looks impressive.
 
 ## Institutional-style analysis — later
 
-- [ ] footprint data model and visualisation
+- [ ] footprint data model and visualisation where public data genuinely supports it
 - [ ] bid/ask delta and cumulative delta
-- [ ] stable customer-facing historical heatmap presentation
 - [ ] correlation and market-regime workspace
 - [ ] portfolio concentration and cross-market risk
 - [ ] visual strategy builder
 
-These features must not imply access to private matching-engine information or hidden institutional intent.
+These features must not imply access to private matching-engine information, Level-4 order identity or hidden institutional intent.
 
 ## Guarded live execution — final security milestone only
 
-Live execution remains disabled until all earlier operational, security and reconciliation requirements are independently satisfied.
+Live execution remains disabled until every earlier operational, security and reconciliation requirement is independently satisfied.
 
 - [ ] isolated execution service
 - [ ] encrypted credential custody
@@ -191,15 +204,19 @@ Live execution remains disabled until all earlier operational, security and reco
 
 ### Active Beta — achieved
 
-Useful for public charting, market study, deterministic signals, order-flow observation, simulation, replay, review, analytics, education and recovery while execution remains disabled.
+Useful for public charting, market study, deterministic signals, public order-flow observation, bounded microstructure research, simulation, replay, review, analytics, education and recovery while execution remains disabled.
 
 ### Operational Research Platform — achieved
 
-DizyPaper Fidelity V2, workflow/accessibility, deployment observation, application recovery rehearsal and all focused independent reviews are complete. Runtime, production-boundary and repository assumptions are executable CI contracts. Provider-level persistent-disk rollback remains intentionally deferred to the guarded-execution security milestone.
+DizyPaper Fidelity V2, workflow/accessibility, DizyQuant’s six-slice foundation, deployment observation, application recovery rehearsal and focused independent reviews are complete. Runtime, production-boundary and repository assumptions are executable CI contracts.
 
-### Read-only Account Companion — future
+### Read-only Account Companion — next
 
 Complete when private account state can be reconciled safely without any exchange write permission.
+
+### Evidence-qualified DizyQuant promotion — conditional
+
+A metric may be considered only after representative held-out studies and a separate promotion review. This milestone may validly reject every current hypothesis.
 
 ### Guarded Trading Platform — conditional future
 
@@ -211,10 +228,10 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 - Work from current `main`.
 - Run lint, full tests, production build and relevant Chromium checks before merge.
 - Keep display preferences separate from strategy and risk logic.
-- Preserve immutable trade and replay evidence.
+- Preserve immutable trade, Replay and research evidence.
 - Do not infer unavailable exchange, feed or account data.
 - Prefer deterministic, explainable behaviour over black-box output.
-- Research observations remain informational until validated.
+- Research observations remain informational or experimental until separately validated and promoted.
 - Live trading remains disabled until the final security milestone is complete.
-- Prefer the existing Render services, GitHub Actions and free tooling.
+- Prefer the existing Render service, GitHub Actions and free tooling.
 - Do not create paid services, disks, databases, APIs or subscriptions without explicit owner approval.
