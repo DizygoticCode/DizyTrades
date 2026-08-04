@@ -108,7 +108,7 @@ No order permission.
 - [x] browser accessibility independent review
 - [x] deployment observation and application recovery rehearsal
 
-The independent engineering review is recorded in [docs/INDEPENDENT_ENGINEERING_REVIEW.md](docs/INDEPENDENT_ENGINEERING_REVIEW.md). It establishes one exact Node runtime across package tooling, CI, operational rehearsals and Render; removes production plaintext-password slots; adds browser response hardening, bounded dependency maintenance and executable repository contracts.
+The independent engineering review is recorded in [docs/INDEPENDENT_ENGINEERING_REVIEW.md](docs/INDEPENDENT_ENGINEERING_REVIEW.md). It establishes one exact Node runtime across package tooling, CI, operational rehearsals and Render; preserves the deployed simulation-only emergency login until Rob and Nick migrate to password hashes; adds browser response hardening, bounded dependency maintenance and executable repository contracts.
 
 The authentication and storage review is recorded in [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md). It hardens fail-closed feature flags, session parsing and fallback behaviour, outage throttling, request-origin boundaries, owner-ID/path isolation and auth-database permissions while documenting accepted beta limitations.
 
