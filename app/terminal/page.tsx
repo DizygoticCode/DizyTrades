@@ -12,7 +12,7 @@ export default async function TerminalPage() {
   const user = await requireUser();
   return (
     <DizyBrainShell>
-      <DizyBrainTopbarLink />
+      <DizyBrainTopbarLink showAccountCompanion={user.role === "owner"} />
       <FirstRunOnboarding userId={user.id} userName={user.name} />
       <WorkspaceLayouts readOnly={user.role === "viewer"} />
       <WorkspaceStatePolish workspace="terminal" />
