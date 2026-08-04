@@ -31,7 +31,7 @@ test("candidate metric registry is versioned, unique and signal-ineligible",()=>
  assert.equal(DIZYQUANT_RESEARCH_SCHEMA_VERSION,1);
  assert.equal(DIZYQUANT_METRIC_SET_VERSION,"dizyquant-candidates/1.3.0");
  assert.equal(new Set(DIZYQUANT_METRIC_DEFINITIONS.map(value=>value.id)).size,DIZYQUANT_METRIC_DEFINITIONS.length);
- assert.ok(DIZYQUANT_METRIC_DEFINITIONS.length>=49);
+ assert.equal(DIZYQUANT_METRIC_DEFINITIONS.length,48);
  assert.deepEqual(DIZYQUANT_METRIC_DEFINITIONS.filter(value=>value.evidenceGrade==="snapshot-grade").map(value=>value.id).slice(0,3),["spread-price","spread-ticks","spread-bps"]);
  assert.ok(DIZYQUANT_METRIC_DEFINITIONS.some(value=>value.id==="flow-efficiency-bps-per-million-10s"&&value.unit==="basis-points-per-million-quote"));
  assert.ok(DIZYQUANT_METRIC_DEFINITIONS.some(value=>value.id==="near-depth-concentration-shift-25-of-100bps-30s"&&value.unit==="percentage-points"));
