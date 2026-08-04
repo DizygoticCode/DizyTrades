@@ -19,7 +19,7 @@ export const COLLECTOR_IDLE_MS=integer(process.env.DIZYFLOW_COLLECTOR_IDLE_MS,LO
 export const MAX_HEATMAP_RECORDS=integer(process.env.DIZYFLOW_MAX_HEATMAP_RECORDS,LOW_MEMORY_MODE?5_000:50_000,100,200_000);
 const REST_BASE=(process.env.MEXC_FUTURES_REST_BASE_URL??"https://api.mexc.com").replace(/\/$/,"");
 const DEFAULT_FUTURES_WS_URL="wss://api.mexc.com/edge";
-export function parseMexcFuturesWsUrl(value=process.env.MEXC_FUTURES_WS_URL){const candidate=(value??DEFAULT_FUTURES_WS_URL).trim();try{const url=new URL(candidate),path=url.pathname.replace(/\/+$/,"")||"/",mexcHost=url.hostname==="api.mexc.com"||url.hostname.endsWith(".mexc.com");if(url.protocol!=="wss:"||url.username||url.password||url.port||url.search||url.hash||path!=="/edge"||!mexcHost||url.hostname==="contract.mexc.com")return DEFAULT_FUTURES_WS_URL;return `wss://${url.hostname}/edge`}catch{return DEFAULT_FUTURES_WS_URL}}
+export function parseMexcFuturesWsUrl(value=process.env.MEXC_FUTURES_WS_URL){const candidate=(value??DEFAULT_FUTURES_WS_URL).trim();try{const url=new URL(candidate),path=url.pathname.replace(/\/+$/,"")||"/";if(url.protocol!=="wss:"||url.username||url.password||url.port||url.search||url.hash||path!=="/edge"||url.hostname!=="api.mexc.com")return DEFAULT_FUTURES_WS_URL;return DEFAULT_FUTURES_WS_URL}catch{return DEFAULT_FUTURES_WS_URL}}
 export const MEXC_FUTURES_WS_URL=parseMexcFuturesWsUrl();
 const TIMEOUT_MS=5_000,DOM_INTERVAL_MS=250,WS_HEALTH_POLL_MS=30_000;
 const symbolPattern=/^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
