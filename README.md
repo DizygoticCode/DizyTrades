@@ -6,7 +6,7 @@
 
 **A transparent, simulation-first crypto research and review platform.**
 
-[Open DizyTrades](https://dizytrades.onrender.com) · [View-only terminal](https://dizytrades.onrender.com/explore) · [DizyAcademy](https://dizytrades.onrender.com/school) · [Report an issue](https://github.com/DizygoticCode/DizyTrades/issues)
+[Open DizyTrades](https://dizytrades.onrender.com) · [View-only terminal](https://dizytrades.onrender.com/explore) · [DizyQuant Research](https://dizytrades.onrender.com/research) · [DizyAcademy](https://dizytrades.onrender.com/school) · [Report an issue](https://github.com/DizygoticCode/DizyTrades/issues)
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
 ![React](https://img.shields.io/badge/React-19-149ECA?logo=react)
@@ -23,7 +23,7 @@
 
 ## What DizyTrades has become
 
-DizyTrades began as an independent chart and strategy simulator. It is now one connected workflow for market discovery, confirmed-candle analysis, public order-flow context, realistic practice execution, historical reconstruction, structured review and realised performance measurement.
+DizyTrades began as an independent chart and strategy simulator. It is now one connected workflow for market discovery, confirmed-candle analysis, public order-flow context, versioned microstructure research, realistic practice execution, historical reconstruction, structured review and realised performance measurement.
 
 ```text
 DizyScanner
@@ -31,7 +31,12 @@ DizyScanner
 DizyStructure
     ↓
 DizyCharts + DizySignals + DizyFlow
-    ↓
+                   ├────────→ DizyQuant research
+                   │               ↓
+                   │      Replay / null / walk-forward review
+                   │               ↓
+                   │      retain, reject or promote separately
+                   ↓
 DizyPaper
     ↓
 DizyJournal
@@ -45,7 +50,9 @@ DizyPerformance
 Learn and repeat in DizyAcademy
 ```
 
-The system is deliberately deterministic and evidence-first. A setup score is not a profit probability, visible liquidity is not guaranteed to remain, and simulated execution is not represented as exchange-exact.
+DizyQuant is deliberately parallel to the production signal path. The current research registry contains **67 stable metric identities: 65 informational, two experimental, zero validated and zero signal-eligible**.
+
+The system is deterministic and evidence-first. A setup score is not a profit probability, visible liquidity is not guaranteed to remain, an experimental candidate is not a trade instruction, and simulated execution is not represented as exchange-exact.
 
 ## Current product family
 
@@ -70,6 +77,7 @@ Confirmed-candle confluence analysis with explicit qualification and rejection e
 - next-bar entry modelling for simulations
 - ATR stops, targets and break-even modelling
 - deterministic tests and prefix-invariance boundaries
+- no automatic contribution from DizyQuant
 
 ### DizyBrain
 
@@ -93,6 +101,24 @@ Public market-microstructure tools beneath the candles.
 - retained liquidity history and heatmap tiles
 - public trade bubbles and large-activity views
 - explicit live, delayed, stale and unavailable states
+
+### DizyQuant
+
+A versioned public-market microstructure research layer—not a prediction engine.
+
+- immutable 67-metric registry with units, evidence grades and promotion status
+- snapshot-grade spread, depth, imbalance, distance and concentration
+- ten-second public aggressor-flow and visible-depth-pressure measurements
+- thirty-second displayed-liquidity turnover, persistence, cluster survival and migration
+- sixty-second shock recovery and replenishment measurements
+- two explicitly experimental depth-only absorption/exhaustion candidate flags
+- deterministic held-out, circular-null and walk-forward Replay laboratory
+- fresh, stale, gapped and unavailable states
+- bounded public `/research` page containing definitions and safeguards only
+- no live values or raw order-book stream on the public research page
+- every metric remains decision-ineligible and signal-ineligible
+
+The six-slice implementation programme is complete. Representative evidence studies and explicit retain/reject/promotion decisions remain future research work. See [the research contract](docs/DIZYQUANT_RESEARCH_CONTRACT.md).
 
 ### DizyScanner
 
@@ -205,7 +231,7 @@ Owner-scoped data export and additive recovery.
 
 ### Workflow and accessibility
 
-The protected workspace now includes:
+The protected workspace includes:
 
 - optional first-run onboarding with truthful simulation boundaries
 - Ctrl/Cmd+K command palette and verified keyboard reference
@@ -223,17 +249,18 @@ The protected workspace now includes:
 4. **Unavailable data must remain unavailable.**
 5. **Risk and invalidation matter as much as entry logic.**
 6. **Process quality and outcome must be reviewed separately.**
-7. **Research observations do not become signal inputs without replay and validation.**
+7. **Research observations do not become signal inputs without representative Replay, validation and explicit promotion.**
 8. **Users should be able to understand why the system acted—or refused to act.**
 
 ## Current status
 
 ### Available now
 
-- [x] Public marketing site and real view-only terminal
-- [x] Public accounts, isolated profiles and saved named workspaces
+- [x] public marketing site and real view-only terminal
+- [x] public accounts, isolated profiles and saved named workspaces
 - [x] DizyCharts, DizySignals and DizyBrain
 - [x] DizyFlow Market Depth, DOM, retained liquidity and public trades
+- [x] DizyQuant six-slice research foundation, 67-metric registry and bounded `/research` page
 - [x] DizyScanner watchlists and multi-symbol analysis
 - [x] DizyStructure session, anchored-value and swing workspace
 - [x] DizyPaper Fidelity V2 simulation and accounting model
@@ -248,19 +275,16 @@ The protected workspace now includes:
 - [x] lint, full deterministic tests, production build and Chromium gates
 - [x] read-only Render deployment observation
 - [x] isolated application recovery rehearsal
-- [x] authentication and storage threat review
-- [x] simulator accounting audit and executable reconciliation
+- [x] focused engineering, authentication, storage, Replay, backup, accessibility and simulator-accounting reviews
 
 ### Active next programmes
 
-- [ ] remaining independent engineering and correctness audits
-- [ ] Replay future-leakage review
-- [ ] backup conflict and independent browser-accessibility review
-- [ ] server-side read-only MEXC connection and shadow reconciliation
-- [ ] DizyQuant microstructure research with Replay/statistical validation
+- [ ] server-side read-only MEXC Account Companion and shadow reconciliation
+- [ ] customer-facing liquidity heatmap presentation and evidence-quality review
+- [ ] representative DizyQuant evidence campaigns with retain/reject decisions
 - [ ] guarded execution readiness only after every security milestone passes
 
-A destructive provider persistent-disk snapshot rollback is deliberately deferred until the guarded-execution security milestone. It is not required for the current private simulation beta and will not create another paid service merely to tick a box.
+A destructive provider persistent-disk snapshot rollback is deliberately deferred until the guarded-execution security milestone. It is not required for the current simulation beta and will not create another paid service merely to tick a box.
 
 Live trading is deliberately **not** part of the current beta.
 
@@ -273,7 +297,7 @@ validation + normalisation
         ↓
 closed candles / live price / depth / public trades
         ├── DizyCharts → DizySignals → DizyBrain
-        ├── DizyFlow
+        ├── DizyFlow → DizyQuant → Replay/statistical lab
         ├── DizyScanner
         └── DizyStructure
                             ↓
@@ -290,6 +314,8 @@ Authentication, profiles, workspaces, Paper accounts, Journal records, Replay me
 
 TradingView widget data is isolated from DizySignals and paper simulations. The application does not execute Pine Script and does not consume widget state as strategy input.
 
+The public DizyQuant route consumes a frozen presentation model only. It exposes the registry and programme status, not live market values, raw streams or a signal route.
+
 ## Safety boundaries
 
 The repository currently contains:
@@ -298,6 +324,7 @@ The repository currently contains:
 - no private exchange trading endpoint
 - no live order-placement route
 - no enabled execution capability
+- no DizyQuant metric promoted into DizySignals
 
 `LIVE_TRADING_ENABLED=false` is a required deployment boundary. Any future exchange connection begins read-only and server-side. Encrypted credential custody, reconciliation, idempotency, account limits, emergency shutdown and independent review are mandatory before execution can be considered.
 
@@ -344,11 +371,13 @@ The isolated recovery rehearsal uses the real backup engine to export, validate,
 
 A persistent disk is not itself a backup. Keep dated DizyBackup exports outside Render. The provider snapshot-rollback procedure is destructive and remains deferred until live-execution security work justifies an isolated infrastructure exercise.
 
-## Pattern and data limitations
+## Pattern, market-data and research limitations
 
 **Elliott-lite** and **Wyckoff-lite** are visual heuristics, not guaranteed textbook classifications. Neither silently contributes to DizySignals.
 
 Visible DOM depth can be cancelled, changed or hidden. Queue-ahead is an educational estimate. Public trade classification and provider coverage are imperfect. Historical DizyFlow exists only where compact evidence was genuinely retained. Paper fills and liquidations are simulator estimates and do not guarantee exchange-equivalent results.
+
+DizyQuant uses aggregated public price-level data. It does not know individual order identity, trader identity, true queue position, hidden liquidity or institutional intent. Experimental absorption/exhaustion candidates are versioned depth-only research rules—not diagnoses or trading calls.
 
 ## Contributing
 
@@ -363,7 +392,7 @@ Visible DOM depth can be cancelled, changed or hidden. Queue-ahead is an educati
 
 Chart rendering uses [TradingView Lightweight Charts](https://www.tradingview.com/lightweight-charts/) with visible attribution. The separate TradingView Advanced Chart is an isolated official widget.
 
-The drawing system, DizySignals engine, DizyBrain review tools, DizyFlow processing, simulators, Replay, Journal, Academy and application interface are original DizyTrades work.
+The drawing system, DizySignals engine, DizyBrain review tools, DizyFlow processing, DizyQuant research system, simulators, Replay, Journal, Academy and application interface are original DizyTrades work.
 
 ## Disclaimer
 
