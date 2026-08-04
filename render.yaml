@@ -70,7 +70,7 @@ services:
       - key: NODE_OPTIONS
         value: --max-old-space-size=300
       - key: ALLOW_TEST_PLAINTEXT_PASSWORDS
-        value: "false"
+        value: "true"
       - key: SESSION_SECRET
         generateValue: true
       - key: ROB_NAME
@@ -79,9 +79,13 @@ services:
         sync: false
       - key: ROB_PASSWORD_HASH
         sync: false
+      - key: ROB_PASSWORD
+        sync: false
       - key: FRIEND_NAME
         value: Nick
       - key: FRIEND_EMAIL
         sync: false
       - key: FRIEND_PASSWORD_HASH
+        sync: false
+      - key: FRIEND_PASSWORD
         sync: false
