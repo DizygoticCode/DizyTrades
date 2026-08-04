@@ -44,7 +44,7 @@ export type DizyQuantAggressiveFlowState=Readonly<{
 const finitePositive=(value:number)=>Number.isFinite(value)&&value>0;
 const finiteNonNegative=(value:number)=>Number.isFinite(value)&&value>=0;
 const validNullable=(value:number|null,allowZero:boolean)=>value===null||(allowZero?finiteNonNegative(value):finitePositive(value));
-const cleanTradeId=(value:string)=>{const clean=value.trim();return clean.length>0&&clean.length<=160&&!/[\u0000-\u001f]/.test(clean)};
+const normalisedTradeId=(value:string)=>{const clean=value.trim();return clean.length>0&&clean.length<=160&&!/[\u0000-\u001f]/.test(clean)?clean:null};
 const frozenValues=(values:Partial<Record<DizyQuantMetricId,number|null>>)=>Object.freeze(values)as DizyQuantAggressiveFlowValues;
 
 function unavailable(reason:string):DizyQuantAggressiveFlowState{
@@ -53,16 +53,17 @@ function unavailable(reason:string):DizyQuantAggressiveFlowState{
 
 export function calculateDizyQuantAggressiveFlow(input:DizyQuantAggressiveFlowInput):DizyQuantAggressiveFlowState{
  const{windowFromMs,windowToMs}=input;
- if(!Number.isFinite(windowFromMs)||!Number.isFinite(windowToMs)||windowFromMs<=0||windowToMs-windowFromMs!==DIZYQUANT_AGGRESSIVE_FLOW_WINDOW_MS)return unavailable("Aggressive-flow research requires one exact ten-second event window.");
+ if(!Number.isSafeInteger(windowFromMs)||!Number.isSafeInteger(windowToMs)||windowFromMs<=0||windowToMs-windowFromMs!==DIZYQUANT_AGGRESSIVE_FLOW_WINDOW_MS)return unavailable("Aggressive-flow research requires one exact ten-second event window.");
  if(input.trades.length>DIZYQUANT_MAX_TRADES_PER_WINDOW)return unavailable("Aggressive-flow trade window exceeds the bounded research limit.");
  if(!validNullable(input.openingMidpoint,false)||!validNullable(input.closingMidpoint,false))return unavailable("Midpoint context is invalid.");
  if(!validNullable(input.openingBidDepth25Bps,true)||!validNullable(input.openingAskDepth25Bps,true))return unavailable("Opening visible-depth context is invalid.");
  let previousTime=-Infinity,buyNotional=0,sellNotional=0,buyTradeCount=0,sellTradeCount=0;
  const ids=new Set<string>();
  for(const trade of input.trades){
-  if(!cleanTradeId(trade.tradeId)||ids.has(trade.tradeId))return unavailable("Public trade identity is missing or duplicated.");
-  ids.add(trade.tradeId);
-  if(!Number.isFinite(trade.timestampMs)||trade.timestampMs<windowFromMs||trade.timestampMs>=windowToMs||trade.timestampMs<previousTime)return unavailable("Public trades are outside the half-open window or not event-time ordered.");
+  const tradeId=normalisedTradeId(trade.tradeId);
+  if(tradeId===null||ids.has(tradeId))return unavailable("Public trade identity is missing or duplicated.");
+  ids.add(tradeId);
+  if(!Number.isSafeInteger(trade.timestampMs)||trade.timestampMs<windowFromMs||trade.timestampMs>=windowToMs||trade.timestampMs<previousTime)return unavailable("Public trades are outside the half-open window or not event-time ordered.");
   previousTime=trade.timestampMs;
   if(!finitePositive(trade.price)||!finitePositive(trade.quantity)||!finitePositive(trade.notional)||(trade.side!=="buy"&&trade.side!=="sell"))return unavailable("Public trade contains invalid price, quantity, notional or aggressor side.");
   if(trade.side==="buy"){
