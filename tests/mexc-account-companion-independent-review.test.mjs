@@ -131,7 +131,11 @@ test("review: reconciliation is read-only and immutable persistence is mandatory
   assert.match(reconciliationSource, /decisionEligible:\s*false/);
   assert.doesNotMatch(reconciliationSource, /submitManualOrder|closeManual|reverseManual|flattenManual/);
   assert.doesNotMatch(reconciliationSource, /requestMexcPrivateRead/);
-  assert.match(companionSource, /account\.state\.status !== "fresh"/);
+  assert.match(companionSource, /function freshAccountSnapshot/);
+  assert.match(companionSource, /return state\.status === "fresh" \? state\.snapshot : null/);
+  assert.match(companionSource, /const snapshot = freshAccountSnapshot\(account\.state\)/);
+  assert.match(companionSource, /if \(!snapshot\)/);
+  assert.match(companionSource, /reason:\s*"account-state-not-fresh"/);
 });
 
 test("review: shadow audit is append-only, tamper-evident and rejects sensitive fields", () => {
