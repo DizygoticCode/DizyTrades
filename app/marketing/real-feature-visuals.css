@@ -48,7 +48,7 @@
 
 .feature-visual .visual-signals {
   aspect-ratio: 569 / 75;
-  background-image: url('/marketing/feature-signals.svg');
+  background-image: url('/marketing/feature-signals.webp');
 }
 
 /* DizyFlow toolbar and DOM are two separate, complete screenshots. */
@@ -85,23 +85,23 @@
 .feature-visual .visual-flow::before {
   width: 100%;
   aspect-ratio: 659 / 71;
-  background-image: url('/marketing/feature-flow.svg');
+  background-image: url('/marketing/feature-flow.webp');
 }
 
 .feature-visual .visual-flow::after {
   width: min(44%, 250px);
   aspect-ratio: 184 / 443;
-  background-image: url('/marketing/feature-dom.svg');
+  background-image: url('/marketing/feature-dom.webp');
 }
 
 .feature-visual .visual-paper {
   aspect-ratio: 1021 / 314;
-  background-image: url('/marketing/feature-paper.svg');
+  background-image: url('/marketing/feature-paper.webp');
 }
 
 .feature-visual .visual-school {
   aspect-ratio: 730 / 953;
-  background-image: url('/marketing/feature-learning.svg');
+  background-image: url('/marketing/feature-learning.webp');
 }
 
 @media (max-width: 760px) {

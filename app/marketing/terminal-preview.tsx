@@ -8,7 +8,7 @@ export default function TerminalPreview() {
       contain
       label="DizyTrades Terminal"
       priority
-      src="/marketing/hero-terminal.svg"
+      src="/marketing/hero-terminal.webp"
     />
   );
 }
