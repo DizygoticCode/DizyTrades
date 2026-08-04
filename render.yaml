@@ -38,9 +38,9 @@ services:
       - key: DIZYFLOW_LOW_MEMORY_MODE
         value: "true"
       - key: DIZYFLOW_DEPTH_TRANSPORT
-        value: rest
+        value: ws
       - key: MEXC_FUTURES_WS_URL
-        value: wss://api.mexc.com/edge
+        value: wss://contract.mexc.com/edge
       - key: MEXC_DEPTH_POLL_MS
         value: "2000"
       - key: DIZYFLOW_HISTORY_MINUTES
