@@ -20,6 +20,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - name: Diagnose MEXC Futures transport contract
+        run: node --conditions=react-server --import tsx --test tests/mexc-futures-websocket-origin.test.mjs
+      - name: Diagnose owner read-only transport contract
+        run: node --conditions=react-server --import tsx --test tests/mexc-private-readonly.test.mjs
+      - name: Diagnose owner permission proof contract
+        run: node --conditions=react-server --import tsx --test tests/mexc-readonly-permission-proof.test.mjs
       - run: npm test
       - run: npm run build
 
