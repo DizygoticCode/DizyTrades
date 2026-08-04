@@ -23,13 +23,13 @@ services:
         value: /var/data/dizytrades
       - key: LIVE_TRADING_ENABLED
         value: "false"
-      - key: MEXC_ACCOUNT_COMPANION_ENABLED
+      - key: OWNER_MEXC_ACCOUNT_COMPANION_ENABLED
         value: "false"
-      - key: MEXC_READONLY_API_KEY
+      - key: OWNER_MEXC_READONLY_API_KEY
         sync: false
-      - key: MEXC_READONLY_API_SECRET
+      - key: OWNER_MEXC_READONLY_API_SECRET
         sync: false
-      - key: MEXC_READONLY_PERMISSION_ATTESTATION
+      - key: OWNER_MEXC_READONLY_PERMISSION_ATTESTATION
         sync: false
       - key: PUBLIC_SIGNUP_ENABLED
         value: "true"
