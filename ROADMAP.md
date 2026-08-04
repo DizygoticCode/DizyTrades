@@ -125,27 +125,27 @@ The implementation programme is finished. DizyQuant is not “finished science�
 
 See [docs/DIZYQUANT_RESEARCH_CONTRACT.md](docs/DIZYQUANT_RESEARCH_CONTRACT.md) and the bounded public `/research` page.
 
-## Active programme
-
-### 5. Read-only MEXC Account Companion and shadow reconciliation
+### 5. Read-only MEXC Account Companion and shadow reconciliation — complete
 
 No order permission and no browser-held exchange credentials.
 
 - [x] owner-scoped server-side read-only MEXC credential activation
 - [x] executable proof that the software requests no write capability
-- [ ] live balance, position and account-health ingestion
-- [ ] stale/private-data failure handling on real provider reads
-- [ ] exchange-state reconciliation
-- [ ] hypothetical order preview beside real account state
-- [ ] immutable persistent shadow audit log
-- [ ] owner-controlled credential removal and shutdown workflow
-- [ ] independent review of the complete read-only boundary
+- [x] live balance, position and account-health ingestion
+- [x] stale/private-data failure handling on provider reads
+- [x] exchange-state reconciliation
+- [x] hypothetical order preview beside real account state
+- [x] immutable persistent shadow audit log
+- [x] owner-controlled credential removal and shutdown workflow
+- [x] independent review of the complete read-only boundary
 
-The credential activation contract is documented in [docs/MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION.md](docs/MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION.md). Operator read-only attestation and the GET-only software proof are distinct from provider-side permission introspection.
+The credential activation contract is documented in [docs/MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION.md](docs/MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION.md). The shutdown runbook is recorded in [docs/MEXC_OWNER_CONNECTION_SHUTDOWN.md](docs/MEXC_OWNER_CONNECTION_SHUTDOWN.md), and the completed boundary review is recorded in [docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md](docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md).
 
-This programme must not create an order route or weaken `LIVE_TRADING_ENABLED=false`.
+The software proves its GET-only allowlist, owner authorization, freshness model, non-executable preview, immutable shadow evidence and fail-closed shutdown ordering. Provider-side key permissions remain under MEXC control, and the deployed owner should recheck the live DizyAccount state after any key, IP-whitelist, environment or provider-policy change.
 
-## Next focused programme
+This completed programme did not create an order route and did not weaken `LIVE_TRADING_ENABLED=false`.
+
+## Active programme
 
 ### 6. Liquidity heatmap presentation and DizyFlow evidence quality
 
@@ -212,9 +212,9 @@ Useful for public charting, market study, deterministic signals, public order-fl
 
 DizyPaper Fidelity V2, workflow/accessibility, DizyQuant’s six-slice foundation, deployment observation, application recovery rehearsal and focused independent reviews are complete. Runtime, production-boundary and repository assumptions are executable CI contracts.
 
-### Read-only Account Companion — in progress
+### Read-only Account Companion — achieved
 
-The owner credential boundary and GET-only proof are complete. The milestone completes when live private account state can be ingested, labelled for freshness and reconciled safely without any exchange write permission.
+The owner-only companion can ingest and label private account state, add provider risk context, reconcile it with DizyPaper, calculate non-executable previews, persist tamper-evident shadow evidence and fail closed through an owner-controlled shutdown. It remains strictly separate from guarded live execution.
 
 ### Evidence-qualified DizyQuant promotion — conditional
 
