@@ -54,7 +54,7 @@ test("homepage and navigation expose only the bounded DizyQuant research surface
  assert.match(marketing,/\["research", "VERSIONED MICROSTRUCTURE RESEARCH"/);
  assert.match(marketing,/if \(id === "research"\) return "\/research"/);
  assert.match(marketing,/67 versioned metric identities/);
- assert.match(marketing,/zero validated and zero signal-eligible/i);
+ assert.match(marketing,/cannot influence production signals/i);
  assert.match(header,/href="\/research"[^>]*>DizyQuant/);
  for(const source of[marketing,header]){
   const imports=source.split("\n").filter(line=>/^\s*import\b/.test(line)).join("\n");
