@@ -63,10 +63,18 @@ jobs:
       - name: Verify rehearsal helpers
         run: node --test tests/render-rehearsal.test.mjs tests/dizyflow-deployment-acceptance.test.mjs
 
+      - name: Record pull-request boundary
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "Pull-request runs validate the bounded observer helpers only."
+          echo "Exact-commit Render observation runs after merge when the main push can become the live deploy."
+
       - name: Install Chromium for deployed acceptance
+        if: github.event_name != 'pull_request'
         run: npx playwright install --with-deps chromium
 
       - name: Resolve expected deploy commit
+        if: github.event_name != 'pull_request'
         env:
           DISPATCH_EXPECTED_COMMIT: ${{ inputs.expected_commit }}
         run: |
@@ -79,6 +87,7 @@ jobs:
           fi
 
       - name: Verify encrypted Render credentials are available
+        if: github.event_name != 'pull_request'
         run: |
           if [[ -z "$RENDER_API_KEY" ]]; then
             echo "RENDER_API_KEY repository secret is unavailable." >&2
@@ -90,13 +99,15 @@ jobs:
           fi
 
       - name: Observe Render service deploy and production health
+        if: github.event_name != 'pull_request'
         run: node scripts/render-rehearsal.mjs
 
       - name: Exercise deployed DizyFlow presentation
+        if: github.event_name != 'pull_request'
         run: node scripts/dizyflow-deployment-acceptance.mjs
 
       - name: Upload sanitised rehearsal evidence
-        if: always()
+        if: ${{ always() && github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v4
         with:
           name: render-rehearsal-${{ github.run_id }}
