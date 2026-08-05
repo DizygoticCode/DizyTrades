@@ -1,4 +1,10 @@
 export type TimedPoint = { time: number };
+
+export const chartSeriesSyncKey = (
+  symbol: string,
+  timeframe: string,
+  incarnation: number,
+) => `${incarnation}:${symbol}:${timeframe}`;
 export type SeriesSync = "initial" | "append" | "replace-latest" | "historical-correction" | "market-replacement" | "none";
 
 const equal = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
