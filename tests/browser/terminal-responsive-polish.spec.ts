@@ -62,10 +62,18 @@ test("terminal controls remain contained with DOM and settings open", async ({ p
   const flowGeometry = await contained(flowGroup);
   expect(flowGeometry.scrollWidth).toBeLessThanOrEqual(flowGeometry.clientWidth + 1);
 
+  const flowMaster = page.locator(".dizyflow-master");
+  if ((await flowMaster.getAttribute("aria-pressed")) !== "true") {
+    await flowMaster.click();
+  }
+  await expect(flowMaster).toHaveAttribute("aria-pressed", "true");
+
   const domToggle = flowGroup.getByRole("button", { name: "DOM", exact: true });
   if ((await domToggle.getAttribute("aria-pressed")) !== "true") {
     await domToggle.click();
   }
+  await expect(domToggle).toHaveAttribute("aria-pressed", "true");
+
   const dom = page.locator(".dizyflow-dom");
   await expect(dom).toBeVisible();
   const workspace = page.locator(".workspace");
