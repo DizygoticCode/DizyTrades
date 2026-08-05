@@ -1,0 +1,28 @@
+/* Narrow-screen completion for the reserved terminal action row. */
+@media (max-width: 760px) {
+  body:has(.terminal-shell) .terminal-body-layout {
+    padding-top: 98px;
+  }
+
+  body:has(.terminal-shell) .global-quick-actions {
+    top: 68px;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: auto;
+    left: auto;
+    flex-direction: column-reverse;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    justify-content: flex-start;
+    gap: 6px;
+    width: max-content;
+    max-width: calc(100vw - 16px);
+  }
+
+  body:has(.terminal-shell) .global-quick-actions .command-palette-floating,
+  body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger {
+    width: auto !important;
+    min-width: max-content !important;
+    max-width: calc(100vw - 16px);
+    flex: 0 0 auto;
+  }
+}
