@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CommandPaletteMounted } from "./command-palette-mounted";
+import { HeatmapSettingsPortal } from "./heatmap-settings-portal";
 import "./globals.css";
 import "./responsive-audit.css";
 import "./accessibility-audit.css";
@@ -10,6 +11,7 @@ import "./terminal-responsive-polish.css";
 import "./terminal-responsive-mobile.css";
 import "./terminal-scrollbar-polish.css";
 import "./terminal-topbar-polish.css";
+import "./heatmap-settings.css";
 
 export const metadata: Metadata = {
   title: "DizyTrades — DizyCharts & DizySignals",
@@ -30,6 +32,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <CommandPaletteMounted />
+        <HeatmapSettingsPortal />
         {children}
       </body>
     </html>
