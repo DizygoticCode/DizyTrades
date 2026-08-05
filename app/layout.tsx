@@ -9,6 +9,7 @@ import "./terminal-visual-fixes.css";
 import "./terminal-responsive-polish.css";
 import "./terminal-responsive-mobile.css";
 import "./terminal-scrollbar-polish.css";
+import "./terminal-topbar-polish.css";
 
 export const metadata: Metadata = {
   title: "DizyTrades — DizyCharts & DizySignals",
