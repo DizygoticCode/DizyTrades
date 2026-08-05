@@ -122,9 +122,22 @@ test("terminal controls remain contained with DOM and settings open", async ({ p
     terminal.appendChild(rail);
     const article = rail.querySelector<HTMLElement>("article")!;
     const message = article.querySelector<HTMLElement>("span:first-of-type")!;
+    const title = message.querySelector<HTMLElement>("b")!;
+    const detail = message.querySelector<HTMLElement>("small")!;
+    const articleRect = article.getBoundingClientRect();
+    const messageRect = message.getBoundingClientRect();
+    const titleRect = title.getBoundingClientRect();
+    const detailRect = detail.getBoundingClientRect();
+    const textGroupCenter =
+      (Math.min(titleRect.top, detailRect.top) +
+        Math.max(titleRect.bottom, detailRect.bottom)) /
+      2;
     const result = {
-      articleHeight: article.getBoundingClientRect().height,
-      messageHeight: message.getBoundingClientRect().height,
+      articleHeight: articleRect.height,
+      messageHeight: messageRect.height,
+      centreDelta: Math.abs(
+        textGroupCenter - (articleRect.top + articleRect.bottom) / 2,
+      ),
       justifyContent: getComputedStyle(message).justifyContent,
       alignSelf: getComputedStyle(message).alignSelf,
       textAlign: getComputedStyle(message).textAlign,
@@ -133,7 +146,8 @@ test("terminal controls remain contained with DOM and settings open", async ({ p
     return result;
   });
   expect(toastGeometry.articleHeight).toBe(42);
-  expect(toastGeometry.messageHeight).toBeGreaterThanOrEqual(40);
+  expect(toastGeometry.messageHeight).toBeGreaterThanOrEqual(28);
+  expect(toastGeometry.centreDelta).toBeLessThanOrEqual(1.5);
   expect(toastGeometry.justifyContent).toBe("center");
   expect(toastGeometry.alignSelf).toBe("stretch");
   expect(toastGeometry.textAlign).toBe("center");
