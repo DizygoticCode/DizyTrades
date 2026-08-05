@@ -13,7 +13,7 @@ const viewport = {
   effectivePriceStep: 10,
 };
 
-test("render-store notifications leave the current animation frame before requesting chart work", async () => {
+test("render-store subscribers observe committed snapshots synchronously without animation frames", () => {
   const originalAnimationFrame = globalThis.requestAnimationFrame;
   let animationFrameCalls = 0;
   globalThis.requestAnimationFrame = () => {
@@ -22,20 +22,23 @@ test("render-store notifications leave the current animation frame before reques
   };
 
   const store = new FlowRenderStore(DEFAULT_ORDER_FLOW_SETTINGS);
-  let notifications = 0;
+  const snapshots = [];
   const unsubscribe = store.subscribe(() => {
-    notifications += 1;
+    snapshots.push({
+      enabled: store.getSnapshot().enabled,
+      generation: store.getSnapshot().generation,
+    });
   });
 
   try {
     store.update({ enabled: true });
+    assert.deepEqual(snapshots, [{ enabled: true, generation: "" }]);
     store.update({ generation: "BTC_USDT" });
-    assert.equal(notifications, 0);
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    assert.equal(notifications, 1);
+    assert.deepEqual(snapshots, [
+      { enabled: true, generation: "" },
+      { enabled: true, generation: "BTC_USDT" },
+    ]);
     assert.equal(animationFrameCalls, 0);
-    assert.equal(store.getSnapshot().enabled, true);
-    assert.equal(store.getSnapshot().generation, "BTC_USDT");
   } finally {
     unsubscribe();
     store.destroy();
@@ -45,15 +48,14 @@ test("render-store notifications leave the current animation frame before reques
   }
 });
 
-test("destroy cancels a queued render-store notification", async () => {
+test("destroy removes synchronous render-store subscribers", () => {
   const store = new FlowRenderStore(DEFAULT_ORDER_FLOW_SETTINGS);
   let notifications = 0;
   store.subscribe(() => {
     notifications += 1;
   });
-  store.update({ enabled: true });
   store.destroy();
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  store.update({ enabled: true });
   assert.equal(notifications, 0);
 });
 
