@@ -78,7 +78,16 @@ export function OrderFlowToolbar({
   return (
     <div
       className={`dizyflow-controls ${presentation.recovering ? "recovering" : ""}`}
+      data-flow-bubbles-drawn={renderer.bubblesDrawn}
+      data-flow-effective-time-slice-ms={renderer.effectiveTimeSliceMs}
+      data-flow-heatmap-cells-drawn={renderer.heatmapCellsDrawn}
+      data-flow-heatmap-segments-drawn={renderer.heatmapSegmentsDrawn}
+      data-flow-paint-call-count={renderer.paintCallCount}
       data-flow-presentation={presentation.statusLabel.toLowerCase()}
+      data-flow-primitive-attached={String(renderer.primitiveAttached)}
+      data-flow-render-bubbles-visible={String(renderer.bubblesVisible)}
+      data-flow-render-enabled={String(renderer.renderEnabled)}
+      data-flow-render-heatmap-visible={String(renderer.heatmapVisible)}
     >
       <button
         aria-pressed={settings.enabled}
