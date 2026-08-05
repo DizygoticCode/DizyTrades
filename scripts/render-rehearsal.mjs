@@ -171,6 +171,29 @@ async function fetchHealth(url) {
   };
 }
 
+export async function waitForHealth(
+  url,
+  {
+    timeoutMs = 90_000,
+    intervalMs = 5_000,
+    readHealth = fetchHealth,
+    pause = delay,
+  } = {},
+) {
+  const startedAt = Date.now();
+  let lastError = null;
+  do {
+    try {
+      return await readHealth(url);
+    } catch (reason) {
+      lastError = reason;
+    }
+    if (Date.now() - startedAt >= timeoutMs) break;
+    await pause(intervalMs);
+  } while (Date.now() - startedAt < timeoutMs);
+  throw lastError ?? new Error("Production health did not become available.");
+}
+
 async function listDeploys(serviceId, apiKey) {
   const payload = await requestJson(
     `${API_ORIGIN}/services/${encodeURIComponent(serviceId)}/deploys?limit=20`,
@@ -223,7 +246,7 @@ export async function runRenderRehearsal(environment = process.env) {
     expectedCommit,
     timeoutMs: timeoutMinutes * 60_000,
   });
-  const health = await fetchHealth(buildHealthUrl(service));
+  const health = await waitForHealth(buildHealthUrl(service));
   const eventsPayload = await requestJson(
     `${API_ORIGIN}/services/${encodeURIComponent(serviceId)}/events?limit=20`,
     apiKey,

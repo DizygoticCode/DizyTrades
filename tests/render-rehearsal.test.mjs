@@ -6,6 +6,7 @@ import {
   findExpectedDeploy,
   flattenService,
   normaliseCollection,
+  waitForHealth,
 } from "../scripts/render-rehearsal.mjs";
 
 test("normalises Render list response variants", () => {
@@ -65,4 +66,46 @@ test("builds health URL from configured, nested or slug-derived service data", (
     "https://dizytrades.onrender.com/api/health",
   );
   assert.throws(() => buildHealthUrl({}), /Render service URL is required/);
+});
+
+test("retries transient production health failures after a deploy becomes live", async () => {
+  let attempts = 0;
+  const pauses = [];
+  const health = await waitForHealth("https://dizytrades.example/api/health", {
+    timeoutMs: 10_000,
+    intervalMs: 250,
+    readHealth: async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("Production health returned HTTP 502.");
+      return {
+        status: 200,
+        ok: true,
+        service: "dizytrades",
+        mode: "test",
+        liveTradingEnabled: false,
+        checkedAt: "2026-08-05T00:00:00.000Z",
+      };
+    },
+    pause: async (milliseconds) => { pauses.push(milliseconds); },
+  });
+  assert.equal(attempts, 2);
+  assert.deepEqual(pauses, [250]);
+  assert.equal(health.status, 200);
+  assert.equal(health.liveTradingEnabled, false);
+});
+
+test("health polling retains the final failure when the warm-up window expires", async () => {
+  let attempts = 0;
+  await assert.rejects(
+    waitForHealth("https://dizytrades.example/api/health", {
+      timeoutMs: 0,
+      readHealth: async () => {
+        attempts += 1;
+        throw new Error("Production health returned HTTP 503.");
+      },
+      pause: async () => {},
+    }),
+    /HTTP 503/,
+  );
+  assert.equal(attempts, 1);
 });

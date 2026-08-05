@@ -73,6 +73,12 @@ async function readRendererDiagnostics(toolbar) {
     heatmapSegmentsDrawn,
     bubblesDrawn,
     effectiveTimeSliceMs,
+    snapshotEnabled,
+    snapshotHeatmapVisible,
+    snapshotBubblesVisible,
+    snapshotHeatmapObservations,
+    snapshotHeatmapTiles,
+    snapshotTrades,
   ] = await Promise.all([
     toolbar.getAttribute("data-flow-primitive-attached"),
     toolbar.getAttribute("data-flow-render-enabled"),
@@ -83,6 +89,12 @@ async function readRendererDiagnostics(toolbar) {
     toolbar.getAttribute("data-flow-heatmap-segments-drawn"),
     toolbar.getAttribute("data-flow-bubbles-drawn"),
     toolbar.getAttribute("data-flow-effective-time-slice-ms"),
+    toolbar.getAttribute("data-flow-snapshot-enabled"),
+    toolbar.getAttribute("data-flow-snapshot-heatmap-visible"),
+    toolbar.getAttribute("data-flow-snapshot-bubbles-visible"),
+    toolbar.getAttribute("data-flow-snapshot-heatmap-observations"),
+    toolbar.getAttribute("data-flow-snapshot-heatmap-tiles"),
+    toolbar.getAttribute("data-flow-snapshot-trades"),
   ]);
   const finiteNumber = (value) => {
     if (value === null) return null;
@@ -100,7 +112,92 @@ async function readRendererDiagnostics(toolbar) {
     heatmapSegmentsDrawn: finiteNumber(heatmapSegmentsDrawn),
     bubblesDrawn: finiteNumber(bubblesDrawn),
     effectiveTimeSliceMs: finiteNumber(effectiveTimeSliceMs),
+    snapshotAvailable: snapshotEnabled !== null,
+    snapshotEnabled: snapshotEnabled === "true",
+    snapshotHeatmapVisible: snapshotHeatmapVisible === "true",
+    snapshotBubblesVisible: snapshotBubblesVisible === "true",
+    snapshotHeatmapObservations: finiteNumber(snapshotHeatmapObservations),
+    snapshotHeatmapTiles: finiteNumber(snapshotHeatmapTiles),
+    snapshotTrades: finiteNumber(snapshotTrades),
   };
+}
+
+async function waitForRendererReady(page, toolbar, timeout = 45_000) {
+  const deadline = Date.now() + timeout;
+  let state = await readRendererDiagnostics(toolbar);
+  let canvas = await fingerprint(page);
+  while (Date.now() < deadline) {
+    const canvasReady = canvas.canvasCount > 0 && canvas.paintedPixels > 0;
+    const primitiveReady = !state.available || state.primitiveAttached;
+    const snapshotReady =
+      !state.snapshotAvailable ||
+      (state.snapshotEnabled &&
+        state.snapshotHeatmapVisible &&
+        state.snapshotBubblesVisible);
+    if (canvasReady && primitiveReady && snapshotReady) {
+      return { ready: true, state, fingerprint: canvas };
+    }
+    await settleRenderer(page, 500);
+    state = await readRendererDiagnostics(toolbar);
+    canvas = await fingerprint(page);
+  }
+  return { ready: false, state, fingerprint: canvas };
+}
+
+async function waitForRendererBoolean(page, toolbar, key, expected, timeout = 10_000) {
+  const deadline = Date.now() + timeout;
+  let state = await readRendererDiagnostics(toolbar);
+  while (Date.now() < deadline) {
+    if (!state.available || state[key] === expected) return state;
+    await settleRenderer(page, 250);
+    state = await readRendererDiagnostics(toolbar);
+  }
+  return state;
+}
+
+async function waitForSnapshotBoolean(page, toolbar, key, expected, timeout = 10_000) {
+  const deadline = Date.now() + timeout;
+  let state = await readRendererDiagnostics(toolbar);
+  while (Date.now() < deadline) {
+    if (!state.snapshotAvailable || state[key] === expected) return state;
+    await settleRenderer(page, 250);
+    state = await readRendererDiagnostics(toolbar);
+  }
+  return state;
+}
+
+async function waitForHeatmapPainted(page, toolbar, timeout = 45_000) {
+  const deadline = Date.now() + timeout;
+  let state = await readRendererDiagnostics(toolbar);
+  while (Date.now() < deadline) {
+    const drawn = Math.max(state.heatmapCellsDrawn ?? 0, state.heatmapSegmentsDrawn ?? 0);
+    const snapshotSatisfied =
+      !state.snapshotAvailable ||
+      (state.snapshotEnabled && state.snapshotHeatmapVisible);
+    if (
+      state.available &&
+      state.renderEnabled &&
+      state.heatmapVisible &&
+      snapshotSatisfied &&
+      drawn > 0
+    ) {
+      return state;
+    }
+    await settleRenderer(page, 500);
+    state = await readRendererDiagnostics(toolbar);
+  }
+  return state;
+}
+
+async function waitForEffectiveTimeSlice(page, toolbar, expected, timeout = 10_000) {
+  const deadline = Date.now() + timeout;
+  let state = await readRendererDiagnostics(toolbar);
+  while (Date.now() < deadline) {
+    if (!state.available || state.effectiveTimeSliceMs === expected) return state;
+    await settleRenderer(page, 250);
+    state = await readRendererDiagnostics(toolbar);
+  }
+  return state;
 }
 
 async function ensurePressed(button, value) {
@@ -134,6 +231,7 @@ const report = {
   serviceOrigin: serviceUrl.origin,
   viewerSession: false,
   viewerEndpointStatus: null,
+  profileEndpointStatus: null,
   viewerCookiePresent: false,
   onboardingDismissed: false,
   presentation: "unknown",
@@ -158,21 +256,38 @@ try {
   await page.waitForLoadState("load", { timeout: 30_000 }).catch(() => undefined);
   await settle(page, 250);
 
-  const observeViewerResponse = (response) => {
+  let resolveProfileResponse;
+  const profileResponsePromise = new Promise((resolve) => {
+    resolveProfileResponse = resolve;
+  });
+  const observeTerminalResponse = (response) => {
     let pathname;
     try {
       pathname = new URL(response.url()).pathname.replace(/\/+$/, "");
     } catch {
       return;
     }
-    if (pathname !== "/api/auth/viewer" || response.request().method() !== "POST") return;
-    report.viewerEndpointStatus = response.status();
+    const method = response.request().method();
+    if (pathname === "/api/auth/viewer" && method === "POST") {
+      report.viewerEndpointStatus = response.status();
+    }
+    if (pathname === "/api/profile" && method === "GET") {
+      report.profileEndpointStatus = response.status();
+      resolveProfileResponse(response);
+    }
   };
-  page.on("response", observeViewerResponse);
+  page.on("response", observeTerminalResponse);
   await viewerButton.click();
   await page.waitForURL(/\/terminal(?:\?|$)/, { timeout: 30_000 });
-  await settle(page, 250);
-  page.off("response", observeViewerResponse);
+  const profileResponse = await Promise.race([
+    profileResponsePromise,
+    page.waitForTimeout(30_000).then(() => null),
+  ]);
+  page.off("response", observeTerminalResponse);
+  if (!profileResponse) failure("terminal profile hydration was not observed");
+  await profileResponse.finished();
+  if (!profileResponse.ok()) failure(`profile endpoint returned HTTP ${profileResponse.status()}`);
+  await settleRenderer(page, 500);
 
   report.viewerCookiePresent = (await context.cookies(serviceUrl.origin)).some(
     (cookie) => cookie.httpOnly && cookie.secure && cookie.path === "/",
@@ -201,6 +316,7 @@ try {
   const master = toolbar.locator(".dizyflow-master");
   await master.waitFor({ state: "visible", timeout: 30_000 });
   await ensurePressed(master, true);
+  await waitForSnapshotBoolean(page, toolbar, "snapshotEnabled", true);
   report.presentation = await waitForPresentation(page, toolbar);
 
   const components = toolbar.getByRole("group", { name: "DizyFlow components" });
@@ -208,37 +324,78 @@ try {
   const bubbles = components.getByRole("button", { name: "Bubbles" });
   await ensurePressed(heatmap, true);
   await ensurePressed(bubbles, true);
-  await settleRenderer(page, 1_500);
+  await waitForSnapshotBoolean(page, toolbar, "snapshotHeatmapVisible", true);
+  await waitForSnapshotBoolean(page, toolbar, "snapshotBubblesVisible", true);
 
-  const bothOn = await fingerprint(page);
-  const bothRenderer = await readRendererDiagnostics(toolbar);
-  if (bothOn.canvasCount < 1 || bothOn.paintedPixels < 1) failure("chart canvases contain no rendered pixels");
-  if (
-    bothRenderer.available &&
-    (!bothRenderer.primitiveAttached || !bothRenderer.renderEnabled)
-  ) {
-    failure("DizyFlow renderer primitive was not attached and enabled");
+  const readiness = await waitForRendererReady(page, toolbar);
+  const initialState = readiness.state;
+  const initialCanvas = readiness.fingerprint;
+  report.renderer = { readiness: initialState };
+  report.rendering = {
+    readinessChecksum: initialCanvas.checksum,
+    readinessCanvasCount: initialCanvas.canvasCount,
+    readinessPaintedPixels: initialCanvas.paintedPixels,
+    readinessSampledBytes: initialCanvas.sampledBytes,
+  };
+  if (!readiness.ready) {
+    failure(
+      `renderer readiness timed out (primitive=${initialState.primitiveAttached}, snapshotAvailable=${initialState.snapshotAvailable}, snapshotEnabled=${initialState.snapshotEnabled}, snapshotHeatmap=${initialState.snapshotHeatmapVisible}, snapshotBubbles=${initialState.snapshotBubblesVisible})`,
+    );
   }
 
+  // Prime the custom primitive after profile hydration. The paint diagnostics are
+  // produced by an actual primitive draw, so a known off/on cycle establishes a
+  // heatmap-on baseline without treating initial diagnostic defaults as product state.
   await ensurePressed(heatmap, false);
+  await waitForSnapshotBoolean(page, toolbar, "snapshotHeatmapVisible", false);
+  await waitForRendererBoolean(page, toolbar, "heatmapVisible", false);
+  await ensurePressed(heatmap, true);
+  await waitForSnapshotBoolean(page, toolbar, "snapshotHeatmapVisible", true);
+  const primedHeatmapRenderer = await waitForHeatmapPainted(page, toolbar);
+  const primedHeatmapDrawn = Math.max(
+    primedHeatmapRenderer.heatmapCellsDrawn ?? 0,
+    primedHeatmapRenderer.heatmapSegmentsDrawn ?? 0,
+  );
+  if (primedHeatmapDrawn < 1) {
+    failure(
+      `heatmap renderer produced no drawn cells after priming (observations=${primedHeatmapRenderer.snapshotHeatmapObservations ?? 0}, tiles=${primedHeatmapRenderer.snapshotHeatmapTiles ?? 0})`,
+    );
+  }
+  await settleRenderer(page, 500);
+  const bothOn = await fingerprint(page);
+  const bothRenderer = await readRendererDiagnostics(toolbar);
+
+  await ensurePressed(heatmap, false);
+  const heatmapOffSnapshot = await waitForSnapshotBoolean(
+    page,
+    toolbar,
+    "snapshotHeatmapVisible",
+    false,
+  );
+  const heatmapOffRenderer = await waitForRendererBoolean(page, toolbar, "heatmapVisible", false);
   const heatmapOffObservation = await observeFingerprintChange(page, bothOn);
   const heatmapOff = heatmapOffObservation.fingerprint;
-  const heatmapOffRenderer = await readRendererDiagnostics(toolbar);
   const heatmapOffState = !(await pressed(heatmap));
 
   await ensurePressed(heatmap, true);
+  const heatmapRestoredSnapshot = await waitForSnapshotBoolean(
+    page,
+    toolbar,
+    "snapshotHeatmapVisible",
+    true,
+  );
+  const heatmapRestoredRenderer = await waitForHeatmapPainted(page, toolbar);
   const heatmapRestoredObservation = await observeFingerprintChange(page, heatmapOff);
   const heatmapRestored = heatmapRestoredObservation.fingerprint;
-  const heatmapRestoredRenderer = await readRendererDiagnostics(toolbar);
   const heatmapRestoredState = await pressed(heatmap);
+  const heatmapSnapshotVisibility =
+    !bothRenderer.snapshotAvailable ||
+    (!heatmapOffSnapshot.snapshotHeatmapVisible &&
+      heatmapRestoredSnapshot.snapshotHeatmapVisible);
   const heatmapRendererVisibility =
-    !bothRenderer.available ||
-    (!heatmapOffRenderer.heatmapVisible && heatmapRestoredRenderer.heatmapVisible);
+    !heatmapOffRenderer.heatmapVisible && heatmapRestoredRenderer.heatmapVisible;
   const heatmapRendererPainted =
-    !bothRenderer.available ||
     Math.max(
-      bothRenderer.heatmapCellsDrawn ?? 0,
-      bothRenderer.heatmapSegmentsDrawn ?? 0,
       heatmapRestoredRenderer.heatmapCellsDrawn ?? 0,
       heatmapRestoredRenderer.heatmapSegmentsDrawn ?? 0,
     ) > 0;
@@ -247,24 +404,40 @@ try {
   report.controls.heatmapIndependent =
     heatmapOffState &&
     heatmapRestoredState &&
+    heatmapSnapshotVisibility &&
     heatmapRendererVisibility &&
     heatmapRendererPainted &&
     report.controls.heatmapVisualChanged;
 
   await ensurePressed(bubbles, false);
+  const bubblesOffSnapshot = await waitForSnapshotBoolean(
+    page,
+    toolbar,
+    "snapshotBubblesVisible",
+    false,
+  );
+  const bubblesOffRenderer = await waitForRendererBoolean(page, toolbar, "bubblesVisible", false);
   const bubblesOffObservation = await observeFingerprintChange(page, heatmapRestored, 3_000);
   const bubblesOff = bubblesOffObservation.fingerprint;
-  const bubblesOffRenderer = await readRendererDiagnostics(toolbar);
   const bubblesOffState = !(await pressed(bubbles));
 
   await ensurePressed(bubbles, true);
+  const bubblesRestoredSnapshot = await waitForSnapshotBoolean(
+    page,
+    toolbar,
+    "snapshotBubblesVisible",
+    true,
+  );
+  const bubblesRestoredRenderer = await waitForRendererBoolean(page, toolbar, "bubblesVisible", true);
   const bubblesRestoredObservation = await observeFingerprintChange(page, bubblesOff, 3_000);
   const bubblesRestored = bubblesRestoredObservation.fingerprint;
-  const bubblesRestoredRenderer = await readRendererDiagnostics(toolbar);
   const bubblesRestoredState = await pressed(bubbles);
+  const bubblesSnapshotVisibility =
+    !bothRenderer.snapshotAvailable ||
+    (!bubblesOffSnapshot.snapshotBubblesVisible &&
+      bubblesRestoredSnapshot.snapshotBubblesVisible);
   const bubblesRendererVisibility =
-    !bothRenderer.available ||
-    (!bubblesOffRenderer.bubblesVisible && bubblesRestoredRenderer.bubblesVisible);
+    !bubblesOffRenderer.bubblesVisible && bubblesRestoredRenderer.bubblesVisible;
   report.controls.bubblesVisualEvidencePresent =
     Math.max(bothRenderer.bubblesDrawn ?? 0, bubblesRestoredRenderer.bubblesDrawn ?? 0) > 0;
   report.controls.bubblesVisualChanged =
@@ -272,6 +445,7 @@ try {
   report.controls.bubblesIndependent =
     bubblesOffState &&
     bubblesRestoredState &&
+    bubblesSnapshotVisibility &&
     bubblesRendererVisibility &&
     (!report.controls.bubblesVisualEvidencePresent || report.controls.bubblesVisualChanged);
 
@@ -290,9 +464,9 @@ try {
     window.dispatchEvent(new CustomEvent(eventName, { detail: next }));
     return { original, applied: JSON.parse(localStorage.getItem(key) ?? "null") };
   }, { key: tuningKey, eventName: tuningEvent });
+  const tunedRenderer = await waitForEffectiveTimeSlice(page, toolbar, 30_000);
   const tunedObservation = await observeFingerprintChange(page, bubblesRestored);
   const tuned = tunedObservation.fingerprint;
-  const tunedRenderer = await readRendererDiagnostics(toolbar);
   await page.evaluate(({ key, eventName, original }) => {
     if (original === null) localStorage.removeItem(key);
     else localStorage.setItem(key, original);
@@ -317,6 +491,9 @@ try {
   };
   report.renderer = {
     diagnosticsAvailable: bothRenderer.available,
+    snapshotAvailable: bothRenderer.snapshotAvailable,
+    initial: initialState,
+    primed: primedHeatmapRenderer,
     bothOn: bothRenderer,
     heatmapOff: heatmapOffRenderer,
     heatmapRestored: heatmapRestoredRenderer,
@@ -336,7 +513,7 @@ try {
     sampledBytes: bothOn.sampledBytes,
   };
 
-  if (!report.controls.heatmapIndependent) failure("heatmap layer did not produce independent renderer and canvas evidence");
+  if (!report.controls.heatmapIndependent) failure("heatmap layer did not produce independent store, renderer and canvas evidence");
   if (!report.controls.bubblesIndependent) failure("trade-bubble layer did not preserve independent bounded control evidence");
   if (!report.tuning.rendererChanged) failure("display aggregation tuning did not alter renderer diagnostics or the rendered chart");
   if (!report.viewport.resized || !report.viewport.toolbarVisible) failure("responsive chart acceptance failed");

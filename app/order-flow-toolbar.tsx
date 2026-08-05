@@ -28,6 +28,11 @@ export function OrderFlowToolbar({
   intelligence: DizyFlowIntelligenceSnapshot | null;
 }) {
   const { open, publishFlowDiagnostics } = useDizyBrainWorkspace();
+  const renderSnapshot = useSyncExternalStore(
+    renderStore.subscribe,
+    renderStore.getSnapshot,
+    renderStore.getSnapshot,
+  );
   const renderer = useSyncExternalStore(
     renderStore.subscribeDiagnostics,
     renderStore.getDiagnostics,
@@ -88,6 +93,12 @@ export function OrderFlowToolbar({
       data-flow-render-bubbles-visible={String(renderer.bubblesVisible)}
       data-flow-render-enabled={String(renderer.renderEnabled)}
       data-flow-render-heatmap-visible={String(renderer.heatmapVisible)}
+      data-flow-snapshot-bubbles-visible={String(renderSnapshot.settings.bubblesVisible)}
+      data-flow-snapshot-enabled={String(renderSnapshot.enabled)}
+      data-flow-snapshot-heatmap-observations={renderSnapshot.heatmap.length}
+      data-flow-snapshot-heatmap-tiles={renderSnapshot.heatmapTiles.length}
+      data-flow-snapshot-heatmap-visible={String(renderSnapshot.settings.heatmapVisible)}
+      data-flow-snapshot-trades={renderSnapshot.trades.length}
     >
       <button
         aria-pressed={settings.enabled}

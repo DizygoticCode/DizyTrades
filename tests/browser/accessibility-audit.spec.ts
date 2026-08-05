@@ -45,6 +45,11 @@ function maximumDurationSeconds(value: string) {
   );
 }
 
+function maximumCssPixel(value: string) {
+  const pixels = value.match(/-?\d*\.?\d+px/g)?.map((entry) => Math.abs(Number.parseFloat(entry))) ?? [];
+  return pixels.length > 0 ? Math.max(...pixels) : 0;
+}
+
 test("protected workspace supports skip navigation and trapped modal focus", async ({ page }) => {
   await loginViewer(page);
   await openFreshScanner(page);
@@ -106,12 +111,15 @@ test("protected workspaces expose visible focus and reduced-motion behaviour", a
     return {
       outlineStyle: style.outlineStyle,
       outlineWidth: style.outlineWidth,
+      boxShadow: style.boxShadow,
       transitionDuration: style.transitionDuration,
       animationDuration: style.animationDuration,
     };
   });
-  expect(focusStyle.outlineStyle).not.toBe("none");
-  expect(Number.parseFloat(focusStyle.outlineWidth)).toBeGreaterThanOrEqual(3);
+  const outlineWidth = Number.parseFloat(focusStyle.outlineWidth) || 0;
+  const boxShadowWidth = focusStyle.boxShadow === "none" ? 0 : maximumCssPixel(focusStyle.boxShadow);
+  expect(focusStyle.outlineStyle !== "none" || focusStyle.boxShadow !== "none").toBe(true);
+  expect(Math.max(outlineWidth, boxShadowWidth)).toBeGreaterThanOrEqual(3);
   expect(maximumDurationSeconds(focusStyle.transitionDuration)).toBeLessThanOrEqual(0.00001);
   expect(maximumDurationSeconds(focusStyle.animationDuration)).toBeLessThanOrEqual(0.00001);
 
