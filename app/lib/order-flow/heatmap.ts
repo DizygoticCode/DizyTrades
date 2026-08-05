@@ -2,8 +2,41 @@ import type {LiquidityObservation} from "./types.ts";
 
 export type HeatmapSegment={price:number;fromMs:number;toMs:number;bidQuantity:number;askQuantity:number};
 export type BookmapHeatmapCellRect={left:number;top:number;width:number;height:number};
+export type HeatmapPalette="bookmap"|"thermal"|"ocean";
+export type HeatmapPriceGrouping="auto"|"exchange"|"manual";
+export type HeatmapTimeSliceMs=0|5000|15000|30000|60000;
+export type HeatmapDisplayTuning={palette:HeatmapPalette;minimumTimePixels:number;minimumPricePixels:number;timeSliceMs:HeatmapTimeSliceMs;priceGrouping:HeatmapPriceGrouping;manualPriceStep:number};
 
-export function effectiveHeatmapPriceStep(pricePerPixel:number,exchangeTick:number,targetPixels=4.5){
+export const HEATMAP_DISPLAY_STORAGE_KEY="dizytrades:heatmap-display:v1";
+export const HEATMAP_DISPLAY_EVENT="dizytrades:heatmap-display-change";
+export const DEFAULT_HEATMAP_DISPLAY_TUNING:HeatmapDisplayTuning={palette:"bookmap",minimumTimePixels:6,minimumPricePixels:7,timeSliceMs:15000,priceGrouping:"auto",manualPriceStep:1};
+
+const clamp=(value:unknown,fallback:number,min:number,max:number)=>Number.isFinite(Number(value))?Math.min(max,Math.max(min,Number(value))):fallback;
+const choice=<T extends string|number>(value:unknown,values:readonly T[],fallback:T):T=>values.includes(value as T)?value as T:fallback;
+export function sanitiseHeatmapDisplayTuning(value:unknown):HeatmapDisplayTuning{
+ const input=value&&typeof value==="object"?value as Record<string,unknown>:{},d=DEFAULT_HEATMAP_DISPLAY_TUNING;
+ return{palette:choice(input.palette,["bookmap","thermal","ocean"] as const,d.palette),minimumTimePixels:clamp(input.minimumTimePixels,d.minimumTimePixels,2.5,24),minimumPricePixels:clamp(input.minimumPricePixels,d.minimumPricePixels,3,24),timeSliceMs:choice(input.timeSliceMs,[0,5000,15000,30000,60000] as const,d.timeSliceMs),priceGrouping:choice(input.priceGrouping,["auto","exchange","manual"] as const,d.priceGrouping),manualPriceStep:clamp(input.manualPriceStep,d.manualPriceStep,.00000001,100000)};
+}
+export function readHeatmapDisplayTuning(storage?:Pick<Storage,"getItem">|null):HeatmapDisplayTuning{
+ const source=storage??(typeof window!=="undefined"?window.localStorage:null);if(!source)return DEFAULT_HEATMAP_DISPLAY_TUNING;
+ try{return sanitiseHeatmapDisplayTuning(JSON.parse(source.getItem(HEATMAP_DISPLAY_STORAGE_KEY)??"null"))}catch{return DEFAULT_HEATMAP_DISPLAY_TUNING}
+}
+export function writeHeatmapDisplayTuning(value:unknown,storage?:Pick<Storage,"setItem">|null):HeatmapDisplayTuning{
+ const next=sanitiseHeatmapDisplayTuning(value),source=storage??(typeof window!=="undefined"?window.localStorage:null);try{source?.setItem(HEATMAP_DISPLAY_STORAGE_KEY,JSON.stringify(next))}catch{}
+ if(typeof window!=="undefined")window.dispatchEvent(new CustomEvent(HEATMAP_DISPLAY_EVENT,{detail:next}));return next;
+}
+
+const blendHex=(from:string,to:string,ratio:number)=>{const a=parseInt(from.slice(1),16),b=parseInt(to.slice(1),16),mix=(shift:number)=>Math.round(((a>>shift)&255)*(1-ratio)+((b>>shift)&255)*ratio);return `rgb(${mix(16)},${mix(8)},${mix(0)})`};
+const HEAT_PALETTES:Record<HeatmapPalette,readonly (readonly [number,string])[]>={
+ bookmap:[[0,"#07152f"],[.2,"#064fb5"],[.42,"#00cde8"],[.65,"#ffe34d"],[.83,"#ff6a24"],[1,"#fffbd1"]],
+ thermal:[[0,"#160922"],[.2,"#4b167a"],[.42,"#d22d83"],[.65,"#ff7a35"],[.83,"#ffd54a"],[1,"#fff8d4"]],
+ ocean:[[0,"#061a25"],[.2,"#07546e"],[.42,"#00a6a6"],[.65,"#5ee6bd"],[.83,"#c9f36b"],[1,"#f7ffd6"]],
+};
+export function heatmapColour(value:number,palette:HeatmapPalette="bookmap"){
+ const stops=HEAT_PALETTES[palette],n=Math.max(0,Math.min(1,value));let index=1;while(index<stops.length&&n>stops[index][0])index++;const [a,from]=stops[index-1],[b,to]=stops[Math.min(index,stops.length-1)];return blendHex(from,to,b===a?0:(n-a)/(b-a));
+}
+
+export function effectiveHeatmapPriceStep(pricePerPixel:number,exchangeTick:number,targetPixels=DEFAULT_HEATMAP_DISPLAY_TUNING.minimumPricePixels){
   if(!Number.isFinite(exchangeTick)||exchangeTick<=0)return 1;
   const desired=Math.max(exchangeTick,Math.abs(pricePerPixel)*targetPixels);
   return exchangeTick*Math.max(1,Math.round(desired/exchangeTick));
@@ -15,9 +48,9 @@ export function effectiveHeatmapPriceStep(pricePerPixel:number,exchangeTick:numb
  * rendering keeps their centre accurate while giving them enough screen area to read as
  * continuous resting-liquidity bands rather than one-pixel ticks.
  */
-export function bookmapHeatmapCellRect(x1:number,x2:number,y1:number,y2:number,minimumTimePixels=2.5,minimumPricePixels=3):BookmapHeatmapCellRect|null{
+export function bookmapHeatmapCellRect(x1:number,x2:number,y1:number,y2:number,minimumTimePixels=DEFAULT_HEATMAP_DISPLAY_TUNING.minimumTimePixels,minimumPricePixels=DEFAULT_HEATMAP_DISPLAY_TUNING.minimumPricePixels):BookmapHeatmapCellRect|null{
   if(![x1,x2,y1,y2,minimumTimePixels,minimumPricePixels].every(Number.isFinite)||minimumTimePixels<=0||minimumPricePixels<=0)return null;
-  const centreX=(x1+x2)/2,centreY=(y1+y2)/2,width=Math.max(minimumTimePixels,Math.abs(x2-x1)+.75),height=Math.max(minimumPricePixels,Math.abs(y2-y1)+.5);
+  const centreX=(x1+x2)/2,centreY=(y1+y2)/2,width=Math.max(minimumTimePixels,Math.abs(x2-x1)+.9),height=Math.max(minimumPricePixels,Math.abs(y2-y1)+.75);
   return{left:centreX-width/2,top:centreY-height/2,width,height};
 }
 
