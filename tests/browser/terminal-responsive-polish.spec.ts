@@ -1,8 +1,8 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-const owner = {
-  email: "e2e-owner@dizytrades.local",
-  password: "DizyTrades-E2E-Owner-2026!",
+const testUser = {
+  username: `layout-polish-${Date.now()}`,
+  password: "DizyTrades-Layout-Polish-2026!",
 };
 
 async function dismissOnboarding(page: Page) {
@@ -14,11 +14,19 @@ async function dismissOnboarding(page: Page) {
   }
 }
 
-async function loginOwner(page: Page) {
+async function createStandardUser(page: Page) {
+  await page.goto("/signup");
+  await page.getByLabel("Username (optional)").fill(testUser.username);
+  await page.getByLabel("Password", { exact: true }).fill(testUser.password);
+  await page.getByLabel("Confirm password").fill(testUser.password);
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page).toHaveURL(/\/terminal$/);
+  await dismissOnboarding(page);
+}
+
+async function loginViewer(page: Page) {
   await page.goto("/login");
-  await page.getByLabel("Username or email").fill(owner.email);
-  await page.getByLabel("Password").fill(owner.password);
-  await page.getByRole("button", { name: "Open DizyTrades" }).click();
+  await page.getByRole("button", { name: "Open View-Only Terminal" }).click();
   await expect(page).toHaveURL(/\/terminal$/);
   await dismissOnboarding(page);
 }
@@ -34,7 +42,7 @@ async function contained(element: Locator) {
 
 test("terminal controls remain contained with DOM and settings open", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await loginOwner(page);
+  await createStandardUser(page);
 
   const topbar = page.locator(".topbar");
   const quickActions = page.locator(".global-quick-actions");
@@ -45,7 +53,7 @@ test("terminal controls remain contained with DOM and settings open", async ({ p
   ]);
   expect(topbarBox).not.toBeNull();
   expect(quickBox).not.toBeNull();
-  expect(quickBox!.top).toBeGreaterThanOrEqual(topbarBox!.bottom);
+  expect(quickBox!.y).toBeGreaterThanOrEqual(topbarBox!.y + topbarBox!.height);
   await expect(page.getByRole("button", { name: /Commands/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Recent" })).toBeVisible();
 
@@ -90,7 +98,7 @@ test("terminal controls remain contained with DOM and settings open", async ({ p
 
 test("terminal workflow buttons and DizyFlow wrap without page overflow", async ({ page }) => {
   await page.setViewportSize({ width: 760, height: 900 });
-  await loginOwner(page);
+  await loginViewer(page);
 
   await expect(page.getByRole("button", { name: /Commands/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Recent" })).toBeVisible();
