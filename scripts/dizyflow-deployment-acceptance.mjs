@@ -78,6 +78,7 @@ const report = {
   viewerSession: false,
   viewerEndpointStatus: null,
   viewerCookiePresent: false,
+  onboardingDismissed: false,
   presentation: "unknown",
   controls: { heatmapIndependent: false, bubblesIndependent: false },
   rendering: {},
@@ -105,9 +106,15 @@ try {
   await page.waitForURL(/\/terminal(?:\?|$)/, { timeout: 30_000 });
   report.viewerSession = true;
 
-  for (const label of ["Continue to terminal", "Skip onboarding"]) {
-    const button = page.getByRole("button", { name: label });
-    if (await button.isVisible().catch(() => false)) await button.click();
+  const onboarding = page.locator(".first-run-onboarding-backdrop");
+  const onboardingOpened = await onboarding
+    .waitFor({ state: "visible", timeout: 8_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (onboardingOpened) {
+    await onboarding.getByRole("button", { name: "Skip onboarding" }).click();
+    await onboarding.waitFor({ state: "detached", timeout: 10_000 });
+    report.onboardingDismissed = true;
   }
 
   const toolbar = page.locator(".dizyflow-controls");
@@ -191,6 +198,7 @@ try {
   };
 
   if (!report.controls.heatmapIndependent) failure("heatmap layer did not independently alter the rendered chart");
+  if (!report.controls.bubblesIndependent) failure("trade-bubble layer did not independently alter the rendered chart");
   if (!report.tuning.rendererChanged) failure("display aggregation tuning did not alter the rendered chart");
   if (!report.viewport.resized || !report.viewport.toolbarVisible) failure("responsive chart acceptance failed");
   report.passed = true;
