@@ -103,7 +103,7 @@ test("operational diagnostics are moved intact behind the workspace boundary", a
   assert.match(brain, /Retry public feed/);
   assert.match(brain, /Captured history \/ retention/);
   assert.match(brain, /not historical Replay evidence/);
-  assert.match(toolbar, /publishFlowDiagnostics\(\{ summary, renderer/);
+  assert.match(toolbar, /publishFlowDiagnostics\(\{\s*summary,\s*renderer/);
   assert.doesNotMatch(toolbar, /Retry public feed|flow-diagnostics|heatmapObservationsRetained/);
   assert.doesNotMatch(brain, /buildDizyFlowIntelligenceSnapshot|analyzeStrategy\(/);
 });

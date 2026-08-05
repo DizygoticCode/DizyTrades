@@ -2,12 +2,13 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 
-import { formatOrderImbalance } from "./lib/order-flow/imbalance";
-import type { OrderFlowSettings } from "./lib/order-flow/settings";
-import type { FlowRenderStore } from "./lib/order-flow/render-store";
-import type { FlowSummary } from "./lib/order-flow/use-order-flow";
-import type { DizyFlowIntelligenceSnapshot } from "./lib/order-flow/intelligence";
 import { useDizyBrainWorkspace } from "./dizybrain-shell";
+import { formatOrderImbalance } from "./lib/order-flow/imbalance";
+import type { DizyFlowIntelligenceSnapshot } from "./lib/order-flow/intelligence";
+import { flowPresentation } from "./lib/order-flow/presentation";
+import type { FlowRenderStore } from "./lib/order-flow/render-store";
+import type { OrderFlowSettings } from "./lib/order-flow/settings";
+import type { FlowSummary } from "./lib/order-flow/use-order-flow";
 
 export function OrderFlowToolbar({
   settings,
@@ -42,32 +43,79 @@ export function OrderFlowToolbar({
       | "alertsVisible"
       | "imbalanceVisible",
   ) => onChange({ ...settings, [key]: !settings[key] });
-  const imbalance=settings.enabled?summary.imbalance:null,imbalanceLabel=formatOrderImbalance(imbalance),imbalanceColour=imbalance===null?"#81899c":imbalance>=0?"#66e0b2":"#ff7186";
+  const imbalance = settings.enabled ? summary.imbalance : null;
+  const imbalanceLabel = formatOrderImbalance(imbalance);
+  const imbalanceColour =
+    imbalance === null ? "#81899c" : imbalance >= 0 ? "#66e0b2" : "#ff7186";
+  const presentation = flowPresentation({
+    enabled: settings.enabled,
+    status: summary.status,
+    confidence: intelligence?.intelligenceConfidence ?? null,
+    hasValidBook: summary.levels > 0,
+    lastValidUpdate: summary.lastValidUpdate,
+  });
 
-  useEffect(() => publishFlowDiagnostics({ summary, renderer, marketDepthVisible: settings.enabled && settings.marketDepthVisible, displayMode: settings.marketDepth.displayMode, retry: onRetry }), [publishFlowDiagnostics, summary, renderer, settings.enabled, settings.marketDepthVisible, settings.marketDepth.displayMode, onRetry]);
+  useEffect(
+    () =>
+      publishFlowDiagnostics({
+        summary,
+        renderer,
+        marketDepthVisible: settings.enabled && settings.marketDepthVisible,
+        displayMode: settings.marketDepth.displayMode,
+        retry: onRetry,
+      }),
+    [
+      publishFlowDiagnostics,
+      summary,
+      renderer,
+      settings.enabled,
+      settings.marketDepthVisible,
+      settings.marketDepth.displayMode,
+      onRetry,
+    ],
+  );
 
   return (
-    <div className="dizyflow-controls">
+    <div
+      className={`dizyflow-controls ${presentation.recovering ? "recovering" : ""}`}
+      data-flow-presentation={presentation.statusLabel.toLowerCase()}
+    >
       <button
         aria-pressed={settings.enabled}
         className={`dizyflow-master ${settings.enabled ? "active" : ""}`}
         onClick={() => toggle("enabled")}
-        title="Toggle DizyFlow public-data subscription"
+        title={
+          presentation.recovering
+            ? "DizyFlow is retaining the last valid book while the public depth transport resynchronises"
+            : "Toggle DizyFlow public-data subscription"
+        }
       >
         <b>DIZYFLOW</b>
-        <span>{settings.enabled ? summary.status : "Off"}</span>
+        <span>{presentation.statusLabel}</span>
       </button>
       <button
         className="dizyflow-brain-open"
         type="button"
-        onClick={event => open("flow", event.currentTarget)}
-        aria-label={`Open DizyFlow Intelligence in DizyBrain${intelligence ? `, ${intelligence.intelligenceConfidence}% evidence confidence` : ""}, 25-level order imbalance ${imbalanceLabel}`}
-        style={{gridTemplateColumns:"auto auto auto"}}
+        onClick={(event) => open("flow", event.currentTarget)}
+        aria-label={`Open DizyFlow Intelligence in DizyBrain, ${presentation.statusLabel}, ${presentation.metricLabel}${intelligence ? ` evidence confidence ${intelligence.intelligenceConfidence}%` : ""}, 25-level order imbalance ${imbalanceLabel}`}
+        style={{ gridTemplateColumns: "auto auto auto" }}
       >
-        <span>{settings.enabled ? summary.status : "OFF"}</span>
-        <b>{intelligence ? `${intelligence.intelligenceConfidence}%` : "—"}</b>
-        <em className="dizyflow-imbalance-ticker" title="25-level order imbalance. Positive means displayed bid notional outweighs displayed ask notional." style={{color:imbalanceColour,fontSize:8,fontStyle:"normal",fontVariantNumeric:"tabular-nums",fontWeight:750}}>IMB {imbalanceLabel}</em>
-        <small>Open</small>
+        <span>{presentation.statusLabel.toUpperCase()}</span>
+        <b>{presentation.metricLabel}</b>
+        <em
+          className="dizyflow-imbalance-ticker"
+          title="25-level order imbalance. Positive means displayed bid notional outweighs displayed ask notional."
+          style={{
+            color: imbalanceColour,
+            fontSize: 8,
+            fontStyle: "normal",
+            fontVariantNumeric: "tabular-nums",
+            fontWeight: 750,
+          }}
+        >
+          IMB {imbalanceLabel}
+        </em>
+        <small>{presentation.recovering ? "Resync" : "Open"}</small>
       </button>
 
       <div
@@ -92,7 +140,11 @@ export function OrderFlowToolbar({
             {label}
           </button>
         ))}
-        <button className="flow-history-button" onClick={onHistory} title="Open bounded alert history">
+        <button
+          className="flow-history-button"
+          onClick={onHistory}
+          title="Open bounded alert history"
+        >
           History
         </button>
       </div>

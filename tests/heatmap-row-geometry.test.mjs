@@ -12,12 +12,12 @@ test("heatmap rows use the effective display bin instead of the raw exchange tic
 
   assert.match(
     source,
-    /priceToCoordinate\(segment\.price\+displayStep\)/,
+    /priceToCoordinate\(segment\.price\s*\+\s*displayStep\)/,
     "Bookmap-style rows must span the effective visible price bin",
   );
   assert.doesNotMatch(
     source,
-    /priceToCoordinate\(segment\.price\+s\.priceStep\)/,
+    /priceToCoordinate\(segment\.price\s*\+\s*s\.priceStep\)/,
     "raw exchange ticks collapse BTC liquidity bands into hairlines",
   );
 });
