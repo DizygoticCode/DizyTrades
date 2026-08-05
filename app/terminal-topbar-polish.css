@@ -11,13 +11,14 @@
   body:has(.terminal-shell) .topbar {
     position: relative;
     z-index: 48;
-    gap: 12px;
+    gap: 10px;
     overflow: visible;
   }
 
+  /* Protect the complete DizyTrades & DizySignals lockup from the first tab. */
   body:has(.terminal-shell) .brand-lockup {
-    min-width: 184px;
-    flex: 0 0 184px;
+    min-width: 220px;
+    flex: 0 0 220px;
   }
 
   body:has(.terminal-shell) .profile {
@@ -31,6 +32,7 @@
    */
   body:has(.terminal-shell) .system-strip {
     align-self: flex-start;
+    min-width: 0;
     height: 112px;
     padding: 12px 0 0;
     display: flex;
@@ -46,10 +48,10 @@
     order: 1;
     flex: 0 1 auto;
     min-width: 0;
-    min-height: 34px;
-    padding: 8px 6px;
+    min-height: 33px;
+    padding: 8px 5px;
     border-bottom-width: 1px;
-    font-size: 10.5px;
+    font-size: 10.25px;
     line-height: 1;
     white-space: nowrap;
   }
@@ -72,7 +74,7 @@
     min-height: 22px;
     padding: 4px 8px;
     border-radius: 6px;
-    font-size: 9.5px;
+    font-size: 9.25px;
     line-height: 1;
     letter-spacing: 0.02em;
     white-space: nowrap;
@@ -104,18 +106,8 @@
   }
 }
 
-/*
- * Laptop-width terminals need the same compact identity treatment as smaller
- * desktops. Long account names must not evict navigation destinations from
- * the first row.
- */
-@media (min-width: 761px) and (max-width: 1600px) {
-  body:has(.terminal-shell) .brand-lockup {
-    min-width: 136px;
-    flex-basis: 136px;
-  }
-
-  body:has(.terminal-shell) .brand-lockup small,
+/* Long account names must not consume the navigation lane on normal desktops. */
+@media (min-width: 761px) and (max-width: 1900px) {
   body:has(.terminal-shell) .account-switch b,
   body:has(.terminal-shell) .account-switch em {
     display: none;
@@ -127,14 +119,30 @@
     grid-template-columns: 28px;
     padding-inline: 5px;
   }
+}
+
+/*
+ * Laptop-width terminals use a compact identity treatment. The subtitle is
+ * intentionally hidden before the brand lane shrinks, so the first tab can
+ * never cover DizySignals text.
+ */
+@media (min-width: 761px) and (max-width: 1600px) {
+  body:has(.terminal-shell) .brand-lockup {
+    min-width: 154px;
+    flex-basis: 154px;
+  }
+
+  body:has(.terminal-shell) .brand-lockup small {
+    display: none;
+  }
 
   body:has(.terminal-shell) .system-strip {
     column-gap: 3px;
   }
 
   body:has(.terminal-shell) .system-strip > .nav-tab {
-    padding-inline: 5px;
-    font-size: 10px;
+    padding-inline: 4px;
+    font-size: 9.5px;
   }
 }
 
