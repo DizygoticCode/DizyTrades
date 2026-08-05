@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+const storageKey = "dizytrades:dizyquant-live:v1";
 const storedSnapshot = (capturedAt: number) => ({
   schemaVersion: "dizyquant.live.v1",
   capturedAt,
@@ -24,7 +25,9 @@ const storedSnapshot = (capturedAt: number) => ({
 });
 
 test("DizyQuant renders bounded live factors and marks expired evidence stale", async ({ page }) => {
-  await page.addInitScript((snapshot) => localStorage.setItem("dizytrades:dizyquant-live:v1", JSON.stringify(snapshot)), storedSnapshot(Date.now()));
+  await page.addInitScript(({ key, snapshot }) => {
+    if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(snapshot));
+  }, { key: storageKey, snapshot: storedSnapshot(Date.now()) });
   await page.goto("/research");
   const panel = page.getByTestId("dizyquant-live-panel");
   await expect(panel).toBeVisible();
@@ -38,7 +41,7 @@ test("DizyQuant renders bounded live factors and marks expired evidence stale", 
   await expect(panel).toContainText("Research-only observation");
   await expect(page.getByRole("button", { name: /order|trade|execute/i })).toHaveCount(0);
 
-  await page.evaluate((snapshot) => localStorage.setItem("dizytrades:dizyquant-live:v1", JSON.stringify(snapshot)), storedSnapshot(Date.now() - 60_000));
+  await page.evaluate(({ key, snapshot }) => localStorage.setItem(key, JSON.stringify(snapshot)), { key: storageKey, snapshot: storedSnapshot(Date.now() - 60_000) });
   await page.reload();
   await expect(page.getByTestId("dizyquant-live-panel")).toHaveAttribute("data-state", "stale");
   await expect(page.getByTestId("dizyquant-live-panel")).toContainText("Stored evidence is stale");
