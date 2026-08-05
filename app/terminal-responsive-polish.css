@@ -1,0 +1,294 @@
+/*
+ * Final terminal responsive polish.
+ *
+ * This layer deliberately loads after terminal-visual-fixes.css. It removes
+ * remaining horizontal-scroll escape hatches and gives every dense terminal
+ * surface a wrapping or clipping contract at its actual layout boundary.
+ */
+
+body:has(.terminal-shell) {
+  position: relative;
+  overflow-x: clip;
+}
+
+/* Reserve a genuine second header row for the global workflow controls. */
+body:has(.terminal-shell) .terminal-body-layout {
+  padding-top: 50px;
+}
+
+body:has(.terminal-shell) .system-strip {
+  padding-right: 0;
+}
+
+body:has(.terminal-shell) .global-quick-actions {
+  position: absolute;
+  z-index: 47;
+  top: 68px;
+  right: calc(var(--dizybrain-global-tool-offset, 0px) + 12px);
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  width: max-content;
+  max-width: calc(100vw - var(--dizybrain-global-tool-offset, 0px) - 24px);
+}
+
+body:has(.terminal-shell) .global-quick-actions .command-palette-floating,
+body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger {
+  position: static !important;
+  inset: auto !important;
+  width: auto !important;
+  min-width: max-content !important;
+  max-width: 100%;
+  height: 40px;
+  min-height: 40px !important;
+  padding-inline: 11px !important;
+  overflow: visible !important;
+  font-size: 10px !important;
+  white-space: nowrap;
+  transform: none !important;
+}
+
+body:has(.terminal-shell) .global-quick-actions .command-palette-floating > span,
+body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger > span {
+  font-size: 13px !important;
+}
+
+/* The market toolbar owns wrapping. No child may widen the page. */
+.terminal-shell .market-toolbar {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  overflow-x: clip;
+  row-gap: 6px;
+}
+
+.terminal-shell .market-toolbar > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* DizyFlow controls wrap in place instead of creating an internal scrollbar. */
+.terminal-shell .dizyflow-controls {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  flex: 1 1 520px;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  overflow: visible !important;
+  contain: layout paint;
+  white-space: normal;
+}
+
+.terminal-shell .flow-component-toggles {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap !important;
+  align-items: center;
+  overflow: visible !important;
+  white-space: normal;
+  scrollbar-width: none;
+}
+
+.terminal-shell .flow-component-toggles::-webkit-scrollbar {
+  display: none;
+}
+
+.terminal-shell .flow-component-toggles > button {
+  min-width: max-content;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+
+/* The DOM lane is never narrower than its readable three-column ladder. */
+.terminal-shell .workspace:has(.dizyflow-dom),
+.terminal-shell .workspace.panel-closed:has(.dizyflow-dom) {
+  grid-template-columns:
+    minmax(0, 1fr)
+    clamp(270px, var(--dom-width, 280px), 380px);
+}
+
+.terminal-shell .dizyflow-dom {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+.terminal-shell .dizyflow-dom header,
+.terminal-shell .dom-tools,
+.terminal-shell .dom-head,
+.terminal-shell .dom-row,
+.terminal-shell .dom-mid,
+.terminal-shell .dom-market,
+.terminal-shell .dizyflow-dom footer {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.terminal-shell .dom-tools {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.terminal-shell .dom-tools label {
+  min-width: 0;
+  flex: 1 1 96px;
+}
+
+.terminal-shell .dom-tools select,
+.terminal-shell .dom-tools button {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.terminal-shell .dom-head,
+.terminal-shell .dom-row {
+  width: 100%;
+  min-width: 0 !important;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1.1fr)
+    minmax(0, 1fr) !important;
+  gap: 3px;
+  padding-inline: 5px;
+}
+
+.terminal-shell .dom-head:has(span:nth-child(4)),
+.terminal-shell .dom-row:has(span:nth-child(5)) {
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1.1fr)
+    minmax(0, 1fr)
+    minmax(0, 0.8fr) !important;
+}
+
+.terminal-shell .dom-head:has(span:nth-child(5)),
+.terminal-shell .dom-row:has(span:nth-child(6)) {
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1.1fr)
+    minmax(0, 1fr)
+    minmax(0, 0.8fr)
+    minmax(0, 0.8fr) !important;
+}
+
+.terminal-shell .dom-head > *,
+.terminal-shell .dom-row > *:not(i) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-shell .dom-book {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+/* The setup dock below the chart adapts to the chart width left by inspectors. */
+.terminal-shell .chart-section {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.terminal-shell .signal-dock,
+.terminal-shell .terminal-primary-column:has(.settings-panel) .signal-dock {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns:
+    repeat(auto-fit, minmax(min(142px, 100%), 1fr)) !important;
+  overflow: hidden;
+}
+
+.terminal-shell .signal-dock article {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Centre the two-line market activity message inside the taller toast card. */
+.terminal-shell .flow-toast-rail > article {
+  align-items: center !important;
+}
+
+.terminal-shell .flow-toast-rail > article > span:nth-of-type(1) {
+  align-self: stretch;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center;
+}
+
+.terminal-shell .flow-toast-rail > article > span:nth-of-type(1) > * {
+  width: 100%;
+  text-align: center;
+}
+
+@media (max-width: 1150px) and (min-width: 761px) {
+  body:has(.terminal-shell) .global-quick-actions .command-palette-floating,
+  body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger {
+    width: auto !important;
+    padding-inline: 11px !important;
+    overflow: visible !important;
+    font-size: 10px !important;
+  }
+
+  body:has(.terminal-shell) .global-quick-actions .command-palette-floating kbd {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) and (min-width: 600px) {
+  .terminal-shell .workspace:has(.dizyflow-dom),
+  .terminal-shell .workspace.panel-closed:has(.dizyflow-dom) {
+    grid-template-columns: minmax(0, 1fr) minmax(270px, 300px);
+  }
+}
+
+@media (max-width: 760px) {
+  body:has(.terminal-shell) .terminal-body-layout {
+    padding-top: 54px;
+  }
+
+  body:has(.terminal-shell) .global-quick-actions {
+    top: 68px;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: auto;
+    left: max(8px, env(safe-area-inset-left));
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+    width: auto;
+    max-width: none;
+  }
+
+  body:has(.terminal-shell) .global-quick-actions .command-palette-floating,
+  body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger {
+    width: auto !important;
+    min-width: max-content !important;
+    max-width: calc(50vw - 14px);
+    padding-inline: 9px !important;
+    font-size: 10px !important;
+  }
+
+  .terminal-shell .dizyflow-controls {
+    flex: 1 1 100%;
+  }
+
+  .terminal-shell .flow-component-toggles > button {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 420px) {
+  body:has(.terminal-shell) .global-quick-actions .command-palette-floating,
+  body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger {
+    min-width: 0 !important;
+    flex: 1 1 calc(50% - 3px);
+  }
+}
