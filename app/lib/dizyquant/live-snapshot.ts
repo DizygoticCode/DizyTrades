@@ -97,8 +97,15 @@ function selectedLiquidityBalance(flow: DizyFlowIntelligenceSnapshot | null) {
   return total > 0 ? rounded(clamp((band.bidNotional - band.askNotional) / total * 100, -100, 100)) : null;
 }
 
-function factor(id: DizyQuantFactorId, label: string, value: number | null, evidence: DizyQuantLiveFactor["evidence"], interpretation: DizyQuantLiveFactor["interpretation"]): DizyQuantLiveFactor {
-  return Object.freeze({ id, label, value: rounded(value), unit: "%", evidence, interpretation });
+function factor(
+  id: DizyQuantFactorId,
+  label: string,
+  value: number | null,
+  evidence: DizyQuantLiveFactor["evidence"],
+  interpretation: DizyQuantLiveFactor["interpretation"],
+  places = 2,
+): DizyQuantLiveFactor {
+  return Object.freeze({ id, label, value: rounded(value, places), unit: "%", evidence, interpretation });
 }
 
 export function createDizyQuantLiveSnapshot(input: DizyQuantLiveInput, capturedAt = Date.now()): DizyQuantLiveSnapshot {
@@ -114,7 +121,7 @@ export function createDizyQuantLiveSnapshot(input: DizyQuantLiveInput, capturedA
     factor("book-imbalance", "Visible book imbalance", bookImbalance, "snapshot", "signed-pressure"),
     factor("aggressor-imbalance", "Aggressor trade imbalance", aggressorImbalance, "continuous-stream", "signed-pressure"),
     factor("liquidity-balance", "Near-market liquidity balance", liquidityBalance, "snapshot", "signed-pressure"),
-    factor("spread-friction", "Spread friction", spreadFriction, "snapshot", "friction"),
+    factor("spread-friction", "Spread friction", spreadFriction, "snapshot", "friction", 4),
   ]);
   const availableFactorCount = factors.filter(value => value.value !== null).length;
   const flowConfidence = flow ? clamp(flow.intelligenceConfidence, 0, 100) : null;
