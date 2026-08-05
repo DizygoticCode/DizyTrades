@@ -33,6 +33,14 @@ type Attached = SeriesAttachedParameter<Time, "Candlestick">;
 type FlowLayer = "background" | "foreground";
 type PaneZOrder = "bottom" | "top";
 
+type RetainedProjection = Readonly<{
+  candles: readonly Candle[];
+  timeframe: CandleTimeframe;
+  generation: number;
+}>;
+
+const retainedProjectionByStore = new WeakMap<FlowRenderStore, RetainedProjection>();
+
 const blendHex = (from: string, to: string, ratio: number) => {
   const a = parseInt(from.slice(1), 16);
   const b = parseInt(to.slice(1), 16);
@@ -114,7 +122,14 @@ export class DizyFlowPrimitive implements ISeriesPrimitive<Time> {
     new FlowPaneView(this, "foreground", "top"),
   ];
 
-  constructor(private store: FlowRenderStore) {}
+  constructor(private store: FlowRenderStore) {
+    const retained = retainedProjectionByStore.get(store);
+    if (!retained) return;
+    this.candles = retained.candles;
+    this.timeframe = retained.timeframe;
+    this.projectionGeneration = retained.generation;
+    this.store.updateDiagnostics({ candleCount: retained.candles.length });
+  }
 
   attached(param: Attached) {
     this.attachedApi = param;
@@ -163,6 +178,10 @@ export class DizyFlowPrimitive implements ISeriesPrimitive<Time> {
     this.candles = candles;
     this.timeframe = timeframe;
     this.projectionGeneration = generation;
+    retainedProjectionByStore.set(
+      this.store,
+      Object.freeze({ candles, timeframe, generation }),
+    );
     this.store.updateDiagnostics({ candleCount: candles.length });
     this.attachedApi?.requestUpdate();
     return true;
