@@ -33,8 +33,12 @@ test("deployed DizyFlow acceptance exercises layer, tuning and viewport behaviou
 test("deployed DizyFlow acceptance persists sanitised diagnostics only", async () => {
   const source = await readFile(scriptPath, "utf8");
   assert.match(source, /dizyflow-acceptance\.json/);
+  assert.match(source, /viewerEndpointStatus/);
+  assert.match(source, /viewerCookiePresent/);
+  assert.match(source, /context\.cookies\(serviceUrl\.origin\)/);
   assert.doesNotMatch(source, /document\.body\.innerText|page\.content\(|localStorage\.length|indexedDB|sessionStorage/);
-  assert.doesNotMatch(source, /apiKey|password|secret|authorization|cookie|RawTrade|bidQuantity|askQuantity/i);
+  assert.doesNotMatch(source, /apiKey|password|secret|authorization|RawTrade|bidQuantity|askQuantity/i);
+  assert.doesNotMatch(source, /\bcookie\.(?:name|value|domain|expires)\b|report\.(?:cookies?|headers?)\b|JSON\.stringify\([^)]*cookies?/i);
   assert.doesNotMatch(source, /writeFile\([^,]+,\s*await page|screenshot|video/i);
   assert.match(source, /checksum/);
   assert.match(source, /paintedPixels/);
