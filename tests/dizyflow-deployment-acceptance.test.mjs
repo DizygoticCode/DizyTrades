@@ -35,19 +35,39 @@ test("deployed DizyFlow acceptance waits for secure viewer and profile hydration
   assert.match(source, /\.chart-wrap canvas/);
 });
 
-test("deployed DizyFlow acceptance waits for renderer readiness and propagated controls", async () => {
+test("deployed DizyFlow acceptance distinguishes store state from paint diagnostics", async () => {
+  const source = await readFile(scriptPath, "utf8");
+  const toolbar = await readFile(toolbarPath, "utf8");
+  assert.match(toolbar, /renderStore\.subscribe,/);
+  assert.match(toolbar, /renderStore\.getSnapshot/);
+  assert.match(toolbar, /data-flow-snapshot-enabled/);
+  assert.match(toolbar, /data-flow-snapshot-heatmap-visible/);
+  assert.match(toolbar, /data-flow-snapshot-bubbles-visible/);
+  assert.match(toolbar, /data-flow-snapshot-heatmap-observations/);
+  assert.match(toolbar, /data-flow-snapshot-heatmap-tiles/);
+  assert.match(toolbar, /data-flow-snapshot-trades/);
+  assert.match(source, /snapshotAvailable/);
+  assert.match(source, /snapshotEnabled/);
+  assert.match(source, /snapshotHeatmapVisible/);
+  assert.match(source, /snapshotBubblesVisible/);
+  assert.match(source, /waitForSnapshotBoolean/);
+});
+
+test("deployed DizyFlow acceptance waits for renderer attachment then primes an actual heatmap paint", async () => {
   const source = await readFile(scriptPath, "utf8");
   assert.match(source, /waitForRendererReady/);
   assert.match(source, /timeout = 45_000/);
-  assert.match(source, /diagnostics\.primitiveAttached/);
-  assert.match(source, /diagnostics\.renderEnabled/);
-  assert.match(source, /diagnostics\.heatmapVisible/);
-  assert.match(source, /diagnostics\.bubblesVisible/);
-  assert.match(source, /heatmapCellsDrawn/);
-  assert.match(source, /heatmapSegmentsDrawn/);
+  assert.match(source, /const primitiveReady = !state\.available \|\| state\.primitiveAttached/);
+  assert.match(source, /const snapshotReady =/);
+  assert.match(source, /waitForHeatmapPainted/);
+  assert.match(source, /heatmap renderer produced no drawn cells after priming/);
   assert.match(source, /waitForRendererBoolean/);
   assert.match(source, /waitForEffectiveTimeSlice/);
   assert.match(source, /renderer readiness timed out/);
+  assert.ok(
+    source.indexOf("await waitForSnapshotBoolean(page, toolbar, \"snapshotEnabled\", true)") <
+      source.indexOf("const readiness = await waitForRendererReady"),
+  );
 });
 
 test("deployed DizyFlow acceptance uses full-pixel and bounded renderer evidence", async () => {
@@ -58,7 +78,11 @@ test("deployed DizyFlow acceptance uses full-pixel and bounded renderer evidence
   assert.match(source, /observeFingerprintChange/);
   assert.match(source, /readRendererDiagnostics/);
   assert.match(source, /heatmapVisualChanged/);
+  assert.match(source, /heatmapSnapshotVisibility/);
+  assert.match(source, /heatmapRendererVisibility/);
+  assert.match(source, /heatmapRendererPainted/);
   assert.match(source, /bubblesVisualEvidencePresent/);
+  assert.match(source, /bubblesSnapshotVisibility/);
   assert.match(source, /effectiveTimeSliceMs === 30_000/);
   assert.match(toolbar, /data-flow-primitive-attached/);
   assert.match(toolbar, /data-flow-render-heatmap-visible/);
@@ -71,8 +95,10 @@ test("deployed DizyFlow acceptance uses full-pixel and bounded renderer evidence
 
 test("deployed DizyFlow acceptance exercises layer, tuning and viewport behaviour", async () => {
   const source = await readFile(scriptPath, "utf8");
-  assert.match(source, /ensurePressed\(heatmap, false\)/);
+  assert.ok([...source.matchAll(/ensurePressed\(heatmap, false\)/g)].length >= 2);
+  assert.ok([...source.matchAll(/ensurePressed\(heatmap, true\)/g)].length >= 2);
   assert.match(source, /ensurePressed\(bubbles, false\)/);
+  assert.match(source, /ensurePressed\(bubbles, true\)/);
   assert.match(source, /dizytrades:heatmap-display:v1/);
   assert.match(source, /timeSliceMs: 30000/);
   assert.match(source, /detectionRangeBps: 1000/);
