@@ -1,43 +1,348 @@
-import type { BookView,LiquidityObservation,LiquidityTileCell,RawTrade } from "./types.ts";
-import type {LiquidityViewport} from "./liquidity-history-cache.ts";
+import type { BookView, LiquidityObservation, LiquidityTileCell, RawTrade } from "./types.ts";
+import type { LiquidityViewport } from "./liquidity-history-cache.ts";
 import type { OrderFlowSettings } from "./settings.ts";
 
-export type FlowRenderDiagnostics={
-  primitiveAttached:boolean;renderEnabled:boolean;heatmapVisible:boolean;bubblesVisible:boolean;paintCallCount:number;candleCount:number;
-  visibleLogicalRange:{from:number;to:number}|null;heatmapObservationsRetained:number;heatmapCandidateCells:number;heatmapProjectedCells:number;
-  heatmapCellsDrawn:number;heatmapMinimumCellWidthPx:number;heatmapMinimumCellHeightPx:number;heatmapMaximumCellWidthPx:number;rawTradesRetained:number;bubbleGroupsProduced:number;bubblesRejectedBelowThreshold:number;
-  bubblesRejectedByTimeProjection:number;bubblesRejectedByPriceProjection:number;bubblesDrawn:number;currentPriceStep:number;
-  lastRendererError:string|null;sourceFeedConnected:boolean|null;failure:string|null;heatmapDrawnBounds:{minX:number;maxX:number}|null;bubbleXCoordinates:number[];
-  domVisibleRows:number;domTotalRows:number;domOverscan:number;domCentrePrice:number|null;domNavigation:string;domBookAgeMs:number|null;domRenderCount:number;domRecentFlashes:number;domClusterRows:number;domQueueCalculations:number;domSymbol:string;domGroupingStep:number;domBookState:string;
-  capturedDepthPriceRange:{min:number;max:number}|null;visibleChartPriceRange:{min:number;max:number}|null;exchangeTickSize:number;effectiveHeatmapBinSize:number;heatmapRowHeightPx:number;firstHeatmapTimestamp:number|null;lastHeatmapTimestamp:number|null;firstTradeTimestamp:number|null;lastTradeTimestamp:number|null;stableBubbleGroupsRetained:number;bubbleGroupsVisible:number;heatmapSegmentsRetained:number;heatmapSegmentsProjected:number;heatmapSegmentsDrawn:number;rejectionReasons:Record<string,number>;bubbleStableIds:string[];
-  cachedHistoryPages:number;browserCacheRecords:number;tileRequestsStarted:number;tileRequestsCompleted:number;tileRequestsAborted:number;tileRequestsFailed:number;tileCacheHits:number;tileCacheMisses:number;lastTileError:string|null;lastTileHttpStatus:number|null;lastRequestedTileRange:{from:number;to:number}|null;lastSuccessfulTileRange:{from:number;to:number}|null;loadedHistoryRange:{from:number;to:number}|null;archiveHistoryRange:{from:number;to:number}|null;liveSequence:number|null;liveState:string;effectiveTimeSliceMs:number;retainedFullRebuilds:number;retainedIncrementalPatches:number;retainedSurfaceReuses:number;marketDepthVisibleBids:number;marketDepthVisibleAsks:number;marketDepthBidTotal:number;marketDepthAskTotal:number;marketDepthMaximumSize:number;marketDepthClusters:number;marketDepthPaintCalls:number;marketDepthSkippedRedraws:number;marketDepthScaling:string;marketDepthLastUpdateAgeMs:number|null;marketDepthSymbol:string;
+export type FlowRenderDiagnostics = {
+  primitiveAttached: boolean;
+  renderEnabled: boolean;
+  heatmapVisible: boolean;
+  bubblesVisible: boolean;
+  paintCallCount: number;
+  candleCount: number;
+  visibleLogicalRange: { from: number; to: number } | null;
+  heatmapObservationsRetained: number;
+  heatmapCandidateCells: number;
+  heatmapProjectedCells: number;
+  heatmapCellsDrawn: number;
+  heatmapMinimumCellWidthPx: number;
+  heatmapMinimumCellHeightPx: number;
+  heatmapMaximumCellWidthPx: number;
+  rawTradesRetained: number;
+  bubbleGroupsProduced: number;
+  bubblesRejectedBelowThreshold: number;
+  bubblesRejectedByTimeProjection: number;
+  bubblesRejectedByPriceProjection: number;
+  bubblesDrawn: number;
+  currentPriceStep: number;
+  lastRendererError: string | null;
+  sourceFeedConnected: boolean | null;
+  failure: string | null;
+  heatmapDrawnBounds: { minX: number; maxX: number } | null;
+  bubbleXCoordinates: number[];
+  domVisibleRows: number;
+  domTotalRows: number;
+  domOverscan: number;
+  domCentrePrice: number | null;
+  domNavigation: string;
+  domBookAgeMs: number | null;
+  domRenderCount: number;
+  domRecentFlashes: number;
+  domClusterRows: number;
+  domQueueCalculations: number;
+  domSymbol: string;
+  domGroupingStep: number;
+  domBookState: string;
+  capturedDepthPriceRange: { min: number; max: number } | null;
+  visibleChartPriceRange: { min: number; max: number } | null;
+  exchangeTickSize: number;
+  effectiveHeatmapBinSize: number;
+  heatmapRowHeightPx: number;
+  firstHeatmapTimestamp: number | null;
+  lastHeatmapTimestamp: number | null;
+  firstTradeTimestamp: number | null;
+  lastTradeTimestamp: number | null;
+  stableBubbleGroupsRetained: number;
+  bubbleGroupsVisible: number;
+  heatmapSegmentsRetained: number;
+  heatmapSegmentsProjected: number;
+  heatmapSegmentsDrawn: number;
+  rejectionReasons: Record<string, number>;
+  bubbleStableIds: string[];
+  cachedHistoryPages: number;
+  browserCacheRecords: number;
+  tileRequestsStarted: number;
+  tileRequestsCompleted: number;
+  tileRequestsAborted: number;
+  tileRequestsFailed: number;
+  tileCacheHits: number;
+  tileCacheMisses: number;
+  lastTileError: string | null;
+  lastTileHttpStatus: number | null;
+  lastRequestedTileRange: { from: number; to: number } | null;
+  lastSuccessfulTileRange: { from: number; to: number } | null;
+  loadedHistoryRange: { from: number; to: number } | null;
+  archiveHistoryRange: { from: number; to: number } | null;
+  liveSequence: number | null;
+  liveState: string;
+  effectiveTimeSliceMs: number;
+  retainedFullRebuilds: number;
+  retainedIncrementalPatches: number;
+  retainedSurfaceReuses: number;
+  marketDepthVisibleBids: number;
+  marketDepthVisibleAsks: number;
+  marketDepthBidTotal: number;
+  marketDepthAskTotal: number;
+  marketDepthMaximumSize: number;
+  marketDepthClusters: number;
+  marketDepthPaintCalls: number;
+  marketDepthSkippedRedraws: number;
+  marketDepthScaling: string;
+  marketDepthLastUpdateAgeMs: number | null;
+  marketDepthSymbol: string;
 };
-export type FlowRenderSnapshot={generation:string;enabled:boolean;bookValid:boolean;captureStarted:number|null;captureEnded:number|null;depthReceivedAt:number|null;priceStep:number;heatmap:readonly LiquidityObservation[];heatmapTiles:readonly LiquidityTileCell[];heatmapRevision:number;tileTimeBucketMs:number;trades:readonly RawTrade[];book:BookView;settings:OrderFlowSettings};
-type Listener=()=>void;
-const emptyBook:BookView={valid:false,version:-1,bids:[],asks:[]};
-const initialDiagnostics=(settings:OrderFlowSettings):FlowRenderDiagnostics=>({primitiveAttached:false,renderEnabled:false,heatmapVisible:settings.heatmapVisible,bubblesVisible:settings.bubblesVisible,paintCallCount:0,candleCount:0,visibleLogicalRange:null,heatmapObservationsRetained:0,heatmapCandidateCells:0,heatmapProjectedCells:0,heatmapCellsDrawn:0,heatmapMinimumCellWidthPx:0,heatmapMinimumCellHeightPx:0,heatmapMaximumCellWidthPx:0,rawTradesRetained:0,bubbleGroupsProduced:0,bubblesRejectedBelowThreshold:0,bubblesRejectedByTimeProjection:0,bubblesRejectedByPriceProjection:0,bubblesDrawn:0,currentPriceStep:1,lastRendererError:null,sourceFeedConnected:null,failure:null,heatmapDrawnBounds:null,bubbleXCoordinates:[],domVisibleRows:0,domTotalRows:0,domOverscan:4,domCentrePrice:null,domNavigation:"auto",domBookAgeMs:null,domRenderCount:0,domRecentFlashes:0,domClusterRows:0,domQueueCalculations:0,domSymbol:"",domGroupingStep:0,domBookState:"empty",capturedDepthPriceRange:null,visibleChartPriceRange:null,exchangeTickSize:1,effectiveHeatmapBinSize:1,heatmapRowHeightPx:0,firstHeatmapTimestamp:null,lastHeatmapTimestamp:null,firstTradeTimestamp:null,lastTradeTimestamp:null,stableBubbleGroupsRetained:0,bubbleGroupsVisible:0,heatmapSegmentsRetained:0,heatmapSegmentsProjected:0,heatmapSegmentsDrawn:0,rejectionReasons:{},bubbleStableIds:[],cachedHistoryPages:0,browserCacheRecords:0,tileRequestsStarted:0,tileRequestsCompleted:0,tileRequestsAborted:0,tileRequestsFailed:0,tileCacheHits:0,tileCacheMisses:0,lastTileError:null,lastTileHttpStatus:null,lastRequestedTileRange:null,lastSuccessfulTileRange:null,loadedHistoryRange:null,archiveHistoryRange:null,liveSequence:null,liveState:"idle",effectiveTimeSliceMs:5000,retainedFullRebuilds:0,retainedIncrementalPatches:0,retainedSurfaceReuses:0,marketDepthVisibleBids:0,marketDepthVisibleAsks:0,marketDepthBidTotal:0,marketDepthAskTotal:0,marketDepthMaximumSize:0,marketDepthClusters:0,marketDepthPaintCalls:0,marketDepthSkippedRedraws:0,marketDepthScaling:settings.marketDepth.scaling,marketDepthLastUpdateAgeMs:null,marketDepthSymbol:""});
+
+export type FlowRenderSnapshot = {
+  generation: string;
+  enabled: boolean;
+  bookValid: boolean;
+  captureStarted: number | null;
+  captureEnded: number | null;
+  depthReceivedAt: number | null;
+  priceStep: number;
+  heatmap: readonly LiquidityObservation[];
+  heatmapTiles: readonly LiquidityTileCell[];
+  heatmapRevision: number;
+  tileTimeBucketMs: number;
+  trades: readonly RawTrade[];
+  book: BookView;
+  settings: OrderFlowSettings;
+};
+
+type Listener = () => void;
+const emptyBook: BookView = { valid: false, version: -1, bids: [], asks: [] };
+const initialDiagnostics = (settings: OrderFlowSettings): FlowRenderDiagnostics => ({
+  primitiveAttached: false,
+  renderEnabled: false,
+  heatmapVisible: settings.heatmapVisible,
+  bubblesVisible: settings.bubblesVisible,
+  paintCallCount: 0,
+  candleCount: 0,
+  visibleLogicalRange: null,
+  heatmapObservationsRetained: 0,
+  heatmapCandidateCells: 0,
+  heatmapProjectedCells: 0,
+  heatmapCellsDrawn: 0,
+  heatmapMinimumCellWidthPx: 0,
+  heatmapMinimumCellHeightPx: 0,
+  heatmapMaximumCellWidthPx: 0,
+  rawTradesRetained: 0,
+  bubbleGroupsProduced: 0,
+  bubblesRejectedBelowThreshold: 0,
+  bubblesRejectedByTimeProjection: 0,
+  bubblesRejectedByPriceProjection: 0,
+  bubblesDrawn: 0,
+  currentPriceStep: 1,
+  lastRendererError: null,
+  sourceFeedConnected: null,
+  failure: null,
+  heatmapDrawnBounds: null,
+  bubbleXCoordinates: [],
+  domVisibleRows: 0,
+  domTotalRows: 0,
+  domOverscan: 4,
+  domCentrePrice: null,
+  domNavigation: "auto",
+  domBookAgeMs: null,
+  domRenderCount: 0,
+  domRecentFlashes: 0,
+  domClusterRows: 0,
+  domQueueCalculations: 0,
+  domSymbol: "",
+  domGroupingStep: 0,
+  domBookState: "empty",
+  capturedDepthPriceRange: null,
+  visibleChartPriceRange: null,
+  exchangeTickSize: 1,
+  effectiveHeatmapBinSize: 1,
+  heatmapRowHeightPx: 0,
+  firstHeatmapTimestamp: null,
+  lastHeatmapTimestamp: null,
+  firstTradeTimestamp: null,
+  lastTradeTimestamp: null,
+  stableBubbleGroupsRetained: 0,
+  bubbleGroupsVisible: 0,
+  heatmapSegmentsRetained: 0,
+  heatmapSegmentsProjected: 0,
+  heatmapSegmentsDrawn: 0,
+  rejectionReasons: {},
+  bubbleStableIds: [],
+  cachedHistoryPages: 0,
+  browserCacheRecords: 0,
+  tileRequestsStarted: 0,
+  tileRequestsCompleted: 0,
+  tileRequestsAborted: 0,
+  tileRequestsFailed: 0,
+  tileCacheHits: 0,
+  tileCacheMisses: 0,
+  lastTileError: null,
+  lastTileHttpStatus: null,
+  lastRequestedTileRange: null,
+  lastSuccessfulTileRange: null,
+  loadedHistoryRange: null,
+  archiveHistoryRange: null,
+  liveSequence: null,
+  liveState: "idle",
+  effectiveTimeSliceMs: 5000,
+  retainedFullRebuilds: 0,
+  retainedIncrementalPatches: 0,
+  retainedSurfaceReuses: 0,
+  marketDepthVisibleBids: 0,
+  marketDepthVisibleAsks: 0,
+  marketDepthBidTotal: 0,
+  marketDepthAskTotal: 0,
+  marketDepthMaximumSize: 0,
+  marketDepthClusters: 0,
+  marketDepthPaintCalls: 0,
+  marketDepthSkippedRedraws: 0,
+  marketDepthScaling: settings.marketDepth.scaling,
+  marketDepthLastUpdateAgeMs: null,
+  marketDepthSymbol: "",
+});
 
 export class FlowRenderStore {
-  private listeners=new Set<Listener>();private diagnosticListeners=new Set<Listener>();private notificationTimer:ReturnType<typeof setTimeout>|null=null;private diagnosticTimer:ReturnType<typeof setTimeout>|null=null;
-  private viewportListeners=new Set<(range:LiquidityViewport)=>void>();private lastViewport:LiquidityViewport|null=null;private lastViewportGeneration="";private lastViewportRevision=-1;
-  private snapshot:FlowRenderSnapshot;private diagnostics:FlowRenderDiagnostics;
-  constructor(settings:OrderFlowSettings){this.snapshot={generation:"",enabled:false,bookValid:false,captureStarted:null,captureEnded:null,depthReceivedAt:null,priceStep:1,heatmap:[],heatmapTiles:[],heatmapRevision:0,tileTimeBucketMs:5000,trades:[],book:emptyBook,settings};this.diagnostics=initialDiagnostics(settings);}
-  getSnapshot=()=>this.snapshot;getDiagnostics=()=>this.diagnostics;
-  subscribe=(listener:Listener)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener)}};
-  subscribeDiagnostics=(listener:Listener)=>{this.diagnosticListeners.add(listener);return()=>{this.diagnosticListeners.delete(listener)}};
-  subscribeViewport=(listener:(range:LiquidityViewport)=>void)=>{this.viewportListeners.add(listener);if(this.lastViewport)listener(this.lastViewport);return()=>this.viewportListeners.delete(listener)};
-  requestHistory(range:LiquidityViewport){const time=Math.max(5000,range.effectiveTimeBucketMs),price=Math.max(1e-8,range.effectivePriceStep),quantised={...range,from:Math.floor(range.from/time)*time,to:Math.ceil(range.to/time)*time,minPrice:Math.floor(range.minPrice/price)*price,maxPrice:Math.ceil(range.maxPrice/price)*price,effectiveTimeBucketMs:time,effectivePriceStep:price},a=this.lastViewport;if(a&&a.from===quantised.from&&a.to===quantised.to&&a.minPrice===quantised.minPrice&&a.maxPrice===quantised.maxPrice&&a.effectiveTimeBucketMs===quantised.effectiveTimeBucketMs&&a.effectivePriceStep===quantised.effectivePriceStep&&this.lastViewportGeneration===this.snapshot.generation&&this.lastViewportRevision===this.snapshot.heatmapRevision)return;this.lastViewport=quantised;this.lastViewportGeneration=this.snapshot.generation;this.lastViewportRevision=this.snapshot.heatmapRevision;this.viewportListeners.forEach(listener=>listener(quantised));}
-  update(next:Partial<FlowRenderSnapshot>){const heatmapRevision=next.heatmapTiles===undefined?this.snapshot.heatmapRevision:this.snapshot.heatmapRevision+1;this.snapshot={...this.snapshot,...next,heatmapRevision};this.requestNotification();}
-  updateSettings(settings:OrderFlowSettings){
-    Object.defineProperty(settings.heatmap,"toJSON",{
-      configurable:true,
-      enumerable:false,
-      value:()=>({...settings.heatmap,renderVisible:settings.heatmapVisible}),
-    });
-    this.update({settings});
+  private listeners = new Set<Listener>();
+  private diagnosticListeners = new Set<Listener>();
+  private diagnosticTimer: ReturnType<typeof setTimeout> | null = null;
+  private viewportListeners = new Set<(range: LiquidityViewport) => void>();
+  private lastViewport: LiquidityViewport | null = null;
+  private lastViewportGeneration = "";
+  private lastViewportRevision = -1;
+  private snapshot: FlowRenderSnapshot;
+  private diagnostics: FlowRenderDiagnostics;
+
+  constructor(settings: OrderFlowSettings) {
+    this.snapshot = {
+      generation: "",
+      enabled: false,
+      bookValid: false,
+      captureStarted: null,
+      captureEnded: null,
+      depthReceivedAt: null,
+      priceStep: 1,
+      heatmap: [],
+      heatmapTiles: [],
+      heatmapRevision: 0,
+      tileTimeBucketMs: 5000,
+      trades: [],
+      book: emptyBook,
+      settings,
+    };
+    this.diagnostics = initialDiagnostics(settings);
   }
-  updateDiagnostics(next:Partial<FlowRenderDiagnostics>){this.diagnostics={...this.diagnostics,...next};if(this.diagnosticTimer===null)this.diagnosticTimer=setTimeout(()=>{this.diagnosticTimer=null;this.diagnosticListeners.forEach(listener=>listener())},250);}
-  reset(generation:string,settings=this.snapshot.settings){this.snapshot={generation,enabled:settings.enabled,bookValid:false,captureStarted:settings.enabled?Date.now():null,captureEnded:null,depthReceivedAt:null,priceStep:this.snapshot.priceStep,heatmap:[],heatmapTiles:[],heatmapRevision:0,tileTimeBucketMs:5000,trades:[],book:emptyBook,settings};this.diagnostics={...initialDiagnostics(settings),primitiveAttached:this.diagnostics.primitiveAttached};this.requestNotification();}
-  requestNotification(){if(this.notificationTimer!==null)return;this.notificationTimer=setTimeout(()=>{this.notificationTimer=null;this.listeners.forEach(listener=>listener())},0);}
-  destroy(){if(this.notificationTimer!==null){clearTimeout(this.notificationTimer);this.notificationTimer=null;}if(this.diagnosticTimer!==null)clearTimeout(this.diagnosticTimer);this.listeners.clear();this.diagnosticListeners.clear();this.viewportListeners.clear();}
+
+  getSnapshot = () => this.snapshot;
+  getDiagnostics = () => this.diagnostics;
+
+  subscribe = (listener: Listener) => {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  };
+
+  subscribeDiagnostics = (listener: Listener) => {
+    this.diagnosticListeners.add(listener);
+    return () => {
+      this.diagnosticListeners.delete(listener);
+    };
+  };
+
+  subscribeViewport = (listener: (range: LiquidityViewport) => void) => {
+    this.viewportListeners.add(listener);
+    if (this.lastViewport) listener(this.lastViewport);
+    return () => this.viewportListeners.delete(listener);
+  };
+
+  requestHistory(range: LiquidityViewport) {
+    const time = Math.max(5000, range.effectiveTimeBucketMs);
+    const price = Math.max(1e-8, range.effectivePriceStep);
+    const quantised = {
+      ...range,
+      from: Math.floor(range.from / time) * time,
+      to: Math.ceil(range.to / time) * time,
+      minPrice: Math.floor(range.minPrice / price) * price,
+      maxPrice: Math.ceil(range.maxPrice / price) * price,
+      effectiveTimeBucketMs: time,
+      effectivePriceStep: price,
+    };
+    const previous = this.lastViewport;
+    if (
+      previous &&
+      previous.from === quantised.from &&
+      previous.to === quantised.to &&
+      previous.minPrice === quantised.minPrice &&
+      previous.maxPrice === quantised.maxPrice &&
+      previous.effectiveTimeBucketMs === quantised.effectiveTimeBucketMs &&
+      previous.effectivePriceStep === quantised.effectivePriceStep &&
+      this.lastViewportGeneration === this.snapshot.generation &&
+      this.lastViewportRevision === this.snapshot.heatmapRevision
+    )
+      return;
+    this.lastViewport = quantised;
+    this.lastViewportGeneration = this.snapshot.generation;
+    this.lastViewportRevision = this.snapshot.heatmapRevision;
+    this.viewportListeners.forEach((listener) => listener(quantised));
+  }
+
+  update(next: Partial<FlowRenderSnapshot>) {
+    const heatmapRevision =
+      next.heatmapTiles === undefined
+        ? this.snapshot.heatmapRevision
+        : this.snapshot.heatmapRevision + 1;
+    this.snapshot = { ...this.snapshot, ...next, heatmapRevision };
+    this.requestNotification();
+  }
+
+  updateSettings(settings: OrderFlowSettings) {
+    Object.defineProperty(settings.heatmap, "toJSON", {
+      configurable: true,
+      enumerable: false,
+      value: () => ({ ...settings.heatmap, renderVisible: settings.heatmapVisible }),
+    });
+    this.update({ settings });
+  }
+
+  updateDiagnostics(next: Partial<FlowRenderDiagnostics>) {
+    this.diagnostics = { ...this.diagnostics, ...next };
+    if (this.diagnosticTimer === null)
+      this.diagnosticTimer = setTimeout(() => {
+        this.diagnosticTimer = null;
+        this.diagnosticListeners.forEach((listener) => listener());
+      }, 250);
+  }
+
+  reset(generation: string, settings = this.snapshot.settings) {
+    this.snapshot = {
+      generation,
+      enabled: settings.enabled,
+      bookValid: false,
+      captureStarted: settings.enabled ? Date.now() : null,
+      captureEnded: null,
+      depthReceivedAt: null,
+      priceStep: this.snapshot.priceStep,
+      heatmap: [],
+      heatmapTiles: [],
+      heatmapRevision: 0,
+      tileTimeBucketMs: 5000,
+      trades: [],
+      book: emptyBook,
+      settings,
+    };
+    this.diagnostics = {
+      ...initialDiagnostics(settings),
+      primitiveAttached: this.diagnostics.primitiveAttached,
+    };
+    this.requestNotification();
+  }
+
+  requestNotification() {
+    this.listeners.forEach((listener) => listener());
+  }
+
+  destroy() {
+    if (this.diagnosticTimer !== null) clearTimeout(this.diagnosticTimer);
+    this.listeners.clear();
+    this.diagnosticListeners.clear();
+    this.viewportListeners.clear();
+  }
 }
