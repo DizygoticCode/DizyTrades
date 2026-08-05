@@ -16,8 +16,10 @@ export function CommandPaletteMounted() {
     <>
       <AccessibilityFoundation />
       <DizyBrainGlobalToolOffset />
-      <CommandPalette />
-      <RecentShortcuts />
+      <div className="global-quick-actions" aria-label="Terminal quick actions">
+        <CommandPalette />
+        <RecentShortcuts />
+      </div>
     </>
   ) : null;
 }
