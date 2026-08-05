@@ -53,6 +53,30 @@ test("deployed DizyFlow acceptance distinguishes store state from paint diagnost
   assert.match(source, /waitForSnapshotBoolean/);
 });
 
+test("pre-merge observer tolerates absent snapshot attributes and becomes strict when present", async () => {
+  const source = await readFile(scriptPath, "utf8");
+  assert.match(
+    source,
+    /const snapshotReady =\s*!state\.snapshotAvailable \|\|\s*\(state\.snapshotEnabled/,
+  );
+  assert.match(
+    source,
+    /if \(!state\.snapshotAvailable \|\| state\[key\] === expected\) return state/,
+  );
+  assert.match(
+    source,
+    /const snapshotSatisfied =\s*!state\.snapshotAvailable \|\|\s*\(state\.snapshotEnabled && state\.snapshotHeatmapVisible\)/,
+  );
+  assert.match(
+    source,
+    /const heatmapSnapshotVisibility =\s*!bothRenderer\.snapshotAvailable \|\|/,
+  );
+  assert.match(
+    source,
+    /const bubblesSnapshotVisibility =\s*!bothRenderer\.snapshotAvailable \|\|/,
+  );
+});
+
 test("deployed DizyFlow acceptance waits for renderer attachment then primes an actual heatmap paint", async () => {
   const source = await readFile(scriptPath, "utf8");
   assert.match(source, /waitForRendererReady/);
