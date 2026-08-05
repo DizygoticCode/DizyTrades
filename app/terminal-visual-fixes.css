@@ -6,28 +6,43 @@
  * DizyFlow capture behaviour.
  */
 
-/* Commands and Recent are portalled into the real terminal topbar. */
-.terminal-shell .global-quick-actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6px;
-  min-width: max-content;
-  margin-left: auto;
+/*
+ * Commands and Recent remain in their own hydrated root, but occupy a reserved
+ * topbar lane rather than floating over arbitrary terminal content. The right
+ * edge follows whichever is wider: the profile controls or an open DizyBrain
+ * surface.
+ */
+body:has(.terminal-shell) .system-strip {
+  min-width: 0;
+  padding-right: 214px;
 }
 
-.terminal-shell .global-quick-actions .command-palette-floating,
-.terminal-shell .global-quick-actions .recent-shortcuts-trigger {
-  position: static;
-  inset: auto;
+body:has(.terminal-shell) .global-quick-actions {
+  position: fixed;
+  z-index: 47;
+  top: 11px;
+  right: calc(max(224px, var(--dizybrain-global-tool-offset, 0px)) + 12px);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+}
+
+body:has(.terminal-shell) .global-quick-actions .command-palette-floating,
+body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger {
+  position: static !important;
+  inset: auto !important;
   z-index: auto;
   width: auto;
   min-width: 0;
-  height: 36px;
-  min-height: 36px;
+  height: 40px;
+  min-height: 40px !important;
   margin: 0;
   padding-inline: 10px;
   white-space: nowrap;
+  transform: none !important;
 }
 
 /* The user settings rail is a terminal-level inspector, not a DOM grid column. */
@@ -151,21 +166,33 @@
   }
 }
 
-@media (max-width: 1150px) {
-  .terminal-shell .global-quick-actions .command-palette-floating,
-  .terminal-shell .global-quick-actions .recent-shortcuts-trigger {
-    width: 36px;
+@media (max-width: 1500px) and (min-width: 761px) {
+  body:has(.terminal-shell) .system-strip > .confirmed,
+  body:has(.terminal-shell) .system-strip > .test-mode,
+  body:has(.terminal-shell) .system-strip > .lock-status {
+    display: none;
+  }
+}
+
+@media (max-width: 1150px) and (min-width: 761px) {
+  body:has(.terminal-shell) .system-strip {
+    padding-right: 92px;
+  }
+
+  body:has(.terminal-shell) .global-quick-actions .command-palette-floating,
+  body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger {
+    width: 40px;
     padding: 0;
     overflow: hidden;
     font-size: 0;
   }
 
-  .terminal-shell .global-quick-actions .command-palette-floating > span,
-  .terminal-shell .global-quick-actions .recent-shortcuts-trigger > span {
+  body:has(.terminal-shell) .global-quick-actions .command-palette-floating > span,
+  body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger > span {
     font-size: 13px;
   }
 
-  .terminal-shell .global-quick-actions .command-palette-floating kbd {
+  body:has(.terminal-shell) .global-quick-actions .command-palette-floating kbd {
     display: none;
   }
 
@@ -187,9 +214,47 @@
   }
 }
 
-@media (max-width: 700px) {
-  .terminal-shell .global-quick-actions {
-    gap: 4px;
+@media (max-width: 760px) {
+  body:has(.terminal-shell) .system-strip {
+    padding-right: 0;
+  }
+
+  body:has(.terminal-shell) .global-quick-actions {
+    top: auto;
+    right: auto;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 8px;
+    max-width: min(180px, calc(100vw - 16px));
+  }
+
+  body:has(.terminal-shell) .global-quick-actions .command-palette-floating,
+  body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger {
+    width: auto;
+    min-width: 40px;
+    max-width: 100%;
+    height: 40px;
+    padding-inline: 10px;
+    font-size: 10px;
+  }
+
+  .terminal-shell .terminal-primary-column:has(.settings-panel) {
+    padding-right: 0;
+  }
+
+  .terminal-shell .settings-panel {
+    position: fixed !important;
+    z-index: 82;
+    top: 62px;
+    right: 0;
+    bottom: 0;
+    width: min(92vw, 360px);
+    min-width: min(92vw, 360px);
+    max-width: min(92vw, 360px);
+    height: calc(100dvh - 62px);
+    box-shadow: -20px 0 55px #000c;
   }
 
   .terminal-shell .dizyflow-controls {
