@@ -17,13 +17,16 @@ test("terminal visual contract loads after every prior global stylesheet", () =>
   assert.ok(terminalStyles > featureStyles);
 });
 
-test("Commands and Recent are portalled into the terminal system strip", () => {
-  assert.match(mounted, /document\.querySelector<HTMLElement>\("\.topbar \.system-strip"\)/);
-  assert.match(mounted, /createPortal\(quickActions, terminalAnchor\)/);
+test("Commands and Recent share a reserved hydration-safe terminal topbar dock", () => {
   assert.match(mounted, /className="global-quick-actions"/);
-  assert.match(visualFixes, /\.terminal-shell \.global-quick-actions/);
-  assert.match(visualFixes, /position: static;/);
-  assert.doesNotMatch(visualFixes, /\.global-quick-actions[^}]*position: fixed/s);
+  assert.match(mounted, /<CommandPalette \/>/);
+  assert.match(mounted, /<RecentShortcuts \/>/);
+  assert.doesNotMatch(mounted, /createPortal|MutationObserver|querySelector/);
+  assert.match(visualFixes, /body:has\(\.terminal-shell\) \.system-strip \{[^}]*padding-right: 214px;/s);
+  assert.match(visualFixes, /body:has\(\.terminal-shell\) \.global-quick-actions \{\s*position: fixed;/s);
+  assert.match(visualFixes, /right: calc\(max\(224px, var\(--dizybrain-global-tool-offset, 0px\)\) \+ 12px\);/);
+  assert.match(visualFixes, /\.global-quick-actions \.command-palette-floating,[^}]*position: static !important;/s);
+  assert.match(visualFixes, /flex-direction: column-reverse;/);
 });
 
 test("user settings is a full-height independent terminal sidebar", () => {
