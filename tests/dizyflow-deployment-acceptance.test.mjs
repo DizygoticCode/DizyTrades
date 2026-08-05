@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const scriptPath = new URL("../scripts/dizyflow-deployment-acceptance.mjs", import.meta.url);
+const toolbarPath = new URL("../app/order-flow-toolbar.tsx", import.meta.url);
 
 test("deployed DizyFlow acceptance uses the view-only terminal and bounded presentation controls", async () => {
   const source = await readFile(scriptPath, "utf8");
@@ -23,6 +24,25 @@ test("deployed DizyFlow acceptance uses the view-only terminal and bounded prese
   assert.match(source, /acceptedPresentations\.has/);
   assert.match(source, /recovering \/ sync/);
   assert.match(source, /\.chart-wrap canvas/);
+});
+
+test("deployed DizyFlow acceptance uses full-pixel and bounded renderer evidence", async () => {
+  const source = await readFile(scriptPath, "utf8");
+  const toolbar = await readFile(toolbarPath, "utf8");
+  assert.match(source, /index \+= 4/);
+  assert.doesNotMatch(source, /const stride/);
+  assert.match(source, /observeFingerprintChange/);
+  assert.match(source, /readRendererDiagnostics/);
+  assert.match(source, /heatmapVisualChanged/);
+  assert.match(source, /bubblesVisualEvidencePresent/);
+  assert.match(source, /effectiveTimeSliceMs === 30_000/);
+  assert.match(toolbar, /data-flow-primitive-attached/);
+  assert.match(toolbar, /data-flow-render-heatmap-visible/);
+  assert.match(toolbar, /data-flow-render-bubbles-visible/);
+  assert.match(toolbar, /data-flow-heatmap-cells-drawn/);
+  assert.match(toolbar, /data-flow-heatmap-segments-drawn/);
+  assert.match(toolbar, /data-flow-bubbles-drawn/);
+  assert.match(toolbar, /data-flow-effective-time-slice-ms/);
 });
 
 test("deployed DizyFlow acceptance exercises layer, tuning and viewport behaviour", async () => {
@@ -50,5 +70,6 @@ test("deployed DizyFlow acceptance persists sanitised diagnostics only", async (
   assert.doesNotMatch(source, /writeFile\([^,]+,\s*await page|screenshot|video/i);
   assert.match(source, /checksum/);
   assert.match(source, /paintedPixels/);
+  assert.match(source, /sampledBytes/);
   assert.match(source, /serviceOrigin/);
 });
