@@ -1,0 +1,116 @@
+/*
+ * Final desktop density and scrollbar polish for the terminal.
+ *
+ * Scrollable surfaces retain wheel, touch and keyboard behaviour while the
+ * heavy native scrollbar chrome is removed from the chart tool rail and DOM.
+ */
+
+@media (min-width: 761px) {
+  .terminal-shell .dizyflow-controls {
+    width: fit-content;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: 0 1 auto !important;
+    grid-template-columns: auto auto !important;
+    gap: 2px 6px;
+    padding: 2px 5px;
+  }
+
+  .terminal-shell .dizyflow-master {
+    padding: 4px 7px;
+  }
+
+  .terminal-shell .flow-component-toggles {
+    width: auto;
+    max-width: 100%;
+    gap: 2px;
+  }
+
+  .terminal-shell .flow-component-toggles button,
+  .terminal-shell .flow-history-button {
+    padding: 2px 5px;
+    font-size: 8.5px;
+  }
+}
+
+/* The chart drawing rail should not advertise a second page scrollbar. */
+.terminal-shell .drawing-toolbar {
+  gap: 2px;
+  padding: 3px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.terminal-shell .drawing-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.terminal-shell .drawing-toolbar button,
+.terminal-shell .drawing-toolbar select {
+  min-height: 26px;
+  height: 26px;
+}
+
+/* The DOM remains scrollable, but the ladder owns no visible browser rail. */
+.terminal-shell .dom-book {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scrollbar-width: none;
+  overscroll-behavior-y: contain;
+}
+
+.terminal-shell .dom-book::-webkit-scrollbar {
+  display: none;
+}
+
+/* Keep the small DOM guidance readable without competing with the ladder. */
+.terminal-shell .dizyflow-dom footer {
+  gap: 3px;
+  font-size: 9px;
+  line-height: 1.35;
+  color: #9aa6bb;
+}
+
+.terminal-shell .dizyflow-dom footer small {
+  font-size: 9px;
+  color: #d1a66d;
+}
+
+/* Centre the complete Market Buy/Sell message column inside the 42px card. */
+.terminal-shell .flow-toast-rail > article {
+  display: grid !important;
+  grid-template-columns: 3px minmax(0, 1fr) auto !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  align-items: center !important;
+  block-size: 42px !important;
+  min-block-size: 42px !important;
+  max-block-size: 42px !important;
+}
+
+.terminal-shell .flow-toast-rail > article > span:first-of-type {
+  align-self: stretch !important;
+  min-block-size: 0;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 1px !important;
+  text-align: center;
+}
+
+.terminal-shell .flow-toast-rail > article > span:first-of-type > b,
+.terminal-shell .flow-toast-rail > article > span:first-of-type > small {
+  width: 100%;
+  margin: 0;
+  text-align: center;
+  line-height: 1.05;
+}
+
+@media (max-width: 760px) {
+  .terminal-shell .dizyflow-controls {
+    width: 100%;
+    flex: 1 1 100% !important;
+    grid-template-columns: auto minmax(0, 1fr) !important;
+  }
+}
