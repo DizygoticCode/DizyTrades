@@ -36,7 +36,8 @@ export function heatmapColour(value:number,palette:HeatmapPalette="bookmap"){
  const stops=HEAT_PALETTES[palette],n=Math.max(0,Math.min(1,value));let index=1;while(index<stops.length&&n>stops[index][0])index++;const [a,from]=stops[index-1],[b,to]=stops[Math.min(index,stops.length-1)];return blendHex(from,to,b===a?0:(n-a)/(b-a));
 }
 
-export function effectiveHeatmapPriceStep(pricePerPixel:number,exchangeTick:number,targetPixels=DEFAULT_HEATMAP_DISPLAY_TUNING.minimumPricePixels){
+/** Generic callers retain the historical fallback; the production renderer always supplies the active display target. */
+export function effectiveHeatmapPriceStep(pricePerPixel:number,exchangeTick:number,targetPixels=4.5){
   if(!Number.isFinite(exchangeTick)||exchangeTick<=0)return 1;
   const desired=Math.max(exchangeTick,Math.abs(pricePerPixel)*targetPixels);
   return exchangeTick*Math.max(1,Math.round(desired/exchangeTick));
@@ -59,7 +60,7 @@ export function buildHeatmapSegments(observations:readonly LiquidityObservation[
   const bins=new Map<number,LiquidityObservation[]>();
   for(const observation of observations){const bin=Math.round(observation.price/displayStep),items=bins.get(bin)??[];items.push(observation);bins.set(bin,items)}
   const result:HeatmapSegment[]=[];
-  for(const [bin,items] of bins){items.sort((a,b)=>a.timestampMs-b.timestampMs);const levels=new Map<number,{bid:number;ask:number}>();let stateAt=items[0]?.timestampMs??0,index=0;
+  for(const [bin,items]){items.sort((a,b)=>a.timestampMs-b.timestampMs);const levels=new Map<number,{bid:number;ask:number}>();let stateAt=items[0]?.timestampMs??0,index=0;
     while(index<items.length){const timestamp=items[index].timestampMs;if(timestamp>stateAt){const bid=[...levels.values()].reduce((sum,v)=>sum+v.bid,0),ask=[...levels.values()].reduce((sum,v)=>sum+v.ask,0),from=Math.max(stateAt,visibleFrom),to=Math.min(timestamp,visibleTo,latestDepthMs);if(to>from&&(bid>0||ask>0))result.push({price:bin*displayStep,fromMs:from,toMs:to,bidQuantity:bid,askQuantity:ask})}while(index<items.length&&items[index].timestampMs===timestamp){const item=items[index++];levels.set(item.price,{bid:item.bidQuantity,ask:item.askQuantity})}stateAt=timestamp}
     const bid=[...levels.values()].reduce((sum,v)=>sum+v.bid,0),ask=[...levels.values()].reduce((sum,v)=>sum+v.ask,0),from=Math.max(stateAt,visibleFrom),to=Math.min(visibleTo,latestDepthMs);if(to>from&&(bid>0||ask>0))result.push({price:bin*displayStep,fromMs:from,toMs:to,bidQuantity:bid,askQuantity:ask});
   }
