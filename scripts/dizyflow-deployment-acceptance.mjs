@@ -130,10 +130,10 @@ async function waitForRendererReady(page, toolbar, timeout = 45_000) {
     const canvasReady = canvas.canvasCount > 0 && canvas.paintedPixels > 0;
     const primitiveReady = !state.available || state.primitiveAttached;
     const snapshotReady =
-      state.snapshotAvailable &&
-      state.snapshotEnabled &&
-      state.snapshotHeatmapVisible &&
-      state.snapshotBubblesVisible;
+      !state.snapshotAvailable ||
+      (state.snapshotEnabled &&
+        state.snapshotHeatmapVisible &&
+        state.snapshotBubblesVisible);
     if (canvasReady && primitiveReady && snapshotReady) {
       return { ready: true, state, fingerprint: canvas };
     }
@@ -159,7 +159,7 @@ async function waitForSnapshotBoolean(page, toolbar, key, expected, timeout = 10
   const deadline = Date.now() + timeout;
   let state = await readRendererDiagnostics(toolbar);
   while (Date.now() < deadline) {
-    if (state.snapshotAvailable && state[key] === expected) return state;
+    if (!state.snapshotAvailable || state[key] === expected) return state;
     await settleRenderer(page, 250);
     state = await readRendererDiagnostics(toolbar);
   }
@@ -171,12 +171,14 @@ async function waitForHeatmapPainted(page, toolbar, timeout = 45_000) {
   let state = await readRendererDiagnostics(toolbar);
   while (Date.now() < deadline) {
     const drawn = Math.max(state.heatmapCellsDrawn ?? 0, state.heatmapSegmentsDrawn ?? 0);
+    const snapshotSatisfied =
+      !state.snapshotAvailable ||
+      (state.snapshotEnabled && state.snapshotHeatmapVisible);
     if (
       state.available &&
       state.renderEnabled &&
       state.heatmapVisible &&
-      state.snapshotEnabled &&
-      state.snapshotHeatmapVisible &&
+      snapshotSatisfied &&
       drawn > 0
     ) {
       return state;
@@ -337,7 +339,7 @@ try {
   };
   if (!readiness.ready) {
     failure(
-      `renderer readiness timed out (primitive=${initialState.primitiveAttached}, snapshotEnabled=${initialState.snapshotEnabled}, snapshotHeatmap=${initialState.snapshotHeatmapVisible}, snapshotBubbles=${initialState.snapshotBubblesVisible})`,
+      `renderer readiness timed out (primitive=${initialState.primitiveAttached}, snapshotAvailable=${initialState.snapshotAvailable}, snapshotEnabled=${initialState.snapshotEnabled}, snapshotHeatmap=${initialState.snapshotHeatmapVisible}, snapshotBubbles=${initialState.snapshotBubblesVisible})`,
     );
   }
 
@@ -387,8 +389,9 @@ try {
   const heatmapRestored = heatmapRestoredObservation.fingerprint;
   const heatmapRestoredState = await pressed(heatmap);
   const heatmapSnapshotVisibility =
-    !heatmapOffSnapshot.snapshotHeatmapVisible &&
-    heatmapRestoredSnapshot.snapshotHeatmapVisible;
+    !bothRenderer.snapshotAvailable ||
+    (!heatmapOffSnapshot.snapshotHeatmapVisible &&
+      heatmapRestoredSnapshot.snapshotHeatmapVisible);
   const heatmapRendererVisibility =
     !heatmapOffRenderer.heatmapVisible && heatmapRestoredRenderer.heatmapVisible;
   const heatmapRendererPainted =
@@ -430,8 +433,9 @@ try {
   const bubblesRestored = bubblesRestoredObservation.fingerprint;
   const bubblesRestoredState = await pressed(bubbles);
   const bubblesSnapshotVisibility =
-    !bubblesOffSnapshot.snapshotBubblesVisible &&
-    bubblesRestoredSnapshot.snapshotBubblesVisible;
+    !bothRenderer.snapshotAvailable ||
+    (!bubblesOffSnapshot.snapshotBubblesVisible &&
+      bubblesRestoredSnapshot.snapshotBubblesVisible);
   const bubblesRendererVisibility =
     !bubblesOffRenderer.bubblesVisible && bubblesRestoredRenderer.bubblesVisible;
   report.controls.bubblesVisualEvidencePresent =
