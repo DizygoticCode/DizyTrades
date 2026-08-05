@@ -48,7 +48,7 @@ function overlaps(first: GeometryBox, second: GeometryBox) {
   );
 }
 
-test("compact topbar exposes Dizy navigation and clears collapsed paper controls", async ({
+test("readable topbar exposes Dizy navigation and clears collapsed paper controls", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -70,6 +70,9 @@ test("compact topbar exposes Dizy navigation and clears collapsed paper controls
     expect(right(box!)).toBeLessThanOrEqual(1440);
     expect(bottom(box!)).toBeLessThanOrEqual(bottom(topbarBox!) + 1);
   }
+  expect(
+    await navItems.first().evaluate((node) => getComputedStyle(node).fontSize),
+  ).toBe("9.5px");
 
   const statusBadges = page.locator(
     ".system-strip > .connection, .system-strip > .confirmed, .system-strip > .test-mode, .system-strip > .lock-status",
@@ -80,7 +83,7 @@ test("compact topbar exposes Dizy navigation and clears collapsed paper controls
   expect(connectionBox!.y).toBeGreaterThanOrEqual(bottom(topbarBox!) - 1);
   expect(
     await statusBadges.first().evaluate((node) => getComputedStyle(node).fontSize),
-  ).toBe("8px");
+  ).toBe("9.25px");
 
   const quickActions = page.locator(".global-quick-actions");
   const quickBox = await quickActions.boundingBox();
@@ -90,6 +93,22 @@ test("compact topbar exposes Dizy navigation and clears collapsed paper controls
     expect(box).not.toBeNull();
     expect(overlaps(box!, quickBox!)).toBe(false);
   }
+
+  /* Wide or zoomed-out desktop: preserve the complete brand before DizyCharts. */
+  await page.setViewportSize({ width: 1800, height: 900 });
+  const brand = page.locator(".brand-lockup");
+  const brandSubtitle = page.locator(".brand-lockup small");
+  await expect(brandSubtitle).toBeVisible();
+  const [brandBox, firstNavBox] = await Promise.all([
+    brand.boundingBox(),
+    navItems.first().boundingBox(),
+  ]);
+  expect(brandBox).not.toBeNull();
+  expect(firstNavBox).not.toBeNull();
+  expect(right(brandBox!)).toBeLessThanOrEqual(firstNavBox!.x - 4);
+  expect(
+    await navItems.first().evaluate((node) => getComputedStyle(node).fontSize),
+  ).toBe("10.25px");
 
   const minimise = page.getByRole("button", {
     name: "Minimise Manual Paper",
