@@ -297,7 +297,7 @@ export function buildDizyQuantEvidenceCampaign(
   input: readonly DizyQuantEvidenceCampaignSampleInput[],
   config: DizyQuantEvidenceCampaignConfig,
 ): DizyQuantEvidenceCampaignResult {
-  if (!Array.isArray(input) || input.length > DIZYQUANT_EVIDENCE_CAMPAIGN_MAX_SAMPLES) {
+  if (!Array.isArray(input as unknown) || input.length > DIZYQUANT_EVIDENCE_CAMPAIGN_MAX_SAMPLES) {
     throw new Error("DizyQuant campaign exceeds the bounded sample limit");
   }
   const campaignId = cleanText(config.campaignId, "DizyQuant campaign ID");
