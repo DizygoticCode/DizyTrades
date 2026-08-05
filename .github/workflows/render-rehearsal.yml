@@ -6,8 +6,12 @@ on:
       - ".github/workflows/render-rehearsal.yml"
       - ".node-version"
       - "scripts/render-rehearsal.mjs"
+      - "scripts/dizyflow-deployment-acceptance.mjs"
       - "tests/render-rehearsal.test.mjs"
+      - "tests/dizyflow-deployment-acceptance.test.mjs"
       - "docs/RENDER_REHEARSAL.md"
+      - "docs/DIZYFLOW_HEATMAP_ACCEPTANCE.md"
+      - "ROADMAP.md"
   push:
     branches:
       - main
@@ -16,8 +20,12 @@ on:
       - ".github/workflows/render-rehearsal.yml"
       - ".node-version"
       - "scripts/render-rehearsal.mjs"
+      - "scripts/dizyflow-deployment-acceptance.mjs"
       - "tests/render-rehearsal.test.mjs"
+      - "tests/dizyflow-deployment-acceptance.test.mjs"
       - "docs/RENDER_REHEARSAL.md"
+      - "docs/DIZYFLOW_HEATMAP_ACCEPTANCE.md"
+      - "ROADMAP.md"
   workflow_dispatch:
     inputs:
       expected_commit:
@@ -35,7 +43,7 @@ concurrency:
 jobs:
   observe-production:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
       RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
@@ -47,9 +55,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".node-version"
+          cache: npm
+
+      - name: Install repository dependencies
+        run: npm ci
 
       - name: Verify rehearsal helpers
-        run: node --test tests/render-rehearsal.test.mjs
+        run: node --test tests/render-rehearsal.test.mjs tests/dizyflow-deployment-acceptance.test.mjs
+
+      - name: Install Chromium for deployed acceptance
+        run: npx playwright install --with-deps chromium
 
       - name: Resolve expected deploy commit
         env:
@@ -76,6 +91,9 @@ jobs:
 
       - name: Observe Render service deploy and production health
         run: node scripts/render-rehearsal.mjs
+
+      - name: Exercise deployed DizyFlow presentation
+        run: node scripts/dizyflow-deployment-acceptance.mjs
 
       - name: Upload sanitised rehearsal evidence
         if: always()
