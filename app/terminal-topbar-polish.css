@@ -94,10 +94,11 @@
 
   /*
    * A collapsed Manual Paper panel is the 38px control bar and has no inline
-   * height style. Reserve that bar plus a 12px gap for the fixed launcher so
-   * it cannot cover the minimise or hide controls.
+   * height declaration. React may retain an empty style attribute, so match
+   * the absence of height rather than the absence of the attribute itself.
+   * The 50px offset reserves the bar plus a 12px gap for the fixed launcher.
    */
-  body:has(#manual-paper-panel:not([style])) .dizybrain-launch {
+  body:has(#manual-paper-panel:not([style*="height"])) .dizybrain-launch {
     bottom: calc(50px + env(safe-area-inset-bottom, 0px));
     transition: bottom 160ms ease;
   }
