@@ -11,8 +11,10 @@ on:
       - "app/trading-terminal.tsx"
       - "scripts/render-rehearsal.mjs"
       - "scripts/dizyflow-deployment-acceptance.mjs"
+      - "scripts/dizyflow-depth-failure-diagnostic.mjs"
       - "tests/render-rehearsal.test.mjs"
       - "tests/dizyflow-deployment-acceptance.test.mjs"
+      - "tests/dizyflow-depth-failure-diagnostic.test.mjs"
       - "tests/dizyflow-projection-retention.test.mjs"
       - "tests/browser/dizyflow-render.spec.ts"
       - "docs/RENDER_REHEARSAL.md"
@@ -31,8 +33,10 @@ on:
       - "app/trading-terminal.tsx"
       - "scripts/render-rehearsal.mjs"
       - "scripts/dizyflow-deployment-acceptance.mjs"
+      - "scripts/dizyflow-depth-failure-diagnostic.mjs"
       - "tests/render-rehearsal.test.mjs"
       - "tests/dizyflow-deployment-acceptance.test.mjs"
+      - "tests/dizyflow-depth-failure-diagnostic.test.mjs"
       - "tests/dizyflow-projection-retention.test.mjs"
       - "tests/browser/dizyflow-render.spec.ts"
       - "docs/RENDER_REHEARSAL.md"
@@ -73,7 +77,7 @@ jobs:
         run: npm ci
 
       - name: Verify rehearsal helpers
-        run: node --test tests/render-rehearsal.test.mjs tests/dizyflow-deployment-acceptance.test.mjs
+        run: node --test tests/render-rehearsal.test.mjs tests/dizyflow-deployment-acceptance.test.mjs tests/dizyflow-depth-failure-diagnostic.test.mjs
 
       - name: Record pull-request boundary
         if: github.event_name == 'pull_request'
@@ -117,6 +121,10 @@ jobs:
       - name: Exercise deployed DizyFlow presentation
         if: github.event_name != 'pull_request'
         run: node scripts/dizyflow-deployment-acceptance.mjs
+
+      - name: Collect bounded depth failure diagnostic
+        if: ${{ failure() && github.event_name != 'pull_request' }}
+        run: node scripts/dizyflow-depth-failure-diagnostic.mjs
 
       - name: Upload sanitised rehearsal evidence
         if: ${{ always() && github.event_name != 'pull_request' }}
