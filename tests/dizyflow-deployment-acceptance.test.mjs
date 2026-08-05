@@ -5,13 +5,22 @@ import test from "node:test";
 const scriptPath = new URL("../scripts/dizyflow-deployment-acceptance.mjs", import.meta.url);
 const toolbarPath = new URL("../app/order-flow-toolbar.tsx", import.meta.url);
 
-test("deployed DizyFlow acceptance uses the view-only terminal and bounded presentation controls", async () => {
+test("deployed DizyFlow acceptance waits for secure viewer and profile hydration", async () => {
   const source = await readFile(scriptPath, "utf8");
   assert.match(source, /Open View-Only Terminal/);
-  assert.match(source, /page\.on\("response", observeViewerResponse\)/);
+  assert.match(source, /page\.on\("response", observeTerminalResponse\)/);
   assert.match(source, /page\.waitForURL\(\/\\\/terminal/);
   assert.doesNotMatch(source, /waitForResponse/);
+  assert.match(source, /profileResponsePromise/);
+  assert.match(source, /pathname === "\/api\/profile" && method === "GET"/);
+  assert.match(source, /profileResponse\.finished\(\)/);
+  assert.match(source, /terminal profile hydration was not observed/);
+  assert.match(source, /profileEndpointStatus/);
   assert.match(source, /viewerCookiePresent/);
+  assert.ok(
+    source.indexOf("await profileResponse.finished()") <
+      source.indexOf("await ensurePressed(master, true)"),
+  );
   assert.match(source, /\.first-run-onboarding-backdrop/);
   assert.match(source, /name: "Skip onboarding"/);
   assert.doesNotMatch(source, /force:\s*true/);
@@ -77,6 +86,7 @@ test("deployed DizyFlow acceptance persists sanitised diagnostics only", async (
   const source = await readFile(scriptPath, "utf8");
   assert.match(source, /dizyflow-acceptance\.json/);
   assert.match(source, /viewerEndpointStatus/);
+  assert.match(source, /profileEndpointStatus/);
   assert.match(source, /viewerCookiePresent/);
   assert.match(source, /context\.cookies\(serviceUrl\.origin\)/);
   assert.doesNotMatch(source, /document\.body\.innerText|page\.content\(|localStorage\.length|indexedDB|sessionStorage/);
