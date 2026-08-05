@@ -50,7 +50,7 @@ export function HeatmapSettingsPortal(){
   <NumberField label="Minimum slice width" min={2.5} max={24} step={.5} suffix="px" value={tuning.minimumTimePixels} onChange={minimumTimePixels=>update({minimumTimePixels})}/>
   <label className="field-row"><span>Time-slice aggregation</span><select aria-label="Heatmap time-slice aggregation" value={tuning.timeSliceMs} onChange={event=>update({timeSliceMs:Number(event.target.value) as HeatmapTimeSliceMs})}><option value={0}>Automatic</option><option value={5000}>5 seconds</option><option value={15000}>15 seconds</option><option value={30000}>30 seconds</option><option value={60000}>1 minute</option></select></label>
   <label className="field-row"><span>Price grouping</span><select aria-label="Heatmap price grouping" value={tuning.priceGrouping} onChange={event=>update({priceGrouping:event.target.value as HeatmapPriceGrouping})}><option value="auto">Automatic by zoom</option><option value="exchange">Exchange tick</option><option value="manual">Manual step</option></select></label>
-  <NumberField disabled={tuning.priceGrouping!=="manual"} label="Manual grouping step" min={.00000001} max={100000} step="any" as never value={tuning.manualPriceStep} onChange={manualPriceStep=>update({manualPriceStep})}/>
+  <NumberField disabled={tuning.priceGrouping!=="manual"} label="Manual grouping step" min={.00000001} max={100000} step={.00000001} value={tuning.manualPriceStep} onChange={manualPriceStep=>update({manualPriceStep})}/>
   <div className="heatmap-display-actions"><button className="secondary" type="button" onClick={()=>setTuning(writeHeatmapDisplayTuning(DEFAULT_HEATMAP_DISPLAY_TUNING))}>Restore Bookmap defaults</button><small>Default: 7px bands · 6px slices · 15s aggregation</small></div>
  </div>,target);
 }
