@@ -1,0 +1,210 @@
+/*
+ * Terminal-only visual contracts.
+ *
+ * This stylesheet is loaded after the global and feature styles so the terminal
+ * shell owns the final layout decision without changing chart, market-data or
+ * DizyFlow capture behaviour.
+ */
+
+/* Commands and Recent are portalled into the real terminal topbar. */
+.terminal-shell .global-quick-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: max-content;
+  margin-left: auto;
+}
+
+.terminal-shell .global-quick-actions .command-palette-floating,
+.terminal-shell .global-quick-actions .recent-shortcuts-trigger {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  width: auto;
+  min-width: 0;
+  height: 36px;
+  min-height: 36px;
+  margin: 0;
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+
+/* The user settings rail is a terminal-level inspector, not a DOM grid column. */
+.terminal-shell .terminal-primary-column {
+  position: relative;
+  container-name: terminal-primary;
+  container-type: inline-size;
+  transition: padding-right 180ms ease;
+}
+
+.terminal-shell .terminal-primary-column:has(.settings-panel) {
+  padding-right: 342px;
+}
+
+.terminal-shell .workspace,
+.terminal-shell .workspace.panel-closed {
+  grid-template-areas: "chart";
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.terminal-shell .workspace:has(.dizyflow-dom),
+.terminal-shell .workspace.panel-closed:has(.dizyflow-dom) {
+  grid-template-areas: "chart dom";
+  grid-template-columns: minmax(0, 1fr) var(--dom-width, 230px);
+}
+
+.terminal-shell .settings-panel {
+  position: absolute !important;
+  z-index: 24;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 342px;
+  min-width: 342px;
+  max-width: 342px;
+  height: auto;
+  min-height: 0;
+  border-left: 1px solid #342b4b;
+  background: linear-gradient(180deg, #0d111b, #090c14);
+  box-shadow: -18px 0 50px #0008;
+}
+
+.terminal-shell .settings-panel .panel-tabs {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* Keep every purple DizyFlow control inside one bounded toolbar group. */
+.terminal-shell .dizyflow-controls {
+  isolation: isolate;
+  min-width: 280px;
+  max-width: min(620px, 100%);
+  flex: 0 1 620px;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.terminal-shell .dizyflow-controls > * {
+  min-width: 0;
+}
+
+.terminal-shell .flow-component-toggles {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.terminal-shell .flow-component-toggles > button {
+  flex: 0 0 auto;
+}
+
+/* Wall / large-market activity needs two readable lines, not a crushed strip. */
+.terminal-shell .flow-toast-rail {
+  block-size: 44px !important;
+  min-block-size: 44px !important;
+  max-block-size: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  flex-basis: 258px !important;
+}
+
+.terminal-shell .flow-toast-rail > article {
+  block-size: 42px !important;
+  min-block-size: 42px !important;
+  padding: 5px 6px !important;
+}
+
+.terminal-shell .flow-toast-rail > article > i {
+  min-block-size: 30px !important;
+}
+
+/* When the inspector is open, let toolbar groups wrap instead of overlapping. */
+.terminal-shell .terminal-primary-column:has(.settings-panel) .market-toolbar {
+  flex-wrap: wrap;
+  align-content: center;
+  row-gap: 6px;
+}
+
+.terminal-shell .terminal-primary-column:has(.settings-panel) .toolbar-spacer {
+  display: none;
+}
+
+@container terminal-primary (max-width: 1250px) {
+  .market-toolbar {
+    flex-wrap: wrap;
+    align-content: center;
+    row-gap: 6px;
+  }
+
+  .toolbar-spacer {
+    display: none;
+  }
+
+  .dizyflow-controls {
+    flex: 1 1 520px;
+  }
+}
+
+@media (max-width: 1150px) {
+  .terminal-shell .global-quick-actions .command-palette-floating,
+  .terminal-shell .global-quick-actions .recent-shortcuts-trigger {
+    width: 36px;
+    padding: 0;
+    overflow: hidden;
+    font-size: 0;
+  }
+
+  .terminal-shell .global-quick-actions .command-palette-floating > span,
+  .terminal-shell .global-quick-actions .recent-shortcuts-trigger > span {
+    font-size: 13px;
+  }
+
+  .terminal-shell .global-quick-actions .command-palette-floating kbd {
+    display: none;
+  }
+
+  .terminal-shell .terminal-primary-column:has(.settings-panel) {
+    padding-right: 0;
+  }
+
+  .terminal-shell .settings-panel {
+    position: fixed !important;
+    z-index: 82;
+    top: 62px;
+    right: 0;
+    bottom: 0;
+    width: min(92vw, 360px);
+    min-width: min(92vw, 360px);
+    max-width: min(92vw, 360px);
+    height: calc(100dvh - 62px);
+    box-shadow: -20px 0 55px #000c;
+  }
+}
+
+@media (max-width: 700px) {
+  .terminal-shell .global-quick-actions {
+    gap: 4px;
+  }
+
+  .terminal-shell .dizyflow-controls {
+    min-width: min(100%, 280px);
+    flex-basis: 100%;
+  }
+
+  .terminal-shell .flow-toast-rail {
+    min-width: min(100%, 228px) !important;
+    flex: 1 1 228px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-shell .terminal-primary-column {
+    transition: none;
+  }
+}
