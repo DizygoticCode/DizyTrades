@@ -1,0 +1,147 @@
+/*
+ * Compact terminal navigation and lower operational-status lane.
+ *
+ * The topbar keeps every Dizy destination in the navigation flow. Runtime,
+ * simulation and lock badges use the already-reserved workflow lane below it,
+ * where Commands and Recent also live. This layer loads last so it owns the
+ * final geometry without changing terminal state or market behaviour.
+ */
+
+@media (min-width: 761px) {
+  body:has(.terminal-shell) .topbar {
+    position: relative;
+    z-index: 48;
+    gap: 14px;
+    overflow: visible;
+  }
+
+  body:has(.terminal-shell) .brand-lockup {
+    min-width: 184px;
+    flex: 0 0 184px;
+  }
+
+  body:has(.terminal-shell) .profile {
+    flex: 0 0 auto;
+  }
+
+  /*
+   * The strip deliberately overflows into the 50px workflow reservation.
+   * Navigation stays on the first flex line; the generated full-width break
+   * sends operational badges to the slimmer line immediately below.
+   */
+  body:has(.terminal-shell) .system-strip {
+    align-self: flex-start;
+    height: 112px;
+    padding: 12px 0 0;
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    column-gap: 4px;
+    row-gap: 11px;
+    overflow: visible;
+  }
+
+  body:has(.terminal-shell) .system-strip > .nav-tab {
+    order: 1;
+    flex: 0 1 auto;
+    min-width: 0;
+    min-height: 30px;
+    padding: 7px 5px;
+    border-bottom-width: 1px;
+    font-size: 8.5px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  body:has(.terminal-shell) .system-strip::after {
+    content: "";
+    order: 2;
+    flex: 0 0 100%;
+    height: 0;
+  }
+
+  body:has(.terminal-shell) .system-strip > .connection,
+  body:has(.terminal-shell) .system-strip > .confirmed,
+  body:has(.terminal-shell) .system-strip > .test-mode,
+  body:has(.terminal-shell) .system-strip > .lock-status,
+  body:has(.terminal-shell) .system-strip > .viewer-badge {
+    order: 3;
+    display: inline-flex !important;
+    align-items: center;
+    min-height: 20px;
+    padding: 3px 7px;
+    border-radius: 6px;
+    font-size: 8px;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  body:has(.terminal-shell) .system-strip > .confirmed {
+    text-transform: none;
+  }
+
+  body:has(.terminal-shell) .connection i {
+    width: 5px;
+    height: 5px;
+    margin-right: 4px;
+  }
+
+  body:has(.terminal-shell) .global-quick-actions {
+    z-index: 49;
+  }
+
+  /*
+   * A collapsed Manual Paper panel is the 38px control bar and has no inline
+   * height style. Reserve that bar plus a 12px gap for the fixed launcher so
+   * it cannot cover the minimise or hide controls.
+   */
+  body:has(#manual-paper-panel:not([style])) .dizybrain-launch {
+    bottom: calc(50px + env(safe-area-inset-bottom, 0px));
+    transition: bottom 160ms ease;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1420px) {
+  body:has(.terminal-shell) .brand-lockup {
+    min-width: 142px;
+    flex-basis: 142px;
+  }
+
+  body:has(.terminal-shell) .brand-lockup small,
+  body:has(.terminal-shell) .account-switch b,
+  body:has(.terminal-shell) .account-switch em {
+    display: none;
+  }
+
+  body:has(.terminal-shell) .account-switch {
+    width: 39px;
+    min-width: 39px;
+    grid-template-columns: 28px;
+    padding-inline: 5px;
+  }
+
+  body:has(.terminal-shell) .system-strip {
+    column-gap: 3px;
+  }
+
+  body:has(.terminal-shell) .system-strip > .nav-tab {
+    padding-inline: 4px;
+    font-size: 8px;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1180px) {
+  body:has(.terminal-shell) .system-strip > .confirmed,
+  body:has(.terminal-shell) .system-strip > .test-mode,
+  body:has(.terminal-shell) .system-strip > .lock-status {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:has(.terminal-shell) .dizybrain-launch {
+    transition: none;
+  }
+}
