@@ -76,6 +76,8 @@ const report = {
   observedAt: new Date().toISOString(),
   serviceOrigin: serviceUrl.origin,
   viewerSession: false,
+  viewerEndpointStatus: null,
+  viewerCookiePresent: false,
   presentation: "unknown",
   controls: { heatmapIndependent: false, bubblesIndependent: false },
   rendering: {},
@@ -88,7 +90,18 @@ try {
   await page.goto(new URL("/login", serviceUrl).href, { waitUntil: "domcontentloaded", timeout: 60_000 });
   const viewerButton = page.getByRole("button", { name: "Open View-Only Terminal" });
   await viewerButton.waitFor({ state: "visible", timeout: 30_000 });
+  const viewerResponsePromise = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === "/api/auth/viewer" && response.request().method() === "POST",
+    { timeout: 30_000 },
+  );
   await viewerButton.click();
+  const viewerResponse = await viewerResponsePromise;
+  report.viewerEndpointStatus = viewerResponse.status();
+  report.viewerCookiePresent = (await context.cookies(serviceUrl.origin)).some(
+    (cookie) => cookie.httpOnly && cookie.secure && cookie.path === "/",
+  );
+  if (!viewerResponse.ok()) failure(`viewer endpoint returned HTTP ${viewerResponse.status()}`);
+  if (!report.viewerCookiePresent) failure("viewer endpoint returned success without an HTTP-only production session cookie");
   await page.waitForURL(/\/terminal(?:\?|$)/, { timeout: 30_000 });
   report.viewerSession = true;
 
