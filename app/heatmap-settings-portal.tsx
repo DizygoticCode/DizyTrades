@@ -7,13 +7,14 @@ import {
   DEFAULT_HEATMAP_DISPLAY_TUNING,
   readHeatmapDisplayTuning,
   writeHeatmapDisplayTuning,
+  type HeatmapDetectionRangeBps,
   type HeatmapDisplayTuning,
   type HeatmapPalette,
   type HeatmapPriceGrouping,
   type HeatmapTimeSliceMs,
 } from "./lib/order-flow/heatmap";
 
-const LEGACY_FIELDS=new Set(["Colour map","Vertical smoothing","Manual price-bin size"]);
+const LEGACY_FIELDS=new Set(["Colour map","Vertical smoothing","Manual price-bin size","Heatmap range"]);
 
 function NumberField({label,value,min,max,step=1,suffix,onChange,disabled=false}:{label:string;value:number;min:number;max:number;step?:number;suffix?:string;onChange:(value:number)=>void;disabled?:boolean}){
  return <label className="field-row"><span>{label}</span><span className="number-shell"><input aria-label={label} disabled={disabled} max={max} min={min} onChange={event=>onChange(Number(event.target.value))} step={step} type="number" value={value}/>{suffix?<em>{suffix}</em>:null}</span></label>;
@@ -45,13 +46,14 @@ export function HeatmapSettingsPortal(){
  const update=useCallback((patch:Partial<HeatmapDisplayTuning>)=>{setTuning(current=>writeHeatmapDisplayTuning({...current,...patch}))},[]);
  if(!target)return null;
  return createPortal(<div className="heatmap-display-settings" data-testid="heatmap-display-settings">
-  <p className="setting-help">Bookmap-style screen tuning. These controls change display aggregation and visual weight only; the live public depth feed remains authoritative.</p>
+  <p className="setting-help">Bookmap-style screen tuning. Range widens retained liquidity detection without widening the compact DOM ladder.</p>
   <label className="field-row"><span>Colour palette</span><select aria-label="Heatmap colour palette" value={tuning.palette} onChange={event=>update({palette:event.target.value as HeatmapPalette})}><option value="bookmap">Bookmap</option><option value="thermal">Thermal</option><option value="ocean">Ocean</option></select></label>
   <NumberField label="Band height" min={3} max={24} step={.5} suffix="px" value={tuning.minimumPricePixels} onChange={minimumPricePixels=>update({minimumPricePixels})}/>
   <NumberField label="Minimum slice width" min={2.5} max={24} step={.5} suffix="px" value={tuning.minimumTimePixels} onChange={minimumTimePixels=>update({minimumTimePixels})}/>
   <label className="field-row"><span>Time-slice aggregation</span><select aria-label="Heatmap time-slice aggregation" value={tuning.timeSliceMs} onChange={event=>update({timeSliceMs:Number(event.target.value) as HeatmapTimeSliceMs})}><option value={0}>Automatic</option><option value={5000}>5 seconds</option><option value={15000}>15 seconds</option><option value={30000}>30 seconds</option><option value={60000}>1 minute</option></select></label>
+  <label className="field-row"><span>Detection range</span><select aria-label="Heatmap detection range" value={tuning.detectionRangeBps} onChange={event=>update({detectionRangeBps:Number(event.target.value) as HeatmapDetectionRangeBps})}><option value={100}>±1%</option><option value={250}>±2.5%</option><option value={500}>±5%</option><option value={1000}>±10%</option></select></label>
   <label className="field-row"><span>Price grouping</span><select aria-label="Heatmap price grouping" value={tuning.priceGrouping} onChange={event=>update({priceGrouping:event.target.value as HeatmapPriceGrouping})}><option value="auto">Automatic by zoom</option><option value="exchange">Exchange tick</option><option value="manual">Manual step</option></select></label>
   <NumberField disabled={tuning.priceGrouping!=="manual"} label="Manual grouping step" min={.00000001} max={100000} step={.00000001} value={tuning.manualPriceStep} onChange={manualPriceStep=>update({manualPriceStep})}/>
-  <div className="heatmap-display-actions"><button className="secondary" type="button" onClick={()=>setTuning(writeHeatmapDisplayTuning(DEFAULT_HEATMAP_DISPLAY_TUNING))}>Restore Bookmap defaults</button><small>Default: 7px bands · 6px slices · 15s aggregation</small></div>
+  <div className="heatmap-display-actions"><button className="secondary" type="button" onClick={()=>setTuning(writeHeatmapDisplayTuning(DEFAULT_HEATMAP_DISPLAY_TUNING))}>Restore Bookmap defaults</button><small>Default: 7px bands · 6px slices · 15s · ±5%</small></div>
  </div>,target);
 }
