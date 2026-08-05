@@ -16,14 +16,22 @@ test("compact topbar polish is the final global stylesheet", () => {
   assert.ok(topbar > scrollbar);
 });
 
-test("Dizy destinations remain first and operational badges use the lower lane", () => {
+test("Dizy destinations stay readable while operational badges use the lower lane", () => {
   assert.match(terminal, /className="system-strip"/);
   assert.match(terminal, /className="confirmed"/);
   assert.match(terminal, /className="test-mode"/);
   assert.match(terminal, /className="lock-status"/);
   assert.match(
     polish,
-    /\.system-strip > \.nav-tab \{[^}]*order: 1;[^}]*font-size: 8\.5px;/s,
+    /\.brand-lockup \{[^}]*min-width: 220px;[^}]*flex: 0 0 220px;/s,
+  );
+  assert.match(
+    polish,
+    /\.system-strip > \.nav-tab \{[^}]*order: 1;[^}]*font-size: 10\.25px;/s,
+  );
+  assert.match(
+    polish,
+    /max-width: 1600px[\s\S]*\.brand-lockup \{[^}]*min-width: 154px;[^}]*flex-basis: 154px;[\s\S]*\.brand-lockup small \{[^}]*display: none;[\s\S]*\.system-strip > \.nav-tab \{[^}]*font-size: 9\.5px;/s,
   );
   assert.match(
     polish,
@@ -31,10 +39,10 @@ test("Dizy destinations remain first and operational badges use the lower lane",
   );
   assert.match(
     polish,
-    /\.system-strip > \.connection,[\s\S]*\.system-strip > \.lock-status,[\s\S]*\.system-strip > \.viewer-badge \{[^}]*order: 3;[^}]*min-height: 20px;[^}]*font-size: 8px;/s,
+    /\.system-strip > \.connection,[\s\S]*\.system-strip > \.lock-status,[\s\S]*\.system-strip > \.viewer-badge \{[^}]*order: 3;[^}]*min-height: 22px;[^}]*font-size: 9\.25px;/s,
   );
   assert.match(polish, /height: 112px;/);
-  assert.match(polish, /row-gap: 11px;/);
+  assert.match(polish, /row-gap: 9px;/);
 });
 
 test("collapsed Manual Paper reserves clearance for the DizyBrain launcher", () => {
