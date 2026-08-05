@@ -11,7 +11,7 @@
   body:has(.terminal-shell) .topbar {
     position: relative;
     z-index: 48;
-    gap: 14px;
+    gap: 12px;
     overflow: visible;
   }
 
@@ -38,7 +38,7 @@
     flex-wrap: wrap;
     align-content: flex-start;
     column-gap: 4px;
-    row-gap: 11px;
+    row-gap: 9px;
     overflow: visible;
   }
 
@@ -46,10 +46,10 @@
     order: 1;
     flex: 0 1 auto;
     min-width: 0;
-    min-height: 30px;
-    padding: 7px 5px;
+    min-height: 34px;
+    padding: 8px 6px;
     border-bottom-width: 1px;
-    font-size: 8.5px;
+    font-size: 10.5px;
     line-height: 1;
     white-space: nowrap;
   }
@@ -69,10 +69,10 @@
     order: 3;
     display: inline-flex !important;
     align-items: center;
-    min-height: 20px;
-    padding: 3px 7px;
+    min-height: 22px;
+    padding: 4px 8px;
     border-radius: 6px;
-    font-size: 8px;
+    font-size: 9.5px;
     line-height: 1;
     letter-spacing: 0.02em;
     white-space: nowrap;
@@ -83,8 +83,8 @@
   }
 
   body:has(.terminal-shell) .connection i {
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
     margin-right: 4px;
   }
 
@@ -111,8 +111,8 @@
  */
 @media (min-width: 761px) and (max-width: 1600px) {
   body:has(.terminal-shell) .brand-lockup {
-    min-width: 142px;
-    flex-basis: 142px;
+    min-width: 136px;
+    flex-basis: 136px;
   }
 
   body:has(.terminal-shell) .brand-lockup small,
@@ -133,8 +133,8 @@
   }
 
   body:has(.terminal-shell) .system-strip > .nav-tab {
-    padding-inline: 4px;
-    font-size: 8px;
+    padding-inline: 5px;
+    font-size: 10px;
   }
 }
 
