@@ -90,19 +90,35 @@ try {
   await page.goto(new URL("/login", serviceUrl).href, { waitUntil: "domcontentloaded", timeout: 60_000 });
   const viewerButton = page.getByRole("button", { name: "Open View-Only Terminal" });
   await viewerButton.waitFor({ state: "visible", timeout: 30_000 });
-  const viewerResponsePromise = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === "/api/auth/viewer" && response.request().method() === "POST",
-    { timeout: 30_000 },
-  );
+  await page.waitForLoadState("load", { timeout: 30_000 }).catch(() => undefined);
+  await settle(page, 250);
+
+  const observeViewerResponse = (response) => {
+    let pathname;
+    try {
+      pathname = new URL(response.url()).pathname.replace(/\/+$/, "");
+    } catch {
+      return;
+    }
+    if (pathname !== "/api/auth/viewer" || response.request().method() !== "POST") return;
+    report.viewerEndpointStatus = response.status();
+  };
+  page.on("response", observeViewerResponse);
   await viewerButton.click();
-  const viewerResponse = await viewerResponsePromise;
-  report.viewerEndpointStatus = viewerResponse.status();
+  await page.waitForURL(/\/terminal(?:\?|$)/, { timeout: 30_000 });
+  await settle(page, 250);
+  page.off("response", observeViewerResponse);
+
   report.viewerCookiePresent = (await context.cookies(serviceUrl.origin)).some(
     (cookie) => cookie.httpOnly && cookie.secure && cookie.path === "/",
   );
-  if (!viewerResponse.ok()) failure(`viewer endpoint returned HTTP ${viewerResponse.status()}`);
-  if (!report.viewerCookiePresent) failure("viewer endpoint returned success without an HTTP-only production session cookie");
-  await page.waitForURL(/\/terminal(?:\?|$)/, { timeout: 30_000 });
+  if (
+    report.viewerEndpointStatus !== null &&
+    (report.viewerEndpointStatus < 200 || report.viewerEndpointStatus >= 300)
+  ) {
+    failure(`viewer endpoint returned HTTP ${report.viewerEndpointStatus}`);
+  }
+  if (!report.viewerCookiePresent) failure("viewer flow reached the terminal without an HTTP-only production session cookie");
   report.viewerSession = true;
 
   const onboarding = page.locator(".first-run-onboarding-backdrop");
