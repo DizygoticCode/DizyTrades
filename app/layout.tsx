@@ -7,6 +7,7 @@ import "./brand-rollout.css";
 import "./marketing/real-feature-visuals.css";
 import "./terminal-visual-fixes.css";
 import "./terminal-responsive-polish.css";
+import "./terminal-responsive-mobile.css";
 
 export const metadata: Metadata = {
   title: "DizyTrades — DizyCharts & DizySignals",
