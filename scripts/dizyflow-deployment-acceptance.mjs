@@ -181,6 +181,7 @@ const report = {
   serviceOrigin: serviceUrl.origin,
   viewerSession: false,
   viewerEndpointStatus: null,
+  profileEndpointStatus: null,
   viewerCookiePresent: false,
   onboardingDismissed: false,
   presentation: "unknown",
@@ -205,21 +206,38 @@ try {
   await page.waitForLoadState("load", { timeout: 30_000 }).catch(() => undefined);
   await settle(page, 250);
 
-  const observeViewerResponse = (response) => {
+  let resolveProfileResponse;
+  const profileResponsePromise = new Promise((resolve) => {
+    resolveProfileResponse = resolve;
+  });
+  const observeTerminalResponse = (response) => {
     let pathname;
     try {
       pathname = new URL(response.url()).pathname.replace(/\/+$/, "");
     } catch {
       return;
     }
-    if (pathname !== "/api/auth/viewer" || response.request().method() !== "POST") return;
-    report.viewerEndpointStatus = response.status();
+    const method = response.request().method();
+    if (pathname === "/api/auth/viewer" && method === "POST") {
+      report.viewerEndpointStatus = response.status();
+    }
+    if (pathname === "/api/profile" && method === "GET") {
+      report.profileEndpointStatus = response.status();
+      resolveProfileResponse(response);
+    }
   };
-  page.on("response", observeViewerResponse);
+  page.on("response", observeTerminalResponse);
   await viewerButton.click();
   await page.waitForURL(/\/terminal(?:\?|$)/, { timeout: 30_000 });
-  await settle(page, 250);
-  page.off("response", observeViewerResponse);
+  const profileResponse = await Promise.race([
+    profileResponsePromise,
+    page.waitForTimeout(30_000).then(() => null),
+  ]);
+  page.off("response", observeTerminalResponse);
+  if (!profileResponse) failure("terminal profile hydration was not observed");
+  await profileResponse.finished();
+  if (!profileResponse.ok()) failure(`profile endpoint returned HTTP ${profileResponse.status()}`);
+  await settleRenderer(page, 500);
 
   report.viewerCookiePresent = (await context.cookies(serviceUrl.origin)).some(
     (cookie) => cookie.httpOnly && cookie.secure && cookie.path === "/",
