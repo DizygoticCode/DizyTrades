@@ -77,6 +77,35 @@
   color: #d1a66d;
 }
 
+/* Centre the complete Market Buy/Sell message column inside the 42px card. */
+.terminal-shell .flow-toast-rail > article {
+  display: grid !important;
+  align-items: center !important;
+  block-size: 42px !important;
+  min-block-size: 42px !important;
+  max-block-size: 42px !important;
+}
+
+.terminal-shell .flow-toast-rail > article > span:first-of-type {
+  align-self: stretch !important;
+  block-size: 100%;
+  min-block-size: 0;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 1px !important;
+  text-align: center;
+}
+
+.terminal-shell .flow-toast-rail > article > span:first-of-type > b,
+.terminal-shell .flow-toast-rail > article > span:first-of-type > small {
+  width: 100%;
+  margin: 0;
+  text-align: center;
+  line-height: 1.05;
+}
+
 @media (max-width: 760px) {
   .terminal-shell .dizyflow-controls {
     width: 100%;
