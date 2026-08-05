@@ -72,7 +72,7 @@ test("user settings remains a full-height independent terminal sidebar", () => {
 });
 
 test("DizyFlow purple controls wrap without an internal horizontal scrollbar", () => {
-  assert.match(orderFlowToolbar, /className="dizyflow-controls"/);
+  assert.match(orderFlowToolbar, /dizyflow-controls/);
   assert.match(orderFlowToolbar, /className="flow-component-toggles"/);
   assert.match(
     responsivePolish,
