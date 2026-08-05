@@ -12,6 +12,7 @@ const boundedInteger = (value, maximum = 10_000) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.max(0, Math.min(maximum, Math.floor(parsed))) : null;
 };
+const finitePresent = (value) => value !== null && value !== undefined && Number.isFinite(Number(value));
 
 export function classifyDepthError(value) {
   if (typeof value !== "string" || !value) return null;
@@ -37,8 +38,8 @@ export function sanitiseDepthDiagnostic(httpStatus, body, attempts) {
     apiStatus: status,
     success: body?.success === true,
     running: diagnostic.running === true,
-    lastSuccessfulSnapshotPresent: Number.isFinite(Number(diagnostic.lastSuccessfulSnapshot)),
-    lastVersionPresent: Number.isFinite(Number(diagnostic.lastVersion)),
+    lastSuccessfulSnapshotPresent: finitePresent(diagnostic.lastSuccessfulSnapshot),
+    lastVersionPresent: finitePresent(diagnostic.lastVersion),
     bids: boundedInteger(diagnostic.bids, 1_000),
     asks: boundedInteger(diagnostic.asks, 1_000),
     consecutiveFailures: boundedInteger(diagnostic.consecutiveFailures, 1_000),
