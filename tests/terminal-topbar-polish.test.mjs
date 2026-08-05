@@ -50,6 +50,6 @@ test("collapsed Manual Paper reserves clearance for the DizyBrain launcher", () 
   assert.match(manualPaper, /style=\{collapsed \? undefined : \{ height \}\}/);
   assert.match(
     polish,
-    /body:has\(#manual-paper-panel:not\(\[style\*="height"\]\)\) \.dizybrain-launch \{[^}]*bottom: calc\(50px \+ env\(safe-area-inset-bottom, 0px\)\);/s,
+    /body:has\(#manual-paper-panel:not\(\[style\*="height"\]\)\) \.dizybrain-launch \{[^}]*bottom: calc\(52px \+ env\(safe-area-inset-bottom, 0px\)\);/s,
   );
 });
