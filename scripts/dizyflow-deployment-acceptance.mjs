@@ -103,6 +103,53 @@ async function readRendererDiagnostics(toolbar) {
   };
 }
 
+async function waitForRendererReady(page, toolbar, timeout = 45_000) {
+  const deadline = Date.now() + timeout;
+  let diagnostics = await readRendererDiagnostics(toolbar);
+  let canvas = await fingerprint(page);
+  while (Date.now() < deadline) {
+    const canvasReady = canvas.canvasCount > 0 && canvas.paintedPixels > 0;
+    const primitiveReady =
+      !diagnostics.available ||
+      (diagnostics.primitiveAttached &&
+        diagnostics.renderEnabled &&
+        diagnostics.heatmapVisible &&
+        diagnostics.bubblesVisible);
+    const heatmapReady =
+      !diagnostics.available ||
+      Math.max(diagnostics.heatmapCellsDrawn ?? 0, diagnostics.heatmapSegmentsDrawn ?? 0) > 0;
+    if (canvasReady && primitiveReady && heatmapReady) {
+      return { ready: true, diagnostics, fingerprint: canvas };
+    }
+    await settleRenderer(page, 500);
+    diagnostics = await readRendererDiagnostics(toolbar);
+    canvas = await fingerprint(page);
+  }
+  return { ready: false, diagnostics, fingerprint: canvas };
+}
+
+async function waitForRendererBoolean(page, toolbar, key, expected, timeout = 10_000) {
+  const deadline = Date.now() + timeout;
+  let diagnostics = await readRendererDiagnostics(toolbar);
+  while (Date.now() < deadline) {
+    if (!diagnostics.available || diagnostics[key] === expected) return diagnostics;
+    await settleRenderer(page, 250);
+    diagnostics = await readRendererDiagnostics(toolbar);
+  }
+  return diagnostics;
+}
+
+async function waitForEffectiveTimeSlice(page, toolbar, expected, timeout = 10_000) {
+  const deadline = Date.now() + timeout;
+  let diagnostics = await readRendererDiagnostics(toolbar);
+  while (Date.now() < deadline) {
+    if (!diagnostics.available || diagnostics.effectiveTimeSliceMs === expected) return diagnostics;
+    await settleRenderer(page, 250);
+    diagnostics = await readRendererDiagnostics(toolbar);
+  }
+  return diagnostics;
+}
+
 async function ensurePressed(button, value) {
   if ((await pressed(button)) !== value) await button.click();
   if ((await pressed(button)) !== value) failure(`could not set ${await button.textContent()} to ${value}`);
@@ -208,28 +255,33 @@ try {
   const bubbles = components.getByRole("button", { name: "Bubbles" });
   await ensurePressed(heatmap, true);
   await ensurePressed(bubbles, true);
-  await settleRenderer(page, 1_500);
 
-  const bothOn = await fingerprint(page);
-  const bothRenderer = await readRendererDiagnostics(toolbar);
-  if (bothOn.canvasCount < 1 || bothOn.paintedPixels < 1) failure("chart canvases contain no rendered pixels");
-  if (
-    bothRenderer.available &&
-    (!bothRenderer.primitiveAttached || !bothRenderer.renderEnabled)
-  ) {
-    failure("DizyFlow renderer primitive was not attached and enabled");
+  const readiness = await waitForRendererReady(page, toolbar);
+  const bothOn = readiness.fingerprint;
+  const bothRenderer = readiness.diagnostics;
+  report.renderer = { readiness: bothRenderer };
+  report.rendering = {
+    readinessChecksum: bothOn.checksum,
+    readinessCanvasCount: bothOn.canvasCount,
+    readinessPaintedPixels: bothOn.paintedPixels,
+    readinessSampledBytes: bothOn.sampledBytes,
+  };
+  if (!readiness.ready) {
+    failure(
+      `renderer readiness timed out (primitive=${bothRenderer.primitiveAttached}, enabled=${bothRenderer.renderEnabled}, heatmapCells=${bothRenderer.heatmapCellsDrawn ?? 0}, heatmapSegments=${bothRenderer.heatmapSegmentsDrawn ?? 0})`,
+    );
   }
 
   await ensurePressed(heatmap, false);
+  const heatmapOffRenderer = await waitForRendererBoolean(page, toolbar, "heatmapVisible", false);
   const heatmapOffObservation = await observeFingerprintChange(page, bothOn);
   const heatmapOff = heatmapOffObservation.fingerprint;
-  const heatmapOffRenderer = await readRendererDiagnostics(toolbar);
   const heatmapOffState = !(await pressed(heatmap));
 
   await ensurePressed(heatmap, true);
+  const heatmapRestoredRenderer = await waitForRendererBoolean(page, toolbar, "heatmapVisible", true);
   const heatmapRestoredObservation = await observeFingerprintChange(page, heatmapOff);
   const heatmapRestored = heatmapRestoredObservation.fingerprint;
-  const heatmapRestoredRenderer = await readRendererDiagnostics(toolbar);
   const heatmapRestoredState = await pressed(heatmap);
   const heatmapRendererVisibility =
     !bothRenderer.available ||
@@ -252,15 +304,15 @@ try {
     report.controls.heatmapVisualChanged;
 
   await ensurePressed(bubbles, false);
+  const bubblesOffRenderer = await waitForRendererBoolean(page, toolbar, "bubblesVisible", false);
   const bubblesOffObservation = await observeFingerprintChange(page, heatmapRestored, 3_000);
   const bubblesOff = bubblesOffObservation.fingerprint;
-  const bubblesOffRenderer = await readRendererDiagnostics(toolbar);
   const bubblesOffState = !(await pressed(bubbles));
 
   await ensurePressed(bubbles, true);
+  const bubblesRestoredRenderer = await waitForRendererBoolean(page, toolbar, "bubblesVisible", true);
   const bubblesRestoredObservation = await observeFingerprintChange(page, bubblesOff, 3_000);
   const bubblesRestored = bubblesRestoredObservation.fingerprint;
-  const bubblesRestoredRenderer = await readRendererDiagnostics(toolbar);
   const bubblesRestoredState = await pressed(bubbles);
   const bubblesRendererVisibility =
     !bothRenderer.available ||
@@ -290,9 +342,9 @@ try {
     window.dispatchEvent(new CustomEvent(eventName, { detail: next }));
     return { original, applied: JSON.parse(localStorage.getItem(key) ?? "null") };
   }, { key: tuningKey, eventName: tuningEvent });
+  const tunedRenderer = await waitForEffectiveTimeSlice(page, toolbar, 30_000);
   const tunedObservation = await observeFingerprintChange(page, bubblesRestored);
   const tuned = tunedObservation.fingerprint;
-  const tunedRenderer = await readRendererDiagnostics(toolbar);
   await page.evaluate(({ key, eventName, original }) => {
     if (original === null) localStorage.removeItem(key);
     else localStorage.setItem(key, original);
