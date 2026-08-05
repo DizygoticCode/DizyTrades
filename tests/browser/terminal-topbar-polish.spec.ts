@@ -5,6 +5,13 @@ const testUser = {
   password: "DizyTrades-Topbar-Polish-2026!",
 };
 
+type GeometryBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 async function dismissOnboarding(page: Page) {
   const backdrop = page.locator(".first-run-onboarding-backdrop");
   await backdrop.waitFor({ state: "visible", timeout: 3000 }).catch(() => {});
@@ -24,15 +31,20 @@ async function createStandardUser(page: Page) {
   await dismissOnboarding(page);
 }
 
-function overlaps(
-  first: { left: number; right: number; top: number; bottom: number },
-  second: { left: number; right: number; top: number; bottom: number },
-) {
+function right(box: GeometryBox) {
+  return box.x + box.width;
+}
+
+function bottom(box: GeometryBox) {
+  return box.y + box.height;
+}
+
+function overlaps(first: GeometryBox, second: GeometryBox) {
   return !(
-    first.right <= second.left ||
-    second.right <= first.left ||
-    first.bottom <= second.top ||
-    second.bottom <= first.top
+    right(first) <= second.x ||
+    right(second) <= first.x ||
+    bottom(first) <= second.y ||
+    bottom(second) <= first.y
   );
 }
 
@@ -54,9 +66,9 @@ test("compact topbar exposes Dizy navigation and clears collapsed paper controls
     await expect(item).toBeVisible();
     const box = await item.boundingBox();
     expect(box).not.toBeNull();
-    expect(box!.left).toBeGreaterThanOrEqual(0);
-    expect(box!.right).toBeLessThanOrEqual(1440);
-    expect(box!.bottom).toBeLessThanOrEqual(topbarBox!.bottom + 1);
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(right(box!)).toBeLessThanOrEqual(1440);
+    expect(bottom(box!)).toBeLessThanOrEqual(bottom(topbarBox!) + 1);
   }
 
   const statusBadges = page.locator(
@@ -65,7 +77,7 @@ test("compact topbar exposes Dizy navigation and clears collapsed paper controls
   await expect(statusBadges).toHaveCount(4);
   const connectionBox = await statusBadges.first().boundingBox();
   expect(connectionBox).not.toBeNull();
-  expect(connectionBox!.top).toBeGreaterThanOrEqual(topbarBox!.bottom - 1);
+  expect(connectionBox!.y).toBeGreaterThanOrEqual(bottom(topbarBox!) - 1);
   expect(
     await statusBadges.first().evaluate((node) => getComputedStyle(node).fontSize),
   ).toBe("8px");
@@ -97,5 +109,5 @@ test("compact topbar exposes Dizy navigation and clears collapsed paper controls
   ]);
   expect(panelBox).not.toBeNull();
   expect(launcherBox).not.toBeNull();
-  expect(launcherBox!.bottom).toBeLessThanOrEqual(panelBox!.top - 10);
+  expect(bottom(launcherBox!)).toBeLessThanOrEqual(panelBox!.y - 10);
 });
