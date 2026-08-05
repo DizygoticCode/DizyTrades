@@ -20,17 +20,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - name: Locate deterministic failure
-        shell: bash
-        run: |
-          set -o pipefail
-          for file in $(find tests -maxdepth 1 -name '*.test.mjs' | sort); do
-            echo "Running $file"
-            if ! node --conditions=react-server --import tsx --test "$file"; then
-              echo "::error file=$file,line=1::Deterministic test fails in isolation"
-              exit 1
-            fi
-          done
       - run: npm test
       - run: npm run build
 
