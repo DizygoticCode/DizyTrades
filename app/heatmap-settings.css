@@ -1,0 +1,8 @@
+.heatmap-display-settings{display:grid;gap:5px;margin:3px 0 10px;padding:8px;border:1px solid #2d3650;border-radius:7px;background:linear-gradient(145deg,#101624,#0c111c)}
+.heatmap-display-settings>.setting-help{margin:0 0 2px;color:#8995ad;font-size:9px;line-height:1.45}
+.heatmap-display-settings .field-row{margin:0}
+.heatmap-display-settings select,.heatmap-display-settings input{font-variant-numeric:tabular-nums}
+.heatmap-display-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:3px;padding-top:7px;border-top:1px solid #252d40}
+.heatmap-display-actions button{margin:0;padding:6px 8px;font-size:9px}
+.heatmap-display-actions small{max-width:145px;color:#747f96;font-size:8px;line-height:1.35;text-align:right}
+@media(max-width:599px){.heatmap-display-actions{align-items:stretch;flex-direction:column}.heatmap-display-actions small{max-width:none;text-align:left}}
