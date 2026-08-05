@@ -122,8 +122,8 @@ async function files(root){
 }
 
 test("DizyQuant has only bounded presentation consumers and no DizySignals influence",async()=>{
- const researchPage=path.join("app","research","page.tsx"),marketingPage=path.join("app","marketing","marketing-page.tsx"),siteHeader=path.join("app","marketing","site-header.tsx"),terminalTopbar=path.join("app","dizybrain-topbar-link.tsx");
- const allowed=new Set([researchPage,marketingPage,siteHeader,terminalTopbar]),offenders=[];
+ const researchPage=path.join("app","research","page.tsx"),marketingPage=path.join("app","marketing","marketing-page.tsx"),siteHeader=path.join("app","marketing","site-header.tsx"),terminalTopbar=path.join("app","dizybrain-topbar-link.tsx"),livePublisher=path.join("app","dizyquant-snapshot-publisher.tsx"),livePanel=path.join("app","research","dizyquant-live-panel.tsx"),tradingTerminal=path.join("app","trading-terminal.tsx");
+ const allowed=new Set([researchPage,marketingPage,siteHeader,terminalTopbar,livePublisher,livePanel,tradingTerminal]),offenders=[];
  for(const file of await files("app")){
   if(file.startsWith(path.join("app","lib","dizyquant")))continue;
   const source=await readFile(file,"utf8");
@@ -138,4 +138,17 @@ test("DizyQuant has only bounded presentation consumers and no DizySignals influ
   assert.match(source,/DizyQuant/);
   assert.doesNotMatch(imports,/dizyquant|order-flow|depth-collector|RawTrade|live-order/i);
  }
+ const publisher=await readFile(livePublisher,"utf8"),publisherImports=publisher.split("\n").filter(line=>/^\s*import\b/.test(line)).join("\n");
+ assert.match(publisher,/createDizyQuantLiveSnapshot/);
+ assert.match(publisher,/writeDizyQuantLiveSnapshot/);
+ assert.doesNotMatch(publisherImports,/backtest|paper-simulation|live-order|use-order-flow|mexc/i);
+ assert.doesNotMatch(publisher,/placeOrder|submitOrder|apiKey|secret|credential|orderInstruction/i);
+ const panel=await readFile(livePanel,"utf8"),panelImports=panel.split("\n").filter(line=>/^\s*import\b/.test(line)).join("\n");
+ assert.match(panel,/readDizyQuantLiveSnapshot/);
+ assert.doesNotMatch(panelImports,/backtest|paper-simulation|live-order|use-order-flow|mexc/i);
+ assert.doesNotMatch(panel,/placeOrder|submitOrder|apiKey|secret|credential|orderInstruction/i);
+ const terminal=await readFile(tradingTerminal,"utf8"),terminalDizyQuantLines=terminal.split("\n").filter(line=>/DizyQuant/.test(line));
+ assert.equal(terminalDizyQuantLines.length,2);
+ assert.match(terminal,/import \{ DizyQuantSnapshotPublisher \} from "\.\/dizyquant-snapshot-publisher";/);
+ assert.match(terminal,/<DizyQuantSnapshotPublisher data=\{\{ snapshot: dizyBrainSnapshot,/);
 });

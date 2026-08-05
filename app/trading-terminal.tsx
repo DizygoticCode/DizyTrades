@@ -52,6 +52,7 @@ import { StrategyWorldLinesPrimitive, type StrategyWorldLinesModel, type Strateg
 import { DizyFlowDom } from "./dizyflow-dom";
 import { DizyFlowAlertHistory, DizyFlowToastRail } from "./dizyflow-toast-rail";
 import { DizyBrainSnapshotPublisher, DizyBrainWorkspace } from "./dizybrain-shell";
+import { DizyQuantSnapshotPublisher } from "./dizyquant-snapshot-publisher";
 import { createDizyBrainSnapshot } from "./lib/dizybrain-snapshot";
 import { toDizyFlowEvidenceReference } from "./lib/order-flow/intelligence";
 import type { MarketDescriptor } from "./lib/market/types";
@@ -1678,6 +1679,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   return (
     <main className="terminal-shell">
       <DizyBrainSnapshotPublisher data={{ snapshot: dizyBrainSnapshot, liveFlow: replayActive?null:orderFlow.intelligence?.symbol === symbol ? orderFlow.intelligence : null, historicalFlowReplay, historicalFlowState:historicalFlow, replaySession:activeReplaySession, symbol, market: selectedMarket?.displayName ?? selectedMarketKey, timeframe, feedState: demo ? "Demo" : realtimeStatus, replay: replayActive, flowEnabled: orderFlowSettings.enabled, viewer: user.role === "viewer" }} />
+      <DizyQuantSnapshotPublisher data={{ snapshot: dizyBrainSnapshot, liveFlow: replayActive?null:orderFlow.intelligence?.symbol === symbol ? orderFlow.intelligence : null, historicalFlowReplay, historicalFlowState:historicalFlow, replaySession:activeReplaySession, symbol, market: selectedMarket?.displayName ?? selectedMarketKey, timeframe, feedState: demo ? "Demo" : realtimeStatus, replay: replayActive, flowEnabled: orderFlowSettings.enabled, viewer: user.role === "viewer" }} />
       <header className="topbar">
         <div className="brand-lockup">
           <div className="brand-mark" aria-hidden="true">
