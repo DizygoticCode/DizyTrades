@@ -1,11 +1,12 @@
 import type{Metadata}from"next";
 import Link from"next/link";
 import{buildDizyQuantResearchPresentation}from"@/app/lib/dizyquant/presentation";
+import{DizyQuantLivePanel}from"./dizyquant-live-panel";
 import styles from"./research.module.css";
 
 export const metadata:Metadata={
  title:"DizyQuant Research Lab | DizyTrades",
- description:"Inspect the bounded, read-only DizyQuant metric registry, evidence grades, validation programme and signal-safety boundaries.",
+ description:"Inspect the bounded DizyQuant metric registry and safe derived terminal evidence without exposing raw market or execution data.",
 };
 
 export default function DizyQuantResearchPage(){
@@ -18,7 +19,8 @@ export default function DizyQuantResearchPage(){
    <p>DizyQuant measures public market microstructure, records exact evidence quality and tests candidate formulas without silently promoting them into trading logic.</p>
    <div className={styles.heroActions}><Link href="/explore">Open Terminal</Link><a href="https://github.com/DizygoticCode/DizyTrades/blob/main/docs/DIZYQUANT_RESEARCH_CONTRACT.md" target="_blank" rel="noopener noreferrer">Read Research Contract</a></div>
   </section>
-  <section className={styles.warning} aria-label="Research safety boundary"><strong>No live research values are loaded here.</strong><span>No raw book stream is exposed, no metric is decision-eligible and DizyQuant remains forbidden from influencing production signal logic.</span></section>
+  <section className={styles.warning} aria-label="Research safety boundary"><strong>Live values are derived and display-only.</strong><span>No raw book stream, candle history, account data or order instruction is exposed; no metric is decision-eligible and DizyQuant remains forbidden from influencing production signal logic.</span></section>
+  <DizyQuantLivePanel/>
   <section className={styles.stats} aria-label="DizyQuant registry summary">
    <article><span>{research.totalMetricCount}</span><p>versioned metric identities</p></article>
    <article><span>{research.snapshotGradeCount}</span><p>snapshot-grade metrics</p></article>
