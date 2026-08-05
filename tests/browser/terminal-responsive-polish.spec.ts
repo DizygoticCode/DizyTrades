@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const owner = {
   email: "e2e-owner@dizytrades.local",
@@ -23,7 +23,7 @@ async function loginOwner(page: Page) {
   await dismissOnboarding(page);
 }
 
-async function contained(element: ReturnType<Page["locator"]>) {
+async function contained(element: Locator) {
   return element.evaluate((node) => ({
     clientWidth: node.clientWidth,
     scrollWidth: node.scrollWidth,
