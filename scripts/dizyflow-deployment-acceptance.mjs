@@ -50,9 +50,9 @@ async function ensurePressed(button, value) {
   if ((await pressed(button)) !== value) failure(`could not set ${await button.textContent()} to ${value}`);
 }
 
-async function waitForPresentation(toolbar) {
+async function waitForPresentation(page, toolbar) {
   await toolbar.waitFor({ state: "visible", timeout: 30_000 });
-  await toolbar.page().waitForFunction(
+  await page.waitForFunction(
     ({ selector, accepted }) => {
       const value = document.querySelector(selector)?.getAttribute("data-flow-presentation") ?? "";
       return accepted.includes(value);
@@ -101,7 +101,7 @@ try {
   const master = toolbar.locator(".dizyflow-master");
   await master.waitFor({ state: "visible", timeout: 30_000 });
   await ensurePressed(master, true);
-  report.presentation = await waitForPresentation(toolbar);
+  report.presentation = await waitForPresentation(page, toolbar);
 
   const components = toolbar.getByRole("group", { name: "DizyFlow components" });
   const heatmap = components.getByRole("button", { name: "Heatmap" });
@@ -119,7 +119,7 @@ try {
   await ensurePressed(heatmap, true);
   await settle(page);
   const heatmapRestored = await fingerprint(page);
-  report.controls.heatmapIndependent = !(await pressed(heatmap)) === false && heatmapOff.checksum !== heatmapRestored.checksum;
+  report.controls.heatmapIndependent = (await pressed(heatmap)) && heatmapOff.checksum !== heatmapRestored.checksum;
 
   await ensurePressed(bubbles, false);
   await settle(page);
