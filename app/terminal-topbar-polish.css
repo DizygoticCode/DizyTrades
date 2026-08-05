@@ -103,7 +103,12 @@
   }
 }
 
-@media (min-width: 761px) and (max-width: 1420px) {
+/*
+ * Laptop-width terminals need the same compact identity treatment as smaller
+ * desktops. Long account names must not evict navigation destinations from
+ * the first row.
+ */
+@media (min-width: 761px) and (max-width: 1600px) {
   body:has(.terminal-shell) .brand-lockup {
     min-width: 142px;
     flex-basis: 142px;
