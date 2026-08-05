@@ -26,6 +26,21 @@ test("deployed DizyFlow acceptance uses the view-only terminal and bounded prese
   assert.match(source, /\.chart-wrap canvas/);
 });
 
+test("deployed DizyFlow acceptance waits for renderer readiness and propagated controls", async () => {
+  const source = await readFile(scriptPath, "utf8");
+  assert.match(source, /waitForRendererReady/);
+  assert.match(source, /timeout = 45_000/);
+  assert.match(source, /diagnostics\.primitiveAttached/);
+  assert.match(source, /diagnostics\.renderEnabled/);
+  assert.match(source, /diagnostics\.heatmapVisible/);
+  assert.match(source, /diagnostics\.bubblesVisible/);
+  assert.match(source, /heatmapCellsDrawn/);
+  assert.match(source, /heatmapSegmentsDrawn/);
+  assert.match(source, /waitForRendererBoolean/);
+  assert.match(source, /waitForEffectiveTimeSlice/);
+  assert.match(source, /renderer readiness timed out/);
+});
+
 test("deployed DizyFlow acceptance uses full-pixel and bounded renderer evidence", async () => {
   const source = await readFile(scriptPath, "utf8");
   const toolbar = await readFile(toolbarPath, "utf8");
