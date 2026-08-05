@@ -1,0 +1,46 @@
+name: Agent wire DizyQuant publisher
+
+on:
+  push:
+    branches: [agent/wire-dizyquant-live-terminal-inputs]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-terminal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wire-dizyquant-live-terminal-inputs
+      - name: Wire the bounded publisher into the terminal
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("app/trading-terminal.tsx")
+          text = path.read_text()
+          anchor = 'import { DizyBrainSnapshotPublisher, DizyBrainWorkspace } from "./dizybrain-shell";'
+          addition = 'import { DizyQuantSnapshotPublisher } from "./dizyquant-snapshot-publisher";'
+          if addition not in text:
+              assert anchor in text, "DizyBrain import anchor missing"
+              text = text.replace(anchor, anchor + "\n" + addition, 1)
+
+          lines = text.splitlines()
+          if not any("<DizyQuantSnapshotPublisher data=" in line for line in lines):
+              index = next(i for i, line in enumerate(lines) if "<DizyBrainSnapshotPublisher data=" in line)
+              duplicate = lines[index].replace("<DizyBrainSnapshotPublisher", "<DizyQuantSnapshotPublisher", 1)
+              lines.insert(index + 1, duplicate)
+          path.write_text("\n".join(lines) + "\n")
+          PY
+          if git diff --quiet; then
+            echo "Terminal publisher already wired"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/trading-terminal.tsx
+          git commit -m "Wire DizyQuant publisher into terminal"
+          git push origin HEAD:agent/wire-dizyquant-live-terminal-inputs
