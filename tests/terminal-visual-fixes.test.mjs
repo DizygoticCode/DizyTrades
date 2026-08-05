@@ -7,6 +7,7 @@ const [
   mounted,
   visualFixes,
   responsivePolish,
+  scrollbarPolish,
   globals,
   terminal,
   orderFlowToolbar,
@@ -15,18 +16,27 @@ const [
   readFile("app/command-palette-mounted.tsx", "utf8"),
   readFile("app/terminal-visual-fixes.css", "utf8"),
   readFile("app/terminal-responsive-polish.css", "utf8"),
+  readFile("app/terminal-scrollbar-polish.css", "utf8"),
   readFile("app/globals.css", "utf8"),
   readFile("app/trading-terminal.tsx", "utf8"),
   readFile("app/order-flow-toolbar.tsx", "utf8"),
 ]);
 
-test("terminal responsive polish is the final global stylesheet", () => {
+test("terminal scrollbar polish is the final global stylesheet", () => {
   const terminalStyles = layout.indexOf('import "./terminal-visual-fixes.css";');
   const responsiveStyles = layout.indexOf(
     'import "./terminal-responsive-polish.css";',
   );
+  const mobileStyles = layout.indexOf(
+    'import "./terminal-responsive-mobile.css";',
+  );
+  const scrollbarStyles = layout.indexOf(
+    'import "./terminal-scrollbar-polish.css";',
+  );
   assert.ok(terminalStyles >= 0);
   assert.ok(responsiveStyles > terminalStyles);
+  assert.ok(mobileStyles > responsiveStyles);
+  assert.ok(scrollbarStyles > mobileStyles);
 });
 
 test("Commands and Recent occupy a full-size reserved row below the topbar", () => {
@@ -78,6 +88,17 @@ test("DizyFlow purple controls wrap without an internal horizontal scrollbar", (
   );
 });
 
+test("DizyFlow is content-sized and denser on desktop", () => {
+  assert.match(
+    scrollbarPolish,
+    /@media \(min-width: 761px\)[\s\S]*\.dizyflow-controls \{[^}]*width: fit-content;[^}]*flex: 0 1 auto !important;/,
+  );
+  assert.match(
+    scrollbarPolish,
+    /\.flow-component-toggles button,[\s\S]*\.flow-history-button \{[^}]*padding: 2px 5px;[^}]*font-size: 8\.5px;/,
+  );
+});
+
 test("DOM ladder cannot exceed or horizontally scroll its own lane", () => {
   assert.match(globals, /\.dom-head,.dom-row\{[^}]*min-width:270px/);
   assert.match(
@@ -93,8 +114,34 @@ test("DOM ladder cannot exceed or horizontally scroll its own lane", () => {
     /\.dom-head,[\s\S]*\.dom-row \{[\s\S]*min-width: 0 !important;/,
   );
   assert.match(
-    responsivePolish,
-    /\.dom-book \{\s*overflow-x: hidden !important;\s*overflow-y: auto !important;/s,
+    scrollbarPolish,
+    /\.dom-book \{[^}]*overflow-x: hidden !important;[^}]*overflow-y: auto !important;[^}]*scrollbar-width: none;/s,
+  );
+});
+
+test("chart and DOM retain scrolling without visible vertical rails", () => {
+  assert.match(
+    scrollbarPolish,
+    /\.drawing-toolbar \{[^}]*overflow-y: auto;[^}]*scrollbar-width: none;/s,
+  );
+  assert.match(
+    scrollbarPolish,
+    /\.drawing-toolbar::-webkit-scrollbar \{\s*display: none;/s,
+  );
+  assert.match(
+    scrollbarPolish,
+    /\.dom-book::-webkit-scrollbar \{\s*display: none;/s,
+  );
+});
+
+test("DOM footer help is modestly larger and higher contrast", () => {
+  assert.match(
+    scrollbarPolish,
+    /\.dizyflow-dom footer \{[^}]*font-size: 9px;[^}]*color: #9aa6bb;/s,
+  );
+  assert.match(
+    scrollbarPolish,
+    /\.dizyflow-dom footer small \{[^}]*font-size: 9px;[^}]*color: #d1a66d;/s,
   );
 });
 
@@ -120,7 +167,11 @@ test("market activity toast centres both text lines in the taller card", () => {
     /\.flow-toast-rail \{[^}]*block-size: 44px !important;/s,
   );
   assert.match(
-    responsivePolish,
-    /\.flow-toast-rail > article > span:nth-of-type\(1\) \{[^}]*align-items: center !important;[^}]*justify-content: center !important;[^}]*text-align: center;/s,
+    scrollbarPolish,
+    /\.flow-toast-rail > article \{[^}]*align-items: center !important;[^}]*block-size: 42px !important;/s,
+  );
+  assert.match(
+    scrollbarPolish,
+    /\.flow-toast-rail > article > span:first-of-type \{[^}]*align-self: stretch !important;[^}]*block-size: 100%;[^}]*justify-content: center !important;[^}]*text-align: center;/s,
   );
 });
