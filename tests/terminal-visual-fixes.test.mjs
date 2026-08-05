@@ -168,10 +168,10 @@ test("market activity toast centres both text lines in the taller card", () => {
   );
   assert.match(
     scrollbarPolish,
-    /\.flow-toast-rail > article \{[^}]*align-items: center !important;[^}]*block-size: 42px !important;/s,
+    /\.flow-toast-rail > article \{[^}]*grid-template-columns: 3px minmax\(0, 1fr\) auto !important;[^}]*grid-template-rows: minmax\(0, 1fr\) !important;[^}]*align-items: center !important;[^}]*block-size: 42px !important;/s,
   );
   assert.match(
     scrollbarPolish,
-    /\.flow-toast-rail > article > span:first-of-type \{[^}]*align-self: stretch !important;[^}]*block-size: 100%;[^}]*justify-content: center !important;[^}]*text-align: center;/s,
+    /\.flow-toast-rail > article > span:first-of-type \{[^}]*align-self: stretch !important;[^}]*justify-content: center !important;[^}]*text-align: center;/s,
   );
 });
