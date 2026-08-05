@@ -92,7 +92,7 @@ import {
   TIMEFRAME_TITLES,
 } from "./lib/chart/toolbar";
 import { ChartToolsLayer } from "./chart-tools-layer";
-import { planSeriesSync } from "./lib/chart/series-sync";
+import { chartSeriesSyncKey, planSeriesSync } from "./lib/chart/series-sync";
 import { type MarketLoadReason } from "./lib/market/reconciliation";
 import {buildPineParityReport} from "./lib/pine-parity";
 import { stableLabelLane } from "./lib/chart/world-projection";
@@ -862,6 +862,7 @@ const DizyChart = forwardRef<
     latestRef.current = { candles: displayCandles, analysis, view };
   });
   const [chartError, setChartError] = useState<Error | null>(null);
+  const [chartIncarnation, setChartIncarnation] = useState(0);
   const redraw = useCallback(() => {
     if (redrawFrameRef.current !== null) return;
     redrawFrameRef.current = requestAnimationFrame(() => {
@@ -976,6 +977,7 @@ const DizyChart = forwardRef<
     chartRef.current = chart;
     candleRef.current = candles;
     volumeRef.current = volume;
+    setChartIncarnation((value) => value + 1);
     const observer = new ResizeObserver(() => {
       redraw();
     });
@@ -1043,7 +1045,7 @@ const DizyChart = forwardRef<
       v = volumeRef.current;
     if (!c || !v) return;
     const a = view.appearance,
-      key = `${symbol}:${timeframe}`,
+      key = chartSeriesSyncKey(symbol, timeframe, chartIncarnation),
       previous = previousDisplayRef.current,
       plan = planSeriesSync(
         previous,
@@ -1095,7 +1097,14 @@ const DizyChart = forwardRef<
         ),
       );
     }
-  }, [displayCandles, symbol, timeframe, view.appearance, redraw]);
+  }, [
+    displayCandles,
+    symbol,
+    timeframe,
+    view.appearance,
+    redraw,
+    chartIncarnation,
+  ]);
   const livePrice = liveCandle?.close ?? null;
   useEffect(() => {
     const series = candleRef.current;
