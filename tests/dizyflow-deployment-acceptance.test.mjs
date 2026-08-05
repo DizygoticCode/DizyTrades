@@ -7,6 +7,10 @@ const scriptPath = new URL("../scripts/dizyflow-deployment-acceptance.mjs", impo
 test("deployed DizyFlow acceptance uses the view-only terminal and bounded presentation controls", async () => {
   const source = await readFile(scriptPath, "utf8");
   assert.match(source, /Open View-Only Terminal/);
+  assert.match(source, /page\.on\("response", observeViewerResponse\)/);
+  assert.match(source, /page\.waitForURL\(\/\\\/terminal/);
+  assert.doesNotMatch(source, /waitForResponse/);
+  assert.match(source, /viewerCookiePresent/);
   assert.match(source, /\.first-run-onboarding-backdrop/);
   assert.match(source, /name: "Skip onboarding"/);
   assert.doesNotMatch(source, /force:\s*true/);
