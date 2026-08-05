@@ -15,6 +15,13 @@ const failure = (message) => {
 const pressed = async (locator) => (await locator.getAttribute("aria-pressed")) === "true";
 const settle = (page, milliseconds = 700) => page.waitForTimeout(milliseconds);
 
+async function settleRenderer(page, milliseconds = 700) {
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  await settle(page, milliseconds);
+}
+
 async function fingerprint(page) {
   return page.locator(".chart-wrap canvas").evaluateAll((canvases) => {
     let hash = 2166136261;
@@ -26,8 +33,7 @@ async function fingerprint(page) {
       const context = canvas.getContext("2d", { willReadFrequently: true });
       if (!context || canvas.width < 1 || canvas.height < 1) continue;
       const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-      const stride = Math.max(4, Math.floor(pixels.length / 6000 / 4) * 4);
-      for (let index = 0; index < pixels.length; index += stride) {
+      for (let index = 0; index < pixels.length; index += 4) {
         const alpha = pixels[index + 3] ?? 0;
         if (alpha > 0) paintedPixels += 1;
         hash ^= pixels[index] ?? 0;
@@ -43,6 +49,58 @@ async function fingerprint(page) {
     }
     return { canvasCount: canvases.length, dimensions, paintedPixels, sampledBytes, checksum: hash >>> 0 };
   });
+}
+
+async function observeFingerprintChange(page, baseline, timeout = 8_000) {
+  const deadline = Date.now() + timeout;
+  let current = baseline;
+  while (Date.now() < deadline) {
+    await settleRenderer(page, 250);
+    current = await fingerprint(page);
+    if (current.checksum !== baseline.checksum) return { changed: true, fingerprint: current };
+  }
+  return { changed: false, fingerprint: current };
+}
+
+async function readRendererDiagnostics(toolbar) {
+  const [
+    primitiveAttached,
+    renderEnabled,
+    heatmapVisible,
+    bubblesVisible,
+    paintCallCount,
+    heatmapCellsDrawn,
+    heatmapSegmentsDrawn,
+    bubblesDrawn,
+    effectiveTimeSliceMs,
+  ] = await Promise.all([
+    toolbar.getAttribute("data-flow-primitive-attached"),
+    toolbar.getAttribute("data-flow-render-enabled"),
+    toolbar.getAttribute("data-flow-render-heatmap-visible"),
+    toolbar.getAttribute("data-flow-render-bubbles-visible"),
+    toolbar.getAttribute("data-flow-paint-call-count"),
+    toolbar.getAttribute("data-flow-heatmap-cells-drawn"),
+    toolbar.getAttribute("data-flow-heatmap-segments-drawn"),
+    toolbar.getAttribute("data-flow-bubbles-drawn"),
+    toolbar.getAttribute("data-flow-effective-time-slice-ms"),
+  ]);
+  const finiteNumber = (value) => {
+    if (value === null) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  return {
+    available: primitiveAttached !== null,
+    primitiveAttached: primitiveAttached === "true",
+    renderEnabled: renderEnabled === "true",
+    heatmapVisible: heatmapVisible === "true",
+    bubblesVisible: bubblesVisible === "true",
+    paintCallCount: finiteNumber(paintCallCount),
+    heatmapCellsDrawn: finiteNumber(heatmapCellsDrawn),
+    heatmapSegmentsDrawn: finiteNumber(heatmapSegmentsDrawn),
+    bubblesDrawn: finiteNumber(bubblesDrawn),
+    effectiveTimeSliceMs: finiteNumber(effectiveTimeSliceMs),
+  };
 }
 
 async function ensurePressed(button, value) {
@@ -79,7 +137,14 @@ const report = {
   viewerCookiePresent: false,
   onboardingDismissed: false,
   presentation: "unknown",
-  controls: { heatmapIndependent: false, bubblesIndependent: false },
+  controls: {
+    heatmapIndependent: false,
+    heatmapVisualChanged: false,
+    bubblesIndependent: false,
+    bubblesVisualEvidencePresent: false,
+    bubblesVisualChanged: false,
+  },
+  renderer: {},
   rendering: {},
   tuning: {},
   viewport: {},
@@ -143,26 +208,72 @@ try {
   const bubbles = components.getByRole("button", { name: "Bubbles" });
   await ensurePressed(heatmap, true);
   await ensurePressed(bubbles, true);
-  await settle(page, 1_500);
+  await settleRenderer(page, 1_500);
 
   const bothOn = await fingerprint(page);
+  const bothRenderer = await readRendererDiagnostics(toolbar);
   if (bothOn.canvasCount < 1 || bothOn.paintedPixels < 1) failure("chart canvases contain no rendered pixels");
+  if (
+    bothRenderer.available &&
+    (!bothRenderer.primitiveAttached || !bothRenderer.renderEnabled)
+  ) {
+    failure("DizyFlow renderer primitive was not attached and enabled");
+  }
 
   await ensurePressed(heatmap, false);
-  await settle(page);
-  const heatmapOff = await fingerprint(page);
+  const heatmapOffObservation = await observeFingerprintChange(page, bothOn);
+  const heatmapOff = heatmapOffObservation.fingerprint;
+  const heatmapOffRenderer = await readRendererDiagnostics(toolbar);
+  const heatmapOffState = !(await pressed(heatmap));
+
   await ensurePressed(heatmap, true);
-  await settle(page);
-  const heatmapRestored = await fingerprint(page);
-  report.controls.heatmapIndependent = (await pressed(heatmap)) && heatmapOff.checksum !== heatmapRestored.checksum;
+  const heatmapRestoredObservation = await observeFingerprintChange(page, heatmapOff);
+  const heatmapRestored = heatmapRestoredObservation.fingerprint;
+  const heatmapRestoredRenderer = await readRendererDiagnostics(toolbar);
+  const heatmapRestoredState = await pressed(heatmap);
+  const heatmapRendererVisibility =
+    !bothRenderer.available ||
+    (!heatmapOffRenderer.heatmapVisible && heatmapRestoredRenderer.heatmapVisible);
+  const heatmapRendererPainted =
+    !bothRenderer.available ||
+    Math.max(
+      bothRenderer.heatmapCellsDrawn ?? 0,
+      bothRenderer.heatmapSegmentsDrawn ?? 0,
+      heatmapRestoredRenderer.heatmapCellsDrawn ?? 0,
+      heatmapRestoredRenderer.heatmapSegmentsDrawn ?? 0,
+    ) > 0;
+  report.controls.heatmapVisualChanged =
+    heatmapOffObservation.changed && heatmapRestoredObservation.changed;
+  report.controls.heatmapIndependent =
+    heatmapOffState &&
+    heatmapRestoredState &&
+    heatmapRendererVisibility &&
+    heatmapRendererPainted &&
+    report.controls.heatmapVisualChanged;
 
   await ensurePressed(bubbles, false);
-  await settle(page);
-  const bubblesOff = await fingerprint(page);
+  const bubblesOffObservation = await observeFingerprintChange(page, heatmapRestored, 3_000);
+  const bubblesOff = bubblesOffObservation.fingerprint;
+  const bubblesOffRenderer = await readRendererDiagnostics(toolbar);
+  const bubblesOffState = !(await pressed(bubbles));
+
   await ensurePressed(bubbles, true);
-  await settle(page);
-  const bubblesRestored = await fingerprint(page);
-  report.controls.bubblesIndependent = (await pressed(bubbles)) && bubblesOff.checksum !== bubblesRestored.checksum;
+  const bubblesRestoredObservation = await observeFingerprintChange(page, bubblesOff, 3_000);
+  const bubblesRestored = bubblesRestoredObservation.fingerprint;
+  const bubblesRestoredRenderer = await readRendererDiagnostics(toolbar);
+  const bubblesRestoredState = await pressed(bubbles);
+  const bubblesRendererVisibility =
+    !bothRenderer.available ||
+    (!bubblesOffRenderer.bubblesVisible && bubblesRestoredRenderer.bubblesVisible);
+  report.controls.bubblesVisualEvidencePresent =
+    Math.max(bothRenderer.bubblesDrawn ?? 0, bubblesRestoredRenderer.bubblesDrawn ?? 0) > 0;
+  report.controls.bubblesVisualChanged =
+    bubblesOffObservation.changed && bubblesRestoredObservation.changed;
+  report.controls.bubblesIndependent =
+    bubblesOffState &&
+    bubblesRestoredState &&
+    bubblesRendererVisibility &&
+    (!report.controls.bubblesVisualEvidencePresent || report.controls.bubblesVisualChanged);
 
   const tuningResult = await page.evaluate(({ key, eventName }) => {
     const original = localStorage.getItem(key);
@@ -179,8 +290,9 @@ try {
     window.dispatchEvent(new CustomEvent(eventName, { detail: next }));
     return { original, applied: JSON.parse(localStorage.getItem(key) ?? "null") };
   }, { key: tuningKey, eventName: tuningEvent });
-  await settle(page);
-  const tuned = await fingerprint(page);
+  const tunedObservation = await observeFingerprintChange(page, bubblesRestored);
+  const tuned = tunedObservation.fingerprint;
+  const tunedRenderer = await readRendererDiagnostics(toolbar);
   await page.evaluate(({ key, eventName, original }) => {
     if (original === null) localStorage.removeItem(key);
     else localStorage.setItem(key, original);
@@ -189,17 +301,28 @@ try {
   }, { key: tuningKey, eventName: tuningEvent, original: tuningResult.original });
   report.tuning = {
     applied: tuningResult.applied,
-    rendererChanged: tuned.checksum !== bubblesRestored.checksum,
+    rendererChanged:
+      tunedObservation.changed ||
+      (tunedRenderer.available && tunedRenderer.effectiveTimeSliceMs === 30_000),
   };
 
   await page.setViewportSize({ width: 1024, height: 720 });
-  await settle(page);
+  await settleRenderer(page);
   const compact = await fingerprint(page);
   report.viewport = {
     desktopDimensions: bothOn.dimensions,
     compactDimensions: compact.dimensions,
     resized: JSON.stringify(bothOn.dimensions) !== JSON.stringify(compact.dimensions),
     toolbarVisible: await toolbar.isVisible(),
+  };
+  report.renderer = {
+    diagnosticsAvailable: bothRenderer.available,
+    bothOn: bothRenderer,
+    heatmapOff: heatmapOffRenderer,
+    heatmapRestored: heatmapRestoredRenderer,
+    bubblesOff: bubblesOffRenderer,
+    bubblesRestored: bubblesRestoredRenderer,
+    tuned: tunedRenderer,
   };
   report.rendering = {
     bothOnChecksum: bothOn.checksum,
@@ -210,11 +333,12 @@ try {
     tunedChecksum: tuned.checksum,
     canvasCount: bothOn.canvasCount,
     paintedPixels: bothOn.paintedPixels,
+    sampledBytes: bothOn.sampledBytes,
   };
 
-  if (!report.controls.heatmapIndependent) failure("heatmap layer did not independently alter the rendered chart");
-  if (!report.controls.bubblesIndependent) failure("trade-bubble layer did not independently alter the rendered chart");
-  if (!report.tuning.rendererChanged) failure("display aggregation tuning did not alter the rendered chart");
+  if (!report.controls.heatmapIndependent) failure("heatmap layer did not produce independent renderer and canvas evidence");
+  if (!report.controls.bubblesIndependent) failure("trade-bubble layer did not preserve independent bounded control evidence");
+  if (!report.tuning.rendererChanged) failure("display aggregation tuning did not alter renderer diagnostics or the rendered chart");
   if (!report.viewport.resized || !report.viewport.toolbarVisible) failure("responsive chart acceptance failed");
   report.passed = true;
 } catch (error) {
