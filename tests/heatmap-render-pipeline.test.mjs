@@ -16,10 +16,13 @@ test("toolbar keeps heatmap and depth analysis out of its compact control row", 
   assert.doesNotMatch(source, /market-depth-summary|Heatmap render:|heatmapObservationsRetained|Resting orders can be cancelled/);
 });
 
-test("heatmap rows use Bookmap screen geometry and the effective display bin", async () => {
+test("heatmap rows use tuned Bookmap screen geometry and the effective display bin", async () => {
   const source = await readFile(primitivePath, "utf8");
 
-  assert.match(source, /bookmapHeatmapCellRect\(x1,x2,Number\(y\),Number\(y2\)\)/);
+  assert.match(
+    source,
+    /bookmapHeatmapCellRect\(x1,x2,Number\(y\),Number\(y2\),tuning\.minimumTimePixels,tuning\.minimumPricePixels\)/,
+  );
   assert.match(
     source,
     /priceToCoordinate\(segment\.price\+displayStep\)/,
@@ -30,7 +33,7 @@ test("heatmap rows use Bookmap screen geometry and the effective display bin", a
   );
   assert.match(
     source,
-    /settings\.heatmapVisible,settings\.heatmap/,
+    /settings\.heatmapVisible,settings\.heatmap,tuning/,
   );
 });
 
