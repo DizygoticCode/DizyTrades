@@ -1,11 +1,24 @@
 import type {LiquidityObservation} from "./types.ts";
 
 export type HeatmapSegment={price:number;fromMs:number;toMs:number;bidQuantity:number;askQuantity:number};
+export type BookmapHeatmapCellRect={left:number;top:number;width:number;height:number};
 
 export function effectiveHeatmapPriceStep(pricePerPixel:number,exchangeTick:number,targetPixels=4.5){
   if(!Number.isFinite(exchangeTick)||exchangeTick<=0)return 1;
   const desired=Math.max(exchangeTick,Math.abs(pricePerPixel)*targetPixels);
   return exchangeTick*Math.max(1,Math.round(desired/exchangeTick));
+}
+
+/**
+ * Turns projected exchange-time / price-bin coordinates into a visible screen cell.
+ * Very short depth slices can be fractions of a CSS pixel on 15m+ candles. Bookmap-style
+ * rendering keeps their centre accurate while giving them enough screen area to read as
+ * continuous resting-liquidity bands rather than one-pixel ticks.
+ */
+export function bookmapHeatmapCellRect(x1:number,x2:number,y1:number,y2:number,minimumTimePixels=2.5,minimumPricePixels=3):BookmapHeatmapCellRect|null{
+  if(![x1,x2,y1,y2,minimumTimePixels,minimumPricePixels].every(Number.isFinite)||minimumTimePixels<=0||minimumPricePixels<=0)return null;
+  const centreX=(x1+x2)/2,centreY=(y1+y2)/2,width=Math.max(minimumTimePixels,Math.abs(x2-x1)+.75),height=Math.max(minimumPricePixels,Math.abs(y2-y1)+.5);
+  return{left:centreX-width/2,top:centreY-height/2,width,height};
 }
 
 /** Replays sparse raw-level transitions into stable display bins and terminates at the last depth receipt. */
