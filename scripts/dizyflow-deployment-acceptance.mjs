@@ -52,15 +52,14 @@ async function ensurePressed(button, value) {
 
 async function waitForPresentation(page, toolbar) {
   await toolbar.waitFor({ state: "visible", timeout: 30_000 });
-  await page.waitForFunction(
-    ({ selector, accepted }) => {
-      const value = document.querySelector(selector)?.getAttribute("data-flow-presentation") ?? "";
-      return accepted.includes(value);
-    },
-    { selector: ".dizyflow-controls", accepted: [...acceptedPresentations] },
-    { timeout: 90_000 },
-  );
-  return (await toolbar.getAttribute("data-flow-presentation")) ?? "unknown";
+  const deadline = Date.now() + 90_000;
+  let value = "unknown";
+  while (Date.now() < deadline) {
+    value = (await toolbar.getAttribute("data-flow-presentation")) ?? "unknown";
+    if (acceptedPresentations.has(value)) return value;
+    await settle(page, 500);
+  }
+  failure(`DizyFlow remained ${value}`);
 }
 
 await mkdir(outputDir, { recursive: true });
