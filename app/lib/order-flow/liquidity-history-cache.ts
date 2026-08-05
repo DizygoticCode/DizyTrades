@@ -1,4 +1,5 @@
 import type {CompactLiquidityChange,LiquidityTileCell,LiquidityTileResponse} from "./types.ts";
+import {expandHeatmapDetectionRange,readHeatmapDisplayTuning} from "./heatmap.ts";
 
 export type LiquidityViewport={from:number;to:number;minPrice:number;maxPrice:number;effectiveTimeBucketMs:number;effectivePriceStep:number;retentionMs?:number};
 export type LiquidityCacheStatus="idle"|"loading"|"connected"|"unchanged"|"resynchronising"|"disconnected"|"gap";
@@ -21,7 +22,7 @@ export class LiquidityHistoryCache{
   const fallbackFrom=viewportTo-(view.retentionMs??6*60*60_000),from=Math.max(viewportFrom,this.archiveFrom??fallbackFrom),to=Math.min(viewportTo,this.archiveTo??viewportTo);
   this.lastRequestedTileRange={from,to};
   if(to<=from){this.status="unchanged";this.lastTileError=null;this.lastTileHttpStatus=null;this.emit();return}
-  const pricePad=(view.maxPrice-view.minPrice)*.08,minPrice=Math.max(1e-8,view.minPrice-pricePad),maxPrice=view.maxPrice+pricePad;
+  const tuning=readHeatmapDisplayTuning(),expanded=expandHeatmapDetectionRange(view.minPrice,view.maxPrice,tuning.detectionRangeBps),pricePad=(expanded.maxPrice-expanded.minPrice)*.02,minPrice=Math.max(1e-8,expanded.minPrice-pricePad),maxPrice=expanded.maxPrice+pricePad;
   const chunks:{from:number;to:number;key:string}[]=[];for(let start=Math.floor(from/CHUNK_MS)*CHUNK_MS;start<to;start+=CHUNK_MS){const chunkFrom=Math.max(from,start),chunkTo=Math.min(to,start+CHUNK_MS),key=[chunkFrom,chunkTo,minPrice.toPrecision(8),maxPrice.toPrecision(8),bucket,view.effectivePriceStep].join(":");chunks.push({from:chunkFrom,to:chunkTo,key})}
   const nextGroupKey=chunks.map(v=>v.key).join("|");if(nextGroupKey===this.groupKey&&this.status==="loading")return;
   if(this.controller){this.controller.abort();this.requestsAborted++;}

@@ -23,10 +23,11 @@ test("the actual DizyFlow canvas paints configurable Bookmap bands beneath candl
  await page.getByLabel("Band height").fill("12");
  await page.getByLabel("Minimum slice width").fill("10");
  await page.getByLabel("Heatmap time-slice aggregation").selectOption("30000");
+ await page.getByLabel("Heatmap detection range").selectOption("1000");
  await expect.poll(async()=>((await read()).heatmapMinimumCellHeightPx??0)).toBeGreaterThanOrEqual(11.99);
  await expect.poll(async()=>((await read()).heatmapMinimumCellWidthPx??0)).toBeGreaterThanOrEqual(9.99);
  await expect.poll(async()=>((await read()).effectiveTimeSliceMs??0)).toBe(30000);
  const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem("dizytrades:heatmap-display:v1")||"{}"));
- expect(stored.palette).toBe("thermal");expect(stored.minimumPricePixels).toBe(12);expect(stored.minimumTimePixels).toBe(10);expect(stored.timeSliceMs).toBe(30000);
+ expect(stored.palette).toBe("thermal");expect(stored.minimumPricePixels).toBe(12);expect(stored.minimumTimePixels).toBe(10);expect(stored.timeSliceMs).toBe(30000);expect(stored.detectionRangeBps).toBe(1000);
  snapshot=await read();expect(snapshot.lastRendererError).toBeNull();expect(errors).toEqual([]);
 });

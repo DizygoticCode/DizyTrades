@@ -5,17 +5,18 @@ export type BookmapHeatmapCellRect={left:number;top:number;width:number;height:n
 export type HeatmapPalette="bookmap"|"thermal"|"ocean";
 export type HeatmapPriceGrouping="auto"|"exchange"|"manual";
 export type HeatmapTimeSliceMs=0|5000|15000|30000|60000;
-export type HeatmapDisplayTuning={palette:HeatmapPalette;minimumTimePixels:number;minimumPricePixels:number;timeSliceMs:HeatmapTimeSliceMs;priceGrouping:HeatmapPriceGrouping;manualPriceStep:number};
+export type HeatmapDetectionRangeBps=100|250|500|1000;
+export type HeatmapDisplayTuning={palette:HeatmapPalette;minimumTimePixels:number;minimumPricePixels:number;timeSliceMs:HeatmapTimeSliceMs;detectionRangeBps:HeatmapDetectionRangeBps;priceGrouping:HeatmapPriceGrouping;manualPriceStep:number};
 
 export const HEATMAP_DISPLAY_STORAGE_KEY="dizytrades:heatmap-display:v1";
 export const HEATMAP_DISPLAY_EVENT="dizytrades:heatmap-display-change";
-export const DEFAULT_HEATMAP_DISPLAY_TUNING:HeatmapDisplayTuning={palette:"bookmap",minimumTimePixels:6,minimumPricePixels:7,timeSliceMs:15000,priceGrouping:"auto",manualPriceStep:1};
+export const DEFAULT_HEATMAP_DISPLAY_TUNING:HeatmapDisplayTuning={palette:"bookmap",minimumTimePixels:6,minimumPricePixels:7,timeSliceMs:15000,detectionRangeBps:500,priceGrouping:"auto",manualPriceStep:1};
 
 const clamp=(value:unknown,fallback:number,min:number,max:number)=>Number.isFinite(Number(value))?Math.min(max,Math.max(min,Number(value))):fallback;
 const choice=<T extends string|number>(value:unknown,values:readonly T[],fallback:T):T=>values.includes(value as T)?value as T:fallback;
 export function sanitiseHeatmapDisplayTuning(value:unknown):HeatmapDisplayTuning{
  const input=value&&typeof value==="object"?value as Record<string,unknown>:{},d=DEFAULT_HEATMAP_DISPLAY_TUNING;
- return{palette:choice(input.palette,["bookmap","thermal","ocean"] as const,d.palette),minimumTimePixels:clamp(input.minimumTimePixels,d.minimumTimePixels,2.5,24),minimumPricePixels:clamp(input.minimumPricePixels,d.minimumPricePixels,3,24),timeSliceMs:choice(input.timeSliceMs,[0,5000,15000,30000,60000] as const,d.timeSliceMs),priceGrouping:choice(input.priceGrouping,["auto","exchange","manual"] as const,d.priceGrouping),manualPriceStep:clamp(input.manualPriceStep,d.manualPriceStep,.00000001,100000)};
+ return{palette:choice(input.palette,["bookmap","thermal","ocean"] as const,d.palette),minimumTimePixels:clamp(input.minimumTimePixels,d.minimumTimePixels,2.5,24),minimumPricePixels:clamp(input.minimumPricePixels,d.minimumPricePixels,3,24),timeSliceMs:choice(input.timeSliceMs,[0,5000,15000,30000,60000] as const,d.timeSliceMs),detectionRangeBps:choice(input.detectionRangeBps,[100,250,500,1000] as const,d.detectionRangeBps),priceGrouping:choice(input.priceGrouping,["auto","exchange","manual"] as const,d.priceGrouping),manualPriceStep:clamp(input.manualPriceStep,d.manualPriceStep,.00000001,100000)};
 }
 export function readHeatmapDisplayTuning(storage?:Pick<Storage,"getItem">|null):HeatmapDisplayTuning{
  const source=storage??(typeof window!=="undefined"?window.localStorage:null);if(!source)return DEFAULT_HEATMAP_DISPLAY_TUNING;
@@ -24,6 +25,13 @@ export function readHeatmapDisplayTuning(storage?:Pick<Storage,"getItem">|null):
 export function writeHeatmapDisplayTuning(value:unknown,storage?:Pick<Storage,"setItem">|null):HeatmapDisplayTuning{
  const next=sanitiseHeatmapDisplayTuning(value),source=storage??(typeof window!=="undefined"?window.localStorage:null);try{source?.setItem(HEATMAP_DISPLAY_STORAGE_KEY,JSON.stringify(next))}catch{}
  if(typeof window!=="undefined")window.dispatchEvent(new CustomEvent(HEATMAP_DISPLAY_EVENT,{detail:next}));return next;
+}
+
+export function expandHeatmapDetectionRange(minPrice:number,maxPrice:number,rangeBps=DEFAULT_HEATMAP_DISPLAY_TUNING.detectionRangeBps){
+ const low=Math.min(minPrice,maxPrice),high=Math.max(minPrice,maxPrice),mid=(low+high)/2;
+ if(!Number.isFinite(low)||!Number.isFinite(high)||low<=0||high<=low||!Number.isFinite(mid))return{minPrice:low,maxPrice:high};
+ const requestedHalf=mid*Math.max(0,rangeBps)/10_000,visibleHalf=(high-low)/2,half=Math.max(visibleHalf,requestedHalf);
+ return{minPrice:Math.max(1e-8,mid-half),maxPrice:mid+half};
 }
 
 const blendHex=(from:string,to:string,ratio:number)=>{const a=parseInt(from.slice(1),16),b=parseInt(to.slice(1),16),mix=(shift:number)=>Math.round(((a>>shift)&255)*(1-ratio)+((b>>shift)&255)*ratio);return `rgb(${mix(16)},${mix(8)},${mix(0)})`};
