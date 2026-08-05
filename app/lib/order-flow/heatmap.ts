@@ -60,7 +60,7 @@ export function buildHeatmapSegments(observations:readonly LiquidityObservation[
   const bins=new Map<number,LiquidityObservation[]>();
   for(const observation of observations){const bin=Math.round(observation.price/displayStep),items=bins.get(bin)??[];items.push(observation);bins.set(bin,items)}
   const result:HeatmapSegment[]=[];
-  for(const [bin,items]){items.sort((a,b)=>a.timestampMs-b.timestampMs);const levels=new Map<number,{bid:number;ask:number}>();let stateAt=items[0]?.timestampMs??0,index=0;
+  for(const [bin,items] of bins){items.sort((a,b)=>a.timestampMs-b.timestampMs);const levels=new Map<number,{bid:number;ask:number}>();let stateAt=items[0]?.timestampMs??0,index=0;
     while(index<items.length){const timestamp=items[index].timestampMs;if(timestamp>stateAt){const bid=[...levels.values()].reduce((sum,v)=>sum+v.bid,0),ask=[...levels.values()].reduce((sum,v)=>sum+v.ask,0),from=Math.max(stateAt,visibleFrom),to=Math.min(timestamp,visibleTo,latestDepthMs);if(to>from&&(bid>0||ask>0))result.push({price:bin*displayStep,fromMs:from,toMs:to,bidQuantity:bid,askQuantity:ask})}while(index<items.length&&items[index].timestampMs===timestamp){const item=items[index++];levels.set(item.price,{bid:item.bidQuantity,ask:item.askQuantity})}stateAt=timestamp}
     const bid=[...levels.values()].reduce((sum,v)=>sum+v.bid,0),ask=[...levels.values()].reduce((sum,v)=>sum+v.ask,0),from=Math.max(stateAt,visibleFrom),to=Math.min(visibleTo,latestDepthMs);if(to>from&&(bid>0||ask>0))result.push({price:bin*displayStep,fromMs:from,toMs:to,bidQuantity:bid,askQuantity:ask});
   }
