@@ -8,4 +8,5 @@ export function calculateImbalance(book: BookView, contractSize: number, depth: 
   const bidNotional = total(choose(book.bids, true)), askNotional = total(choose(book.asks, false)), denominator = bidNotional + askNotional;
   return { imbalance: denominator ? (bidNotional-askNotional)/denominator*100 : 0, bidNotional, askNotional, bestBid, bestAsk, spread: bestAsk && bestBid ? bestAsk-bestBid : 0 };
 }
+export function formatOrderImbalance(value:number|null|undefined,digits=0){if(value===null||value===undefined||!Number.isFinite(value))return "—";const rounded=Number(value.toFixed(digits));return `${rounded>0?"+":""}${rounded.toFixed(digits)}%`}
 export class ImbalanceSmoother { private values: {time:number;value:number}[]=[]; add(value:number,time:number,windowMs:number){ this.values.push({time,value}); this.values=this.values.filter(v=>v.time>=time-windowMs).slice(-200); return windowMs ? this.values.reduce((s,v)=>s+v.value,0)/this.values.length : value; } clear(){this.values=[];} }
