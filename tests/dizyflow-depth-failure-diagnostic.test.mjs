@@ -60,7 +60,10 @@ test("failure-only observer cannot alter the original acceptance result", async 
   assert.match(source, /\/api\/dizyflow\/depth\?symbol=BTC_USDT/);
   assert.match(source, /maximumAttempts = 6/);
   assert.match(source, /errorKind: classifyDepthError\(diagnostic\.lastError\)/);
-  assert.doesNotMatch(source, /envelope|snapshot\s*:|bids\s*:\s*diagnostic\.bids\s*\?|asks\s*:\s*diagnostic\.asks\s*\?/);
+  assert.doesNotMatch(
+    source,
+    /acceptance\.depthFailureDiagnostic\s*=\s*(?:result\.body|diagnostic\.lastError)|JSON\.stringify\([^)]*(?:result\.body|diagnostic\.lastError)|\b(?:envelope|snapshot)\s*:/,
+  );
   assert.match(workflow, /Collect bounded depth failure diagnostic/);
   assert.match(workflow, /failure\(\).*github\.event_name != 'pull_request'/);
   assert.ok(
