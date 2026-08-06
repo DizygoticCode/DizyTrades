@@ -23,6 +23,10 @@
   height: calc(100dvh - 42px);
 }
 
+:global(body:has(.terminal-shell) .school-terminal-link) {
+  display: none !important;
+}
+
 .brand {
   flex: 0 0 auto;
   display: inline-flex;
