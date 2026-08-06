@@ -26,7 +26,7 @@ export type FuturesOrderBookSnapshot = Readonly<{
   asks: readonly FuturesOrderBookLevel[];
 }>;
 
-export type FuturesLimitMatchPhase = "submission" | "resting";
+export type FuturesLimitMatchPhase = "submission" | "activation" | "resting";
 
 export class FuturesLimitSimulationError extends Error {
   code: string;
@@ -50,13 +50,13 @@ const positive = (value: number, field: string) => {
   }
 };
 
-const alignedToStep = (value: number, step: number) => {
+export const alignedToFuturesStep = (value: number, step: number) => {
   const units = value / step;
   const tolerance = Math.max(1, Math.abs(units)) * 1e-10;
   return Math.abs(units - Math.round(units)) <= tolerance;
 };
 
-const validateRules = (rules: FuturesInstrumentRules) => {
+export const validateFuturesInstrumentRules = (rules: FuturesInstrumentRules) => {
   positive(rules.priceTick, "rules.priceTick");
   positive(rules.quantityStep, "rules.quantityStep");
   if (rules.minimumQuantity !== undefined) positive(rules.minimumQuantity, "rules.minimumQuantity");
@@ -96,7 +96,10 @@ const validateLevels = (
   });
 };
 
-const validateSnapshot = (order: PendingOrderState, snapshot: FuturesOrderBookSnapshot) => {
+export const validateFuturesOrderBookSnapshot = (
+  order: PendingOrderState,
+  snapshot: FuturesOrderBookSnapshot,
+) => {
   if (!Number.isInteger(snapshot.sequence) || snapshot.sequence < 0) {
     fail("INVALID_BOOK_SEQUENCE", "snapshot.sequence", "Book sequence must be a non-negative integer.");
   }
@@ -114,12 +117,11 @@ const validateSnapshot = (order: PendingOrderState, snapshot: FuturesOrderBookSn
   validateLevels(snapshot.asks, "asks");
 };
 
-const rejectionReason = (order: PendingOrderState, rules: FuturesInstrumentRules) => {
-  const {quantity, limitPrice} = order.spec;
-  if (limitPrice === undefined || !alignedToStep(limitPrice, rules.priceTick)) {
-    return "LIMIT_PRICE_PRECISION";
-  }
-  if (!alignedToStep(quantity, rules.quantityStep)) return "QUANTITY_PRECISION";
+export const futuresQuantityRejectionReason = (
+  quantity: number,
+  rules: FuturesInstrumentRules,
+) => {
+  if (!alignedToFuturesStep(quantity, rules.quantityStep)) return "QUANTITY_PRECISION";
   if (rules.minimumQuantity !== undefined && quantity < rules.minimumQuantity) {
     return "QUANTITY_BELOW_MINIMUM";
   }
@@ -127,6 +129,17 @@ const rejectionReason = (order: PendingOrderState, rules: FuturesInstrumentRules
     return "QUANTITY_ABOVE_MAXIMUM";
   }
   return null;
+};
+
+export const futuresLimitRejectionReason = (
+  order: PendingOrderState,
+  rules: FuturesInstrumentRules,
+) => {
+  const {quantity, limitPrice} = order.spec;
+  if (limitPrice === undefined || !alignedToFuturesStep(limitPrice, rules.priceTick)) {
+    return "LIMIT_PRICE_PRECISION";
+  }
+  return futuresQuantityRejectionReason(quantity, rules);
 };
 
 const eligibleLevels = (order: PendingOrderState, snapshot: FuturesOrderBookSnapshot) => {
@@ -161,6 +174,15 @@ const reject = (
     reason,
   });
 
+const activate = (order: PendingOrderState, snapshot: FuturesOrderBookSnapshot) =>
+  applyPendingOrderEvent(order, {
+    type: "activated",
+    eventId: eventId(order, snapshot, "activated"),
+    orderId: order.spec.orderId,
+    sequence: nextPendingOrderSequence(order),
+    at: snapshot.observedAt,
+  });
+
 const acceptAndActivate = (order: PendingOrderState, snapshot: FuturesOrderBookSnapshot) => {
   const accepted = applyPendingOrderEvent(order, {
     type: "accepted",
@@ -169,13 +191,7 @@ const acceptAndActivate = (order: PendingOrderState, snapshot: FuturesOrderBookS
     sequence: nextPendingOrderSequence(order),
     at: snapshot.observedAt,
   });
-  return applyPendingOrderEvent(accepted, {
-    type: "activated",
-    eventId: eventId(order, snapshot, "activated"),
-    orderId: order.spec.orderId,
-    sequence: nextPendingOrderSequence(accepted),
-    at: snapshot.observedAt,
-  });
+  return activate(accepted, snapshot);
 };
 
 const cancelRemainder = (
@@ -208,7 +224,7 @@ const fillAgainstLevels = (
       fillId: eventId(order, snapshot, "fill", index),
       quantity,
       price: level.price,
-      liquidityRole: phase === "submission" ? "taker" : "maker",
+      liquidityRole: phase === "resting" ? "maker" : "taker",
       evidence: {
         source: "futures-order-book",
         phase,
@@ -239,13 +255,17 @@ export function simulateFuturesLimitOrder(
   rules: FuturesInstrumentRules,
   phase: FuturesLimitMatchPhase,
 ): PendingOrderState {
-  validateRules(rules);
-  validateSnapshot(order, snapshot);
+  validateFuturesInstrumentRules(rules);
+  validateFuturesOrderBookSnapshot(order, snapshot);
 
   if (order.spec.marketType !== "futures") {
     fail("UNSUPPORTED_MARKET_TYPE", "order.spec.marketType", "Futures simulation requires a futures order.");
   }
-  if (order.spec.kind !== "limit" && order.spec.kind !== "limit-maker") {
+  const supportedKind =
+    order.spec.kind === "limit" ||
+    order.spec.kind === "limit-maker" ||
+    (order.spec.kind === "trigger-limit" && phase !== "submission");
+  if (!supportedKind) {
     fail("UNSUPPORTED_ORDER_KIND", "order.spec.kind", "This matcher only accepts futures limit orders.");
   }
   if (order.spec.limitPrice === undefined) {
@@ -256,30 +276,44 @@ export function simulateFuturesLimitOrder(
     if (order.status !== "submitted") {
       fail("INVALID_SUBMISSION_STATE", "order.status", "Submission matching requires a submitted order.");
     }
-    const reason = rejectionReason(order, rules);
+    const reason = futuresLimitRejectionReason(order, rules);
     if (reason) return reject(order, snapshot, reason);
     if (order.spec.postOnly && isMarketable(order, snapshot)) {
       return reject(order, snapshot, "POST_ONLY_WOULD_TAKE");
+    }
+  } else if (phase === "activation") {
+    if (order.status !== "accepted") {
+      fail("INVALID_ACTIVATION_STATE", "order.status", "Activation matching requires an accepted order.");
+    }
+    const reason = futuresLimitRejectionReason(order, rules);
+    if (reason) {
+      fail("INVALID_ACTIVATION_PRECISION", "order.spec", `Accepted trigger-limit order is invalid: ${reason}.`);
     }
   } else if (order.status !== "working" && order.status !== "partially-filled") {
     fail("INVALID_RESTING_STATE", "order.status", "Resting matching requires a working order.");
   }
 
-  let next = phase === "submission" ? acceptAndActivate(order, snapshot) : order;
+  const immediate = phase !== "resting";
+  let next =
+    phase === "submission"
+      ? acceptAndActivate(order, snapshot)
+      : phase === "activation"
+        ? activate(order, snapshot)
+        : order;
   const levels = eligibleLevels(next, snapshot);
   const availableQuantity = levels.reduce((sum, level) => sum + level.quantity, 0);
 
-  if (phase === "submission" && order.spec.timeInForce === "FOK" && availableQuantity < next.remainingQuantity) {
+  if (immediate && order.spec.timeInForce === "FOK" && availableQuantity < next.remainingQuantity) {
     return cancelRemainder(next, snapshot, "FOK_NOT_FULLY_FILLABLE");
   }
 
   if (levels.length > 0) next = fillAgainstLevels(next, snapshot, phase);
   if (next.status === "filled") return next;
 
-  if (phase === "submission" && order.spec.timeInForce === "IOC") {
+  if (immediate && order.spec.timeInForce === "IOC") {
     return cancelRemainder(next, snapshot, "IOC_REMAINDER_CANCELLED");
   }
-  if (phase === "submission" && order.spec.timeInForce === "FOK") {
+  if (immediate && order.spec.timeInForce === "FOK") {
     return cancelRemainder(next, snapshot, "FOK_REMAINDER_CANCELLED");
   }
   return next;
