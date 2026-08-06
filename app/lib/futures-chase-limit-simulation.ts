@@ -400,16 +400,19 @@ export function simulateFuturesChaseLimitOrder(
 ): FuturesChaseLimitState {
   validateFuturesInstrumentRules(rules);
 
-  const initial = "order" in input ? null : input;
-  const validationOrder = initial ?? input.order;
-  validateFuturesOrderBookSnapshot(validationOrder, snapshot);
+  if (!("order" in input)) {
+    validateFuturesOrderBookSnapshot(input, snapshot);
+    if (!Number.isFinite(snapshot.lastPrice) || snapshot.lastPrice <= 0) {
+      fail("INVALID_LAST_PRICE", "snapshot.lastPrice", "Last price must be finite and positive.");
+    }
+    return initialise(input, snapshot, rules, context);
+  }
+
+  const state = input;
+  validateFuturesOrderBookSnapshot(state.order, snapshot);
   if (!Number.isFinite(snapshot.lastPrice) || snapshot.lastPrice <= 0) {
     fail("INVALID_LAST_PRICE", "snapshot.lastPrice", "Last price must be finite and positive.");
   }
-
-  if (initial) return initialise(initial, snapshot, rules, context);
-
-  const state = input;
   validateContinuation(state, snapshot, rules, context);
   const previousLimitPrice = state.currentLimitPrice;
 
