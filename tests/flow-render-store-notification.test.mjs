@@ -13,6 +13,60 @@ const viewport = {
   effectivePriceStep: 10,
 };
 
+test("new render-store subscribers receive the current committed snapshot after attachment", async () => {
+  const store = new FlowRenderStore(DEFAULT_ORDER_FLOW_SETTINGS);
+  store.update({ enabled: true, generation: "BTC_USDT" });
+  const snapshots = [];
+  const unsubscribe = store.subscribe(() => {
+    snapshots.push({
+      enabled: store.getSnapshot().enabled,
+      generation: store.getSnapshot().generation,
+    });
+  });
+
+  try {
+    assert.deepEqual(snapshots, []);
+    await Promise.resolve();
+    assert.deepEqual(snapshots, [{ enabled: true, generation: "BTC_USDT" }]);
+  } finally {
+    unsubscribe();
+    store.destroy();
+  }
+});
+
+test("a synchronous update suppresses the queued current-snapshot replay", async () => {
+  const store = new FlowRenderStore(DEFAULT_ORDER_FLOW_SETTINGS);
+  const snapshots = [];
+  const unsubscribe = store.subscribe(() => {
+    snapshots.push({
+      enabled: store.getSnapshot().enabled,
+      generation: store.getSnapshot().generation,
+    });
+  });
+
+  try {
+    store.update({ enabled: true });
+    assert.deepEqual(snapshots, [{ enabled: true, generation: "" }]);
+    await Promise.resolve();
+    assert.deepEqual(snapshots, [{ enabled: true, generation: "" }]);
+  } finally {
+    unsubscribe();
+    store.destroy();
+  }
+});
+
+test("unsubscribing before the attachment replay suppresses it", async () => {
+  const store = new FlowRenderStore(DEFAULT_ORDER_FLOW_SETTINGS);
+  let notifications = 0;
+  const unsubscribe = store.subscribe(() => {
+    notifications += 1;
+  });
+  unsubscribe();
+  await Promise.resolve();
+  assert.equal(notifications, 0);
+  store.destroy();
+});
+
 test("render-store subscribers observe committed snapshots synchronously without animation frames", () => {
   const originalAnimationFrame = globalThis.requestAnimationFrame;
   let animationFrameCalls = 0;
