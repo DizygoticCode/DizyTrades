@@ -8,6 +8,7 @@ on:
       - "app/dizyflow-fixture/**"
       - "app/lib/chart/dizyflow-primitive.ts"
       - "app/lib/order-flow/**"
+      - "app/login/login-form.tsx"
       - "app/trading-terminal.tsx"
       - "scripts/render-rehearsal.mjs"
       - "scripts/dizyflow-deployment-acceptance.mjs"
@@ -15,8 +16,10 @@ on:
       - "tests/render-rehearsal.test.mjs"
       - "tests/dizyflow-deployment-acceptance.test.mjs"
       - "tests/dizyflow-depth-failure-diagnostic.test.mjs"
+      - "tests/dizyflow-login-hydration.test.mjs"
       - "tests/dizyflow-projection-retention.test.mjs"
       - "tests/browser/dizyflow-render.spec.ts"
+      - "tests/browser/dizyflow-terminal-lifecycle.spec.ts"
       - "docs/RENDER_REHEARSAL.md"
       - "docs/DIZYFLOW_HEATMAP_ACCEPTANCE.md"
       - "ROADMAP.md"
@@ -30,6 +33,7 @@ on:
       - "app/dizyflow-fixture/**"
       - "app/lib/chart/dizyflow-primitive.ts"
       - "app/lib/order-flow/**"
+      - "app/login/login-form.tsx"
       - "app/trading-terminal.tsx"
       - "scripts/render-rehearsal.mjs"
       - "scripts/dizyflow-deployment-acceptance.mjs"
@@ -37,8 +41,10 @@ on:
       - "tests/render-rehearsal.test.mjs"
       - "tests/dizyflow-deployment-acceptance.test.mjs"
       - "tests/dizyflow-depth-failure-diagnostic.test.mjs"
+      - "tests/dizyflow-login-hydration.test.mjs"
       - "tests/dizyflow-projection-retention.test.mjs"
       - "tests/browser/dizyflow-render.spec.ts"
+      - "tests/browser/dizyflow-terminal-lifecycle.spec.ts"
       - "docs/RENDER_REHEARSAL.md"
       - "docs/DIZYFLOW_HEATMAP_ACCEPTANCE.md"
       - "ROADMAP.md"
@@ -77,7 +83,7 @@ jobs:
         run: npm ci
 
       - name: Verify rehearsal helpers
-        run: node --test tests/render-rehearsal.test.mjs tests/dizyflow-deployment-acceptance.test.mjs tests/dizyflow-depth-failure-diagnostic.test.mjs
+        run: node --test tests/render-rehearsal.test.mjs tests/dizyflow-deployment-acceptance.test.mjs tests/dizyflow-depth-failure-diagnostic.test.mjs tests/dizyflow-login-hydration.test.mjs
 
       - name: Record pull-request boundary
         if: github.event_name == 'pull_request'
