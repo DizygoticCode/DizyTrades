@@ -169,9 +169,7 @@ export function activeDizyProduct(pathname: string): DizyProductId | null {
 }
 
 export function showSharedProductNavigation(pathname: string) {
-  return !["/login", "/signup", "/terminal"].some((prefix) =>
-    routeMatches(pathname, prefix),
-  );
+  return !["/login", "/signup"].some((prefix) => routeMatches(pathname, prefix));
 }
 
 export const TERMINAL_COMPANION_LINKS = DIZY_PRODUCT_LINKS.filter(
