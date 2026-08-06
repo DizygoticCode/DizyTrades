@@ -21,7 +21,19 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
-      - run: npm run build
+      - name: Build with temporary diagnostics
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee build-diagnostic.log
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-build-diagnostic
+          path: build-diagnostic.log
+          if-no-files-found: error
+          retention-days: 1
 
   browser-smoke:
     needs: validate
