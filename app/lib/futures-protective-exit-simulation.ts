@@ -333,7 +333,7 @@ export function createFuturesProtectiveExit(
   const acceptedQuantity = Math.min(input.requestedQuantity, input.position.remainingQuantity);
   const capped = acceptedQuantity < input.requestedQuantity;
   const timeInForce = input.execution === "market" ? "GTC" : input.timeInForce ?? "GTC";
-  const kind = input.execution === "market" ? "trigger-market" : "trigger-limit";
+  const kind = input.execution === "market" ? ("trigger-market" as const) : ("trigger-limit" as const);
   const spec = {
     orderId: input.orderId,
     ownerId: input.ownerId,
