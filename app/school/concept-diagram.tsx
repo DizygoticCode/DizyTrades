@@ -26,6 +26,12 @@ const lessonDiagrams: Record<string, DiagramAsset> = {
   "professional-journaling": { src: "/school/diagrams/professional-journal.svg", alt: "Professional plan, execution, measurement and review journal loop" },
   "psychology-process": { src: "/school/diagrams/psychology-process.svg", alt: "Process controls placed between emotional triggers and trading decisions" },
   "dizy-methodology": { src: "/school/diagrams/dizy-methodology.svg", alt: "How Dizy combines independent closed-candle evidence and accepts no signal as a valid outcome" },
+  "dizy-workflow-overview": { src: "/school/diagrams/dizy-workflow-loop.svg", alt: "DizyScanner, DizyStructure, Charts and Signals, Paper, Journal, Replay, Behaviour and Performance connected in one research and review loop" },
+  "guided-trade-review": { src: "/school/diagrams/guided-trade-review.svg", alt: "Journal, Replay, Historical DizyFlow and DizyBrain evidence feeding Context, Entry, Management, Exit and Reflection review stages" },
+  "dizybrain-behaviour": { src: "/school/diagrams/dizybrain-behaviour.svg", alt: "Reviewed trades passing through coverage and exclusion controls into recurring timing, rule and process-versus-outcome observations" },
+  "dizybackup-recovery": { src: "/school/diagrams/dizybackup-recovery.svg", alt: "Backup export, integrity validation, server dry run, conflict review and safe additive restore stages" },
+  "pending-order-execution": { src: "/school/diagrams/pending-order-lifecycle.svg", alt: "Pending order states from submission and acceptance through armed, working, activation, partial fill, fill, cancellation, rejection and expiry" },
+  "spot-order-reservations": { src: "/school/diagrams/spot-order-reservations.svg", alt: "Spot buy and sell orders moving quote or base balances between available and reserved amounts through fills, refunds and exact releases" },
 };
 
 const typeDiagrams: Partial<Record<DiagramType, DiagramAsset>> = {
