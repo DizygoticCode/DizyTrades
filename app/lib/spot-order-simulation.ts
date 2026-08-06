@@ -653,7 +653,12 @@ export function simulateSpotOrder(
     if (!("events" in accountOrSnapshot) || maybeRules === undefined) {
       fail("MISSING_SPOT_ACCOUNT", "account", "Initial spot simulation requires an account state.");
     }
-    return initialiseSpotOrder(input, accountOrSnapshot, snapshotOrRules as SpotOrderBookSnapshot, maybeRules);
+    return initialiseSpotOrder(
+      input,
+      accountOrSnapshot as SpotAccountState,
+      snapshotOrRules as SpotOrderBookSnapshot,
+      maybeRules as SpotInstrumentRules,
+    );
   }
 
   const state = input;
