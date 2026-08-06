@@ -8,12 +8,15 @@ const acceptancePath = new URL("../scripts/dizyflow-deployment-acceptance.mjs", 
 test("login controls remain disabled until client hydration attaches their handlers", async () => {
   const source = await readFile(loginFormPath, "utf8");
 
-  assert.match(source, /useEffect\(\(\) => setHydrated\(true\), \[\]\)/);
-  assert.match(source, /const \[hydrated, setHydrated\] = useState\(false\)/);
+  assert.match(source, /useSyncExternalStore/);
+  assert.match(source, /const getHydratedSnapshot = \(\) => true/);
+  assert.match(source, /const getServerHydrationSnapshot = \(\) => false/);
+  assert.match(source, /const hydrated = useSyncExternalStore\(/);
   assert.match(source, /const interactive = hydrated && !loading/);
   assert.ok([...source.matchAll(/disabled=\{!interactive\}/g)].length >= 2);
   assert.match(source, /className="viewer-login"/);
   assert.match(source, /onClick=\{continueAsViewer\}/);
+  assert.doesNotMatch(source, /setTimeout|setHydrated/);
 });
 
 test("deployed acceptance observes the viewer endpoint before trusting terminal hydration", async () => {
