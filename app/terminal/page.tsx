@@ -1,4 +1,5 @@
 import { requireUser } from "../lib/auth";
+import { DizyBrainRouteLauncher } from "../dizybrain-route-launcher";
 import { DizyBrainShell } from "../dizybrain-shell";
 import { DizyBrainTopbarLink } from "../dizybrain-topbar-link";
 import { FirstRunOnboarding } from "../first-run-onboarding";
@@ -12,6 +13,7 @@ export default async function TerminalPage() {
   const user = await requireUser();
   return (
     <DizyBrainShell>
+      <DizyBrainRouteLauncher />
       <DizyBrainTopbarLink showAccountCompanion={user.role === "owner"} />
       <FirstRunOnboarding userId={user.id} userName={user.name} />
       <WorkspaceLayouts readOnly={user.role === "viewer"} />

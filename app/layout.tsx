@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { CommandPaletteMounted } from "./command-palette-mounted";
 import { HeatmapSettingsPortal } from "./heatmap-settings-portal";
+import { ProductNavigation } from "./product-navigation";
 import "./globals.css";
 import "./responsive-audit.css";
 import "./accessibility-audit.css";
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body>
         <CommandPaletteMounted />
         <HeatmapSettingsPortal />
+        <ProductNavigation />
         {children}
       </body>
     </html>

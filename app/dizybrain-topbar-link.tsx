@@ -2,6 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import { TERMINAL_COMPANION_LINKS } from "./lib/product-navigation";
+import { MexcReferralLink } from "./mexc-referral-link";
 
 const selector = ".topbar .system-strip";
 
@@ -25,6 +27,10 @@ export function DizyBrainTopbarLink({
   const target = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   if (!target) return null;
+
+  const companionLinks = TERMINAL_COMPANION_LINKS.filter(
+    (product) => product.id !== "account" || showAccountCompanion,
+  );
 
   return createPortal(
     <>
@@ -76,18 +82,31 @@ export function DizyBrainTopbarLink({
             border-color: #61e8b8;
             box-shadow: 0 0 14px #42e3ad30;
           }
+          .dizydex-topbar-link {
+            color: #c7f6a8;
+            border-color: #4e7738;
+            background: linear-gradient(180deg, #172713, #0d170a);
+            box-shadow: inset 0 0 12px #9ee86f16;
+          }
+          .dizydex-topbar-link:hover,
+          .dizydex-topbar-link:focus-visible {
+            color: #efffe5;
+            border-color: #9ee86f;
+            box-shadow: 0 0 14px #9ee86f2b;
+          }
         `}</style>
       </button>
-      <a className="nav-tab dizyquant-topbar-link" href="/research" title="Open bounded DizyQuant microstructure research">∑ DizyQuant</a>
-      {showAccountCompanion ? (
-        <a className="nav-tab dizyaccount-topbar-link" href="/account" title="Open owner-only read-only MEXC Account Companion">◉ DizyAccount</a>
-      ) : null}
-      <a className="nav-tab dizyscanner-topbar-link" href="/scanner" title="Open multi-symbol DizyScanner">⌕ DizyScanner</a>
-      <a className="nav-tab dizystructure-topbar-link" href="/structure" title="Open advanced closed-candle market structure">⌁ DizyStructure</a>
-      <a className="nav-tab dizyperformance-topbar-link" href="/performance" title="Open realised performance dashboard">▥ DizyPerformance</a>
-      <a className="nav-tab dizyjournal-topbar-link" href="/journal" title="Open DizyJournal">📓 DizyJournal</a>
-      <a className="nav-tab dizybackup-topbar-link" href="/backup" title="Export and recover DizyTrades account data">⤓ DizyBackup</a>
-      <a className="nav-tab dizyops-topbar-link" href="/diagnostics" title="Open owner-only production diagnostics">⚙ DizyOps</a>
+      {companionLinks.map((product) => (
+        <a
+          className={`nav-tab ${product.terminalClassName ?? ""}`}
+          href={product.href}
+          key={product.id}
+          title={product.title}
+        >
+          <span aria-hidden="true">{product.icon}</span> {product.label}
+        </a>
+      ))}
+      <MexcReferralLink className="nav-tab" variant="terminal" />
     </>,
     target,
   );
