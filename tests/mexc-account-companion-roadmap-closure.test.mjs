@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+// Keep each completed roadmap audit bounded to its own numbered programme section.
 const roadmap = await readFile(new URL("../ROADMAP.md", import.meta.url), "utf8");
 const review = await readFile(
   new URL("../docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md", import.meta.url),
