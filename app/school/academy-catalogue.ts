@@ -5,6 +5,7 @@ import {
   type AcademyGroup,
   type AcademyLesson,
 } from "./academy-extension";
+import { pendingOrderAcademyLessons } from "./pending-order-academy";
 
 export type CurrentAcademyGroup = AcademyGroup | "Current DizyTrades Workflow";
 export type CurrentAcademyLesson = Omit<AcademyLesson, "group"> & {
@@ -248,6 +249,7 @@ const workflowLessons: CurrentAcademyLesson[] = [
 
 export const academyLessons: CurrentAcademyLesson[] = [
   ...existingLessons,
+  ...pendingOrderAcademyLessons,
   ...workflowLessons,
 ];
 
