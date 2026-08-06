@@ -21,13 +21,16 @@ export const pendingOrderAcademyLessons: AcademyLesson[] = [
         ],
       },
       {
-        heading: "Conditional and adaptive orders",
+        heading: "Conditional, protective and adaptive orders",
         paragraphs: [
           "Trigger-market and trigger-limit orders remain armed until their configured price source reaches the trigger. A trailing stop moves its activation boundary only in the favourable direction. A chase-limit order follows the same-side best quote within a defined protection distance.",
+          "Take-profit and stop-loss orders must be bound reduce-only to the intended position. A protective market order seeks immediate simulated depth after activation; a limit TP/SL may activate and remain working without guaranteeing an exit.",
         ],
         bullets: [
           "Activation and execution are separate lifecycle events.",
           "A triggered limit order can remain unfilled after activation.",
+          "Long take-profit and short stop-loss trigger above; long stop-loss and short take-profit trigger below.",
+          "Protective quantity is capped to the remaining position and must never reverse it.",
           "A trailing callback must be defined before the observation sequence begins.",
           "A chase order must cancel when its configured adverse-distance boundary is reached.",
         ],
