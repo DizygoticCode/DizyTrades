@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+// Keep each completed roadmap audit bounded to its own numbered programme section.
 const roadmap = await readFile(new URL("../ROADMAP.md", import.meta.url), "utf8");
 const review = await readFile(
   new URL("../docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md", import.meta.url),
@@ -14,13 +15,14 @@ const shutdownRunbook = await readFile(
 
 test("Account Companion roadmap closes only with all reviewed evidence present", () => {
   const section = roadmap.match(
-    /### 5\. Read-only MEXC Account Companion and shadow reconciliation — complete([\s\S]*?)## Active programme/,
+    /### 5\. Read-only MEXC Account Companion and shadow reconciliation — complete([\s\S]*?)(?=\n### \d+\.|\n## Active programme)/,
   )?.[1];
-  assert.ok(section, "completed Account Companion section must exist before active programme");
+  assert.ok(section, "completed Account Companion section must exist before the next programme boundary");
   const completed = section.match(/^- \[x\]/gm) ?? [];
   const incomplete = section.match(/^- \[ \]/gm) ?? [];
   assert.equal(completed.length, 9);
   assert.equal(incomplete.length, 0);
+  assert.doesNotMatch(section, /Advanced pending-order simulation/, "the next programme must not leak into this audit");
   assert.match(section, /MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION\.md/);
   assert.match(section, /MEXC_OWNER_CONNECTION_SHUTDOWN\.md/);
   assert.match(section, /MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW\.md/);
