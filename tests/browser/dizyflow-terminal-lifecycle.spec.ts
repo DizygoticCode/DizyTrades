@@ -12,21 +12,6 @@ const openTerminal = async (page: import("@playwright/test").Page) => {
   }
 };
 
-const persistDizyFlowToggle = async (
-  page: import("@playwright/test").Page,
-  master: import("@playwright/test").Locator,
-) => {
-  await Promise.all([
-    page.waitForResponse(
-      (response) =>
-        response.url().includes("/api/dizyflow/settings") &&
-        response.request().method() !== "GET" &&
-        response.ok(),
-    ),
-    master.click(),
-  ]);
-};
-
 test("the terminal repaints DizyFlow after delayed persisted settings hydrate", async ({ page }) => {
   await openTerminal(page);
 
@@ -34,13 +19,12 @@ test("the terminal repaints DizyFlow after delayed persisted settings hydrate", 
   const master = toolbar.locator(".dizyflow-master");
   await expect(toolbar).toHaveAttribute("data-flow-primitive-attached", "true");
 
-  if ((await master.getAttribute("aria-pressed")) === "true")
-    await persistDizyFlowToggle(page, master);
+  if ((await master.getAttribute("aria-pressed")) === "true") await master.click();
   await expect(master).toHaveAttribute("aria-pressed", "false");
   await expect(toolbar).toHaveAttribute("data-flow-snapshot-enabled", "false");
   await expect(toolbar).toHaveAttribute("data-flow-render-enabled", "false");
 
-  await persistDizyFlowToggle(page, master);
+  await master.click();
   await expect(master).toHaveAttribute("aria-pressed", "true");
   await expect(toolbar).toHaveAttribute("data-flow-snapshot-enabled", "true");
   await expect(toolbar).toHaveAttribute("data-flow-render-enabled", "true");
@@ -48,11 +32,29 @@ test("the terminal repaints DizyFlow after delayed persisted settings hydrate", 
     .poll(async () => Number(await toolbar.getAttribute("data-flow-paint-call-count")))
     .toBeGreaterThan(0);
 
-  await page.route("**/api/dizyflow/settings", async (route) => {
-    if (route.request().method() === "GET")
-      await new Promise((resolve) => setTimeout(resolve, 750));
-    await route.continue();
+  await page.route("**/api/profile", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    const payload = await response.json();
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    await route.fulfill({
+      response,
+      json: {
+        ...payload,
+        settings: {
+          ...payload.settings,
+          orderFlow: {
+            ...payload.settings.orderFlow,
+            enabled: true,
+          },
+        },
+      },
+    });
   });
+
   await page.reload();
   await expect(page).toHaveURL(/\/terminal$/);
   await expect(toolbar).toHaveAttribute("data-flow-primitive-attached", "true");
@@ -63,7 +65,7 @@ test("the terminal repaints DizyFlow after delayed persisted settings hydrate", 
     .poll(async () => Number(await toolbar.getAttribute("data-flow-paint-call-count")))
     .toBeGreaterThan(0);
 
-  await persistDizyFlowToggle(page, master);
+  await master.click();
   await expect(master).toHaveAttribute("aria-pressed", "false");
   await expect(toolbar).toHaveAttribute("data-flow-render-enabled", "false");
 });
