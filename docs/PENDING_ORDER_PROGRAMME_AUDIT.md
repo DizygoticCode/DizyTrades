@@ -2,7 +2,7 @@
 
 Date: 2026-08-06
 
-Scope: issue #137, delivered through focused PRs #224–#230. This review covers the shared lifecycle, futures limit and conditional execution, chase-limit behaviour, position-bound protective exits, spot reservations/accounting, Replay evidence and DizyAcademy material.
+Scope: issue #137, delivered through focused PRs #224–#230. This review covers the shared lifecycle, futures limit and conditional execution, chase-limit behaviour, position-bound protective exits, spot reservations/accounting, Replay evidence and DizyAcademy material. Its cross-programme conclusions are enforced permanently by `tests/pending-order-programme-audit.test.mjs`, not only recorded in prose.
 
 ## Conclusion
 
