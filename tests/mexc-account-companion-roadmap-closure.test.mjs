@@ -21,6 +21,7 @@ test("Account Companion roadmap closes only with all reviewed evidence present",
   const incomplete = section.match(/^- \[ \]/gm) ?? [];
   assert.equal(completed.length, 9);
   assert.equal(incomplete.length, 0);
+  assert.doesNotMatch(section, /Advanced pending-order simulation/, "the next programme must not leak into this audit");
   assert.match(section, /MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION\.md/);
   assert.match(section, /MEXC_OWNER_CONNECTION_SHUTDOWN\.md/);
   assert.match(section, /MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW\.md/);
