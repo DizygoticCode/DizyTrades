@@ -1,15 +1,21 @@
 import { expect, test } from "@playwright/test";
 
+const dismissOnboarding = async (page: import("@playwright/test").Page) => {
+  const onboarding = page.locator(".first-run-onboarding-backdrop");
+  const opened = await onboarding
+    .waitFor({ state: "visible", timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!opened) return;
+  await onboarding.getByRole("button", { name: "Skip onboarding" }).click();
+  await expect(onboarding).toBeHidden();
+};
+
 const openTerminal = async (page: import("@playwright/test").Page) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "Open View-Only Terminal" }).click();
   await expect(page).toHaveURL(/\/terminal$/);
-
-  const onboarding = page.locator(".first-run-onboarding-backdrop");
-  if (await onboarding.isVisible().catch(() => false)) {
-    await onboarding.getByRole("button", { name: "Skip onboarding" }).click();
-    await expect(onboarding).toBeHidden();
-  }
+  await dismissOnboarding(page);
 };
 
 test("the terminal repaints DizyFlow after delayed persisted settings hydrate", async ({ page }) => {
