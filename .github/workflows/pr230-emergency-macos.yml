@@ -1,0 +1,30 @@
+name: PR 230 emergency macOS validation
+
+on:
+  push:
+    branches:
+      - audit/pr230-emergency-macos
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      SESSION_SECRET: dizytrades-e2e-session-secret-2026-at-least-32-characters
+      PUBLIC_SIGNUP_ENABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install chromium
+      - run: npm run test:e2e
