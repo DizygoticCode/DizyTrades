@@ -18,6 +18,43 @@ const openTerminal = async (page: import("@playwright/test").Page) => {
   await dismissOnboarding(page);
 };
 
+const enablePersistedDizyFlow = async (route: import("@playwright/test").Route) => {
+  if (route.request().method() !== "GET") {
+    await route.continue();
+    return;
+  }
+  const response = await route.fetch();
+  const payload = await response.json();
+  await route.fulfill({
+    response,
+    json: {
+      ...payload,
+      settings: {
+        ...payload.settings,
+        orderFlow: {
+          ...payload.settings.orderFlow,
+          enabled: true,
+        },
+      },
+    },
+  });
+};
+
+test("the terminal paints when persisted DizyFlow is enabled before the primitive attaches", async ({ page }) => {
+  await page.route("**/api/profile", enablePersistedDizyFlow);
+  await openTerminal(page);
+
+  const toolbar = page.locator(".dizyflow-controls");
+  const master = toolbar.locator(".dizyflow-master");
+  await expect(toolbar).toHaveAttribute("data-flow-primitive-attached", "true");
+  await expect(master).toHaveAttribute("aria-pressed", "true");
+  await expect(toolbar).toHaveAttribute("data-flow-snapshot-enabled", "true");
+  await expect(toolbar).toHaveAttribute("data-flow-render-enabled", "true");
+  await expect
+    .poll(async () => Number(await toolbar.getAttribute("data-flow-paint-call-count")))
+    .toBeGreaterThan(0);
+});
+
 test("the terminal repaints DizyFlow after delayed persisted settings hydrate", async ({ page }) => {
   await openTerminal(page);
 
@@ -43,22 +80,8 @@ test("the terminal repaints DizyFlow after delayed persisted settings hydrate", 
       await route.continue();
       return;
     }
-    const response = await route.fetch();
-    const payload = await response.json();
     await new Promise((resolve) => setTimeout(resolve, 750));
-    await route.fulfill({
-      response,
-      json: {
-        ...payload,
-        settings: {
-          ...payload.settings,
-          orderFlow: {
-            ...payload.settings.orderFlow,
-            enabled: true,
-          },
-        },
-      },
-    });
+    await enablePersistedDizyFlow(route);
   });
 
   await page.reload();
