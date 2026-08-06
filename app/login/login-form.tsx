@@ -1,13 +1,16 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SCHOOL_DISPLAY_NAME } from "@/app/lib/branding";
 
 export default function LoginForm() {
   const router = useRouter();
+  const [hydrated, setHydrated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => setHydrated(true), []);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -49,6 +52,8 @@ export default function LoginForm() {
     }
   };
 
+  const interactive = hydrated && !loading;
+
   return (
     <form className="login-card" onSubmit={submit}>
       <div className="login-brand">
@@ -67,11 +72,11 @@ export default function LoginForm() {
         <input autoComplete="current-password" name="password" required type="password" />
       </label>
       {error ? <div className="login-error" role="alert">{error}</div> : null}
-      <button disabled={loading} type="submit">
+      <button disabled={!interactive} type="submit">
         {loading ? "Opening workspace…" : "Open DizyTrades"}
       </button>
       <a className="signup-link" href="/signup">Create an account</a>
-      <button className="viewer-login" disabled={loading} onClick={continueAsViewer} type="button">
+      <button className="viewer-login" disabled={!interactive} onClick={continueAsViewer} type="button">
         Open View-Only Terminal
       </button>
       <a className="school-login-link" href="/school">Explore {SCHOOL_DISPLAY_NAME}</a>
