@@ -137,7 +137,6 @@ const freezeFill = (fill: PendingOrderFill): Readonly<PendingOrderFill> =>
     ...fill,
     evidence: fill.evidence ? Object.freeze({...fill.evidence}) : undefined,
   });
-
 const freezeEvent = (event: PendingOrderEvent): Readonly<PendingOrderEvent> => {
   if (event.type === "submitted") {
     return Object.freeze({...event, spec: Object.freeze({...event.spec})});
@@ -260,7 +259,9 @@ export function applyPendingOrderEvent(
     });
   }
 
-  if (!state) fail("MISSING_SUBMISSION", "type", "The first lifecycle event must submit the order.");
+  if (!state) {
+    return fail("MISSING_SUBMISSION", "type", "The first lifecycle event must submit the order.");
+  }
   const events = [...state.events, event];
 
   switch (event.type) {
