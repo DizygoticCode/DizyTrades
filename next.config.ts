@@ -33,7 +33,6 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_TRADINGVIEW_LAYOUT_URL: process.env.TRADINGVIEW_LAYOUT_URL,
   },
-  output: "standalone",
   async headers() {
     return [
       {
