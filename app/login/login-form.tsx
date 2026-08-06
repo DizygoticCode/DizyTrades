@@ -1,16 +1,22 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { SCHOOL_DISPLAY_NAME } from "@/app/lib/branding";
 
+const subscribeToHydration = () => () => undefined;
+const getHydratedSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 export default function LoginForm() {
   const router = useRouter();
-  const [hydrated, setHydrated] = useState(false);
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getHydratedSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => setHydrated(true), []);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
