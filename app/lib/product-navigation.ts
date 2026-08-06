@@ -22,8 +22,6 @@ export type DizyProductLink = Readonly<{
   title: string;
   accent: string;
   routePrefixes: readonly string[];
-  terminalCompanion?: boolean;
-  terminalClassName?: string;
 }>;
 
 export const MEXC_REFERRAL_URL = "https://s.mexc.com/referral/zIGtvsj603";
@@ -65,8 +63,6 @@ export const DIZY_PRODUCT_LINKS: readonly DizyProductLink[] = [
     title: "Open bounded DizyQuant microstructure research",
     accent: "#c8a7ff",
     routePrefixes: ["/research"],
-    terminalCompanion: true,
-    terminalClassName: "dizyquant-topbar-link",
   },
   {
     id: "account",
@@ -76,8 +72,6 @@ export const DIZY_PRODUCT_LINKS: readonly DizyProductLink[] = [
     title: "Open the owner-only read-only MEXC Account Companion",
     accent: "#86f2cf",
     routePrefixes: ["/account"],
-    terminalCompanion: true,
-    terminalClassName: "dizyaccount-topbar-link",
   },
   {
     id: "scanner",
@@ -87,8 +81,6 @@ export const DIZY_PRODUCT_LINKS: readonly DizyProductLink[] = [
     title: "Open multi-symbol DizyScanner",
     accent: "#ffb45c",
     routePrefixes: ["/scanner"],
-    terminalCompanion: true,
-    terminalClassName: "dizyscanner-topbar-link",
   },
   {
     id: "structure",
@@ -98,8 +90,6 @@ export const DIZY_PRODUCT_LINKS: readonly DizyProductLink[] = [
     title: "Open advanced closed-candle market structure",
     accent: "#5ed4ff",
     routePrefixes: ["/structure"],
-    terminalCompanion: true,
-    terminalClassName: "dizystructure-topbar-link",
   },
   {
     id: "performance",
@@ -109,8 +99,6 @@ export const DIZY_PRODUCT_LINKS: readonly DizyProductLink[] = [
     title: "Open the realised performance dashboard",
     accent: "#ff7fc8",
     routePrefixes: ["/performance"],
-    terminalCompanion: true,
-    terminalClassName: "dizyperformance-topbar-link",
   },
   {
     id: "journal",
@@ -120,8 +108,6 @@ export const DIZY_PRODUCT_LINKS: readonly DizyProductLink[] = [
     title: "Open DizyJournal",
     accent: "#ffd071",
     routePrefixes: ["/journal"],
-    terminalCompanion: true,
-    terminalClassName: "dizyjournal-topbar-link",
   },
   {
     id: "backup",
@@ -131,8 +117,6 @@ export const DIZY_PRODUCT_LINKS: readonly DizyProductLink[] = [
     title: "Export and recover DizyTrades account data",
     accent: "#64e6c5",
     routePrefixes: ["/backup"],
-    terminalCompanion: true,
-    terminalClassName: "dizybackup-topbar-link",
   },
   {
     id: "ops",
@@ -142,8 +126,6 @@ export const DIZY_PRODUCT_LINKS: readonly DizyProductLink[] = [
     title: "Open owner-only production diagnostics",
     accent: "#a8b3ca",
     routePrefixes: ["/diagnostics"],
-    terminalCompanion: true,
-    terminalClassName: "dizyops-topbar-link",
   },
   {
     id: "dex",
@@ -153,8 +135,6 @@ export const DIZY_PRODUCT_LINKS: readonly DizyProductLink[] = [
     title: "Open public on-chain pool research",
     accent: "#9ee86f",
     routePrefixes: ["/dex"],
-    terminalCompanion: true,
-    terminalClassName: "dizydex-topbar-link",
   },
 ] as const;
 
@@ -171,7 +151,3 @@ export function activeDizyProduct(pathname: string): DizyProductId | null {
 export function showSharedProductNavigation(pathname: string) {
   return !["/login", "/signup"].some((prefix) => routeMatches(pathname, prefix));
 }
-
-export const TERMINAL_COMPANION_LINKS = DIZY_PRODUCT_LINKS.filter(
-  (product) => product.terminalCompanion,
-);
