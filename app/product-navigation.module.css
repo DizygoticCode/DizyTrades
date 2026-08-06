@@ -1,0 +1,126 @@
+.shell {
+  position: sticky;
+  z-index: 120;
+  top: 0;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  color: #cbd3e4;
+  border-bottom: 1px solid #242d40;
+  background: #090c13f2;
+  box-shadow: 0 8px 24px #0005;
+  backdrop-filter: blur(14px);
+}
+
+.brand {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 31px;
+  padding: 4px 8px 4px 5px;
+  color: #f4f7ff;
+  border: 1px solid #293349;
+  border-radius: 7px;
+  background: #101520;
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.mark {
+  width: 22px;
+  height: 22px;
+  display: inline-block;
+  background: transparent url("/brand/dizy-mark.svg") center / contain no-repeat;
+}
+
+.products {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #35405a transparent;
+}
+
+.product {
+  --product-accent: #a8b3ca;
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 31px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
+  color: #9da8bd;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.product:hover,
+.product:focus-visible {
+  color: #f6f8ff;
+  border-color: color-mix(in srgb, var(--product-accent) 54%, transparent);
+  background: color-mix(in srgb, var(--product-accent) 10%, #0c1018);
+}
+
+.active {
+  color: #ffffff;
+  border-color: color-mix(in srgb, var(--product-accent) 72%, transparent);
+  background: color-mix(in srgb, var(--product-accent) 16%, #0c1018);
+  box-shadow: inset 0 -2px 0 var(--product-accent), 0 0 13px color-mix(in srgb, var(--product-accent) 16%, transparent);
+}
+
+.icon {
+  color: var(--product-accent);
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .shell {
+    gap: 5px;
+    padding-inline: 6px;
+  }
+
+  .brand {
+    padding-right: 5px;
+  }
+
+  .brandText {
+    display: none;
+  }
+
+  .product {
+    padding-inline: 6px;
+  }
+}
+
+@media (max-width: 560px) {
+  .shell {
+    min-height: 40px;
+  }
+
+  .product {
+    min-height: 29px;
+    font-size: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .products {
+    scroll-behavior: auto;
+  }
+}
