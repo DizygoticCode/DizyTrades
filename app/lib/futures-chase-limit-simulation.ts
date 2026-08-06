@@ -363,7 +363,7 @@ const validateContinuation = (
   }
   const previous = state.observations.at(-1);
   if (!previous) {
-    fail("MISSING_CHASE_HISTORY", "observations", "Active chase-limit state requires an observation history.");
+    return fail("MISSING_CHASE_HISTORY", "observations", "Active chase-limit state requires an observation history.");
   }
   if (snapshot.sequence <= previous.bookSequence) {
     fail(
