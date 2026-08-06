@@ -4,7 +4,7 @@ export const pendingOrderAcademyLessons: AcademyLesson[] = [
   {
     slug: "pending-order-execution",
     title: "Pending orders: timing, priority and deterministic fills",
-    group: "Execution",
+    group: "Professional Practice",
     summary: "Choose and review pending-order behaviour without confusing an order-book snapshot with guaranteed execution.",
     diagram: "flow",
     sections: [
