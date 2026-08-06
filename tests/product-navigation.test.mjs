@@ -48,7 +48,7 @@ test("the shared product strip is standard on every product page including termi
   assert.equal(showSharedProductNavigation("/signup"), false);
 });
 
-test("terminal uses the shared strip without the obsolete duplicate product portal", async () => {
+test("terminal uses the shared strip without obsolete duplicate product shortcuts", async () => {
   const terminalSource = await readFile(new URL("../app/terminal/page.tsx", import.meta.url), "utf8");
   const navigationSource = await readFile(new URL("../app/product-navigation.tsx", import.meta.url), "utf8");
   const navigationStyles = await readFile(new URL("../app/product-navigation.module.css", import.meta.url), "utf8");
@@ -56,6 +56,7 @@ test("terminal uses the shared strip without the obsolete duplicate product port
   assert.match(navigationSource, /opensTerminalBrain/);
   assert.match(navigationSource, /\.dizybrain-launch/);
   assert.match(navigationStyles, /height: calc\(100dvh - 42px\)/);
+  assert.match(navigationStyles, /\.school-terminal-link\)[\s\S]*display: none !important/);
 });
 
 test("MEXC referral CTA is explicit, optional and safely opens a new tab", async () => {
