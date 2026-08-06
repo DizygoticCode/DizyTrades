@@ -8,7 +8,6 @@ import {
   MEXC_REFERRAL_CODE,
   MEXC_REFERRAL_URL,
   showSharedProductNavigation,
-  TERMINAL_COMPANION_LINKS,
 } from "../app/lib/product-navigation.ts";
 
 const expectedDestinations = [
@@ -32,6 +31,7 @@ test("shared product navigation exposes each current standalone destination once
 });
 
 test("nested product pages retain their relevant active product", () => {
+  assert.equal(activeDizyProduct("/terminal"), "charts");
   assert.equal(activeDizyProduct("/scanner"), "scanner");
   assert.equal(activeDizyProduct("/account/control"), "account");
   assert.equal(activeDizyProduct("/school/lessons/order-flow"), "academy");
@@ -39,19 +39,24 @@ test("nested product pages retain their relevant active product", () => {
   assert.equal(activeDizyProduct("/"), null);
 });
 
-test("the shared strip avoids auth pages and the terminal's specialised toolbar", () => {
+test("the shared product strip is standard on every product page including terminal", () => {
   assert.equal(showSharedProductNavigation("/"), true);
   assert.equal(showSharedProductNavigation("/scanner"), true);
+  assert.equal(showSharedProductNavigation("/terminal"), true);
+  assert.equal(showSharedProductNavigation("/terminal/settings"), true);
   assert.equal(showSharedProductNavigation("/login"), false);
   assert.equal(showSharedProductNavigation("/signup"), false);
-  assert.equal(showSharedProductNavigation("/terminal"), false);
 });
 
-test("terminal companion destinations come from the same central registry", () => {
-  assert.deepEqual(
-    TERMINAL_COMPANION_LINKS.map((product) => product.id),
-    ["quant", "account", "scanner", "structure", "performance", "journal", "backup", "ops", "dex"],
-  );
+test("terminal uses the shared strip without obsolete duplicate product shortcuts", async () => {
+  const terminalSource = await readFile(new URL("../app/terminal/page.tsx", import.meta.url), "utf8");
+  const navigationSource = await readFile(new URL("../app/product-navigation.tsx", import.meta.url), "utf8");
+  const navigationStyles = await readFile(new URL("../app/product-navigation.module.css", import.meta.url), "utf8");
+  assert.doesNotMatch(terminalSource, /DizyBrainTopbarLink/);
+  assert.match(navigationSource, /opensTerminalBrain/);
+  assert.match(navigationSource, /\.dizybrain-launch/);
+  assert.match(navigationStyles, /height: calc\(100dvh - 42px\)/);
+  assert.match(navigationStyles, /\.school-terminal-link\)[\s\S]*display: none !important/);
 });
 
 test("MEXC referral CTA is explicit, optional and safely opens a new tab", async () => {

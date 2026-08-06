@@ -14,6 +14,19 @@
   backdrop-filter: blur(14px);
 }
 
+:global(body:has(.terminal-shell)) {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+:global(body:has(.terminal-shell) .terminal-shell) {
+  height: calc(100dvh - 42px);
+}
+
+:global(body:has(.terminal-shell) .school-terminal-link) {
+  display: none !important;
+}
+
 .brand {
   flex: 0 0 auto;
   display: inline-flex;
@@ -111,6 +124,10 @@
 @media (max-width: 560px) {
   .shell {
     min-height: 40px;
+  }
+
+  :global(body:has(.terminal-shell) .terminal-shell) {
+    height: calc(100dvh - 40px);
   }
 
   .product {
