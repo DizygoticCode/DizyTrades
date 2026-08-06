@@ -1,4 +1,4 @@
-name: PR 230 emergency macOS validation
+name: PR 230 emergency cross-platform validation
 
 on:
   push:
@@ -10,7 +10,13 @@ permissions:
 
 jobs:
   validate:
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
       CI: "true"
