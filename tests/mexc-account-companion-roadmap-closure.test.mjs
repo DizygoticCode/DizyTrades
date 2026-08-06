@@ -14,9 +14,9 @@ const shutdownRunbook = await readFile(
 
 test("Account Companion roadmap closes only with all reviewed evidence present", () => {
   const section = roadmap.match(
-    /### 5\. Read-only MEXC Account Companion and shadow reconciliation — complete([\s\S]*?)## Active programme/,
+    /### 5\. Read-only MEXC Account Companion and shadow reconciliation — complete([\s\S]*?)(?=\n### \d+\.|\n## Active programme)/,
   )?.[1];
-  assert.ok(section, "completed Account Companion section must exist before active programme");
+  assert.ok(section, "completed Account Companion section must exist before the next programme boundary");
   const completed = section.match(/^- \[x\]/gm) ?? [];
   const incomplete = section.match(/^- \[ \]/gm) ?? [];
   assert.equal(completed.length, 9);
