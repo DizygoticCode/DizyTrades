@@ -145,9 +145,25 @@ The software proves its GET-only allowlist, owner authorization, freshness model
 
 This completed programme did not create an order route and did not weaken `LIVE_TRADING_ENABLED=false`.
 
+### 6. Advanced pending-order simulation and DizyAcademy — complete
+
+- [x] shared typed immutable order lifecycle and deterministic replay
+- [x] futures LIMIT, GTC, IOC, FOK and post-only simulation
+- [x] trigger-market, trigger-limit and trailing-stop simulation
+- [x] chase-limit repricing, protection distance and hedge-mode constraints
+- [x] position-bound reduce-only TP/SL and limit TP/SL simulation
+- [x] cancel, replace, expiry and partial-fill evidence
+- [x] spot MARKET, LIMIT, LIMIT_MAKER, IOC and FOK simulation
+- [x] separate spot base/quote available and reserved accounting
+- [x] exact reservation, price-improvement, cancellation and replacement evidence
+- [x] DizyAcademy pending-order and spot-accounting lessons
+- [x] independent accounting, replay and live-routing-boundary audit
+
+Evidence is recorded in [docs/PENDING_ORDER_PROGRAMME_AUDIT.md](docs/PENDING_ORDER_PROGRAMME_AUDIT.md). The programme remains simulation-only: it does not request private MEXC data, hold exchange credentials, infer hidden queue priority or create a live order route.
+
 ## Active programme
 
-### 6. Liquidity heatmap presentation and DizyFlow evidence quality
+### 7. Liquidity heatmap presentation and DizyFlow evidence quality
 
 The retained evidence engine and migration metrics exist. The customer-facing heatmap must now be reviewed as a visual product rather than assumed correct because data is retained.
 
