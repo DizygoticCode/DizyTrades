@@ -90,6 +90,13 @@ function ensureState(input: DizyQuantOrderFlowRuntimeInput) {
   return next;
 }
 
+function resetState(state: RuntimeState) {
+  state.window.clear();
+  state.lastDepthTimeMs = 0;
+  state.lastBoundaryMs = 0;
+  state.latest = null;
+}
+
 function rawTrade(symbol: string, trade: NormalizedPublicTrade): RawTrade | null {
   if (
     trade.side === "unknown" ||
@@ -146,7 +153,7 @@ export function observeDizyQuantOrderFlowRuntime(
     !positive(input.contractSize) ||
     input.tickSize === null ||
     !positive(input.tickSize) ||
-    input.envelope.diagnostic.sourceTimestampKnown === false
+    input.envelope.diagnostic.sourceTimestampKnown !== true
   ) {
     return null;
   }
@@ -160,19 +167,20 @@ export function observeDizyQuantOrderFlowRuntime(
   const recovering =
     input.envelope.diagnostic.recovering === true ||
     input.envelope.diagnostic.sourceMode === "RECONNECTING — LAST BOOK RETAINED";
-  const sequenceContinuous = recovering
-    ? null
-    : (input.envelope.diagnostic.sequenceContinuous ?? null);
+  const gapCounterReset = state.lastDepthTimeMs > 0 && versionGaps < state.lastVersionGaps;
   const gapAdvanced =
-    versionGaps > state.lastVersionGaps || input.envelope.diagnostic.sequenceContinuous === false;
+    versionGaps > state.lastVersionGaps ||
+    gapCounterReset ||
+    input.envelope.diagnostic.sequenceContinuous === false;
   state.lastVersionGaps = versionGaps;
 
-  if (gapAdvanced || depthTimeMs < state.lastDepthTimeMs) {
-    state.window.clear();
-    state.lastDepthTimeMs = 0;
-    state.lastBoundaryMs = 0;
-    state.latest = null;
+  if (recovering) {
+    resetState(state);
+    return null;
   }
+
+  const sequenceContinuous = input.envelope.diagnostic.sequenceContinuous ?? null;
+  if (gapAdvanced || depthTimeMs < state.lastDepthTimeMs) resetState(state);
 
   if (depthTimeMs > state.lastDepthTimeMs) {
     state.window.captureDepth({
