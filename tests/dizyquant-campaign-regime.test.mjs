@@ -17,8 +17,9 @@ function frame(index, options = {}) {
   const bidFactor = options.bidFactor ?? 1;
   const askFactor = options.askFactor ?? 1;
   const spreadTicks = options.spreadTicks ?? 1;
+  const maxDistance = options.maxDistance ?? 35;
   const levels = [];
-  for (let distance = spreadTicks; distance <= 35; distance += 1) {
+  for (let distance = spreadTicks; distance <= maxDistance; distance += 1) {
     const bidPrice = midpoint - distance * PRICE_STEP;
     const askPrice = midpoint + distance * PRICE_STEP;
     levels.push({
@@ -116,7 +117,7 @@ test("a closing-frame disturbance is not nominated as a shock because it has no 
   assert.equal(result.shock, null);
 });
 
-test("unproven continuity and malformed event grids fail closed", () => {
+test("unproven continuity, malformed grids and truncated 25-bps books fail closed", () => {
   const frames = Array.from({ length: 61 }, (_, index) => frame(index));
   const gapped = classify(frames, { sequenceContinuous: null, hasGaps: true });
   assert.equal(gapped.available, false);
@@ -124,6 +125,10 @@ test("unproven continuity and malformed event grids fail closed", () => {
   const malformed = classify(frames.slice(0, 60));
   assert.equal(malformed.available, false);
   assert.equal(malformed.regime, null);
+  const shallow = frames.map((value, index) => index === 25 ? frame(index, { maxDistance: 15 }) : value);
+  const truncated = classify(shallow);
+  assert.equal(truncated.available, false);
+  assert.equal(truncated.regime, null);
 });
 
 test("shock severity tie resolves to the earliest event-time candidate", () => {
