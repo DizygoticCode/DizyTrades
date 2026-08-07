@@ -23,7 +23,7 @@
 
 ## What DizyTrades has become
 
-DizyTrades began as an independent chart and strategy simulator. It is now one connected workflow for market discovery, confirmed-candle analysis, public order-flow context, versioned microstructure research, realistic practice execution, historical reconstruction, structured review and realised performance measurement.
+DizyTrades began as an independent chart and strategy simulator. It is now one connected workflow for market discovery, confirmed-candle analysis, public order-flow context, versioned microstructure research, realistic practice execution, read-only account reconciliation, historical reconstruction, structured review and realised performance measurement.
 
 ```text
 DizyScanner
@@ -37,7 +37,7 @@ DizyCharts + DizySignals + DizyFlow
                    │               ↓
                    │      retain, reject or promote separately
                    ↓
-DizyPaper
+DizyPaper ←──────→ DizyAccount read-only shadow reconciliation
     ↓
 DizyJournal
     ↓
@@ -67,6 +67,7 @@ The primary multi-timeframe market terminal.
 - manual trendlines, rays, channels, rectangles, notes and measurements
 - named account-scoped layouts plus built-in research, price-action and order-flow presets
 - saved per-user market, timeframe, chart, strategy, risk and DizyFlow state
+- shared route-aware navigation across the current Dizy product family
 
 ### DizySignals
 
@@ -98,9 +99,10 @@ Public market-microstructure tools beneath the candles.
 - current Market Depth histogram
 - professional virtualised DOM ladder
 - grouped bids and asks, recent-trade flashes and optional visible queue estimate
-- retained liquidity history and heatmap tiles
-- public trade bubbles and large-activity views
-- explicit live, delayed, stale and unavailable states
+- retained liquidity history and customer-facing heatmap tiles
+- live liquidity continuation through the current candle without rewriting archive coverage
+- public trade bubbles and large-activity views with restrained default presentation
+- explicit live, delayed, stale, gapped and unavailable states
 
 ### DizyQuant
 
@@ -113,12 +115,29 @@ A versioned public-market microstructure research layer—not a prediction engin
 - sixty-second shock recovery and replenishment measurements
 - two explicitly experimental depth-only absorption/exhaustion candidate flags
 - deterministic held-out, circular-null and walk-forward Replay laboratory
+- continuity-qualified representative-evidence campaign contract
 - fresh, stale, gapped and unavailable states
 - bounded public `/research` page containing definitions and safeguards only
 - no live values or raw order-book stream on the public research page
 - every metric remains decision-ineligible and signal-ineligible
 
-The six-slice implementation programme is complete. Representative evidence studies and explicit retain/reject/promotion decisions remain future research work. See [the research contract](docs/DIZYQUANT_RESEARCH_CONTRACT.md).
+The six-slice implementation programme is complete. The active research programme is the first bounded evidence campaign: BTC_USDT, ETH_USDT and SOL_USDT across range, directional and volatility-shock regimes, with 50 qualified observations required in each of the nine cells before the first matrix is coverage-ready. Coverage-ready still does not mean validated or promotable. See [the research contract](docs/DIZYQUANT_RESEARCH_CONTRACT.md).
+
+### DizyAccount
+
+Owner-only, server-side read-only MEXC Futures account context.
+
+- GET-only private provider allowlist with executable proof that no write capability is requested
+- live balances, open positions and provider risk context
+- fresh, stale, unavailable and sealed states
+- deterministic MEXC ↔ DizyPaper shadow reconciliation without changing either account
+- non-executable hypothetical order preview
+- append-only tamper-evident shadow audit evidence
+- owner-controlled local shutdown and credential-removal workflow
+- independent read-only boundary review
+- no browser-held exchange credentials and no order route
+
+This feature is deliberately separate from future guarded execution. See [the independent Account Companion review](docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md).
 
 ### DizyScanner
 
@@ -143,7 +162,7 @@ A dedicated closed-candle market-structure workspace.
 
 ### DizyPaper
 
-Manual and signal-driven simulation without real funds. DizyPaper Fidelity V2 is complete.
+Manual and signal-driven simulation without real funds. DizyPaper Fidelity V2 and the advanced pending-order programme are complete.
 
 - fixed-margin, fixed-notional, equity-percentage and risk-percentage sizing
 - official public contract precision, price ticks, volume steps and symbol leverage limits
@@ -152,6 +171,11 @@ Manual and signal-driven simulation without real funds. DizyPaper Fidelity V2 is
 - reduce-only Close, Reverse, Flatten All and automatic risk exits
 - position-size-aware maintenance tiers, liquidation and separate bankruptcy-price evidence
 - explicit isolated collateral and single-asset USDT cross-margin approximation
+- typed immutable pending-order lifecycle with deterministic replay
+- futures LIMIT, GTC, IOC, FOK, post-only, trigger-market, trigger-limit, trailing-stop and chase-limit simulation
+- position-bound reduce-only take-profit and stop-loss simulation
+- spot MARKET, LIMIT, LIMIT_MAKER, IOC and FOK simulation
+- separate spot base/quote available and reserved accounting with exact release/refund evidence
 - migration-safe history and integrity-verified backup support
 - no claim of exchange queue priority or exchange-exact liquidation
 
@@ -189,14 +213,18 @@ Realised outcome analytics based on immutable completed Journal trades.
 
 ### DizyAcademy
 
-Public structured education from fundamentals through the current platform workflow.
+Public structured education from fundamentals through the current user-accessible platform workflow.
 
 - beginner trading and risk foundations
 - chart structure, indicators, VWAP, Volume Profile, Fibonacci, Wyckoff and Elliott
 - DOM, order flow, heatmaps, auction theory and institutional execution concepts
 - DizyScanner, DizyStructure, Replay, Historical DizyFlow and Guided Review
-- DizyPerformance, Behaviour, DizyOps and Backup/Recovery lessons
+- DizyPerformance, Behaviour and Backup/Recovery lessons
+- pending-order execution and spot-reservation/accounting lessons
+- topic-specific diagrams and real product screenshots for the current workflow lessons
 - browser-local progress and searchable glossary
+
+Owner/admin-only DizyOps diagnostics are intentionally not presented as ordinary-user Academy training.
 
 ### DizyDEX
 
@@ -229,17 +257,19 @@ Owner-scoped data export and additive recovery.
 - credentials, session tokens and authentication records excluded
 - automated destructive application restore rehearsal in isolated temporary data roots
 
-### Workflow and accessibility
+### Workflow, navigation and accessibility
 
 The protected workspace includes:
 
+- one shared product bar across Dizy pages, with terminal-specific chart/workspace controls kept separate
 - optional first-run onboarding with truthful simulation boundaries
-- Ctrl/Cmd+K command palette and verified keyboard reference
+- terminal-only Ctrl/Cmd+K Commands and Recent quick actions
 - recent market, Journal and Academy continuation shortcuts
 - responsive phone and small-tablet containment
 - skip navigation, modal focus containment and focus restoration
 - forced-colour support and a shared reduced-motion contract
 - explicit empty, delayed, recovering, offline and failed states
+- optional visibly disclosed MEXC referral link; DizyTrades does not require a broker connection or live trading
 
 ## Product principles
 
@@ -259,30 +289,31 @@ The protected workspace includes:
 - [x] public marketing site and real view-only terminal
 - [x] public accounts, isolated profiles and saved named workspaces
 - [x] DizyCharts, DizySignals and DizyBrain
-- [x] DizyFlow Market Depth, DOM, retained liquidity and public trades
-- [x] DizyQuant six-slice research foundation, 67-metric registry and bounded `/research` page
+- [x] DizyFlow Market Depth, DOM, retained liquidity, live-aligned heatmap and public trades
+- [x] DizyQuant six-slice research foundation, 67-metric registry, Replay lab and bounded `/research` page
+- [x] DizyQuant continuity-qualified representative-evidence campaign machinery
+- [x] owner-only GET-only DizyAccount Companion and DizyPaper shadow reconciliation
 - [x] DizyScanner watchlists and multi-symbol analysis
 - [x] DizyStructure session, anchored-value and swing workspace
-- [x] DizyPaper Fidelity V2 simulation and accounting model
+- [x] DizyPaper Fidelity V2 plus advanced futures/spot pending-order simulation and accounting
 - [x] DizyJournal, Guided Review and Behaviour analysis
 - [x] DizyReplay with Historical DizyFlow
 - [x] DizyPerformance realised analytics
 - [x] DizyDEX discovery
-- [x] DizyAcademy curriculum and progress tracking
+- [x] DizyAcademy curriculum, current-workflow visuals and progress tracking
 - [x] DizyOps production diagnostics
 - [x] DizyBackup export, dry-run and additive recovery
-- [x] onboarding, Commands, Recent, responsive and accessibility programme
-- [x] lint, full deterministic tests, production build and Chromium gates
-- [x] read-only Render deployment observation
+- [x] shared product navigation, onboarding, Commands/Recent, responsive and accessibility programmes
+- [x] read-only Render deployment observation contracts
 - [x] isolated application recovery rehearsal
-- [x] focused engineering, authentication, storage, Replay, backup, accessibility and simulator-accounting reviews
+- [x] focused engineering, authentication, storage, Account Companion, Replay, backup, accessibility and simulator-accounting reviews
 
-### Active next programmes
+### Active roadmap order
 
-- [ ] server-side read-only MEXC Account Companion and shadow reconciliation
-- [ ] customer-facing liquidity heatmap presentation and evidence-quality review
-- [ ] representative DizyQuant evidence campaigns with retain/reject decisions
-- [ ] guarded execution readiness only after every security milestone passes
+1. [ ] **Finish the DizyQuant evidence campaign** and record explicit retain/reject/revise decisions.
+2. [ ] **Optional evidence-led polish** only where the campaign or production use shows a real reason.
+3. [ ] **Housekeeping/security update** for supported dependency patches, documentation/security sync and GitHub Actions recovery.
+4. [ ] **Guarded execution readiness** only after every execution-security milestone passes independent review.
 
 A destructive provider persistent-disk snapshot rollback is deliberately deferred until the guarded-execution security milestone. It is not required for the current simulation beta and will not create another paid service merely to tick a box.
 
@@ -308,9 +339,15 @@ closed candles / live price / depth / public trades
              DizyReplay + retained evidence
                             ↓
           Guided Review + Behaviour + Performance
+
+Owner-only MEXC private GET
+        ↓
+     DizyAccount
+        ↕
+DizyPaper shadow reconciliation
 ```
 
-Authentication, profiles, workspaces, Paper accounts, Journal records, Replay memories and backups are user-scoped storage. Viewer sessions remain read-only.
+Authentication, profiles, workspaces, Paper accounts, Journal records, Replay memories and backups are user-scoped storage. Viewer sessions remain read-only. DizyAccount is owner-only and server-side.
 
 TradingView widget data is isolated from DizySignals and paper simulations. The application does not execute Pine Script and does not consume widget state as strategy input.
 
@@ -320,15 +357,16 @@ The public DizyQuant route consumes a frozen presentation model only. It exposes
 
 The repository currently contains:
 
-- no exchange API-key form
-- no private exchange trading endpoint
+- no browser exchange API-key form or browser-held exchange credentials
+- an owner-only server-side GET-only private MEXC Account Companion
+- no write-capable private exchange trading endpoint
 - no live order-placement route
 - no enabled execution capability
 - no DizyQuant metric promoted into DizySignals
 
-`LIVE_TRADING_ENABLED=false` is a required deployment boundary. Any future exchange connection begins read-only and server-side. Encrypted credential custody, reconciliation, idempotency, account limits, emergency shutdown and independent review are mandatory before execution can be considered.
+`LIVE_TRADING_ENABLED=false` is a required deployment boundary. The existing read-only MEXC connection proves only the owner Account Companion boundary. Any future write-capable execution path requires separate encrypted credential custody, idempotency, reconciliation, account limits, emergency shutdown, provider-recovery rehearsal and independent review before execution can even be considered.
 
-The active authentication, storage and simulator-accounting findings, remediations and accepted beta limitations are documented in [SECURITY.md](SECURITY.md), [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md) and [docs/SIMULATOR_ACCOUNTING_AUDIT.md](docs/SIMULATOR_ACCOUNTING_AUDIT.md).
+The active authentication, storage and simulator-accounting findings, remediations and accepted beta limitations are documented in [SECURITY.md](SECURITY.md), [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md), [docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md](docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md) and [docs/SIMULATOR_ACCOUNTING_AUDIT.md](docs/SIMULATOR_ACCOUNTING_AUDIT.md).
 
 ## Local development
 
@@ -359,13 +397,13 @@ npm run build
 npm run test:e2e
 ```
 
-GitHub Actions validates lint, the full deterministic test suite, the Next.js production build and Chromium. Separate workflows verify the configured Render service read-only and exercise application recovery in isolated temporary filesystems. Failure diagnostics include Playwright screenshots, video and traces where applicable.
+The repository contains workflow definitions for lint, the deterministic suite, production build, Chromium, deployment observation and application recovery. GitHub-hosted Actions runs are currently silent, so those workflows must not be treated as an active merge signal until they recover. For current production changes, focused deterministic checks and the Render production build remain the final deployment gate.
 
 ## Deployment and recovery
 
 The beta is deployed on Render as one Node service with persistent storage mounted under `/var/data`, automatic deploys from `main` and `/api/health` monitoring.
 
-The read-only deployment rehearsal authenticates from GitHub Actions, resolves the configured DizyTrades service, waits for the expected commit and verifies the public simulation-only health contract without changing Render.
+The deployment-observation contract is read-only: it resolves the configured DizyTrades service, waits for the expected commit and verifies the public simulation-only health boundary without changing Render.
 
 The isolated recovery rehearsal uses the real backup engine to export, validate, dry-run and restore representative user data into fresh temporary data roots. It verifies owner isolation, tamper rejection, stable fingerprints and idempotency without touching production.
 
@@ -377,6 +415,8 @@ A persistent disk is not itself a backup. Keep dated DizyBackup exports outside 
 
 Visible DOM depth can be cancelled, changed or hidden. Queue-ahead is an educational estimate. Public trade classification and provider coverage are imperfect. Historical DizyFlow exists only where compact evidence was genuinely retained. Paper fills and liquidations are simulator estimates and do not guarantee exchange-equivalent results.
 
+DizyAccount reflects the owner’s read-only MEXC provider state when fresh. Provider permission introspection remains outside the software boundary, and DizyPaper reconciliation is observational rather than corrective.
+
 DizyQuant uses aggregated public price-level data. It does not know individual order identity, trader identity, true queue position, hidden liquidity or institutional intent. Experimental absorption/exhaustion candidates are versioned depth-only research rules—not diagnoses or trading calls.
 
 ## Contributing
@@ -384,7 +424,7 @@ DizyQuant uses aggregated public price-level data. It does not know individual o
 1. Create one focused branch from current `main`.
 2. Keep display preferences separate from trading logic.
 3. Add deterministic tests for changed boundaries.
-4. Run lint, tests, production build and relevant browser checks.
+4. Run lint, tests, production build and relevant browser checks where available.
 5. Explain user-facing effects, unavailable states and safety implications.
 6. Open a pull request against `main`.
 
@@ -392,7 +432,7 @@ DizyQuant uses aggregated public price-level data. It does not know individual o
 
 Chart rendering uses [TradingView Lightweight Charts](https://www.tradingview.com/lightweight-charts/) with visible attribution. The separate TradingView Advanced Chart is an isolated official widget.
 
-The drawing system, DizySignals engine, DizyBrain review tools, DizyFlow processing, DizyQuant research system, simulators, Replay, Journal, Academy and application interface are original DizyTrades work.
+The drawing system, DizySignals engine, DizyBrain review tools, DizyFlow processing, DizyQuant research system, DizyAccount read-only companion, simulators, Replay, Journal, Academy and application interface are original DizyTrades work.
 
 ## Disclaimer
 
