@@ -199,11 +199,12 @@ test("client campaign feed validates labelled evidence and remains monotonic", (
     contractSize: 1,
     priceStep: 0.1,
   });
-  const publication = collect(runtime, 0, 75).at(-1);
-  assert.ok(publication);
+  const publications = collect(runtime, 0, 75);
+  assert.ok(publications.length >= 2);
+  const older = publications.at(-2);
+  const publication = publications.at(-1);
   assert.equal(publishDizyQuantCampaignDepthPublication(publication), publication);
   assert.equal(readDizyQuantCampaignDepthPublication("BTC_USDT"), publication);
-  const older = { ...publication, boundaryTimeMs: publication.boundaryTimeMs - 5_000 };
   assert.equal(publishDizyQuantCampaignDepthPublication(older), publication);
   assert.equal(
     publishDizyQuantCampaignDepthPublication({
@@ -213,6 +214,9 @@ test("client campaign feed validates labelled evidence and remains monotonic", (
     }),
     null,
   );
+  const { selectedShockTimestampMs: omitted, ...missingShockField } = publication;
+  assert.equal(omitted, null);
+  assert.equal(publishDizyQuantCampaignDepthPublication(missingShockField), null);
   assert.equal(publishDizyQuantCampaignDepthPublication({ nope: true }), null);
   clearDizyQuantCampaignDepthPublication();
 });
