@@ -10,9 +10,12 @@ test("campaign collector lease remains lower priority than normal terminal depth
     /export function acquireDepthCollector\(symbol:string\)\{([\s\S]*?)return entry\.collector\}/,
   );
   assert.ok(acquire, "collector acquisition contract must remain visible to the regression");
+  const pruneIndex = acquire[1].indexOf("if(collectors.size>=MAX_COLLECTORS)pruneIdle()");
+  const capacityIndex = acquire[1].indexOf('throw Error("DizyFlow collector capacity reached")');
+  assert.ok(pruneIndex >= 0, "normal acquisition must retain the idle-pruning clause");
+  assert.ok(capacityIndex >= 0, "normal acquisition must retain its bounded capacity guard");
   assert.ok(
-    acquire[1].indexOf("if(collectors.size>=MAX_COLLECTORS)pruneIdle()") <
-      acquire[1].indexOf('throw Error("DizyFlow collector capacity reached")'),
+    pruneIndex < capacityIndex,
     "normal acquisition must prune zero-reference idle collectors before rejecting capacity",
   );
 
