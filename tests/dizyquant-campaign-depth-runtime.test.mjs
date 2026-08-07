@@ -168,14 +168,18 @@ test("client campaign feed is in-memory, validated and monotonic", () => {
   clearDizyQuantCampaignDepthPublication();
 });
 
-test("runtime source contract uses the shared collector and never persists raw campaign depth in the browser", async () => {
+test("runtime source contract uses the shared collector and keeps heavy research code off the client feed", async () => {
   const route = await readFile("app/api/dizyquant/evidence/stream/route.ts", "utf8");
   const publisher = await readFile("app/dizyquant-snapshot-publisher.tsx", "utf8");
   const feed = await readFile("app/lib/dizyquant/campaign-runtime-feed.ts", "utf8");
+  const contract = await readFile("app/lib/dizyquant/campaign-runtime-contract.ts", "utf8");
   assert.match(route, /acquireDepthCollector/);
   assert.match(route, /DizyQuantCampaignDepthRuntime/);
   assert.match(route, /DIZYQUANT_INITIAL_EVIDENCE_SYMBOLS/);
   assert.match(publisher, /\/api\/dizyquant\/evidence\/stream/);
+  assert.match(feed, /campaign-runtime-contract/);
+  assert.doesNotMatch(feed, /campaign-depth-runtime/);
+  assert.match(contract, /import type \{ DizyQuantLiveEvidenceBuildResult \}/);
   assert.doesNotMatch(feed, /localStorage|sessionStorage|indexedDB/i);
   assert.doesNotMatch(publisher, /localStorage.*campaign|campaign.*localStorage/i);
 });
