@@ -37,12 +37,6 @@ body:has([data-testid="dizy-product-navigation"]) main > nav a:is(
   display: none !important;
 }
 
-/* The shared bar already carries the DizyTrades family identity. Keep local
- * feature headers focused on the current workspace instead of repeating it. */
-body:has([data-testid="dizy-product-navigation"]) main > header > div > b:first-child {
-  display: none;
-}
-
 /*
  * Terminal toolbar contract:
  * - shared product bar is row one
