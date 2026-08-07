@@ -16,13 +16,13 @@ Contract size and reviewed price-step metadata come from the existing MEXC marke
 
 ## Coverage rule
 
-The first depth campaign requires displayed depth through 25 basis points of midpoint because the reviewed resilience/shock methodology and the representative near-depth liquidity evidence depend on that source range.
+The first depth campaign proves displayed depth through 25 basis points of midpoint. That source boundary is sufficient for the reviewed shock methodology and for the existing 10-bps / 25-bps ladder metrics.
 
 A raw collector snapshot is campaign-coverage-complete only when the deepest visible bid reaches at least `midpoint - 25 bps` and the deepest visible ask reaches at least `midpoint + 25 bps`.
 
 The configured collector level count is never treated as proof of price-band coverage. An incomplete 25-bps book resets continuous qualification.
 
-This 25-bps proof does **not** certify that 50-bps or 100-bps ladder metrics have complete outer-band coverage. Those wider metrics remain exploratory unless a separate reviewed coverage rule proves their source range.
+This 25-bps proof does **not** certify 50-bps or 100-bps ladder metrics, nor does it prove a stable outer boundary for formulas that aggregate the entire displayed collector frame. Those wider or whole-frame metrics remain exploratory unless a separate reviewed coverage rule proves their required source range.
 
 ## Event-time sampling
 
@@ -68,7 +68,9 @@ PR #214 used `absorption-candidate-flag` as the canonical synthetic campaign fix
 
 Therefore an absorption-candidate campaign cannot honestly populate the six `range` and `directional` symbol cells. The runtime must never manufacture those values.
 
-The nine-cell representative collection layer uses the fresh continuous **liquidity-migration Replay snapshot**, which exists across valid range, directional and volatility-shock windows. Shock windows may additionally contribute the separate resilience Replay snapshot to absorption/exhaustion studies. Campaign evaluation still selects one metric at a time, so formula-family records are not silently combined into one predictor.
+The scientifically clean nine-cell baseline comes from the exact t0 **ladder Replay snapshot**, because the runtime proves the source range used by its 10-bps and 25-bps metrics on every labelled frame. `depth-imbalance-25bps` is the natural first representative metric: it is snapshot-grade, informational and defined solely from visible bid-versus-ask notional inside the proven 25-bps boundary.
+
+The 30-second liquidity-migration snapshot remains useful exploratory evidence but is not declared the representative matrix basis here because its existing formulas aggregate the full displayed frame. Shock windows may additionally contribute the separate resilience Replay snapshot to absorption/exhaustion studies. Campaign evaluation still selects one metric at a time, so formula-family records are never silently combined into one predictor.
 
 ## Trade evidence
 
@@ -100,7 +102,7 @@ No DizySignals scoring, Paper account state, Journal state, DizyBrain behaviour 
 
 The next campaign slice is the recorder-runner policy. It must separately version and enforce:
 
-1. which labelled publications are eligible to open representative liquidity-migration samples;
+1. the 25-bps ladder predictor used for the nine-cell representative campaign, beginning with `depth-imbalance-25bps` unless a reviewed change says otherwise;
 2. shock-only resilience sample handling without pretending those predictors exist in non-shock regimes;
 3. campaign collection cadence and overlap/deduplication rules so the five-second publication cadence cannot inflate the evidence count;
 4. exact +60-second midpoint observation and expiry through the existing anti-lookahead recorder;
