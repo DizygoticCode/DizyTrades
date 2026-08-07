@@ -69,9 +69,11 @@ test("root layout mounts after hydration and launchers remain existing UI action
   assert.match(layout, /<CommandPaletteMounted \/>/);
   assert.match(mounted, /useSyncExternalStore/);
   assert.match(mounted, /\(\) => true, \(\) => false/);
-  assert.match(mounted, /return mounted \? \(/);
+  assert.match(mounted, /if \(!mounted\) return null;/);
+  assert.match(mounted, /className="global-quick-actions"/);
   assert.match(mounted, /<CommandPalette \/>/);
   assert.match(mounted, /<RecentShortcuts \/>/);
+  assert.match(mounted, /createPortal\(<QuickActions \/>, terminalToolbar\)/);
   assert.match(palette, /Control\+K Meta\+K/);
   assert.match(palette, /first-run-onboarding-trigger/);
   assert.match(palette, /workspace-layout-trigger/);
