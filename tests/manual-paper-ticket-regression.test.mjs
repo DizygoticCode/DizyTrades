@@ -14,7 +14,10 @@ test("Manual Paper retries missing MEXC contract rules and preserves same-symbol
 test("Manual Paper position slider uses the same sizing equity as order calculation", () => {
   assert.match(ticket, /sliderToAmount\(safe, sizingEquity, mode, leverageNumber\)/);
   assert.doesNotMatch(ticket, /sliderToAmount\(safe, equity, mode, leverageNumber\)/);
-  assert.match(ticket, /sliderToAmount\(sizePercent,\s*sizingEquity,\s*next,/);
+  assert.match(
+    ticket,
+    /sliderToAmount\(\s*sizePercent,\s*sizingEquity,\s*next,\s*leverageNumber,?\s*\)/,
+  );
   assert.match(ticket, /sliderToAmount\(sizePercent,sizingEquity,mode,value\)/);
 });
 
