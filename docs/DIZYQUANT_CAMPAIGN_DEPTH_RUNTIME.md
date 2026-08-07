@@ -30,6 +30,8 @@ The shared collector may publish multiple full-book envelopes per second. To kee
 
 When the next second arrives, the completed source book is handed to `DizyQuantLiveEvidenceWindow`. In parallel, the runtime stores a bounded exact-boundary frame for the reviewed 60-second regime methodology. Both paths use only the last book observed before the exact boundary; a future observation never fills a past research boundary.
 
+The publication carries two deliberately different clocks. `boundaryTimeMs` is the exact one-second regime-grid boundary. `sourceTimeMs` is the actual exchange timestamp of the as-of ladder book used at that boundary and may precede it by at most one second. The ladder Replay snapshot must carry that same `sourceTimeMs`, and `baselineMidpoint` comes from that same as-of book. The anti-lookahead recorder therefore starts its +60-second outcome horizon from the Replay/source timestamp, not from the rounded regime boundary.
+
 Compact formula publications are evaluated at five-second boundaries. The five-second publication cadence exists to keep research state current and is **not** the campaign collection cadence. Raw full-book frames remain bounded in server memory; only the versioned compact publication crosses the SSE boundary.
 
 ## Continuity and recovery
@@ -58,9 +60,7 @@ The resulting research stratum is one of:
 
 The methodology never uses the later +60-second outcome. `volatility-shock` takes precedence when the reviewed resilience thresholds identify an interior shock. The selected deterministic shock timestamp is then passed back into the existing `DizyQuantLiveEvidenceWindow`, which builds the real resilience Replay snapshot from the same bounded evidence. A shock-labelled publication fails closed if that resilience snapshot cannot be produced as fresh continuous evidence.
 
-The compact publication records the regime formula version, exact regime-window endpoints, direction label, selected shock timestamp when present, and the exact predictor-boundary midpoint needed later by the anti-lookahead recorder.
-
-No Wyckoff/Markup/Markdown UI phase, chart timeframe or strategy label enters this classification.
+The compact publication records the regime formula version, exact regime-window endpoints, direction label and selected shock timestamp when present. No Wyckoff/Markup/Markdown UI phase, chart timeframe or strategy label enters this classification.
 
 ## Representative matrix versus shock-only hypotheses
 
