@@ -1,6 +1,7 @@
 import {
   createInitialDizyQuantEvidenceCampaignConfig,
   DIZYQUANT_EVIDENCE_CAMPAIGN_MAX_SAMPLES,
+  DIZYQUANT_INITIAL_EVIDENCE_SYMBOLS,
 } from "./evidence-campaign.ts";
 import {
   beginDizyQuantEvidenceSample,
@@ -11,8 +12,13 @@ import {
   type DizyQuantPendingEvidenceSample,
   type DizyQuantRecordedEvidenceSample,
 } from "./evidence-recorder.ts";
-import type { DizyQuantCampaignDepthPublication } from "./campaign-runtime-contract.ts";
-import { DIZYQUANT_INITIAL_EVIDENCE_SYMBOLS } from "./evidence-campaign.ts";
+import {
+  DIZYQUANT_CAMPAIGN_DEPTH_RUNTIME_VERSION,
+  DIZYQUANT_CAMPAIGN_REGIME_RUNTIME_VERSION,
+  type DizyQuantCampaignDepthPublication,
+  type DizyQuantCampaignRuntimeRegime,
+} from "./campaign-runtime-contract.ts";
+import type { DizyQuantReplaySnapshot } from "./research.ts";
 
 export const DIZYQUANT_CAMPAIGN_RECORDER_RUNNER_SCHEMA_VERSION = 1 as const;
 export const DIZYQUANT_CAMPAIGN_RECORDER_RUNNER_FORMULA_VERSION =
@@ -32,6 +38,23 @@ export type DizyQuantCampaignResidency = Readonly<{
   toMs: number;
 }>;
 
+export type DizyQuantCampaignSampleKind = "representative" | "shock";
+export type DizyQuantCampaignSampleProvenance = Readonly<{
+  sampleId: string;
+  kind: DizyQuantCampaignSampleKind;
+  symbol: string;
+  residencySlot: number;
+  residencyFromMs: number;
+  residencyToMs: number;
+  publicationRuntimeVersion: typeof DIZYQUANT_CAMPAIGN_DEPTH_RUNTIME_VERSION;
+  regimeFormulaVersion: typeof DIZYQUANT_CAMPAIGN_REGIME_RUNTIME_VERSION;
+  regime: DizyQuantCampaignRuntimeRegime;
+  boundaryTimeMs: number;
+  publicationSourceTimeMs: number;
+  predictorSourceTimeMs: number;
+  selectedShockTimestampMs: number | null;
+}>;
+
 export type DizyQuantCampaignRecorderRunnerState = Readonly<{
   schemaVersion: typeof DIZYQUANT_CAMPAIGN_RECORDER_RUNNER_SCHEMA_VERSION;
   formulaVersion: typeof DIZYQUANT_CAMPAIGN_RECORDER_RUNNER_FORMULA_VERSION;
@@ -40,6 +63,7 @@ export type DizyQuantCampaignRecorderRunnerState = Readonly<{
   outcomeVersion: typeof DIZYQUANT_MIDPOINT_OUTCOME_VERSION;
   completed: readonly DizyQuantRecordedEvidenceSample[];
   pending: readonly DizyQuantPendingEvidenceSample[];
+  provenance: readonly DizyQuantCampaignSampleProvenance[];
   expiredOutcomeCount: number;
   recentExpiredSampleIds: readonly string[];
   researchOnly: true;
@@ -100,7 +124,7 @@ export function dizyQuantCampaignResidencyAt(timestampMs: number): DizyQuantCamp
 }
 
 export function dizyQuantCampaignSampleId(
-  kind: "representative" | "shock",
+  kind: DizyQuantCampaignSampleKind,
   symbol: string,
   predictorBoundaryMs: number,
 ) {
@@ -168,6 +192,63 @@ function validatePending(value: DizyQuantPendingEvidenceSample) {
   return reconstructed;
 }
 
+function validateProvenance(
+  value: DizyQuantCampaignSampleProvenance,
+  sample: DizyQuantPendingEvidenceSample | DizyQuantRecordedEvidenceSample,
+) {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    value.sampleId !== sample.sampleId ||
+    (value.kind !== "representative" && value.kind !== "shock") ||
+    value.symbol !== sample.snapshot.symbol ||
+    !DIZYQUANT_INITIAL_EVIDENCE_SYMBOLS.some((symbol) => symbol === value.symbol) ||
+    !Number.isSafeInteger(value.residencySlot) ||
+    value.residencySlot < 0 ||
+    value.publicationRuntimeVersion !== DIZYQUANT_CAMPAIGN_DEPTH_RUNTIME_VERSION ||
+    value.regimeFormulaVersion !== DIZYQUANT_CAMPAIGN_REGIME_RUNTIME_VERSION ||
+    value.regime !== sample.regime ||
+    value.predictorSourceTimeMs !== sample.snapshot.sourceTimeMs
+  ) {
+    throw new Error("Invalid DizyQuant campaign sample provenance");
+  }
+  const residency = dizyQuantCampaignResidencyAt(value.boundaryTimeMs);
+  if (
+    residency.slot !== value.residencySlot ||
+    residency.symbol !== value.symbol ||
+    residency.fromMs !== value.residencyFromMs ||
+    residency.toMs !== value.residencyToMs ||
+    residency.predictorBoundaryMs !== value.boundaryTimeMs ||
+    value.publicationSourceTimeMs > value.boundaryTimeMs ||
+    value.boundaryTimeMs - value.publicationSourceTimeMs > 1_000 ||
+    dizyQuantCampaignSampleId(value.kind, value.symbol, value.boundaryTimeMs) !== value.sampleId
+  ) {
+    throw new Error("DizyQuant campaign provenance does not match its residency");
+  }
+  if (value.kind === "representative") {
+    if (value.predictorSourceTimeMs !== value.publicationSourceTimeMs) {
+      throw new Error("DizyQuant representative source clocks do not match");
+    }
+  } else if (
+    value.regime !== "volatility-shock" ||
+    value.predictorSourceTimeMs !== value.boundaryTimeMs
+  ) {
+    throw new Error("DizyQuant shock provenance does not match the resilience clock");
+  }
+  if (value.regime === "volatility-shock") {
+    if (
+      !Number.isSafeInteger(value.selectedShockTimestampMs) ||
+      value.selectedShockTimestampMs! <= value.boundaryTimeMs - 60_000 ||
+      value.selectedShockTimestampMs! >= value.boundaryTimeMs
+    ) {
+      throw new Error("Invalid DizyQuant selected shock provenance");
+    }
+  } else if (value.selectedShockTimestampMs !== null) {
+    throw new Error("Non-shock DizyQuant provenance carries a shock timestamp");
+  }
+  return Object.freeze({ ...value });
+}
+
 export function parseDizyQuantCampaignRecorderRunnerState(
   value: unknown,
 ): DizyQuantCampaignRecorderRunnerState {
@@ -183,6 +264,7 @@ export function parseDizyQuantCampaignRecorderRunnerState(
     candidate.outcomeVersion !== DIZYQUANT_MIDPOINT_OUTCOME_VERSION ||
     !Array.isArray(candidate.completed) ||
     !Array.isArray(candidate.pending) ||
+    !Array.isArray(candidate.provenance) ||
     !Number.isSafeInteger(candidate.expiredOutcomeCount) ||
     Number(candidate.expiredOutcomeCount) < 0 ||
     candidate.researchOnly !== true ||
@@ -213,6 +295,24 @@ export function parseDizyQuantCampaignRecorderRunnerState(
     }
     pendingIds.add(record.sampleId);
   }
+  const samples = new Map<string, DizyQuantPendingEvidenceSample | DizyQuantRecordedEvidenceSample>();
+  for (const record of completed) samples.set(record.sampleId, record);
+  for (const record of pending) samples.set(record.sampleId, record);
+  if (candidate.provenance.length !== samples.size) {
+    throw new Error("DizyQuant campaign provenance coverage is incomplete");
+  }
+  const provenanceIds = new Set<string>();
+  const provenance = candidate.provenance.map((entry) => {
+    const sample = samples.get(entry.sampleId);
+    if (!sample || provenanceIds.has(entry.sampleId)) {
+      throw new Error("Invalid DizyQuant campaign provenance sample ID");
+    }
+    provenanceIds.add(entry.sampleId);
+    return validateProvenance(entry, sample);
+  });
+  if (provenanceIds.size !== samples.size) {
+    throw new Error("DizyQuant campaign provenance coverage is incomplete");
+  }
   const recentExpiredSampleIds = cleanExpiredIds(candidate.recentExpiredSampleIds);
 
   return Object.freeze({
@@ -223,6 +323,7 @@ export function parseDizyQuantCampaignRecorderRunnerState(
     outcomeVersion: DIZYQUANT_MIDPOINT_OUTCOME_VERSION,
     completed,
     pending: Object.freeze(pending),
+    provenance: Object.freeze(provenance),
     expiredOutcomeCount: candidate.expiredOutcomeCount!,
     recentExpiredSampleIds: Object.freeze(recentExpiredSampleIds),
     researchOnly: true,
@@ -242,6 +343,7 @@ export function emptyDizyQuantCampaignRecorderRunnerState(): DizyQuantCampaignRe
     outcomeVersion: DIZYQUANT_MIDPOINT_OUTCOME_VERSION,
     completed: Object.freeze([] as DizyQuantRecordedEvidenceSample[]),
     pending: Object.freeze([] as DizyQuantPendingEvidenceSample[]),
+    provenance: Object.freeze([] as DizyQuantCampaignSampleProvenance[]),
     expiredOutcomeCount: 0,
     recentExpiredSampleIds: Object.freeze([] as string[]),
     researchOnly: true,
@@ -255,6 +357,7 @@ export function emptyDizyQuantCampaignRecorderRunnerState(): DizyQuantCampaignRe
 export class DizyQuantCampaignRecorderRunner {
   private recorder: DizyQuantEvidenceRecorder;
   private pending = new Map<string, DizyQuantPendingEvidenceSample>();
+  private provenance = new Map<string, DizyQuantCampaignSampleProvenance>();
   private expiredOutcomeCount = 0;
   private recentExpiredSampleIds: string[] = [];
 
@@ -265,6 +368,7 @@ export class DizyQuantCampaignRecorderRunner {
     );
     this.expiredOutcomeCount = validated.expiredOutcomeCount;
     this.recentExpiredSampleIds = [...validated.recentExpiredSampleIds];
+    for (const entry of validated.provenance) this.provenance.set(entry.sampleId, entry);
     for (const record of validated.pending) {
       const restored = this.recorder.begin({
         sampleId: record.sampleId,
@@ -276,25 +380,42 @@ export class DizyQuantCampaignRecorderRunner {
     }
   }
 
-  private hasSample(sampleId: string) {
-    return this.pending.has(sampleId) || this.recorder.records().some((record) => record.sampleId === sampleId);
-  }
-
   private open(
+    kind: DizyQuantCampaignSampleKind,
     sampleId: string,
     publication: DizyQuantCampaignDepthPublication,
-    snapshot: NonNullable<DizyQuantCampaignDepthPublication["evidence"]["snapshots"]["ladder"]>,
+    snapshot: DizyQuantReplaySnapshot,
   ) {
-    if (this.hasSample(sampleId)) return null;
+    if (this.provenance.has(sampleId)) return null;
     const stats = this.recorder.stats();
     if (stats.pendingCount + stats.completedCount >= stats.maximumSamples) return null;
+    const residency = dizyQuantCampaignResidencyAt(publication.boundaryTimeMs);
     const pending = this.recorder.begin({
       sampleId,
       regime: publication.regime,
       baselineMidpoint: publication.baselineMidpoint,
       snapshot,
     });
+    const provenance = validateProvenance(
+      {
+        sampleId,
+        kind,
+        symbol: publication.symbol,
+        residencySlot: residency.slot,
+        residencyFromMs: residency.fromMs,
+        residencyToMs: residency.toMs,
+        publicationRuntimeVersion: publication.runtimeVersion,
+        regimeFormulaVersion: publication.regimeFormulaVersion,
+        regime: publication.regime,
+        boundaryTimeMs: publication.boundaryTimeMs,
+        publicationSourceTimeMs: publication.sourceTimeMs,
+        predictorSourceTimeMs: snapshot.sourceTimeMs,
+        selectedShockTimestampMs: publication.selectedShockTimestampMs,
+      },
+      pending,
+    );
     this.pending.set(pending.sampleId, pending);
+    this.provenance.set(sampleId, provenance);
     return pending.sampleId;
   }
 
@@ -311,6 +432,7 @@ export class DizyQuantCampaignRecorderRunner {
     const representative = representativeSnapshot(publication);
     if (representative) {
       const id = this.open(
+        "representative",
         dizyQuantCampaignSampleId("representative", publication.symbol, publication.boundaryTimeMs),
         publication,
         representative,
@@ -321,6 +443,7 @@ export class DizyQuantCampaignRecorderRunner {
     const shock = shockSnapshot(publication);
     if (shock) {
       const id = this.open(
+        "shock",
         dizyQuantCampaignSampleId("shock", publication.symbol, publication.boundaryTimeMs),
         publication,
         shock,
@@ -339,7 +462,10 @@ export class DizyQuantCampaignRecorderRunner {
   observeOutcome(observation: DizyQuantOutcomeObservation): DizyQuantCampaignRunnerMutation {
     const result = this.recorder.observe(observation);
     for (const record of result.completed) this.pending.delete(record.sampleId);
-    for (const sampleId of result.expiredSampleIds) this.pending.delete(sampleId);
+    for (const sampleId of result.expiredSampleIds) {
+      this.pending.delete(sampleId);
+      this.provenance.delete(sampleId);
+    }
     if (result.expiredSampleIds.length) {
       this.expiredOutcomeCount += result.expiredSampleIds.length;
       this.recentExpiredSampleIds = [
@@ -369,6 +495,12 @@ export class DizyQuantCampaignRecorderRunner {
           (left, right) =>
             left.predictorTimeMs - right.predictorTimeMs ||
             left.sampleId.localeCompare(right.sampleId),
+        ),
+      ),
+      provenance: Object.freeze(
+        [...this.provenance.values()].sort(
+          (left, right) =>
+            left.boundaryTimeMs - right.boundaryTimeMs || left.sampleId.localeCompare(right.sampleId),
         ),
       ),
       expiredOutcomeCount: this.expiredOutcomeCount,
