@@ -14,7 +14,7 @@ const response = (value) =>
     headers: { "content-type": "application/json" },
   });
 
-function fullDepth(version = 100, timestamp = 10_000) {
+function fullDepth(version = 10, timestamp = 10_000) {
   const bids = Array.from({ length: 80 }, (_, index) => [
     Number((99.99 - index * 0.01).toFixed(2)),
     1,
@@ -28,52 +28,59 @@ function fullDepth(version = 100, timestamp = 10_000) {
   return { version, timestamp, bids, asks };
 }
 
-test("campaign readiness repairs a websocket-first partial-book seed race before research starts", async () => {
-  let releaseInitial;
+test("campaign collection refuses pre-seed websocket increments and becomes ready only after authoritative depth", async () => {
   let calls = 0;
-  const initialResponse = new Promise((resolve) => {
-    releaseInitial = () => resolve(response(fullDepth(10, 2_000)));
-  });
+  let now = 10_000;
   const collector = new DepthCollector(
     "BTC_USDT",
     async () => {
       calls += 1;
-      if (calls === 1) return initialResponse;
-      return response(fullDepth(20, 3_000));
+      return response(fullDepth(10, 9_900));
     },
-    () => 4_000,
+    () => now,
     undefined,
     { transport: "ws", maxLevels: 100, historySampleMs: 10_000 },
   );
 
-  const initialPoll = collector.poll();
   collector.applyWsUpdate({
     symbol: "BTC_USDT",
-    version: 1,
-    engineTimeMs: 1_500,
+    version: 9,
+    engineTimeMs: 9_800,
     bids: [{ price: 99.99, orderCount: 1, contractQuantity: 2 }],
     asks: [{ price: 100.01, orderCount: 1, contractQuantity: 3 }],
   });
   await new Promise((resolve) => setTimeout(resolve, 160));
 
   let readiness = readDizyQuantCampaignCollectorReadiness(collector);
-  assert.equal(readiness.sourceMode, "FULL DEPTH WS");
-  assert.equal(readiness.sequenceContinuous, true);
-  assert.equal(readiness.coverageComplete, false);
+  assert.equal(readiness.authoritativeSnapshotSeeded, false);
+  assert.equal(readiness.sourceMode, "NO VALID BOOK");
+  assert.equal(readiness.snapshotComplete, false);
+  assert.equal(readiness.coverageComplete, null);
   assert.equal(dizyQuantCampaignCollectorPublicationReady(readiness), false);
-
-  releaseInitial();
-  assert.equal(await initialPoll, true);
-  assert.equal(collector.diagnostic().bids, 1);
-  assert.equal(collector.diagnostic().asks, 1);
 
   assert.equal(await ensureDizyQuantCampaignCollectorSeed(collector), true);
   readiness = readDizyQuantCampaignCollectorReadiness(collector);
+  assert.equal(readiness.authoritativeSnapshotSeeded, true);
   assert.equal(readiness.coverageComplete, true);
   assert.ok(readiness.bids >= 25);
   assert.ok(readiness.asks >= 25);
-  assert.ok(readiness.restRecoveries >= 1);
-  assert.equal(calls, 2);
+  assert.equal(dizyQuantCampaignCollectorPublicationReady(readiness), false);
+  assert.equal(calls, 1);
+
+  now += 100;
+  collector.applyWsUpdate({
+    symbol: "BTC_USDT",
+    version: 11,
+    engineTimeMs: 10_050,
+    bids: [{ price: 99.99, orderCount: 1, contractQuantity: 12 }],
+    asks: [{ price: 100.01, orderCount: 1, contractQuantity: 13 }],
+  });
+  await new Promise((resolve) => setTimeout(resolve, 160));
+  readiness = readDizyQuantCampaignCollectorReadiness(collector);
+  assert.equal(readiness.sourceMode, "FULL DEPTH WS");
+  assert.equal(readiness.sequenceContinuous, true);
+  assert.equal(readiness.coverageComplete, true);
+  assert.equal(dizyQuantCampaignCollectorPublicationReady(readiness), true);
   collector.stop();
 });
 
