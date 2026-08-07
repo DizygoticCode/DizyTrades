@@ -9,6 +9,7 @@ export const DIZYQUANT_CAMPAIGN_SEED_WAIT_ATTEMPTS = 25 as const;
 
 export type DizyQuantCampaignCollectorReadiness = Readonly<{
   sourceMode: ReturnType<DepthCollector["diagnostic"]>["sourceMode"];
+  authoritativeSnapshotSeeded: boolean;
   sequenceContinuous: boolean | null;
   snapshotComplete: boolean;
   coverageComplete: boolean | null;
@@ -37,6 +38,7 @@ export function readDizyQuantCampaignCollectorReadiness(
   }
   return Object.freeze({
     sourceMode: diagnostic.sourceMode,
+    authoritativeSnapshotSeeded: diagnostic.authoritativeSnapshotSeeded,
     sequenceContinuous: latest?.diagnostic.sequenceContinuous ?? null,
     snapshotComplete,
     coverageComplete,
@@ -54,6 +56,7 @@ export function dizyQuantCampaignCollectorPublicationReady(
   readiness: DizyQuantCampaignCollectorReadiness,
 ) {
   return (
+    readiness.authoritativeSnapshotSeeded &&
     readiness.sourceMode === "FULL DEPTH WS" &&
     readiness.sequenceContinuous === true &&
     readiness.snapshotComplete &&
@@ -67,7 +70,7 @@ export async function ensureDizyQuantCampaignCollectorSeed(
 ) {
   for (let attempt = 0; attempt < DIZYQUANT_CAMPAIGN_SEED_WAIT_ATTEMPTS; attempt += 1) {
     const before = readDizyQuantCampaignCollectorReadiness(collector);
-    if (dizyQuantCampaignCollectorPublicationReady(before)) return true;
+    if (before.authoritativeSnapshotSeeded) return true;
 
     const polled = await collector.poll(false, true);
     if (!polled) {
@@ -75,9 +78,7 @@ export async function ensureDizyQuantCampaignCollectorSeed(
       continue;
     }
 
-    const after = readDizyQuantCampaignCollectorReadiness(collector);
-    if (after.restRecoveries > before.restRecoveries) return true;
-    return false;
+    return readDizyQuantCampaignCollectorReadiness(collector).authoritativeSnapshotSeeded;
   }
   return false;
 }
