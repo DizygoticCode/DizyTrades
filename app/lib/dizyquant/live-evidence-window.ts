@@ -1,21 +1,24 @@
 import {
-  calculateDizyQuantAggressiveFlow,
+  buildDizyQuantAggressiveFlowSnapshot,
   DIZYQUANT_AGGRESSIVE_FLOW_WINDOW_MS,
   DIZYQUANT_MAX_TRADES_PER_WINDOW,
 } from "./aggressive-flow.ts";
-import { calculateDizyQuantLadderState } from "./ladder-state.ts";
 import {
-  calculateDizyQuantLiquidityMigration,
+  buildDizyQuantLadderSnapshot,
+  calculateDizyQuantLadderState,
+} from "./ladder-state.ts";
+import {
+  buildDizyQuantLiquidityMigrationSnapshot,
   DIZYQUANT_LIQUIDITY_MIGRATION_WINDOW_MS,
   type DizyQuantLiquidityFrame,
 } from "./liquidity-migration.ts";
 import {
-  buildDizyQuantResearchSnapshot,
   toDizyQuantReplaySnapshot,
-  type DizyQuantMetricId,
   type DizyQuantReplaySnapshot,
+  type DizyQuantResearchSnapshot,
 } from "./research.ts";
 import {
+  buildDizyQuantResilienceSnapshot,
   calculateDizyQuantResilience,
   DIZYQUANT_RESILIENCE_WINDOW_MS,
 } from "./resilience.ts";
@@ -39,7 +42,16 @@ export type DizyQuantLiveDepthObservationInput = Readonly<{
 export type DizyQuantLiveEvidenceBuildInput = Readonly<{
   windowToMs: number;
   evaluatedAtMs: number;
+  tradeSequenceContinuous: boolean | null;
+  tradeHasGaps: boolean;
   shockTimestampMs?: number | null;
+}>;
+
+export type DizyQuantLiveEvidenceSnapshots = Readonly<{
+  ladder: DizyQuantReplaySnapshot | null;
+  aggressiveFlow: DizyQuantReplaySnapshot;
+  liquidityMigration: DizyQuantReplaySnapshot;
+  resilience: DizyQuantReplaySnapshot | null;
 }>;
 
 export type DizyQuantLiveEvidenceBuildResult = Readonly<{
@@ -47,13 +59,14 @@ export type DizyQuantLiveEvidenceBuildResult = Readonly<{
   symbol: string;
   windowToMs: number;
   shockTimestampMs: number | null;
-  snapshot: DizyQuantReplaySnapshot | null;
-  coverage: Readonly<{ fromMs: number | null; toMs: number | null }>;
-  sequenceContinuous: boolean | null;
-  hasGaps: boolean;
+  snapshots: DizyQuantLiveEvidenceSnapshots;
+  depthSequenceContinuous: boolean | null;
+  depthHasGaps: boolean;
+  tradeSequenceContinuous: boolean | null;
+  tradeHasGaps: boolean;
   rawDepthObservationCount: number;
   rawTradeCount: number;
-  sampledFrameCount: number;
+  sampledFrames: Readonly<{ aggressiveFlow: number; liquidityMigration: number; resilience: number }>;
   limitations: readonly string[];
   researchOnly: true;
   decisionEligible: false;
@@ -81,6 +94,10 @@ type SampledDepthWindow = Readonly<{
 const symbolPattern = /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
 const finitePositive = (value: number) => Number.isFinite(value) && value > 0;
 const safePositiveInteger = (value: number) => Number.isSafeInteger(value) && value > 0;
+const ASOF_LIMITATION =
+  "Exact research boundaries use the latest valid public depth observed at or before each one-second boundary, never a future observation; a book older than one second is treated as missing.";
+const RAW_WINDOW_LIMITATION =
+  "Raw public depth and trade evidence remains bounded and ephemeral in this bridge; only formula Replay snapshots may cross the recorder boundary.";
 
 function normaliseSymbol(value: string) {
   const symbol = value.trim().toUpperCase();
@@ -135,7 +152,7 @@ function frameFromBook(book: BookView, timestampMs: number, priceStep: number): 
       throw new Error("DizyQuant live depth collapses multiple levels onto one reviewed price tick");
     }
     ticks.add(priceTick);
-    if (side === "bid" && price >= midpoint || side === "ask" && price <= midpoint) {
+    if ((side === "bid" && price >= midpoint) || (side === "ask" && price <= midpoint)) {
       throw new Error("DizyQuant live depth side is inconsistent with midpoint");
     }
     levels.push({
@@ -180,8 +197,25 @@ function combinedSequence(values: readonly (boolean | null)[], complete: boolean
   return true;
 }
 
+function mergeSequence(left: boolean | null, right: boolean | null): boolean | null {
+  if (left === false || right === false) return false;
+  if (left === true && right === true) return true;
+  return null;
+}
+
 function frozenLimitations(values: readonly string[]) {
   return Object.freeze([...new Set(values.filter(Boolean))]);
+}
+
+function replayWithBridgeLimitations(
+  snapshot: DizyQuantResearchSnapshot,
+  limitations: readonly string[],
+): DizyQuantReplaySnapshot {
+  const replay = toDizyQuantReplaySnapshot(snapshot);
+  return Object.freeze({
+    ...replay,
+    limitations: frozenLimitations([...replay.limitations, ...limitations]),
+  });
 }
 
 export class DizyQuantLiveEvidenceWindow {
@@ -317,7 +351,9 @@ export class DizyQuantLiveEvidenceWindow {
     const fromMs = toMs - DIZYQUANT_RESILIENCE_WINDOW_MS;
     if (fromMs <= 0) return Object.freeze([] as number[]);
     const window = this.sampledWindow(fromMs, toMs);
-    if (!window.complete || window.frames.length < 3) return Object.freeze([] as number[]);
+    if (!window.complete || window.sequenceContinuous !== true || window.hasGaps || window.frames.length < 3) {
+      return Object.freeze([] as number[]);
+    }
     const candidates: number[] = [];
     for (const frame of window.frames.slice(1, -1)) {
       const state = calculateDizyQuantResilience({
@@ -327,8 +363,8 @@ export class DizyQuantLiveEvidenceWindow {
         shockTimestampMs: frame.timestampMs,
         priceStep: this.priceStep,
         contractSize: this.contractSize,
-        sequenceContinuous: window.sequenceContinuous,
-        hasGaps: window.hasGaps,
+        sequenceContinuous: true,
+        hasGaps: false,
         sourceKind: "depth-stream",
       });
       if (state.valid) candidates.push(frame.timestampMs);
@@ -340,90 +376,93 @@ export class DizyQuantLiveEvidenceWindow {
     const toMs = assertWindowBoundary(input.windowToMs, "DizyQuant live predictor time");
     if (!safePositiveInteger(input.evaluatedAtMs)) throw new Error("Invalid DizyQuant live evaluation time");
     if (input.evaluatedAtMs + 5_000 < toMs) throw new Error("DizyQuant live evaluation precedes predictor time");
+    if (![true, false, null].includes(input.tradeSequenceContinuous)) {
+      throw new Error("Invalid DizyQuant public-trade continuity state");
+    }
 
-    const migrationFromMs = toMs - DIZYQUANT_LIQUIDITY_MIGRATION_WINDOW_MS;
     const aggressiveFromMs = toMs - DIZYQUANT_AGGRESSIVE_FLOW_WINDOW_MS;
-    if (migrationFromMs <= 0 || aggressiveFromMs <= 0) {
+    const migrationFromMs = toMs - DIZYQUANT_LIQUIDITY_MIGRATION_WINDOW_MS;
+    if (aggressiveFromMs <= 0 || migrationFromMs <= 0) {
       throw new Error("DizyQuant live predictor window precedes the supported time boundary");
     }
-    const migrationWindow = this.sampledWindow(migrationFromMs, toMs);
     const aggressiveWindow = this.sampledWindow(aggressiveFromMs, toMs);
-    const limitations: string[] = [
-      "Live depth is reconstructed onto exact one-second research boundaries using only the latest public book observed at or before each boundary; observations older than one second are rejected.",
-      "The raw depth and public-trade window is bounded and ephemeral; only Replay-grade predictor evidence may cross the recorder boundary.",
-    ];
-    const values: Partial<Record<DizyQuantMetricId, number | null>> = {};
+    const migrationWindow = this.sampledWindow(migrationFromMs, toMs);
+    const bridgeLimitations = [ASOF_LIMITATION, RAW_WINDOW_LIMITATION];
 
-    const closingFrame = migrationWindow.frames.find((frame) => frame.timestampMs === toMs) ?? null;
-    if (!closingFrame) {
-      limitations.push("No sufficiently fresh public depth observation was available at the predictor boundary.");
-      return Object.freeze({
-        formulaVersion: DIZYQUANT_LIVE_EVIDENCE_WINDOW_FORMULA_VERSION,
-        symbol: this.symbol,
-        windowToMs: toMs,
-        shockTimestampMs: input.shockTimestampMs ?? null,
-        snapshot: null,
-        coverage: Object.freeze({ fromMs: null, toMs: null }),
-        sequenceContinuous: migrationWindow.sequenceContinuous,
-        hasGaps: true,
-        rawDepthObservationCount: this.depth.length,
-        rawTradeCount: this.trades.length,
-        sampledFrameCount: migrationWindow.frames.length,
-        limitations: frozenLimitations(limitations),
-        researchOnly: true,
-        decisionEligible: false,
-        signalEligible: false,
-        executionEligible: false,
-        promotionEligible: false,
-      });
-    }
-
-    const ladder = calculateDizyQuantLadderState(
-      frameToBook(closingFrame, this.priceStep),
-      this.contractSize,
-      this.priceStep,
-    );
-    Object.assign(values, ladder.values);
-    limitations.push(...ladder.limitations);
+    const closingObservation = this.observationAsOf(toMs);
+    const ladder = closingObservation
+      ? replayWithBridgeLimitations(
+          buildDizyQuantLadderSnapshot({
+            symbol: this.symbol,
+            book: frameToBook(closingObservation.frame, this.priceStep),
+            contractSize: this.contractSize,
+            priceStep: this.priceStep,
+            sourceTimeMs: closingObservation.sourceTimeMs,
+            evaluatedAtMs: input.evaluatedAtMs,
+            maxAgeMs: DIZYQUANT_LIVE_EVIDENCE_MAX_AGE_MS,
+          }),
+          bridgeLimitations,
+        )
+      : null;
 
     const aggressiveOpening = aggressiveWindow.frames.find((frame) => frame.timestampMs === aggressiveFromMs) ?? null;
     const aggressiveClosing = aggressiveWindow.frames.find((frame) => frame.timestampMs === toMs) ?? null;
     const openingLadder = aggressiveOpening
-      ? calculateDizyQuantLadderState(frameToBook(aggressiveOpening, this.priceStep), this.contractSize, this.priceStep)
+      ? calculateDizyQuantLadderState(
+          frameToBook(aggressiveOpening, this.priceStep),
+          this.contractSize,
+          this.priceStep,
+        )
       : null;
     const trades = this.trades.filter((trade) => trade.timestampMs >= aggressiveFromMs && trade.timestampMs < toMs);
-    const aggressive = calculateDizyQuantAggressiveFlow({
-      trades,
-      windowFromMs: aggressiveFromMs,
-      windowToMs: toMs,
-      sequenceContinuous: aggressiveWindow.sequenceContinuous,
-      hasGaps: aggressiveWindow.hasGaps,
-      openingMidpoint: aggressiveOpening?.midpoint ?? null,
-      closingMidpoint: aggressiveClosing?.midpoint ?? null,
-      openingBidDepth25Bps: openingLadder?.values["bid-depth-25bps"] ?? null,
-      openingAskDepth25Bps: openingLadder?.values["ask-depth-25bps"] ?? null,
-    });
-    Object.assign(values, aggressive.values);
-    limitations.push(...aggressive.limitations);
+    const aggressiveSequence = mergeSequence(
+      aggressiveWindow.sequenceContinuous,
+      input.tradeSequenceContinuous,
+    );
+    const aggressiveHasGaps = aggressiveWindow.hasGaps || Boolean(input.tradeHasGaps);
+    const aggressiveFlow = replayWithBridgeLimitations(
+      buildDizyQuantAggressiveFlowSnapshot({
+        symbol: this.symbol,
+        trades,
+        windowFromMs: aggressiveFromMs,
+        windowToMs: toMs,
+        sequenceContinuous: aggressiveSequence,
+        hasGaps: aggressiveHasGaps,
+        openingMidpoint: aggressiveOpening?.midpoint ?? null,
+        closingMidpoint: aggressiveClosing?.midpoint ?? null,
+        openingBidDepth25Bps: openingLadder?.values["bid-depth-25bps"] ?? null,
+        openingAskDepth25Bps: openingLadder?.values["ask-depth-25bps"] ?? null,
+        evaluatedAtMs: input.evaluatedAtMs,
+        maxAgeMs: DIZYQUANT_LIVE_EVIDENCE_MAX_AGE_MS,
+      }),
+      [
+        ...bridgeLimitations,
+        "Aggressive-flow continuity is qualified independently from depth continuity; an unproven public-trade stream remains gapped even when depth is continuous.",
+      ],
+    );
 
-    const migration = calculateDizyQuantLiquidityMigration({
-      frames: migrationWindow.frames,
-      windowFromMs: migrationFromMs,
-      windowToMs: toMs,
-      priceStep: this.priceStep,
-      contractSize: this.contractSize,
-      sequenceContinuous: migrationWindow.sequenceContinuous,
-      hasGaps: migrationWindow.hasGaps,
-      sourceKind: "depth-stream",
-    });
-    Object.assign(values, migration.values);
-    limitations.push(...migration.limitations);
+    const liquidityMigration = replayWithBridgeLimitations(
+      buildDizyQuantLiquidityMigrationSnapshot({
+        symbol: this.symbol,
+        frames: migrationWindow.frames,
+        windowFromMs: migrationFromMs,
+        windowToMs: toMs,
+        priceStep: this.priceStep,
+        contractSize: this.contractSize,
+        sequenceContinuous: migrationWindow.sequenceContinuous,
+        hasGaps: migrationWindow.hasGaps,
+        sourceKind: "depth-stream",
+        evaluatedAtMs: input.evaluatedAtMs,
+        maxAgeMs: DIZYQUANT_LIVE_EVIDENCE_MAX_AGE_MS,
+      }),
+      bridgeLimitations,
+    );
 
-    let coverageFromMs = migrationFromMs;
-    let sequenceContinuous = migrationWindow.sequenceContinuous;
-    let hasGaps = migrationWindow.hasGaps;
-    let sampledFrameCount = migrationWindow.frames.length;
     const requestedShock = input.shockTimestampMs ?? null;
+    let resilience: DizyQuantReplaySnapshot | null = null;
+    let resilienceFrameCount = 0;
+    let depthSequenceContinuous = migrationWindow.sequenceContinuous;
+    let depthHasGaps = migrationWindow.hasGaps;
     if (requestedShock !== null) {
       assertWindowBoundary(requestedShock, "DizyQuant explicit shock time");
       const resilienceFromMs = toMs - DIZYQUANT_RESILIENCE_WINDOW_MS;
@@ -431,54 +470,57 @@ export class DizyQuantLiveEvidenceWindow {
         throw new Error("DizyQuant explicit shock time is outside the sixty-second predictor window");
       }
       const resilienceWindow = this.sampledWindow(resilienceFromMs, toMs);
-      const resilience = calculateDizyQuantResilience({
-        frames: resilienceWindow.frames,
-        windowFromMs: resilienceFromMs,
-        windowToMs: toMs,
-        shockTimestampMs: requestedShock,
-        priceStep: this.priceStep,
-        contractSize: this.contractSize,
-        sequenceContinuous: resilienceWindow.sequenceContinuous,
-        hasGaps: resilienceWindow.hasGaps,
-        sourceKind: "depth-stream",
-      });
-      Object.assign(values, resilience.values);
-      limitations.push(...resilience.limitations);
-      coverageFromMs = resilienceFromMs;
-      sequenceContinuous = resilienceWindow.sequenceContinuous;
-      hasGaps = resilienceWindow.hasGaps;
-      sampledFrameCount = resilienceWindow.frames.length;
-    } else {
-      limitations.push("Resilience and absorption/exhaustion candidate metrics are omitted until a reviewed explicit shock timestamp is supplied; this bridge does not auto-select shocks.");
+      resilienceFrameCount = resilienceWindow.frames.length;
+      depthSequenceContinuous = resilienceWindow.sequenceContinuous;
+      depthHasGaps = resilienceWindow.hasGaps;
+      resilience = replayWithBridgeLimitations(
+        buildDizyQuantResilienceSnapshot({
+          symbol: this.symbol,
+          frames: resilienceWindow.frames,
+          windowFromMs: resilienceFromMs,
+          windowToMs: toMs,
+          shockTimestampMs: requestedShock,
+          priceStep: this.priceStep,
+          contractSize: this.contractSize,
+          sequenceContinuous: resilienceWindow.sequenceContinuous,
+          hasGaps: resilienceWindow.hasGaps,
+          sourceKind: "depth-stream",
+          evaluatedAtMs: input.evaluatedAtMs,
+          maxAgeMs: DIZYQUANT_LIVE_EVIDENCE_MAX_AGE_MS,
+        }),
+        [
+          ...bridgeLimitations,
+          "The shock timestamp is explicit input to this bridge; the bridge never auto-selects a shock or market regime.",
+        ],
+      );
     }
 
-    const researchSnapshot = buildDizyQuantResearchSnapshot({
-      symbol: this.symbol,
-      sourceTimeMs: toMs,
-      evaluatedAtMs: input.evaluatedAtMs,
-      maxAgeMs: DIZYQUANT_LIVE_EVIDENCE_MAX_AGE_MS,
-      evidenceGrade: "continuous-stream-grade",
-      sequenceContinuous,
-      hasGaps,
-      sourceKinds: ["depth-stream", "public-trades"],
-      coverage: { fromMs: coverageFromMs, toMs },
-      values,
-      limitations: frozenLimitations(limitations),
-    });
+    const limitations = frozenLimitations([
+      ...bridgeLimitations,
+      "Each formula family keeps its own Replay snapshot so depth quality cannot silently upgrade public-trade evidence or vice versa.",
+      requestedShock === null
+        ? "Resilience and absorption/exhaustion candidate evidence is absent until a separately reviewed explicit shock timestamp is supplied."
+        : "The supplied shock timestamp remains explicit methodology input; this bridge does not choose it.",
+    ]);
 
     return Object.freeze({
       formulaVersion: DIZYQUANT_LIVE_EVIDENCE_WINDOW_FORMULA_VERSION,
       symbol: this.symbol,
       windowToMs: toMs,
       shockTimestampMs: requestedShock,
-      snapshot: toDizyQuantReplaySnapshot(researchSnapshot),
-      coverage: Object.freeze({ fromMs: coverageFromMs, toMs }),
-      sequenceContinuous,
-      hasGaps,
+      snapshots: Object.freeze({ ladder, aggressiveFlow, liquidityMigration, resilience }),
+      depthSequenceContinuous,
+      depthHasGaps,
+      tradeSequenceContinuous: input.tradeSequenceContinuous,
+      tradeHasGaps: Boolean(input.tradeHasGaps),
       rawDepthObservationCount: this.depth.length,
       rawTradeCount: this.trades.length,
-      sampledFrameCount,
-      limitations: frozenLimitations(limitations),
+      sampledFrames: Object.freeze({
+        aggressiveFlow: aggressiveWindow.frames.length,
+        liquidityMigration: migrationWindow.frames.length,
+        resilience: resilienceFrameCount,
+      }),
+      limitations,
       researchOnly: true,
       decisionEligible: false,
       signalEligible: false,
