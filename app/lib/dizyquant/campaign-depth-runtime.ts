@@ -7,6 +7,7 @@ import type { BookView, DepthEnvelope, DepthSnapshot } from "../order-flow/types
 export const DIZYQUANT_CAMPAIGN_DEPTH_RUNTIME_VERSION =
   "dizyquant-campaign-depth-runtime/1.0.0" as const;
 export const DIZYQUANT_CAMPAIGN_DEPTH_COVERAGE_BPS = 25 as const;
+export const DIZYQUANT_CAMPAIGN_DEPTH_PUBLICATION_MS = 5_000 as const;
 
 export type DizyQuantCampaignDepthPublication = Readonly<{
   runtimeVersion: typeof DIZYQUANT_CAMPAIGN_DEPTH_RUNTIME_VERSION;
@@ -19,7 +20,7 @@ export type DizyQuantCampaignDepthPublication = Readonly<{
   sequenceContinuous: boolean | null;
   hasGaps: boolean;
   versionGaps: number;
-  eligibleShockTimestamps: readonly number[];
+  shockSelectionRequired: true;
   evidence: DizyQuantLiveEvidenceBuildResult;
   researchOnly: true;
   decisionEligible: false;
@@ -138,6 +139,8 @@ export class DizyQuantCampaignDepthRuntime {
     }
 
     const depthTimeMs = envelope.snapshot.engineTimeMs;
+    const timeRegression = depthTimeMs < this.lastDepthTimeMs;
+    if (timeRegression) this.clear();
     const book = bookViewFromDepthSnapshot(envelope.snapshot);
     const coverageComplete = depthBookCoversDizyQuantCampaignBand(book);
     const versionGaps = Math.max(0, envelope.diagnostic.versionGaps ?? 0);
@@ -145,10 +148,10 @@ export class DizyQuantCampaignDepthRuntime {
     const gapAdvanced =
       versionGaps > this.lastVersionGaps ||
       gapCounterReset ||
+      timeRegression ||
       envelope.diagnostic.sequenceContinuous === false;
     this.lastVersionGaps = versionGaps;
 
-    if (depthTimeMs < this.lastDepthTimeMs) this.clear();
     if (depthTimeMs > this.lastDepthTimeMs) {
       this.window.captureDepth({
         timestampMs: depthTimeMs,
@@ -159,7 +162,9 @@ export class DizyQuantCampaignDepthRuntime {
       this.lastDepthTimeMs = depthTimeMs;
     }
 
-    const boundaryTimeMs = Math.floor(depthTimeMs / 1_000) * 1_000;
+    const boundaryTimeMs =
+      Math.floor(depthTimeMs / DIZYQUANT_CAMPAIGN_DEPTH_PUBLICATION_MS) *
+      DIZYQUANT_CAMPAIGN_DEPTH_PUBLICATION_MS;
     if (boundaryTimeMs <= 0 || boundaryTimeMs <= this.lastBoundaryTimeMs) return null;
     this.lastBoundaryTimeMs = boundaryTimeMs;
 
@@ -170,9 +175,6 @@ export class DizyQuantCampaignDepthRuntime {
       tradeHasGaps: false,
       shockTimestampMs: null,
     });
-    const eligibleShockTimestamps = coverageComplete
-      ? this.window.eligibleShockTimestamps(boundaryTimeMs)
-      : Object.freeze([] as number[]);
 
     return Object.freeze({
       runtimeVersion: DIZYQUANT_CAMPAIGN_DEPTH_RUNTIME_VERSION,
@@ -185,7 +187,7 @@ export class DizyQuantCampaignDepthRuntime {
       sequenceContinuous: evidence.depthSequenceContinuous,
       hasGaps: evidence.depthHasGaps,
       versionGaps,
-      eligibleShockTimestamps,
+      shockSelectionRequired: true,
       evidence,
       researchOnly: true,
       decisionEligible: false,
