@@ -95,7 +95,16 @@ export type DizyQuantEvidenceRecorderObservationResult = Readonly<{
   expiredSampleIds: readonly string[];
 }>;
 
-const metricIds = new Set(DIZYQUANT_METRIC_DEFINITIONS.map((value) => value.id));
+const metricDefinitions = new Map(
+  DIZYQUANT_METRIC_DEFINITIONS.map((value) => [value.id, value]),
+);
+const sourceKinds = new Set<string>([
+  "depth-snapshot",
+  "depth-stream",
+  "public-trades",
+  "retained-liquidity",
+  "replay",
+]);
 const symbolPattern = /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
 
 function cleanText(value: string, label: string, maximum = 160) {
@@ -136,6 +145,7 @@ function freezeReplaySnapshot(snapshot: DizyQuantReplaySnapshot): DizyQuantRepla
     !["fresh", "gapped", "unavailable"].includes(snapshot.availability) ||
     !Array.isArray(snapshot.sourceKinds) ||
     snapshot.sourceKinds.length < 1 ||
+    snapshot.sourceKinds.some((value) => !sourceKinds.has(value)) ||
     new Set(snapshot.sourceKinds).size !== snapshot.sourceKinds.length ||
     !Array.isArray(snapshot.metrics) ||
     !Array.isArray(snapshot.limitations) ||
@@ -156,11 +166,14 @@ function freezeReplaySnapshot(snapshot: DizyQuantReplaySnapshot): DizyQuantRepla
     throw new Error("DizyQuant predictor coverage may not extend beyond predictor time");
   }
   const metrics = snapshot.metrics.map((metric) => {
+    const definition = metricDefinitions.get(metric?.id);
     if (
       !metric ||
       typeof metric !== "object" ||
-      !metricIds.has(metric.id) ||
-      metric.version !== 1 ||
+      !definition ||
+      metric.version !== definition.version ||
+      metric.unit !== definition.unit ||
+      metric.promotionStatus !== definition.promotionStatus ||
       metric.signalEligible !== false ||
       (metric.value !== null && !Number.isFinite(metric.value))
     ) {
@@ -310,6 +323,12 @@ function orderedRecords(records: readonly DizyQuantRecordedEvidenceSample[]) {
           baselineMidpoint: record.baselineMidpoint,
           snapshot: record.snapshot,
         });
+        if (
+          record.predictorTimeMs !== pending.predictorTimeMs ||
+          record.outcomeDueAtMs !== pending.outcomeDueAtMs
+        ) {
+          throw new Error("DizyQuant recorded predictor timestamps do not match Replay evidence");
+        }
         const completed = completeDizyQuantEvidenceSample(pending, {
           symbol: record.snapshot.symbol,
           timestampMs: record.outcomeTimeMs,
