@@ -11,7 +11,13 @@ import {
 export const DIZYQUANT_CAMPAIGN_RECORDER_STORE_VERSION = 1 as const;
 export const DIZYQUANT_CAMPAIGN_RECORDER_STORE_MAX_BYTES = 128 * 1024 * 1024;
 
-const dataRoot = () => process.env.DATA_DIR || join(process.cwd(), ".data");
+function dataRoot() {
+  const value = process.env.DATA_DIR?.trim();
+  if (!value) {
+    throw new Error("DizyQuant campaign collection requires an explicit durable DATA_DIR");
+  }
+  return value;
+}
 const directory = () => join(dataRoot(), "dizyquant", "campaign");
 const target = () => join(directory(), "representative-v1.json");
 let queue: Promise<unknown> = Promise.resolve();
