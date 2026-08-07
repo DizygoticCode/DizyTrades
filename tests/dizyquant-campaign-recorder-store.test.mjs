@@ -5,6 +5,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readDizyQuantCampaignRecorderState } from "../app/lib/dizyquant/campaign-recorder-store.ts";
 
+test("campaign recorder store requires an explicit durable DATA_DIR", async () => {
+  const previous = process.env.DATA_DIR;
+  delete process.env.DATA_DIR;
+  try {
+    await assert.rejects(
+      () => readDizyQuantCampaignRecorderState(),
+      /explicit durable DATA_DIR/,
+    );
+  } finally {
+    if (previous !== undefined) process.env.DATA_DIR = previous;
+  }
+});
+
 test("campaign recorder store never converts corrupt persisted research into an empty campaign", async () => {
   const root = await mkdtemp(join(tmpdir(), "dizyquant-corrupt-campaign-"));
   const previous = process.env.DATA_DIR;
