@@ -1,0 +1,56 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+async function source(path) {
+  return readFile(new URL(`../${path}`, import.meta.url), "utf8");
+}
+
+const [readme, roadmap, homepage, metadata, research] = await Promise.all([
+  source("README.md"),
+  source("ROADMAP.md"),
+  source("app/marketing/marketing-page.tsx"),
+  source("app/page.tsx"),
+  source("app/research/page.tsx"),
+]);
+
+test("README reflects the completed account, heatmap and pending-order programmes", () => {
+  assert.match(readme, /### DizyAccount/);
+  assert.match(readme, /owner-only GET-only DizyAccount Companion/i);
+  assert.match(readme, /advanced futures\/spot pending-order simulation/i);
+  assert.match(readme, /live-aligned heatmap/i);
+  assert.doesNotMatch(readme, /\[ \] server-side read-only MEXC Account Companion/);
+  assert.doesNotMatch(readme, /\[ \] customer-facing liquidity heatmap presentation/);
+  assert.doesNotMatch(readme, /DizyPerformance, Behaviour, DizyOps and Backup\/Recovery lessons/);
+});
+
+test("roadmap follows the agreed programme order", () => {
+  const evidence = roadmap.indexOf("Finish the DizyQuant representative evidence campaign");
+  const polish = roadmap.indexOf("Optional evidence-led polish");
+  const housekeeping = roadmap.indexOf("Housekeeping and security update");
+  const execution = roadmap.indexOf("Guarded execution readiness");
+  assert.ok(evidence >= 0 && polish > evidence && housekeeping > polish && execution > housekeeping);
+  assert.match(roadmap, /450 qualified observations/);
+  assert.match(roadmap, /Read-only MEXC Account Companion and shadow reconciliation — complete/);
+  assert.match(roadmap, /Liquidity heatmap presentation and DizyFlow evidence quality — complete for the current beta/);
+});
+
+test("public homepage describes the actual private-access boundary", () => {
+  assert.match(homepage, /DizyAccount/);
+  assert.match(homepage, /PRIVATE MEXC ACCESS/);
+  assert.match(homepage, /Owner-only \/ read only/);
+  assert.match(homepage, /server-side owner credentials/);
+  assert.match(homepage, /advanced futures\/spot pending orders/);
+  assert.doesNotMatch(homepage, /CREDENTIALS[\s\S]*Never requested/);
+  assert.doesNotMatch(homepage, /Performance, operations and recovery/);
+  assert.match(metadata, /owner-only read-only account reconciliation/);
+});
+
+test("DizyQuant homepage exposes campaign scope without claiming validation", () => {
+  assert.match(research, /ACTIVE EVIDENCE CAMPAIGN/);
+  assert.match(research, /BTC_USDT · ETH_USDT · SOL_USDT/);
+  assert.match(research, /range · directional · volatility-shock/);
+  assert.match(research, /450/);
+  assert.match(research, /Coverage-ready is not validation/);
+  assert.match(research, /promotion-ineligible/);
+});
