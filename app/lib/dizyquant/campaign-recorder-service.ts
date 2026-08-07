@@ -24,7 +24,7 @@ import { publishDizyQuantCampaignDepthPublication } from "./campaign-runtime-fee
 
 export const DIZYQUANT_CAMPAIGN_RECORDER_SERVICE_VERSION =
   "dizyquant-campaign-recorder-service/1.0.0" as const;
-export const DIZYQUANT_CAMPAIGN_SERVICE_RETRY_MS = 5_000 as const;
+export const DIZYQUANT_CAMPAIGN_LEASE_PULSE_MS = 5_000 as const;
 export const DIZYQUANT_CAMPAIGN_MARKET_RETRY_MS = 15_000 as const;
 
 export type DizyQuantCampaignRecorderServicePhase =
@@ -101,6 +101,7 @@ export class DizyQuantCampaignRecorderService {
   private phase: DizyQuantCampaignRecorderServicePhase = "starting";
   private activeSymbol: string | null = null;
   private residency: DizyQuantCampaignResidency | null = null;
+  private market: CampaignMarket | null = null;
   private collector: DepthCollector | null = null;
   private runtime: DizyQuantCampaignDepthRuntime | null = null;
   private unsubscribe: (() => void) | null = null;
@@ -122,7 +123,7 @@ export class DizyQuantCampaignRecorderService {
       const state = await readDizyQuantCampaignRecorderState();
       this.runner = new DizyQuantCampaignRecorderRunner(state);
       this.starting = false;
-      await this.activateCurrentResidency();
+      await this.pulseLease();
     } catch (reason) {
       this.starting = false;
       this.failStorage(reason);
@@ -134,18 +135,22 @@ export class DizyQuantCampaignRecorderService {
     const delay = Math.max(250, Math.min(delayMs, 2_147_000_000));
     this.wakeTimer = setTimeout(() => {
       this.wakeTimer = null;
-      void this.activateCurrentResidency();
+      void this.pulseLease();
     }, delay);
   }
 
-  private releaseActiveCollector() {
+  private detachCollector() {
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.runtime?.clear();
     this.runtime = null;
-    if (this.activeSymbol) releaseDepthCollector(this.activeSymbol);
     this.collector = null;
     this.activeSymbol = null;
+  }
+
+  private resetResidencyCollector() {
+    this.detachCollector();
+    this.market = null;
   }
 
   private failStorage(reason: unknown) {
@@ -154,7 +159,7 @@ export class DizyQuantCampaignRecorderService {
     this.lastError = safeError(reason);
     if (this.wakeTimer) clearTimeout(this.wakeTimer);
     this.wakeTimer = null;
-    this.releaseActiveCollector();
+    this.resetResidencyCollector();
     console.error("DizyQuant campaign collection stopped after storage failure", {
       error: this.lastError,
     });
@@ -171,6 +176,7 @@ export class DizyQuantCampaignRecorderService {
   }
 
   private async marketFor(symbol: string): Promise<CampaignMarket | null> {
+    if (this.market?.symbol === symbol) return this.market;
     const signal = AbortSignal.timeout(10_000);
     const markets = await getMexcMarkets(signal).catch(() => []);
     const market = markets.find(
@@ -179,11 +185,12 @@ export class DizyQuantCampaignRecorderService {
     if (!market || !Number.isFinite(market.contractSize) || (market.contractSize ?? 0) <= 0) {
       return null;
     }
-    return Object.freeze({
+    this.market = Object.freeze({
       symbol,
       contractSize: market.contractSize!,
       priceUnit: market.priceUnit,
     });
+    return this.market;
   }
 
   private processEnvelope(envelope: DepthEnvelope, market: CampaignMarket) {
@@ -226,20 +233,24 @@ export class DizyQuantCampaignRecorderService {
     }
   }
 
-  private async activateCurrentResidency() {
+  private attachCollector(collector: DepthCollector, market: CampaignMarket) {
+    if (collector === this.collector && this.activeSymbol === market.symbol) return;
+    this.detachCollector();
+    this.collector = collector;
+    this.activeSymbol = market.symbol;
+    this.runtime = null;
+    const process = (envelope: DepthEnvelope) => this.processEnvelope(envelope, market);
+    const latest = collector.getLatest();
+    if (latest) process(latest);
+    this.unsubscribe = collector.subscribe(process);
+  }
+
+  private async pulseLease() {
     if (this.storageFailed || !this.runner) return;
     const now = Date.now();
     const residency = dizyQuantCampaignResidencyAt(now);
+    if (this.residency?.slot !== residency.slot) this.resetResidencyCollector();
     this.residency = residency;
-
-    if (this.activeSymbol && this.activeSymbol !== residency.symbol) {
-      this.releaseActiveCollector();
-    }
-    if (this.activeSymbol === residency.symbol && this.collector) {
-      this.phase = "collecting";
-      this.scheduleWake(Math.max(250, residency.toMs - Date.now() + 25));
-      return;
-    }
 
     const market = await this.marketFor(residency.symbol);
     if (this.storageFailed) return;
@@ -260,24 +271,28 @@ export class DizyQuantCampaignRecorderService {
     try {
       collector = acquireDepthCollector(residency.symbol);
     } catch (reason) {
+      this.detachCollector();
       this.phase = "waiting-collector-capacity";
       this.lastError = safeError(reason);
       this.scheduleWake(
-        Math.min(DIZYQUANT_CAMPAIGN_SERVICE_RETRY_MS, Math.max(250, residency.toMs - Date.now())),
+        Math.min(DIZYQUANT_CAMPAIGN_LEASE_PULSE_MS, Math.max(250, residency.toMs - Date.now())),
       );
       return;
     }
 
-    this.collector = collector;
-    this.activeSymbol = residency.symbol;
-    this.runtime = null;
-    this.lastError = null;
-    this.phase = "collecting";
-    const process = (envelope: DepthEnvelope) => this.processEnvelope(envelope, market);
-    const latest = collector.getLatest();
-    if (latest) process(latest);
-    this.unsubscribe = collector.subscribe(process);
-    this.scheduleWake(Math.max(250, residency.toMs - Date.now() + 25));
+    try {
+      this.attachCollector(collector, market);
+      this.lastError = null;
+      this.phase = "collecting";
+    } finally {
+      // The campaign deliberately holds no registry reference between pulses.
+      // Its idle collector can therefore be pruned immediately when normal terminal
+      // traffic needs the remaining low-memory slot.
+      releaseDepthCollector(residency.symbol);
+    }
+    this.scheduleWake(
+      Math.min(DIZYQUANT_CAMPAIGN_LEASE_PULSE_MS, Math.max(250, residency.toMs - Date.now() + 25)),
+    );
   }
 
   status(): DizyQuantCampaignRecorderServiceStatus {
