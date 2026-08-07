@@ -1,102 +1,896 @@
 import "server-only";
-import {EventEmitter} from "node:events";
-import {parseDepthMessage,parseRawMexcDepthLevels} from "./mexc-depth.ts";
-import type {DepthEnvelope,DepthLevel,DepthSnapshot,DepthUpdate} from "./types.ts";
-import {getLiquidityTape} from "./liquidity-tape.ts";
+import { EventEmitter } from "node:events";
+import {
+  parseDepthMessage,
+  parseRawMexcDepthCommits,
+  parseRawMexcDepthLevels,
+} from "./mexc-depth.ts";
+import type { DepthEnvelope, DepthLevel, DepthSnapshot, DepthUpdate } from "./types.ts";
+import { getLiquidityTape } from "./liquidity-tape.ts";
 
-const enabled=(value:string|undefined,fallback:boolean)=>value==null?fallback:value.toLowerCase()==="true";
-const integer=(value:string|undefined,fallback:number,min:number,max=Number.MAX_SAFE_INTEGER)=>{const parsed=Number(value);return Number.isFinite(parsed)?Math.min(max,Math.max(min,Math.floor(parsed))):fallback};
-export const LOW_MEMORY_MODE=enabled(process.env.DIZYFLOW_LOW_MEMORY_MODE,true);
-export const DEPTH_TRANSPORT=(process.env.DIZYFLOW_DEPTH_TRANSPORT??"ws").toLowerCase()==="ws"?"ws":"rest";
-export function parseDepthPollMs(value=process.env.MEXC_DEPTH_POLL_MS){return integer(value,2_000,250,60_000)}
-export const DEPTH_POLL_MS=parseDepthPollMs(),DEPTH_STALE_MS=Math.max(5_000,DEPTH_POLL_MS*5);
-export const WS_SILENCE_MS=integer(process.env.DIZYFLOW_WS_SILENCE_MS,5_000,1_000,30_000);
-export const HISTORY_MINUTES=integer(process.env.DIZYFLOW_HISTORY_MINUTES,LOW_MEMORY_MODE?5:30,1,240);
-export const HISTORY_SAMPLE_MS=integer(process.env.DIZYFLOW_HISTORY_SAMPLE_MS,LOW_MEMORY_MODE?2_000:1_000,250,60_000);
-export const MAX_HISTORY_SAMPLES=integer(process.env.DIZYFLOW_MAX_HISTORY_SAMPLES,LOW_MEMORY_MODE?60:1_800,1,10_000);
-export const MAX_LEVELS_PER_SIDE=integer(process.env.DIZYFLOW_MAX_LEVELS_PER_SIDE,500,1,1_000);
-export const MAX_COLLECTORS=integer(process.env.DIZYFLOW_MAX_COLLECTORS,LOW_MEMORY_MODE?2:8,1,100);
-export const COLLECTOR_IDLE_MS=integer(process.env.DIZYFLOW_COLLECTOR_IDLE_MS,LOW_MEMORY_MODE?30_000:60_000,0,3_600_000);
-export const MAX_HEATMAP_RECORDS=integer(process.env.DIZYFLOW_MAX_HEATMAP_RECORDS,LOW_MEMORY_MODE?5_000:50_000,100,200_000);
-const REST_BASE=(process.env.MEXC_FUTURES_REST_BASE_URL??"https://api.mexc.com").replace(/\/$/,"");
-const DEFAULT_FUTURES_WS_URL="wss://contract.mexc.com/edge";
-export function parseMexcFuturesWsUrl(value=process.env.MEXC_FUTURES_WS_URL){const candidate=(value??DEFAULT_FUTURES_WS_URL).trim();try{const url=new URL(candidate),path=url.pathname.replace(/\/+$/,"")||"/";if(url.protocol!=="wss:"||url.username||url.password||url.port||url.search||url.hash||path!=="/edge"||url.hostname!=="contract.mexc.com")return DEFAULT_FUTURES_WS_URL;return DEFAULT_FUTURES_WS_URL}catch{return DEFAULT_FUTURES_WS_URL}}
-export const MEXC_FUTURES_WS_URL=parseMexcFuturesWsUrl();
-export const DEPTH_PUBLICATION_MS=125;
-const TIMEOUT_MS=5_000,DOM_INTERVAL_MS=DEPTH_PUBLICATION_MS,WS_HEALTH_POLL_MS=30_000;
-const symbolPattern=/^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
-export function normalizeDepthSymbol(value:string){const symbol=value.trim().toUpperCase().replace(/[-/]/g,"_");return symbolPattern.test(symbol)?symbol:null}
-export function websocketDepthFresh(lastWsUpdateAt:number|null,now:number,staleMs=WS_SILENCE_MS){return lastWsUpdateAt!==null&&Number.isFinite(lastWsUpdateAt)&&Number.isFinite(now)&&now-lastWsUpdateAt<=staleMs}
-type Fetcher=typeof fetch;
-type CollectorOptions={transport?:"rest"|"ws";pollMs?:number;historySampleMs?:number;maxHistory?:number;maxLevels?:number;healthPollMs?:number;wsSilenceMs?:number};
-export type CollectorDiagnostic={symbol:string;running:boolean;lastSuccessfulSnapshot:number|null;snapshotAgeMs:number|null;lastVersion:number|null;bids:number;asks:number;consecutiveFailures:number;lastError:string|null;subscribers:number};
-const safeError=(error:unknown)=>error instanceof Error?error.message.slice(0,180):"Public depth request failed";
-const capSnapshot=(snapshot:DepthSnapshot,max:number):DepthSnapshot=>({...snapshot,bids:snapshot.bids.slice(0,max),asks:snapshot.asks.slice(0,max)});
-export function normalizeMexcSnapshot(raw:unknown,symbol:string):DepthSnapshot{
- const root=raw&&typeof raw==="object"&&!Array.isArray(raw)?raw as Record<string,unknown>:null;
- if(!root)throw Error("Invalid MEXC depth envelope");
- const wrapped="data" in root||"success" in root||"code" in root;
- let data:Record<string,unknown>;
- if(wrapped){
-  const value=root.data&&typeof root.data==="object"&&!Array.isArray(root.data)?root.data as Record<string,unknown>:null;
-  if(root.success!==true||!(root.code===0||root.code==="0"||root.code==null)||!value)throw Error("Invalid MEXC depth envelope");
-  data=value;
- }else data=root;
- const version=Number(data.version),engineTimeMs=Number(data.timestamp);
- if(!Number.isInteger(version)||version<0||!Number.isFinite(engineTimeMs)||engineTimeMs<=0)throw Error("Invalid MEXC depth version or timestamp");
- const bids=parseRawMexcDepthLevels(data.bids),asks=parseRawMexcDepthLevels(data.asks);
- if(!Array.isArray(data.bids)||!Array.isArray(data.asks)||!bids.length||!asks.length||bids.length!==data.bids.length||asks.length!==data.asks.length)throw Error("Invalid MEXC depth levels");
- return{symbol,version,engineTimeMs,bids:bids.sort((a,b)=>b.price-a.price),asks:asks.sort((a,b)=>a.price-b.price)}
+const enabled = (value: string | undefined, fallback: boolean) =>
+  value == null ? fallback : value.toLowerCase() === "true";
+const integer = (
+  value: string | undefined,
+  fallback: number,
+  min: number,
+  max = Number.MAX_SAFE_INTEGER,
+) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.min(max, Math.max(min, Math.floor(parsed))) : fallback;
+};
+export const LOW_MEMORY_MODE = enabled(process.env.DIZYFLOW_LOW_MEMORY_MODE, true);
+export const DEPTH_TRANSPORT =
+  (process.env.DIZYFLOW_DEPTH_TRANSPORT ?? "ws").toLowerCase() === "ws" ? "ws" : "rest";
+export function parseDepthPollMs(value = process.env.MEXC_DEPTH_POLL_MS) {
+  return integer(value, 2_000, 250, 60_000);
+}
+export const DEPTH_POLL_MS = parseDepthPollMs(),
+  DEPTH_STALE_MS = Math.max(5_000, DEPTH_POLL_MS * 5);
+export const WS_SILENCE_MS = integer(process.env.DIZYFLOW_WS_SILENCE_MS, 5_000, 1_000, 30_000);
+export const HISTORY_MINUTES = integer(
+  process.env.DIZYFLOW_HISTORY_MINUTES,
+  LOW_MEMORY_MODE ? 5 : 30,
+  1,
+  240,
+);
+export const HISTORY_SAMPLE_MS = integer(
+  process.env.DIZYFLOW_HISTORY_SAMPLE_MS,
+  LOW_MEMORY_MODE ? 2_000 : 1_000,
+  250,
+  60_000,
+);
+export const MAX_HISTORY_SAMPLES = integer(
+  process.env.DIZYFLOW_MAX_HISTORY_SAMPLES,
+  LOW_MEMORY_MODE ? 60 : 1_800,
+  1,
+  10_000,
+);
+export const MAX_LEVELS_PER_SIDE = integer(
+  process.env.DIZYFLOW_MAX_LEVELS_PER_SIDE,
+  500,
+  1,
+  1_000,
+);
+export const MAX_COLLECTORS = integer(
+  process.env.DIZYFLOW_MAX_COLLECTORS,
+  LOW_MEMORY_MODE ? 2 : 8,
+  1,
+  100,
+);
+export const COLLECTOR_IDLE_MS = integer(
+  process.env.DIZYFLOW_COLLECTOR_IDLE_MS,
+  LOW_MEMORY_MODE ? 30_000 : 60_000,
+  0,
+  3_600_000,
+);
+export const MAX_HEATMAP_RECORDS = integer(
+  process.env.DIZYFLOW_MAX_HEATMAP_RECORDS,
+  LOW_MEMORY_MODE ? 5_000 : 50_000,
+  100,
+  200_000,
+);
+const REST_BASE = (process.env.MEXC_FUTURES_REST_BASE_URL ?? "https://api.mexc.com").replace(
+  /\/$/,
+  "",
+);
+const DEFAULT_FUTURES_WS_URL = "wss://contract.mexc.com/edge";
+export function parseMexcFuturesWsUrl(value = process.env.MEXC_FUTURES_WS_URL) {
+  const candidate = (value ?? DEFAULT_FUTURES_WS_URL).trim();
+  try {
+    const url = new URL(candidate),
+      path = url.pathname.replace(/\/+$/, "") || "/";
+    if (
+      url.protocol !== "wss:" ||
+      url.username ||
+      url.password ||
+      url.port ||
+      url.search ||
+      url.hash ||
+      path !== "/edge" ||
+      url.hostname !== "contract.mexc.com"
+    )
+      return DEFAULT_FUTURES_WS_URL;
+    return DEFAULT_FUTURES_WS_URL;
+  } catch {
+    return DEFAULT_FUTURES_WS_URL;
+  }
+}
+export const MEXC_FUTURES_WS_URL = parseMexcFuturesWsUrl();
+export const DEPTH_PUBLICATION_MS = 125;
+const TIMEOUT_MS = 5_000,
+  DOM_INTERVAL_MS = DEPTH_PUBLICATION_MS,
+  WS_HEALTH_POLL_MS = 30_000,
+  DEPTH_RECOVERY_COMMIT_LIMIT = 1_000,
+  DEPTH_RECOVERY_BUFFER_LIMIT = 2_000;
+const symbolPattern = /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
+export function normalizeDepthSymbol(value: string) {
+  const symbol = value.trim().toUpperCase().replace(/[-/]/g, "_");
+  return symbolPattern.test(symbol) ? symbol : null;
+}
+export function websocketDepthFresh(
+  lastWsUpdateAt: number | null,
+  now: number,
+  staleMs = WS_SILENCE_MS,
+) {
+  return (
+    lastWsUpdateAt !== null &&
+    Number.isFinite(lastWsUpdateAt) &&
+    Number.isFinite(now) &&
+    now - lastWsUpdateAt <= staleMs
+  );
+}
+type Fetcher = typeof fetch;
+type CollectorOptions = {
+  transport?: "rest" | "ws";
+  pollMs?: number;
+  historySampleMs?: number;
+  maxHistory?: number;
+  maxLevels?: number;
+  healthPollMs?: number;
+  wsSilenceMs?: number;
+};
+export type CollectorDiagnostic = {
+  symbol: string;
+  running: boolean;
+  lastSuccessfulSnapshot: number | null;
+  snapshotAgeMs: number | null;
+  lastVersion: number | null;
+  bids: number;
+  asks: number;
+  consecutiveFailures: number;
+  lastError: string | null;
+  subscribers: number;
+};
+const safeError = (error: unknown) =>
+  error instanceof Error ? error.message.slice(0, 180) : "Public depth request failed";
+const capSnapshot = (snapshot: DepthSnapshot, max: number): DepthSnapshot => ({
+  ...snapshot,
+  bids: snapshot.bids.slice(0, max),
+  asks: snapshot.asks.slice(0, max),
+});
+export function normalizeMexcSnapshot(raw: unknown, symbol: string): DepthSnapshot {
+  const root =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : null;
+  if (!root) throw Error("Invalid MEXC depth envelope");
+  const wrapped = "data" in root || "success" in root || "code" in root;
+  let data: Record<string, unknown>;
+  if (wrapped) {
+    const value =
+      root.data && typeof root.data === "object" && !Array.isArray(root.data)
+        ? (root.data as Record<string, unknown>)
+        : null;
+    if (root.success !== true || !(root.code === 0 || root.code === "0" || root.code == null) || !value)
+      throw Error("Invalid MEXC depth envelope");
+    data = value;
+  } else data = root;
+  const version = Number(data.version),
+    engineTimeMs = Number(data.timestamp);
+  if (!Number.isInteger(version) || version < 0 || !Number.isFinite(engineTimeMs) || engineTimeMs <= 0)
+    throw Error("Invalid MEXC depth version or timestamp");
+  const bids = parseRawMexcDepthLevels(data.bids),
+    asks = parseRawMexcDepthLevels(data.asks);
+  if (
+    !Array.isArray(data.bids) ||
+    !Array.isArray(data.asks) ||
+    !bids.length ||
+    !asks.length ||
+    bids.length !== data.bids.length ||
+    asks.length !== data.asks.length
+  )
+    throw Error("Invalid MEXC depth levels");
+  return {
+    symbol,
+    version,
+    engineTimeMs,
+    bids: bids.sort((a, b) => b.price - a.price),
+    asks: asks.sort((a, b) => a.price - b.price),
+  };
 }
 
-export class DepthCollector{
- private timer:ReturnType<typeof setTimeout>|null=null;private pingTimer:ReturnType<typeof setInterval>|null=null;private watchdogTimer:ReturnType<typeof setInterval>|null=null;private reconnectTimer:ReturnType<typeof setTimeout>|null=null;private domTimer:ReturnType<typeof setTimeout>|null=null;private historyTimer:ReturnType<typeof setTimeout>|null=null;private socket:WebSocket|null=null;private inFlight=false;private failures=0;private error:string|null=null;private latest:DepthEnvelope|null=null;private lastHistoryAt:number|null=null;private lastWsUpdateAt:number|null=null;private history:Array<DepthEnvelope|undefined>;private historyStart=0;private historyCount=0;private emitter=new EventEmitter();private running=false;private connectionState="stopped";private wsMessages=0;private gaps=0;private recoveries=0;private wsLive=false;private authoritativeSnapshotSeeded=false;private dirty=false;private version=-1;private engineTimeMs=0;private bids=new Map<number,DepthLevel>();private asks=new Map<number,DepthLevel>();
- readonly symbol:string;private fetcher:Fetcher;private now:()=>number;private socketFactory:(url:string)=>WebSocket;private options:Required<CollectorOptions>;
- constructor(symbol:string,fetcher:Fetcher=fetch,now=()=>Date.now(),socketFactory=(url:string)=>new WebSocket(url),options:CollectorOptions={}){this.symbol=symbol;this.fetcher=fetcher;this.now=now;this.socketFactory=socketFactory;this.options={transport:options.transport??DEPTH_TRANSPORT,pollMs:options.pollMs??DEPTH_POLL_MS,historySampleMs:options.historySampleMs??HISTORY_SAMPLE_MS,maxHistory:options.maxHistory??MAX_HISTORY_SAMPLES,maxLevels:options.maxLevels??MAX_LEVELS_PER_SIDE,healthPollMs:options.healthPollMs??WS_HEALTH_POLL_MS,wsSilenceMs:options.wsSilenceMs??WS_SILENCE_MS};this.history=new Array(this.options.maxHistory)}
- private sourceMode():import("./types.ts").DepthSourceMode{const hasValidBook=this.authoritativeSnapshotSeeded&&this.bids.size>0&&this.asks.size>0;return hasValidBook&&this.wsLive&&websocketDepthFresh(this.lastWsUpdateAt,this.now(),this.options.wsSilenceMs)?"FULL DEPTH WS":hasValidBook?(this.socket?"RECONNECTING — LAST BOOK RETAINED":"REST FALLBACK"):"NO VALID BOOK"}
- private transition(state:string){if(state===this.connectionState)return;this.connectionState=state}
- start(){if(this.running)return;this.running=true;this.transition("connecting");void this.pollScheduled();if(this.options.transport==="ws"){this.connect();const cadence=Math.max(500,Math.min(2_000,Math.floor(this.options.wsSilenceMs/2)));this.watchdogTimer=setInterval(()=>this.watchdog(),cadence)}}
- stop(){this.running=false;for(const timer of [this.timer,this.reconnectTimer,this.domTimer,this.historyTimer])if(timer)clearTimeout(timer);for(const timer of [this.pingTimer,this.watchdogTimer])if(timer)clearInterval(timer);this.timer=this.reconnectTimer=this.domTimer=this.historyTimer=null;this.pingTimer=this.watchdogTimer=null;this.socket?.close();this.socket=null;this.wsLive=false;this.authoritativeSnapshotSeeded=false;this.lastWsUpdateAt=null;this.dirty=false;this.version=-1;this.engineTimeMs=0;this.bids.clear();this.asks.clear();this.history.fill(undefined);this.historyCount=0;this.historyStart=0;this.latest=null;this.emitter.removeAllListeners()}
- private connect(){if(!this.running||this.socket||this.options.transport!=="ws")return;let socket:WebSocket;try{socket=this.socketFactory(MEXC_FUTURES_WS_URL)}catch{this.scheduleReconnect();return}this.socket=socket;socket.addEventListener("open",()=>{if(socket!==this.socket)return;socket.send(JSON.stringify({method:"sub.depth",param:{symbol:this.symbol,compress:false}}));this.pingTimer=setInterval(()=>{if(socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({method:"ping"}))},15_000)});socket.addEventListener("message",event=>this.handleSocketData(event.data));socket.addEventListener("close",()=>this.socketClosed(socket));socket.addEventListener("error",()=>{if(socket===this.socket)socket.close()})}
- private socketClosed(socket:WebSocket){if(socket!==this.socket)return;this.socket=null;this.wsLive=false;this.lastWsUpdateAt=null;if(this.pingTimer)clearInterval(this.pingTimer);this.pingTimer=null;this.scheduleReconnect()}
- private scheduleReconnect(){if(!this.running||this.reconnectTimer||this.options.transport!=="ws")return;this.reconnectTimer=setTimeout(()=>{this.reconnectTimer=null;this.connect()},Math.min(30_000,1_000*2**Math.min(this.failures,5)))}
- private restartStalledSocket(){const socket=this.socket;this.socket=null;this.wsLive=false;this.lastWsUpdateAt=null;if(this.pingTimer)clearInterval(this.pingTimer);this.pingTimer=null;try{socket?.close()}catch{}this.scheduleReconnect()}
- private watchdog(){if(!this.running||this.options.transport!=="ws"||!this.wsLive||websocketDepthFresh(this.lastWsUpdateAt,this.now(),this.options.wsSilenceMs))return;void this.poll(false,true)}
- private handleSocketData(raw:unknown){let value:unknown;try{value=typeof raw==="string"?JSON.parse(raw):JSON.parse(new TextDecoder().decode(raw as ArrayBuffer))}catch{return}const update=parseDepthMessage(value,this.symbol);if(update)this.applyWsUpdate(update)}
- /** Incremental MEXC depth is only valid after one authoritative REST snapshot seeds the local book. */
- applyWsUpdate(update:DepthUpdate){this.wsMessages++;this.lastWsUpdateAt=this.now();if(!this.authoritativeSnapshotSeeded){this.wsLive=false;return}if(this.version>=0&&update.version<=this.version)return;if(this.version>=0&&update.version!==this.version+1){this.gaps++;this.wsLive=false;void this.poll(false,true);return}this.applyIncrement(update);this.version=update.version;this.engineTimeMs=update.engineTimeMs;this.wsLive=true;this.dirty=true;this.scheduleCoalesced()}
- private applyIncrement(update:DepthUpdate){for(const [map,levels,descending] of [[this.bids,update.bids,true],[this.asks,update.asks,false]] as const){for(const level of levels){if(level.contractQuantity===0)map.delete(level.price);else map.set(level.price,level)}if(map.size>this.options.maxLevels*2){const keep=[...map.keys()].sort((a,b)=>descending?b-a:a-b).slice(0,this.options.maxLevels);const retained=new Map<number,DepthLevel>();for(const price of keep)retained.set(price,map.get(price)!);map.clear();for(const value of retained)map.set(...value)}}}
- private scheduleCoalesced(){if(!this.domTimer)this.domTimer=setTimeout(()=>{this.domTimer=null;if(this.dirty)this.publishCurrent(false)},DOM_INTERVAL_MS);if(!this.historyTimer){const wait=Math.max(0,this.options.historySampleMs-(this.lastHistoryAt===null?this.options.historySampleMs:this.now()-this.lastHistoryAt));this.historyTimer=setTimeout(()=>{this.historyTimer=null;this.publishCurrent(true)},wait)}}
- private snapshot():DepthSnapshot{const max=this.options.maxLevels;return{symbol:this.symbol,version:this.version,engineTimeMs:this.engineTimeMs,bids:[...this.bids.values()].sort((a,b)=>b.price-a.price).slice(0,max),asks:[...this.asks.values()].sort((a,b)=>a.price-b.price).slice(0,max)}}
- private publishCurrent(sample:boolean){const envelope=this.makeEnvelope(this.snapshot(),this.now());this.latest=envelope;if(!sample)this.dirty=false;if(sample)this.appendHistory(envelope);this.emitter.emit(sample?"sample":"envelope",envelope)}
- private makeEnvelope(snapshot:DepthSnapshot,receivedAt:number):DepthEnvelope{const sourceMode=this.sourceMode(),continuous=sourceMode==="FULL DEPTH WS"?true:null;return{snapshot,receivedAt,diagnostic:{snapshotAgeMs:0,consecutiveFailures:this.failures,lastError:this.error,sequenceKnown:Number.isInteger(snapshot.version),sequenceContinuous:continuous,snapshotComplete:snapshot.bids.length>0&&snapshot.asks.length>0,recovering:sourceMode==="RECONNECTING — LAST BOOK RETAINED",sourceTimestampKnown:Number.isFinite(snapshot.engineTimeMs)&&snapshot.engineTimeMs>0,...(this.running?{sourceMode,wsMessagesReceived:this.wsMessages,versionGaps:this.gaps,restRecoveries:this.recoveries}:{})}}}
- private appendHistory(envelope:DepthEnvelope){this.lastHistoryAt=envelope.receivedAt;getLiquidityTape(this.symbol).capture(envelope.snapshot,envelope.receivedAt);const index=(this.historyStart+this.historyCount)%this.options.maxHistory;this.history[index]=envelope;if(this.historyCount<this.options.maxHistory)this.historyCount++;else this.historyStart=(this.historyStart+1)%this.options.maxHistory}
- private async pollScheduled(){await depthRequestLimiter.acquire();if(!this.running)return;await this.poll(true)}
- async poll(scheduled=false,recovery=false){if(this.inFlight)return false;this.inFlight=true;let delay=this.options.pollMs;try{const response=await this.fetcher(`${REST_BASE}/api/v1/contract/depth/${encodeURIComponent(this.symbol)}?limit=${this.options.maxLevels}`,{cache:"no-store",signal:AbortSignal.timeout(TIMEOUT_MS),headers:{accept:"application/json"}});if(!response.ok)throw Error(`MEXC depth HTTP ${response.status}`);const snapshot=capSnapshot(normalizeMexcSnapshot(await response.json(),this.symbol),this.options.maxLevels),receivedAt=this.now(),stalledWs=this.options.transport==="ws"&&this.wsLive&&!websocketDepthFresh(this.lastWsUpdateAt,receivedAt,this.options.wsSilenceMs);this.failures=0;this.error=null;if(recovery||stalledWs)this.recoveries++;if(stalledWs)this.restartStalledSocket();if(!this.wsLive||recovery||stalledWs||!this.latest){this.version=snapshot.version;this.engineTimeMs=snapshot.engineTimeMs;this.bids=new Map(snapshot.bids.map(v=>[v.price,v]));this.asks=new Map(snapshot.asks.map(v=>[v.price,v]));this.authoritativeSnapshotSeeded=true;const envelope=this.makeEnvelope(snapshot,receivedAt);this.latest=envelope;this.emitter.emit("envelope",envelope);if(this.lastHistoryAt===null||receivedAt-this.lastHistoryAt>=this.options.historySampleMs){this.appendHistory(envelope);this.emitter.emit("sample",envelope)}}}catch(error){this.failures++;this.error=safeError(error);delay=Math.min(30_000,this.options.pollMs*2**Math.min(this.failures,5))}finally{this.inFlight=false;if(scheduled&&this.running){const healthyWs=this.options.transport==="ws"&&this.wsLive&&websocketDepthFresh(this.lastWsUpdateAt,this.now(),this.options.wsSilenceMs);this.timer=setTimeout(()=>void this.pollScheduled(),healthyWs?this.options.healthPollMs:delay)}}return true}
- getLatest(){return this.latest&&this.running?{...this.latest,diagnostic:{...this.latest.diagnostic,sourceMode:this.sourceMode(),wsMessagesReceived:this.wsMessages,versionGaps:this.gaps,restRecoveries:this.recoveries}}:this.latest}
- getHistory(){const result:DepthEnvelope[]=[];for(let i=0;i<this.historyCount;i++){const value=this.history[(this.historyStart+i)%this.options.maxHistory];if(value)result.push(value)}return result}
- halveHistory(){const keep=Math.floor(this.options.maxHistory/2),values=this.getHistory().slice(-keep);this.history.fill(undefined);this.historyStart=0;this.historyCount=values.length;values.forEach((v,i)=>this.history[i]=v)}
- subscribe(listener:(envelope:DepthEnvelope)=>void,kind:"envelope"|"sample"="envelope"){this.emitter.on(kind,listener);return()=>this.emitter.off(kind,listener)}
- diagnostic():CollectorDiagnostic&{sourceMode:import("./types.ts").DepthSourceMode;wsMessagesReceived:number;versionGaps:number;restRecoveries:number;historySamples:number;lastWsUpdateAt:number|null;websocketAgeMs:number|null;authoritativeSnapshotSeeded:boolean}{const snapshot=this.latest?.snapshot,lastSuccessAt=this.latest?.receivedAt??null,now=this.now();return{symbol:this.symbol,running:this.running,lastSuccessfulSnapshot:lastSuccessAt,snapshotAgeMs:lastSuccessAt===null?null:Math.max(0,now-lastSuccessAt),lastVersion:snapshot?.version??null,bids:snapshot?.bids.length??0,asks:snapshot?.asks.length??0,consecutiveFailures:this.failures,lastError:this.error,subscribers:this.emitter.listenerCount("envelope")+this.emitter.listenerCount("sample"),sourceMode:this.sourceMode(),wsMessagesReceived:this.wsMessages,versionGaps:this.gaps,restRecoveries:this.recoveries,historySamples:this.historyCount,lastWsUpdateAt:this.lastWsUpdateAt,websocketAgeMs:this.lastWsUpdateAt===null?null:Math.max(0,now-this.lastWsUpdateAt),authoritativeSnapshotSeeded:this.authoritativeSnapshotSeeded}}
+export class DepthCollector {
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private watchdogTimer: ReturnType<typeof setInterval> | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private domTimer: ReturnType<typeof setTimeout> | null = null;
+  private historyTimer: ReturnType<typeof setTimeout> | null = null;
+  private socket: WebSocket | null = null;
+  private inFlight = false;
+  private failures = 0;
+  private error: string | null = null;
+  private latest: DepthEnvelope | null = null;
+  private lastHistoryAt: number | null = null;
+  private lastWsUpdateAt: number | null = null;
+  private history: Array<DepthEnvelope | undefined>;
+  private historyStart = 0;
+  private historyCount = 0;
+  private emitter = new EventEmitter();
+  private running = false;
+  private connectionState = "stopped";
+  private wsMessages = 0;
+  private gaps = 0;
+  private recoveries = 0;
+  private wsLive = false;
+  private authoritativeSnapshotSeeded = false;
+  private recoveringGap = false;
+  private recoveryBuffer = new Map<number, DepthUpdate>();
+  private dirty = false;
+  private version = -1;
+  private engineTimeMs = 0;
+  private bids = new Map<number, DepthLevel>();
+  private asks = new Map<number, DepthLevel>();
+  readonly symbol: string;
+  private fetcher: Fetcher;
+  private now: () => number;
+  private socketFactory: (url: string) => WebSocket;
+  private options: Required<CollectorOptions>;
+
+  constructor(
+    symbol: string,
+    fetcher: Fetcher = fetch,
+    now = () => Date.now(),
+    socketFactory = (url: string) => new WebSocket(url),
+    options: CollectorOptions = {},
+  ) {
+    this.symbol = symbol;
+    this.fetcher = fetcher;
+    this.now = now;
+    this.socketFactory = socketFactory;
+    this.options = {
+      transport: options.transport ?? DEPTH_TRANSPORT,
+      pollMs: options.pollMs ?? DEPTH_POLL_MS,
+      historySampleMs: options.historySampleMs ?? HISTORY_SAMPLE_MS,
+      maxHistory: options.maxHistory ?? MAX_HISTORY_SAMPLES,
+      maxLevels: options.maxLevels ?? MAX_LEVELS_PER_SIDE,
+      healthPollMs: options.healthPollMs ?? WS_HEALTH_POLL_MS,
+      wsSilenceMs: options.wsSilenceMs ?? WS_SILENCE_MS,
+    };
+    this.history = new Array(this.options.maxHistory);
+  }
+
+  private sourceMode(): import("./types.ts").DepthSourceMode {
+    const hasValidBook =
+      this.authoritativeSnapshotSeeded && this.bids.size > 0 && this.asks.size > 0;
+    return hasValidBook &&
+      this.wsLive &&
+      websocketDepthFresh(this.lastWsUpdateAt, this.now(), this.options.wsSilenceMs)
+      ? "FULL DEPTH WS"
+      : hasValidBook
+        ? this.socket
+          ? "RECONNECTING — LAST BOOK RETAINED"
+          : "REST FALLBACK"
+        : "NO VALID BOOK";
+  }
+
+  private transition(state: string) {
+    if (state === this.connectionState) return;
+    this.connectionState = state;
+  }
+
+  start() {
+    if (this.running) return;
+    this.running = true;
+    this.transition("connecting");
+    void this.pollScheduled();
+    if (this.options.transport === "ws") {
+      this.connect();
+      const cadence = Math.max(500, Math.min(2_000, Math.floor(this.options.wsSilenceMs / 2)));
+      this.watchdogTimer = setInterval(() => this.watchdog(), cadence);
+    }
+  }
+
+  stop() {
+    this.running = false;
+    for (const timer of [this.timer, this.reconnectTimer, this.domTimer, this.historyTimer])
+      if (timer) clearTimeout(timer);
+    for (const timer of [this.pingTimer, this.watchdogTimer]) if (timer) clearInterval(timer);
+    this.timer = this.reconnectTimer = this.domTimer = this.historyTimer = null;
+    this.pingTimer = this.watchdogTimer = null;
+    this.socket?.close();
+    this.socket = null;
+    this.wsLive = false;
+    this.authoritativeSnapshotSeeded = false;
+    this.recoveringGap = false;
+    this.recoveryBuffer.clear();
+    this.lastWsUpdateAt = null;
+    this.dirty = false;
+    this.version = -1;
+    this.engineTimeMs = 0;
+    this.bids.clear();
+    this.asks.clear();
+    this.history.fill(undefined);
+    this.historyCount = 0;
+    this.historyStart = 0;
+    this.latest = null;
+    this.emitter.removeAllListeners();
+  }
+
+  private connect() {
+    if (!this.running || this.socket || this.options.transport !== "ws") return;
+    let socket: WebSocket;
+    try {
+      socket = this.socketFactory(MEXC_FUTURES_WS_URL);
+    } catch {
+      this.scheduleReconnect();
+      return;
+    }
+    this.socket = socket;
+    socket.addEventListener("open", () => {
+      if (socket !== this.socket) return;
+      socket.send(JSON.stringify({ method: "sub.depth", param: { symbol: this.symbol, compress: false } }));
+      this.pingTimer = setInterval(() => {
+        if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ method: "ping" }));
+      }, 15_000);
+    });
+    socket.addEventListener("message", (event) => this.handleSocketData(event.data));
+    socket.addEventListener("close", () => this.socketClosed(socket));
+    socket.addEventListener("error", () => {
+      if (socket === this.socket) socket.close();
+    });
+  }
+
+  private socketClosed(socket: WebSocket) {
+    if (socket !== this.socket) return;
+    this.socket = null;
+    this.wsLive = false;
+    this.lastWsUpdateAt = null;
+    if (this.pingTimer) clearInterval(this.pingTimer);
+    this.pingTimer = null;
+    this.scheduleReconnect();
+  }
+
+  private scheduleReconnect() {
+    if (!this.running || this.reconnectTimer || this.options.transport !== "ws") return;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, Math.min(30_000, 1_000 * 2 ** Math.min(this.failures, 5)));
+  }
+
+  private restartStalledSocket() {
+    const socket = this.socket;
+    this.socket = null;
+    this.wsLive = false;
+    this.lastWsUpdateAt = null;
+    if (this.pingTimer) clearInterval(this.pingTimer);
+    this.pingTimer = null;
+    try {
+      socket?.close();
+    } catch {}
+    this.scheduleReconnect();
+  }
+
+  private watchdog() {
+    if (
+      !this.running ||
+      this.options.transport !== "ws" ||
+      !this.wsLive ||
+      websocketDepthFresh(this.lastWsUpdateAt, this.now(), this.options.wsSilenceMs)
+    )
+      return;
+    void this.poll(false, true);
+  }
+
+  private handleSocketData(raw: unknown) {
+    let value: unknown;
+    try {
+      value =
+        typeof raw === "string"
+          ? JSON.parse(raw)
+          : JSON.parse(new TextDecoder().decode(raw as ArrayBuffer));
+    } catch {
+      return;
+    }
+    const update = parseDepthMessage(value, this.symbol);
+    if (update) this.applyWsUpdate(update);
+  }
+
+  private bufferRecoveryUpdate(update: DepthUpdate) {
+    if (update.version <= this.version) return;
+    this.recoveryBuffer.set(update.version, update);
+    if (this.recoveryBuffer.size <= DEPTH_RECOVERY_BUFFER_LIMIT) return;
+    const oldest = Math.min(...this.recoveryBuffer.keys());
+    this.recoveryBuffer.delete(oldest);
+  }
+
+  private drainRecoveryUpdates(commits: readonly DepthUpdate[]) {
+    const candidates = new Map<number, { update: DepthUpdate; fromWs: boolean }>();
+    for (const update of commits)
+      if (update.version > this.version) candidates.set(update.version, { update, fromWs: false });
+    for (const update of this.recoveryBuffer.values())
+      if (update.version > this.version) candidates.set(update.version, { update, fromWs: true });
+
+    let finalAppliedFromWs = false;
+    while (true) {
+      const expectedVersion = this.version + 1;
+      const candidate = candidates.get(expectedVersion);
+      if (!candidate) break;
+      this.applyIncrement(candidate.update);
+      this.version = candidate.update.version;
+      finalAppliedFromWs = candidate.fromWs;
+      if (candidate.fromWs) this.engineTimeMs = candidate.update.engineTimeMs;
+      candidates.delete(expectedVersion);
+    }
+    for (const version of this.recoveryBuffer.keys())
+      if (version <= this.version) this.recoveryBuffer.delete(version);
+    return finalAppliedFromWs;
+  }
+
+  private resumeContinuousWs() {
+    this.wsLive = true;
+    this.error = null;
+    this.dirty = true;
+    this.scheduleCoalesced();
+  }
+
+  private async waitForRestPoll() {
+    for (let attempt = 0; this.inFlight && attempt < 100; attempt += 1)
+      await new Promise<void>((resolve) => setTimeout(resolve, 25));
+    return !this.inFlight;
+  }
+
+  private async recoverGap() {
+    if (this.recoveringGap || !this.authoritativeSnapshotSeeded) return;
+    this.recoveringGap = true;
+    this.recoveries += 1;
+    try {
+      if (!(await this.waitForRestPoll())) throw Error("MEXC depth recovery blocked by active REST request");
+      const response = await this.fetcher(
+        `${REST_BASE}/api/v1/contract/depth_commits/${encodeURIComponent(this.symbol)}/${DEPTH_RECOVERY_COMMIT_LIMIT}`,
+        {
+          cache: "no-store",
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+          headers: { accept: "application/json" },
+        },
+      );
+      if (!response.ok) throw Error(`MEXC depth commits HTTP ${response.status}`);
+      const commits = parseRawMexcDepthCommits(await response.json(), this.symbol);
+      if (!commits.length) throw Error("MEXC depth commit recovery returned no usable versions");
+      if (this.drainRecoveryUpdates(commits)) {
+        this.resumeContinuousWs();
+        return;
+      }
+
+      const nextBufferedVersion = this.recoveryBuffer.size
+        ? Math.min(...this.recoveryBuffer.keys())
+        : null;
+      if (nextBufferedVersion !== null && nextBufferedVersion !== this.version + 1) {
+        await this.poll(false, false);
+        if (this.drainRecoveryUpdates([])) this.resumeContinuousWs();
+      }
+    } catch (reason) {
+      this.error = safeError(reason);
+      await this.poll(false, false);
+      if (this.drainRecoveryUpdates([])) this.resumeContinuousWs();
+    } finally {
+      this.recoveringGap = false;
+    }
+  }
+
+  /** Incremental MEXC depth is only valid after one authoritative REST snapshot seeds the local book. */
+  applyWsUpdate(update: DepthUpdate) {
+    this.wsMessages += 1;
+    this.lastWsUpdateAt = this.now();
+    if (!this.authoritativeSnapshotSeeded) {
+      this.wsLive = false;
+      return;
+    }
+    if (this.version >= 0 && update.version <= this.version) return;
+    if (this.recoveringGap) {
+      this.bufferRecoveryUpdate(update);
+      return;
+    }
+    if (this.version >= 0 && update.version !== this.version + 1) {
+      this.gaps += 1;
+      this.wsLive = false;
+      this.bufferRecoveryUpdate(update);
+      void this.recoverGap();
+      return;
+    }
+    this.applyIncrement(update);
+    this.version = update.version;
+    this.engineTimeMs = update.engineTimeMs;
+    this.wsLive = true;
+    this.dirty = true;
+    this.scheduleCoalesced();
+  }
+
+  private applyIncrement(update: DepthUpdate) {
+    for (const [map, levels, descending] of [
+      [this.bids, update.bids, true],
+      [this.asks, update.asks, false],
+    ] as const) {
+      for (const level of levels) {
+        if (level.contractQuantity === 0) map.delete(level.price);
+        else map.set(level.price, level);
+      }
+      if (map.size > this.options.maxLevels * 2) {
+        const keep = [...map.keys()]
+          .sort((a, b) => (descending ? b - a : a - b))
+          .slice(0, this.options.maxLevels);
+        const retained = new Map<number, DepthLevel>();
+        for (const price of keep) retained.set(price, map.get(price)!);
+        map.clear();
+        for (const value of retained) map.set(...value);
+      }
+    }
+  }
+
+  private scheduleCoalesced() {
+    if (!this.domTimer)
+      this.domTimer = setTimeout(() => {
+        this.domTimer = null;
+        if (this.dirty) this.publishCurrent(false);
+      }, DOM_INTERVAL_MS);
+    if (!this.historyTimer) {
+      const wait = Math.max(
+        0,
+        this.options.historySampleMs -
+          (this.lastHistoryAt === null
+            ? this.options.historySampleMs
+            : this.now() - this.lastHistoryAt),
+      );
+      this.historyTimer = setTimeout(() => {
+        this.historyTimer = null;
+        this.publishCurrent(true);
+      }, wait);
+    }
+  }
+
+  private snapshot(): DepthSnapshot {
+    const max = this.options.maxLevels;
+    return {
+      symbol: this.symbol,
+      version: this.version,
+      engineTimeMs: this.engineTimeMs,
+      bids: [...this.bids.values()].sort((a, b) => b.price - a.price).slice(0, max),
+      asks: [...this.asks.values()].sort((a, b) => a.price - b.price).slice(0, max),
+    };
+  }
+
+  private publishCurrent(sample: boolean) {
+    const envelope = this.makeEnvelope(this.snapshot(), this.now());
+    this.latest = envelope;
+    if (!sample) this.dirty = false;
+    if (sample) this.appendHistory(envelope);
+    this.emitter.emit(sample ? "sample" : "envelope", envelope);
+  }
+
+  private makeEnvelope(snapshot: DepthSnapshot, receivedAt: number): DepthEnvelope {
+    const sourceMode = this.sourceMode(),
+      continuous = sourceMode === "FULL DEPTH WS" ? true : null;
+    return {
+      snapshot,
+      receivedAt,
+      diagnostic: {
+        snapshotAgeMs: 0,
+        consecutiveFailures: this.failures,
+        lastError: this.error,
+        sequenceKnown: Number.isInteger(snapshot.version),
+        sequenceContinuous: continuous,
+        snapshotComplete: snapshot.bids.length > 0 && snapshot.asks.length > 0,
+        recovering: sourceMode === "RECONNECTING — LAST BOOK RETAINED",
+        sourceTimestampKnown: Number.isFinite(snapshot.engineTimeMs) && snapshot.engineTimeMs > 0,
+        ...(this.running
+          ? {
+              sourceMode,
+              wsMessagesReceived: this.wsMessages,
+              versionGaps: this.gaps,
+              restRecoveries: this.recoveries,
+            }
+          : {}),
+      },
+    };
+  }
+
+  private appendHistory(envelope: DepthEnvelope) {
+    this.lastHistoryAt = envelope.receivedAt;
+    getLiquidityTape(this.symbol).capture(envelope.snapshot, envelope.receivedAt);
+    const index = (this.historyStart + this.historyCount) % this.options.maxHistory;
+    this.history[index] = envelope;
+    if (this.historyCount < this.options.maxHistory) this.historyCount += 1;
+    else this.historyStart = (this.historyStart + 1) % this.options.maxHistory;
+  }
+
+  private async pollScheduled() {
+    await depthRequestLimiter.acquire();
+    if (!this.running) return;
+    if (this.recoveringGap) {
+      this.timer = setTimeout(() => void this.pollScheduled(), this.options.pollMs);
+      return;
+    }
+    await this.poll(true);
+  }
+
+  async poll(scheduled = false, recovery = false) {
+    if (this.inFlight) return false;
+    this.inFlight = true;
+    let delay = this.options.pollMs;
+    try {
+      const response = await this.fetcher(
+        `${REST_BASE}/api/v1/contract/depth/${encodeURIComponent(this.symbol)}?limit=${this.options.maxLevels}`,
+        {
+          cache: "no-store",
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+          headers: { accept: "application/json" },
+        },
+      );
+      if (!response.ok) throw Error(`MEXC depth HTTP ${response.status}`);
+      const snapshot = capSnapshot(
+          normalizeMexcSnapshot(await response.json(), this.symbol),
+          this.options.maxLevels,
+        ),
+        receivedAt = this.now(),
+        stalledWs =
+          this.options.transport === "ws" &&
+          this.wsLive &&
+          !websocketDepthFresh(this.lastWsUpdateAt, receivedAt, this.options.wsSilenceMs);
+      this.failures = 0;
+      this.error = null;
+      if (recovery || stalledWs) this.recoveries += 1;
+      if (stalledWs) this.restartStalledSocket();
+      if (!this.wsLive || recovery || stalledWs || !this.latest) {
+        this.version = snapshot.version;
+        this.engineTimeMs = snapshot.engineTimeMs;
+        this.bids = new Map(snapshot.bids.map((value) => [value.price, value]));
+        this.asks = new Map(snapshot.asks.map((value) => [value.price, value]));
+        this.authoritativeSnapshotSeeded = true;
+        if (!this.recoveringGap) this.recoveryBuffer.clear();
+        const envelope = this.makeEnvelope(snapshot, receivedAt);
+        this.latest = envelope;
+        this.emitter.emit("envelope", envelope);
+        if (
+          this.lastHistoryAt === null ||
+          receivedAt - this.lastHistoryAt >= this.options.historySampleMs
+        ) {
+          this.appendHistory(envelope);
+          this.emitter.emit("sample", envelope);
+        }
+      }
+    } catch (error) {
+      this.failures += 1;
+      this.error = safeError(error);
+      delay = Math.min(30_000, this.options.pollMs * 2 ** Math.min(this.failures, 5));
+    } finally {
+      this.inFlight = false;
+      if (scheduled && this.running) {
+        const healthyWs =
+          this.options.transport === "ws" &&
+          this.wsLive &&
+          websocketDepthFresh(this.lastWsUpdateAt, this.now(), this.options.wsSilenceMs);
+        this.timer = setTimeout(
+          () => void this.pollScheduled(),
+          healthyWs ? this.options.healthPollMs : delay,
+        );
+      }
+    }
+    return true;
+  }
+
+  getLatest() {
+    return this.latest && this.running
+      ? {
+          ...this.latest,
+          diagnostic: {
+            ...this.latest.diagnostic,
+            sourceMode: this.sourceMode(),
+            wsMessagesReceived: this.wsMessages,
+            versionGaps: this.gaps,
+            restRecoveries: this.recoveries,
+          },
+        }
+      : this.latest;
+  }
+
+  getHistory() {
+    const result: DepthEnvelope[] = [];
+    for (let index = 0; index < this.historyCount; index += 1) {
+      const value = this.history[(this.historyStart + index) % this.options.maxHistory];
+      if (value) result.push(value);
+    }
+    return result;
+  }
+
+  halveHistory() {
+    const keep = Math.floor(this.options.maxHistory / 2),
+      values = this.getHistory().slice(-keep);
+    this.history.fill(undefined);
+    this.historyStart = 0;
+    this.historyCount = values.length;
+    values.forEach((value, index) => (this.history[index] = value));
+  }
+
+  subscribe(listener: (envelope: DepthEnvelope) => void, kind: "envelope" | "sample" = "envelope") {
+    this.emitter.on(kind, listener);
+    return () => this.emitter.off(kind, listener);
+  }
+
+  diagnostic(): CollectorDiagnostic & {
+    sourceMode: import("./types.ts").DepthSourceMode;
+    wsMessagesReceived: number;
+    versionGaps: number;
+    restRecoveries: number;
+    historySamples: number;
+    lastWsUpdateAt: number | null;
+    websocketAgeMs: number | null;
+    authoritativeSnapshotSeeded: boolean;
+  } {
+    const snapshot = this.latest?.snapshot,
+      lastSuccessAt = this.latest?.receivedAt ?? null,
+      now = this.now();
+    return {
+      symbol: this.symbol,
+      running: this.running,
+      lastSuccessfulSnapshot: lastSuccessAt,
+      snapshotAgeMs: lastSuccessAt === null ? null : Math.max(0, now - lastSuccessAt),
+      lastVersion: snapshot?.version ?? null,
+      bids: snapshot?.bids.length ?? 0,
+      asks: snapshot?.asks.length ?? 0,
+      consecutiveFailures: this.failures,
+      lastError: this.error,
+      subscribers: this.emitter.listenerCount("envelope") + this.emitter.listenerCount("sample"),
+      sourceMode: this.sourceMode(),
+      wsMessagesReceived: this.wsMessages,
+      versionGaps: this.gaps,
+      restRecoveries: this.recoveries,
+      historySamples: this.historyCount,
+      lastWsUpdateAt: this.lastWsUpdateAt,
+      websocketAgeMs:
+        this.lastWsUpdateAt === null ? null : Math.max(0, now - this.lastWsUpdateAt),
+      authoritativeSnapshotSeeded: this.authoritativeSnapshotSeeded,
+    };
+  }
 }
-export class DepthRequestLimiter{private queue:(()=>void)[]=[];private timer:ReturnType<typeof setTimeout>|null=null;private nextAt=0;private intervalMs:number;private now:()=>number;private schedule:(fn:()=>void,ms:number)=>ReturnType<typeof setTimeout>;constructor(intervalMs=250,now=()=>Date.now(),schedule:(fn:()=>void,ms:number)=>ReturnType<typeof setTimeout>=(fn,ms)=>setTimeout(fn,ms)){this.intervalMs=intervalMs;this.now=now;this.schedule=schedule}acquire(){return new Promise<void>(resolve=>{this.queue.push(resolve);this.drain()})}private drain(){if(this.timer||!this.queue.length)return;this.timer=this.schedule(()=>{this.timer=null;const resolve=this.queue.shift();if(resolve){this.nextAt=Math.max(this.nextAt,this.now())+this.intervalMs;resolve()}this.drain()},Math.max(0,this.nextAt-this.now()))}}
-export const depthRequestLimiter=new DepthRequestLimiter(250);
-type RegistryEntry={collector:DepthCollector;references:number;lastUsed:number;idleTimer:ReturnType<typeof setTimeout>|null};
-const collectors=new Map<string,RegistryEntry>();
-const dispose=(symbol:string,entry:RegistryEntry)=>{if(entry.references)return false;if(entry.idleTimer)clearTimeout(entry.idleTimer);entry.collector.stop();collectors.delete(symbol);return true};
-const pruneIdle=()=>{for(const [symbol,entry] of [...collectors].sort((a,b)=>a[1].lastUsed-b[1].lastUsed))if(entry.references===0)dispose(symbol,entry)};
-export function acquireDepthCollector(symbol:string){let entry=collectors.get(symbol);if(!entry){if(memoryConstrained)throw Error("DizyFlow memory pressure");if(collectors.size>=MAX_COLLECTORS)pruneIdle();if(collectors.size>=MAX_COLLECTORS)throw Error("DizyFlow collector capacity reached");entry={collector:new DepthCollector(symbol),references:0,lastUsed:Date.now(),idleTimer:null};collectors.set(symbol,entry)}if(entry.idleTimer)clearTimeout(entry.idleTimer);entry.idleTimer=null;entry.references++;entry.lastUsed=Date.now();entry.collector.start();return entry.collector}
-export function releaseDepthCollector(symbol:string){const entry=collectors.get(symbol);if(!entry)return;entry.references=Math.max(0,entry.references-1);entry.lastUsed=Date.now();if(!entry.references&&!entry.idleTimer)entry.idleTimer=setTimeout(()=>dispose(symbol,entry),COLLECTOR_IDLE_MS)}
-export const collectorRegistryDiagnostic=()=>[...collectors.values()].map(v=>({...v.collector.diagnostic(),references:v.references}));
-export const pruneIdleCollectors=pruneIdle;
+
+export class DepthRequestLimiter {
+  private queue: (() => void)[] = [];
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private nextAt = 0;
+  private intervalMs: number;
+  private now: () => number;
+  private schedule: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
+  constructor(
+    intervalMs = 250,
+    now = () => Date.now(),
+    schedule: (fn: () => void, ms: number) => ReturnType<typeof setTimeout> = (fn, ms) =>
+      setTimeout(fn, ms),
+  ) {
+    this.intervalMs = intervalMs;
+    this.now = now;
+    this.schedule = schedule;
+  }
+  acquire() {
+    return new Promise<void>((resolve) => {
+      this.queue.push(resolve);
+      this.drain();
+    });
+  }
+  private drain() {
+    if (this.timer || !this.queue.length) return;
+    this.timer = this.schedule(
+      () => {
+        this.timer = null;
+        const resolve = this.queue.shift();
+        if (resolve) {
+          this.nextAt = Math.max(this.nextAt, this.now()) + this.intervalMs;
+          resolve();
+        }
+        this.drain();
+      },
+      Math.max(0, this.nextAt - this.now()),
+    );
+  }
+}
+export const depthRequestLimiter = new DepthRequestLimiter(250);
+type RegistryEntry = {
+  collector: DepthCollector;
+  references: number;
+  lastUsed: number;
+  idleTimer: ReturnType<typeof setTimeout> | null;
+};
+const collectors = new Map<string, RegistryEntry>();
+const dispose = (symbol: string, entry: RegistryEntry) => {
+  if (entry.references) return false;
+  if (entry.idleTimer) clearTimeout(entry.idleTimer);
+  entry.collector.stop();
+  collectors.delete(symbol);
+  return true;
+};
+const pruneIdle = () => {
+  for (const [symbol, entry] of [...collectors].sort((a, b) => a[1].lastUsed - b[1].lastUsed))
+    if (entry.references === 0) dispose(symbol, entry);
+};
+export function acquireDepthCollector(symbol: string) {
+  let entry = collectors.get(symbol);
+  if (!entry) {
+    if (memoryConstrained) throw Error("DizyFlow memory pressure");
+    if (collectors.size >= MAX_COLLECTORS) pruneIdle();
+    if (collectors.size >= MAX_COLLECTORS) throw Error("DizyFlow collector capacity reached");
+    entry = {
+      collector: new DepthCollector(symbol),
+      references: 0,
+      lastUsed: Date.now(),
+      idleTimer: null,
+    };
+    collectors.set(symbol, entry);
+  }
+  if (entry.idleTimer) clearTimeout(entry.idleTimer);
+  entry.idleTimer = null;
+  entry.references += 1;
+  entry.lastUsed = Date.now();
+  entry.collector.start();
+  return entry.collector;
+}
+export function releaseDepthCollector(symbol: string) {
+  const entry = collectors.get(symbol);
+  if (!entry) return;
+  entry.references = Math.max(0, entry.references - 1);
+  entry.lastUsed = Date.now();
+  if (!entry.references && !entry.idleTimer)
+    entry.idleTimer = setTimeout(() => dispose(symbol, entry), COLLECTOR_IDLE_MS);
+}
+export const collectorRegistryDiagnostic = () =>
+  [...collectors.values()].map((value) => ({ ...value.collector.diagnostic(), references: value.references }));
+export const pruneIdleCollectors = pruneIdle;
 // Short-lived depth endpoint compatibility; callers must release immediately.
-export function getDepthCollector(symbol:string){return acquireDepthCollector(symbol)}
+export function getDepthCollector(symbol: string) {
+  return acquireDepthCollector(symbol);
+}
 
-let archiveCollectorsStarted=false;
+let archiveCollectorsStarted = false;
 /** Starts at most MAX_COLLECTORS-1 public collectors, preserving one slot for the actively viewed market. */
-export function startArchiveCollectors(){if(archiveCollectorsStarted)return;archiveCollectorsStarted=true;const symbols=(process.env.DIZYFLOW_ARCHIVE_SYMBOLS??"BTC_USDT").split(",").map(value=>normalizeDepthSymbol(value)).filter((value):value is string=>Boolean(value)).slice(0,Math.max(0,MAX_COLLECTORS-1));for(const symbol of symbols){try{acquireDepthCollector(symbol)}catch{break}}}
+export function startArchiveCollectors() {
+  if (archiveCollectorsStarted) return;
+  archiveCollectorsStarted = true;
+  const symbols = (process.env.DIZYFLOW_ARCHIVE_SYMBOLS ?? "BTC_USDT")
+    .split(",")
+    .map((value) => normalizeDepthSymbol(value))
+    .filter((value): value is string => Boolean(value))
+    .slice(0, Math.max(0, MAX_COLLECTORS - 1));
+  for (const symbol of symbols) {
+    try {
+      acquireDepthCollector(symbol);
+    } catch {
+      break;
+    }
+  }
+}
 
-const MEMORY_WARN_MB=integer(process.env.DIZYFLOW_MEMORY_WARN_MB,300,128,4096),MEMORY_SHED_MB=integer(process.env.DIZYFLOW_MEMORY_SHED_MB,340,MEMORY_WARN_MB,4096),MEMORY_HARD_MB=integer(process.env.DIZYFLOW_MEMORY_HARD_MB,380,MEMORY_SHED_MB,4096);let memoryConstrained=false;
-const diagnostics=setInterval(()=>{const memory=process.memoryUsage(),details=collectorRegistryDiagnostic(),rssMb=Math.round(memory.rss/1048576);memoryConstrained=rssMb>=MEMORY_SHED_MB;if(rssMb>=MEMORY_WARN_MB){pruneIdle();void import("./liquidity-tape.ts").then(v=>v.pruneIdleTapes());for(const value of collectors.values())value.collector.halveHistory();console.warn("DizyFlow memory shedding",{rssMb,threshold:rssMb>=MEMORY_HARD_MB?"hard":rssMb>=MEMORY_SHED_MB?"shed":"warn",collectors:details.length})}console.info("DizyFlow memory",{rssMb,heapMb:Math.round(memory.heapUsed/1048576),externalMb:Math.round(memory.external/1048576),collectors:details.length,subscribers:details.reduce((n,v)=>n+v.subscribers,0),books:details.map(v=>`${v.symbol}:${v.bids}/${v.asks}`),histories:details.map(v=>`${v.symbol}:${v.historySamples}`),heatmapRecords:globalThis.__dizyFlowHeatmapRecords??0})},30_000);diagnostics.unref();
+const MEMORY_WARN_MB = integer(process.env.DIZYFLOW_MEMORY_WARN_MB, 300, 128, 4096),
+  MEMORY_SHED_MB = integer(process.env.DIZYFLOW_MEMORY_SHED_MB, 340, MEMORY_WARN_MB, 4096),
+  MEMORY_HARD_MB = integer(process.env.DIZYFLOW_MEMORY_HARD_MB, 380, MEMORY_SHED_MB, 4096);
+let memoryConstrained = false;
+const diagnostics = setInterval(() => {
+  const memory = process.memoryUsage(),
+    details = collectorRegistryDiagnostic(),
+    rssMb = Math.round(memory.rss / 1048576);
+  memoryConstrained = rssMb >= MEMORY_SHED_MB;
+  if (rssMb >= MEMORY_WARN_MB) {
+    pruneIdle();
+    void import("./liquidity-tape.ts").then((value) => value.pruneIdleTapes());
+    for (const value of collectors.values()) value.collector.halveHistory();
+    console.warn("DizyFlow memory shedding", {
+      rssMb,
+      threshold: rssMb >= MEMORY_HARD_MB ? "hard" : rssMb >= MEMORY_SHED_MB ? "shed" : "warn",
+      collectors: details.length,
+    });
+  }
+  console.info("DizyFlow memory", {
+    rssMb,
+    heapMb: Math.round(memory.heapUsed / 1048576),
+    externalMb: Math.round(memory.external / 1048576),
+    collectors: details.length,
+    subscribers: details.reduce((total, value) => total + value.subscribers, 0),
+    books: details.map((value) => `${value.symbol}:${value.bids}/${value.asks}`),
+    histories: details.map((value) => `${value.symbol}:${value.historySamples}`),
+    heatmapRecords: globalThis.__dizyFlowHeatmapRecords ?? 0,
+  });
+}, 30_000);
+diagnostics.unref();
 
-declare global{var __dizyFlowHeatmapRecords:number|undefined}
+declare global {
+  var __dizyFlowHeatmapRecords: number | undefined;
+}
