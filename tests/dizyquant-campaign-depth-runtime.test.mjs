@@ -240,24 +240,45 @@ test("client campaign feed validates labelled evidence and remains monotonic", (
   clearDizyQuantCampaignDepthPublication();
 });
 
-test("runtime source contract stays research-only and does not attach the recorder yet", async () => {
+test("campaign collection is process-owned while browser SSE remains a read-only subscriber", async () => {
   const route = await readFile("app/api/dizyquant/evidence/stream/route.ts", "utf8");
   const publisher = await readFile("app/dizyquant-snapshot-publisher.tsx", "utf8");
   const feed = await readFile("app/lib/dizyquant/campaign-runtime-feed.ts", "utf8");
   const contract = await readFile("app/lib/dizyquant/campaign-runtime-contract.ts", "utf8");
   const runtime = await readFile("app/lib/dizyquant/campaign-depth-runtime.ts", "utf8");
-  assert.match(route, /acquireDepthCollector/);
-  assert.match(route, /DizyQuantCampaignDepthRuntime/);
-  assert.match(route, /DIZYQUANT_INITIAL_EVIDENCE_SYMBOLS/);
+  const service = await readFile("app/lib/dizyquant/campaign-recorder-service.ts", "utf8");
+  const runner = await readFile("app/lib/dizyquant/campaign-recorder-runner.ts", "utf8");
+  const instrumentation = await readFile("instrumentation.ts", "utf8");
+
+  assert.match(route, /subscribeDizyQuantCampaignDepthPublications/);
+  assert.match(route, /readDizyQuantCampaignDepthPublication/);
+  assert.doesNotMatch(
+    route,
+    /acquireDepthCollector|releaseDepthCollector|DizyQuantCampaignDepthRuntime|getMexcMarkets/,
+  );
   assert.match(publisher, /\/api\/dizyquant\/evidence\/stream/);
   assert.match(feed, /campaign-runtime-contract/);
+  assert.match(feed, /__dizyQuantCampaignRuntimeFeed/);
   assert.doesNotMatch(feed, /campaign-depth-runtime/);
   assert.match(contract, /import type \{ DizyQuantLiveEvidenceBuildResult \}/);
   assert.match(runtime, /classifyDizyQuantCampaignRegime/);
   assert.match(runtime, /MAX_REGIME_ASOF_AGE_MS/);
   assert.match(runtime, /shockTimestampMs: selectedShockTimestampMs/);
-  assert.doesNotMatch(route, /evidence-recorder/);
-  assert.doesNotMatch(publisher, /evidence-recorder/);
+
+  assert.match(service, /acquireDepthCollector/);
+  assert.match(service, /releaseDepthCollector\(residency\.symbol\)/);
+  assert.match(service, /holds no registry reference between pulses/);
+  assert.match(service, /writeDizyQuantCampaignRecorderState/);
+  assert.match(runner, /DIZYQUANT_CAMPAIGN_SYMBOL_RESIDENCY_MS/);
+  assert.match(runner, /depth-imbalance-25bps/);
+  assert.match(runner, /regimeFormulaVersion/);
+
+  assert.match(instrumentation, /startArchiveCollectors/);
+  assert.match(instrumentation, /startDizyQuantCampaignRecorderService/);
+  assert.ok(
+    instrumentation.indexOf("startArchiveCollectors();") <
+      instrumentation.indexOf("startDizyQuantCampaignRecorderService();"),
+  );
   assert.doesNotMatch(feed, /localStorage|sessionStorage|indexedDB/i);
   assert.doesNotMatch(publisher, /localStorage.*campaign|campaign.*localStorage/i);
 });
