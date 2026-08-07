@@ -70,8 +70,13 @@ export function isDizyQuantCampaignDepthPublication(
     typeof candidate.symbol !== "string" ||
     !isDizyQuantRuntimeCampaignSymbol(candidate.symbol) ||
     !Number.isSafeInteger(candidate.sourceTimeMs) ||
+    Number(candidate.sourceTimeMs) <= 0 ||
     !Number.isSafeInteger(candidate.receivedTimeMs) ||
+    Number(candidate.receivedTimeMs) <= 0 ||
     !Number.isSafeInteger(candidate.boundaryTimeMs) ||
+    Number(candidate.boundaryTimeMs) <= 0 ||
+    Number(candidate.sourceTimeMs) > Number(candidate.boundaryTimeMs) ||
+    Number(candidate.boundaryTimeMs) - Number(candidate.sourceTimeMs) > 1_000 ||
     !Number.isFinite(candidate.baselineMidpoint) ||
     Number(candidate.baselineMidpoint) <= 0 ||
     candidate.coverageBandBps !== DIZYQUANT_CAMPAIGN_DEPTH_COVERAGE_BPS ||
@@ -84,8 +89,11 @@ export function isDizyQuantCampaignDepthPublication(
     !regimes.has(candidate.regime as DizyQuantCampaignRuntimeRegime) ||
     !directions.has(candidate.regimeDirection as DizyQuantCampaignRuntimeDirection) ||
     !Number.isSafeInteger(candidate.regimeWindowFromMs) ||
+    Number(candidate.regimeWindowFromMs) <= 0 ||
     candidate.regimeWindowFromMs !== Number(candidate.boundaryTimeMs) - 60_000 ||
+    !Number.isSafeInteger(candidate.regimeWindowToMs) ||
     candidate.regimeWindowToMs !== candidate.boundaryTimeMs ||
+    !Object.prototype.hasOwnProperty.call(candidate, "selectedShockTimestampMs") ||
     candidate.shockSelectionRequired !== false ||
     candidate.researchOnly !== true ||
     candidate.decisionEligible !== false ||
