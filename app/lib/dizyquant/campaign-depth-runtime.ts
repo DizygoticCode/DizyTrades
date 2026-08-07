@@ -29,6 +29,15 @@ export type DizyQuantCampaignDepthPublication = Readonly<{
   promotionEligible: false;
 }>;
 
+type PendingSecond = {
+  envelope: DepthEnvelope;
+  book: BookView;
+  coverageComplete: boolean;
+  sequenceContinuous: boolean | null;
+  hasGaps: boolean;
+  versionGaps: number;
+};
+
 const positive = (value: number) => Number.isFinite(value) && value > 0;
 const positiveInteger = (value: number) => Number.isSafeInteger(value) && value > 0;
 const symbolPattern = /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
@@ -90,14 +99,21 @@ export function bookViewFromDepthSnapshot(snapshot: DepthSnapshot): BookView {
   };
 }
 
+function mergeContinuity(left: boolean | null, right: boolean | null) {
+  if (left === false || right === false) return false;
+  if (left === true && right === true) return true;
+  return null;
+}
+
 export class DizyQuantCampaignDepthRuntime {
   readonly symbol: string;
   readonly contractSize: number;
   readonly priceStep: number;
   private window: DizyQuantLiveEvidenceWindow;
-  private lastDepthTimeMs = 0;
+  private pending: PendingSecond | null = null;
   private lastBoundaryTimeMs = 0;
   private lastVersionGaps = 0;
+  private lastSeenDepthTimeMs = 0;
 
   constructor(input: Readonly<{ symbol: string; contractSize: number; priceStep: number }>) {
     this.symbol = input.symbol.trim().toUpperCase();
@@ -115,9 +131,20 @@ export class DizyQuantCampaignDepthRuntime {
 
   clear() {
     this.window.clear();
-    this.lastDepthTimeMs = 0;
+    this.pending = null;
     this.lastBoundaryTimeMs = 0;
     this.lastVersionGaps = 0;
+    this.lastSeenDepthTimeMs = 0;
+  }
+
+  private capturePending() {
+    if (!this.pending) return;
+    this.window.captureDepth({
+      timestampMs: this.pending.envelope.snapshot.engineTimeMs,
+      book: this.pending.book,
+      sequenceContinuous: this.pending.sequenceContinuous,
+      hasGaps: this.pending.hasGaps,
+    });
   }
 
   push(envelope: DepthEnvelope): DizyQuantCampaignDepthPublication | null {
@@ -139,33 +166,64 @@ export class DizyQuantCampaignDepthRuntime {
     }
 
     const depthTimeMs = envelope.snapshot.engineTimeMs;
-    const timeRegression = depthTimeMs < this.lastDepthTimeMs;
+    const timeRegression = depthTimeMs < this.lastSeenDepthTimeMs;
     if (timeRegression) this.clear();
     const book = bookViewFromDepthSnapshot(envelope.snapshot);
     const coverageComplete = depthBookCoversDizyQuantCampaignBand(book);
     const versionGaps = Math.max(0, envelope.diagnostic.versionGaps ?? 0);
-    const gapCounterReset = this.lastDepthTimeMs > 0 && versionGaps < this.lastVersionGaps;
+    const gapCounterReset = this.lastSeenDepthTimeMs > 0 && versionGaps < this.lastVersionGaps;
     const gapAdvanced =
       versionGaps > this.lastVersionGaps ||
       gapCounterReset ||
       timeRegression ||
       envelope.diagnostic.sequenceContinuous === false;
     this.lastVersionGaps = versionGaps;
+    this.lastSeenDepthTimeMs = depthTimeMs;
 
-    if (depthTimeMs > this.lastDepthTimeMs) {
-      this.window.captureDepth({
-        timestampMs: depthTimeMs,
-        book,
-        sequenceContinuous: envelope.diagnostic.sequenceContinuous ?? null,
-        hasGaps: gapAdvanced || !coverageComplete,
-      });
-      this.lastDepthTimeMs = depthTimeMs;
+    const next: PendingSecond = {
+      envelope,
+      book,
+      coverageComplete,
+      sequenceContinuous: envelope.diagnostic.sequenceContinuous ?? null,
+      hasGaps: gapAdvanced || !coverageComplete,
+      versionGaps,
+    };
+    const currentSecond = Math.floor(depthTimeMs / 1_000) * 1_000;
+    if (!this.pending) {
+      this.pending = next;
+      return null;
+    }
+    const pendingSecond =
+      Math.floor(this.pending.envelope.snapshot.engineTimeMs / 1_000) * 1_000;
+    if (currentSecond === pendingSecond) {
+      this.pending = {
+        ...next,
+        coverageComplete: this.pending.coverageComplete && next.coverageComplete,
+        sequenceContinuous: mergeContinuity(
+          this.pending.sequenceContinuous,
+          next.sequenceContinuous,
+        ),
+        hasGaps: this.pending.hasGaps || next.hasGaps,
+      };
+      return null;
+    }
+    if (currentSecond < pendingSecond) {
+      this.clear();
+      this.pending = { ...next, hasGaps: true };
+      return null;
     }
 
-    const boundaryTimeMs =
-      Math.floor(depthTimeMs / DIZYQUANT_CAMPAIGN_DEPTH_PUBLICATION_MS) *
-      DIZYQUANT_CAMPAIGN_DEPTH_PUBLICATION_MS;
-    if (boundaryTimeMs <= 0 || boundaryTimeMs <= this.lastBoundaryTimeMs) return null;
+    const completedSecond = this.pending;
+    this.capturePending();
+    this.pending = next;
+    const boundaryTimeMs = currentSecond;
+    if (
+      boundaryTimeMs <= 0 ||
+      boundaryTimeMs <= this.lastBoundaryTimeMs ||
+      boundaryTimeMs % DIZYQUANT_CAMPAIGN_DEPTH_PUBLICATION_MS !== 0
+    ) {
+      return null;
+    }
     this.lastBoundaryTimeMs = boundaryTimeMs;
 
     const evidence = this.window.build({
@@ -179,14 +237,14 @@ export class DizyQuantCampaignDepthRuntime {
     return Object.freeze({
       runtimeVersion: DIZYQUANT_CAMPAIGN_DEPTH_RUNTIME_VERSION,
       symbol: this.symbol,
-      sourceTimeMs: depthTimeMs,
+      sourceTimeMs: completedSecond.envelope.snapshot.engineTimeMs,
       receivedTimeMs: envelope.receivedAt,
       boundaryTimeMs,
       coverageBandBps: DIZYQUANT_CAMPAIGN_DEPTH_COVERAGE_BPS,
-      coverageComplete,
+      coverageComplete: completedSecond.coverageComplete,
       sequenceContinuous: evidence.depthSequenceContinuous,
       hasGaps: evidence.depthHasGaps,
-      versionGaps,
+      versionGaps: completedSecond.versionGaps,
       shockSelectionRequired: true,
       evidence,
       researchOnly: true,
