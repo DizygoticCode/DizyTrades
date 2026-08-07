@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" role="img" aria-labelledby="title desc">
+<title id="title">Pending order lifecycle and execution conditions</title>
+<desc id="desc">Limit, market, trigger, post-only, IOC and FOK order conditions across submitted, accepted, armed, working, activated, partial fill and terminal states.</desc>
+<defs>
+ <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#57a5ff"/></marker>
+ <style>.t{font-family:Arial,Helvetica,sans-serif}.h{font-size:23px;font-weight:700;fill:#eef2fb}.k{font-size:9px;font-weight:700;letter-spacing:1px;fill:#8996ad}.n{font-size:13px;font-weight:700;fill:#eef2fb}.s{font-size:10px;fill:#b3bdd0}.line{stroke:#57a5ff;stroke-width:2.5;fill:none;marker-end:url(#a)}.dash{stroke:#8996ad;stroke-width:2;stroke-dasharray:6 5;fill:none;marker-end:url(#a)}</style>
+</defs>
+<rect width="900" height="420" rx="24" fill="#090d16"/>
+<text class="t h" x="30" y="38">PENDING ORDERS: CONDITIONS ≠ COMPLETED TRADES</text>
+<text class="t k" x="31" y="57">ACTIVATION, MATCHING AND TERMINAL STATES ARE SEPARATE IMMUTABLE EVENTS</text>
+
+<g class="t">
+  <g transform="translate(30 78)"><rect width="840" height="54" rx="12" fill="#111827" stroke="#303a4f"/>
+    <text class="k" x="15" y="18">EXECUTION OBJECTIVE</text>
+    <text class="s" x="15" y="39">LIMIT: price boundary</text><text class="s" x="150" y="39">MARKET: immediacy</text><text class="s" x="285" y="39">TRIGGER: arm first</text>
+    <text class="s" x="420" y="39">POST-ONLY: maker or reject</text><text class="s" x="620" y="39">IOC: fill now + cancel rest</text><text class="s" x="790" y="39">FOK: all or none</text>
+  </g>
+
+  <g transform="translate(35 170)">
+    <g><rect width="112" height="62" rx="12" fill="#151f30" stroke="#57a5ff"/><text class="k" x="12" y="19">01</text><text class="n" x="12" y="42">Submitted</text></g>
+    <g transform="translate(142)"><rect width="112" height="62" rx="12" fill="#151f30" stroke="#57a5ff"/><text class="k" x="12" y="19">02</text><text class="n" x="12" y="42">Accepted</text></g>
+    <g transform="translate(284)"><rect width="112" height="62" rx="12" fill="#201a34" stroke="#b08cff"/><text class="k" x="12" y="19">03A</text><text class="n" x="12" y="42">Armed</text></g>
+    <g transform="translate(426)"><rect width="112" height="62" rx="12" fill="#172034" stroke="#9a83ff"/><text class="k" x="12" y="19">03B</text><text class="n" x="12" y="42">Working</text></g>
+    <g transform="translate(568)"><rect width="112" height="62" rx="12" fill="#281f16" stroke="#ffd071"/><text class="k" x="12" y="19">04</text><text class="n" x="12" y="42">Activated</text></g>
+    <g transform="translate(710)"><rect width="120" height="62" rx="12" fill="#112820" stroke="#2ee6a6"/><text class="k" x="12" y="19">05</text><text class="n" x="12" y="42">Partially filled</text></g>
+  </g>
+</g>
+<path class="line" d="M147 201H171"/><path class="line" d="M289 201H313"/><path class="dash" d="M431 201H455"/><path class="line" d="M573 201H597"/><path class="line" d="M715 201H739"/>
+<path class="line" d="M289 201C330 145 548 145 603 193"/>
+<path class="line" d="M799 232V262H674"/><path class="line" d="M674 262V232"/>
+
+<g class="t">
+  <g transform="translate(35 292)"><rect width="145" height="62" rx="12" fill="#24161d" stroke="#ff5c70"/><text class="n" x="14" y="27">Rejected</text><text class="s" x="14" y="46">invalid · post-only cross</text></g>
+  <g transform="translate(215 292)"><rect width="145" height="62" rx="12" fill="#231b20" stroke="#ff8c9b"/><text class="n" x="14" y="27">Cancelled</text><text class="s" x="14" y="46">manual · chase boundary</text></g>
+  <g transform="translate(395 292)"><rect width="145" height="62" rx="12" fill="#241f18" stroke="#d7a95c"/><text class="n" x="14" y="27">Expired</text><text class="s" x="14" y="46">time condition ended</text></g>
+  <g transform="translate(575 292)"><rect width="145" height="62" rx="12" fill="#112820" stroke="#2ee6a6"/><text class="n" x="14" y="27">Filled</text><text class="s" x="14" y="46">complete observed fill</text></g>
+  <g transform="translate(755 292)"><rect width="110" height="62" rx="12" fill="#111827" stroke="#8996ad"/><text class="n" x="14" y="27">Still working</text><text class="s" x="14" y="46">limit remainder</text></g>
+</g>
+<path class="dash" d="M233 232V275H108V286"/><path class="dash" d="M517 232V275H288V286"/><path class="dash" d="M517 232V275H468V286"/><path class="line" d="M790 232V275H647V286"/><path class="dash" d="M805 232V286"/>
+<text class="t s" x="450" y="390" text-anchor="middle">A snapshot can show less queue size without proving your order filled. Explicit execution evidence is required.</text>
+</svg>

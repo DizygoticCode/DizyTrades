@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" role="img" aria-labelledby="title desc">
+<title id="title">DizyBackup export and additive recovery</title>
+<desc id="desc">A five-stage recovery process from export and integrity validation through dry run, conflict review and additive restore.</desc>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#64e6c5"/></marker>
+<style>.t{font-family:Arial,Helvetica,sans-serif}.h{font-size:24px;font-weight:700;fill:#eef2fb}.k{font-size:10px;font-weight:700;letter-spacing:1.1px;fill:#8996ad}.n{font-size:15px;font-weight:700;fill:#eef2fb}.s{font-size:11px;fill:#b3bdd0}.line{stroke:#64e6c5;stroke-width:3;fill:none;marker-end:url(#a)}</style></defs>
+<rect width="900" height="420" rx="24" fill="#090d16"/>
+<text class="t h" x="34" y="42">DIZYBACKUP: VALIDATE BEFORE RECOVERY</text>
+<text class="t k" x="35" y="62">USER-SCOPED EXPORT · INTEGRITY-BOUND DRY RUN · ADDITIVE RESTORE</text>
+
+<g class="t" transform="translate(35 108)">
+  <g><rect width="145" height="112" rx="14" fill="#151f30" stroke="#57a5ff" stroke-width="2"/><text class="k" x="14" y="23" fill="#57a5ff">01</text><text class="n" x="14" y="50">Export</text><text class="s" x="14" y="72">settings · paper</text><text class="s" x="14" y="89">journal · replay</text></g>
+  <g transform="translate(170)"><rect width="145" height="112" rx="14" fill="#112827" stroke="#44e9df" stroke-width="2"/><text class="k" x="14" y="23" fill="#44e9df">02</text><text class="n" x="14" y="50">Integrity</text><text class="s" x="14" y="72">schema + hash</text><text class="s" x="14" y="89">payload unchanged</text></g>
+  <g transform="translate(340)"><rect width="145" height="112" rx="14" fill="#201a34" stroke="#b08cff" stroke-width="2"/><text class="k" x="14" y="23" fill="#b08cff">03</text><text class="n" x="14" y="50">Dry run</text><text class="s" x="14" y="72">server validates</text><text class="s" x="14" y="89">no mutation yet</text></g>
+  <g transform="translate(510)"><rect width="145" height="112" rx="14" fill="#281f16" stroke="#ffd071" stroke-width="2"/><text class="k" x="14" y="23" fill="#ffd071">04</text><text class="n" x="14" y="50">Conflicts</text><text class="s" x="14" y="72">review warnings</text><text class="s" x="14" y="89">confirm exact plan</text></g>
+  <g transform="translate(680)"><rect width="145" height="112" rx="14" fill="#112820" stroke="#2ee6a6" stroke-width="2"/><text class="k" x="14" y="23" fill="#2ee6a6">05</text><text class="n" x="14" y="50">Restore</text><text class="s" x="14" y="72">safe + additive</text><text class="s" x="14" y="89">audit recorded</text></g>
+</g>
+<path class="line" d="M180 164H198"/><path class="line" d="M350 164H368"/><path class="line" d="M520 164H538"/><path class="line" d="M690 164H708"/>
+
+<g class="t">
+  <g transform="translate(35 260)"><rect width="390" height="93" rx="14" fill="#111827" stroke="#303a4f"/><text class="k" x="16" y="24">INCLUDED USER EVIDENCE</text><text class="s" x="16" y="48">profile · simulator · Manual Paper · Journal · Replay memories</text><text class="s" x="16" y="68">Historical DizyFlow · DizyBrain reviews · portable Journal CSV</text></g>
+  <g transform="translate(475 260)"><rect width="390" height="93" rx="14" fill="#24161d" stroke="#ff5c70"/><text class="k" x="16" y="24" fill="#ff8c9b">NEVER EXPORTED OR RESTORED</text><text class="s" x="16" y="48">passwords · sessions · API credentials · authentication records</text><text class="s" x="16" y="68">unsafe Manual Paper replacement is refused</text></g>
+</g>
+<text class="t s" x="450" y="390" text-anchor="middle">Keep dated copies away from the Render disk. A downloaded file is not a tested recovery until the dry run passes.</text>
+</svg>

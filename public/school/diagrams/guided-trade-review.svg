@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" role="img" aria-labelledby="title desc">
+<title id="title">Guided Historical Trade Review</title>
+<desc id="desc">Journal, Replay, Historical DizyFlow and DizyBrain evidence feeding five review stages from Context to Reflection.</desc>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#57a5ff"/></marker>
+<style>.t{font-family:Arial,Helvetica,sans-serif}.h{font-size:24px;font-weight:700;fill:#eef2fb}.k{font-size:10px;font-weight:700;letter-spacing:1.2px;fill:#8996ad}.n{font-size:15px;font-weight:700;fill:#eef2fb}.s{font-size:11px;fill:#b3bdd0}.line{stroke:#57a5ff;stroke-width:3;fill:none;marker-end:url(#a)}</style></defs>
+<rect width="900" height="420" rx="24" fill="#090d16"/>
+<text class="t h" x="34" y="42">GUIDED HISTORICAL TRADE REVIEW</text>
+<text class="t k" x="35" y="62">REVIEW THE DECISION WITH THE EVIDENCE THAT EXISTED THEN</text>
+
+<g class="t">
+  <text class="k" x="35" y="104">EVIDENCE SOURCES</text>
+  <g transform="translate(35 120)"><rect width="158" height="46" rx="11" fill="#151f30" stroke="#ffd071"/><text class="n" x="14" y="28">Journal trade facts</text></g>
+  <g transform="translate(35 177)"><rect width="158" height="46" rx="11" fill="#172034" stroke="#9a83ff"/><text class="n" x="14" y="28">Replay cursor</text></g>
+  <g transform="translate(35 234)"><rect width="158" height="46" rx="11" fill="#112827" stroke="#44e9df"/><text class="n" x="14" y="28">Historical DizyFlow</text></g>
+  <g transform="translate(35 291)"><rect width="158" height="46" rx="11" fill="#12242c" stroke="#57a5ff"/><text class="n" x="14" y="28">DizyBrain Review</text></g>
+
+  <text class="k" x="245" y="104">FIVE STAGES · ONE MARKED JOURNAL BLOCK</text>
+  <g transform="translate(245 135)">
+    <g><rect width="110" height="110" rx="14" fill="#151f30" stroke="#57a5ff" stroke-width="2"/><text class="k" x="14" y="23" fill="#57a5ff">01</text><text class="n" x="14" y="53">Context</text><text class="s" x="14" y="75">regime · levels</text><text class="s" x="14" y="91">available inputs</text></g>
+    <g transform="translate(125)"><rect width="110" height="110" rx="14" fill="#172034" stroke="#9a83ff" stroke-width="2"/><text class="k" x="14" y="23" fill="#9a83ff">02</text><text class="n" x="14" y="53">Entry</text><text class="s" x="14" y="75">thesis · trigger</text><text class="s" x="14" y="91">rule adherence</text></g>
+    <g transform="translate(250)"><rect width="110" height="110" rx="14" fill="#112820" stroke="#2ee6a6" stroke-width="2"/><text class="k" x="14" y="23" fill="#2ee6a6">03</text><text class="n" x="14" y="53">Management</text><text class="s" x="14" y="75">planned changes</text><text class="s" x="14" y="91">versus reaction</text></g>
+    <g transform="translate(375)"><rect width="110" height="110" rx="14" fill="#2a1c28" stroke="#ff7fc8" stroke-width="2"/><text class="k" x="14" y="23" fill="#ff7fc8">04</text><text class="n" x="14" y="53">Exit</text><text class="s" x="14" y="75">reason · costs</text><text class="s" x="14" y="91">result separated</text></g>
+    <g transform="translate(500)"><rect width="110" height="110" rx="14" fill="#281f16" stroke="#ffd071" stroke-width="2"/><text class="k" x="14" y="23" fill="#ffd071">05</text><text class="n" x="14" y="53">Reflection</text><text class="s" x="14" y="75">one strength</text><text class="s" x="14" y="91">one improvement</text></g>
+  </g>
+</g>
+<path class="line" d="M193 143H226V188H239"/><path class="line" d="M193 200H218V188H239"/><path class="line" d="M193 257H218V188H239"/><path class="line" d="M193 314H226V188H239"/>
+<path class="line" d="M355 190H365"/><path class="line" d="M480 190H490"/><path class="line" d="M605 190H615"/><path class="line" d="M730 190H740"/>
+<rect x="245" y="285" width="610" height="70" rx="14" fill="#111827" stroke="#303a4f"/>
+<text class="t n" x="265" y="313">Hindsight rule</text><text class="t s" x="265" y="335">Do not rewrite the original thesis to fit the outcome. Missing and conflicting evidence remains part of the review.</text>
+<text class="t s" x="450" y="390" text-anchor="middle">Process quality and outcome are recorded separately; the review does not create another trading score.</text>
+</svg>
