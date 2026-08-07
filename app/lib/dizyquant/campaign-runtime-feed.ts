@@ -2,7 +2,7 @@ import {
   DIZYQUANT_CAMPAIGN_DEPTH_COVERAGE_BPS,
   DIZYQUANT_CAMPAIGN_DEPTH_RUNTIME_VERSION,
   type DizyQuantCampaignDepthPublication,
-} from "./campaign-depth-runtime.ts";
+} from "./campaign-runtime-contract.ts";
 
 export const DIZYQUANT_RUNTIME_CAMPAIGN_SYMBOLS = Object.freeze([
   "BTC_USDT",
@@ -29,6 +29,7 @@ export function isDizyQuantCampaignDepthPublication(
     typeof candidate.symbol === "string" &&
     isDizyQuantRuntimeCampaignSymbol(candidate.symbol) &&
     Number.isSafeInteger(candidate.sourceTimeMs) &&
+    Number.isSafeInteger(candidate.receivedTimeMs) &&
     Number.isSafeInteger(candidate.boundaryTimeMs) &&
     candidate.coverageBandBps === DIZYQUANT_CAMPAIGN_DEPTH_COVERAGE_BPS &&
     typeof candidate.coverageComplete === "boolean" &&
@@ -36,6 +37,8 @@ export function isDizyQuantCampaignDepthPublication(
       candidate.sequenceContinuous === false ||
       candidate.sequenceContinuous === null) &&
     typeof candidate.hasGaps === "boolean" &&
+    Number.isSafeInteger(candidate.versionGaps) &&
+    Number(candidate.versionGaps) >= 0 &&
     candidate.shockSelectionRequired === true &&
     Boolean(candidate.evidence) &&
     candidate.researchOnly === true &&
