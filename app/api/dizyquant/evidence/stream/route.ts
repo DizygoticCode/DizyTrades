@@ -1,45 +1,23 @@
 import { requireApiUser } from "../../../../lib/auth";
 import {
-  acquireDepthCollector,
-  normalizeDepthSymbol,
-  releaseDepthCollector,
-} from "../../../../lib/order-flow/depth-collector";
-import { getMexcMarkets } from "../../../../lib/market/mexc";
-import { DIZYQUANT_INITIAL_EVIDENCE_SYMBOLS } from "../../../../lib/dizyquant/evidence-campaign";
-import {
-  DizyQuantCampaignDepthRuntime,
-  inferDizyQuantCampaignPriceStep,
-} from "../../../../lib/dizyquant/campaign-depth-runtime";
-import type { DepthEnvelope } from "../../../../lib/order-flow/types";
+  isDizyQuantRuntimeCampaignSymbol,
+  readDizyQuantCampaignDepthPublication,
+  subscribeDizyQuantCampaignDepthPublications,
+} from "../../../../lib/dizyquant/campaign-runtime-feed";
+import { readDizyQuantCampaignRecorderServiceStatus } from "../../../../lib/dizyquant/campaign-recorder-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const encode = (event: string, value: unknown) =>
   `event: ${event}\ndata: ${JSON.stringify(value)}\n\n`;
-const initialCampaignSymbol = (value: string) =>
-  DIZYQUANT_INITIAL_EVIDENCE_SYMBOLS.some((symbol) => symbol === value);
+const normalise = (value: string) => value.trim().toUpperCase().replace(/[-/]/g, "_");
 
 export async function GET(request: Request) {
   if (!(await requireApiUser())) return new Response("Unauthorised", { status: 401 });
-  const symbol = normalizeDepthSymbol(new URL(request.url).searchParams.get("symbol") ?? "");
-  if (!symbol || !initialCampaignSymbol(symbol)) {
+  const symbol = normalise(new URL(request.url).searchParams.get("symbol") ?? "");
+  if (!isDizyQuantRuntimeCampaignSymbol(symbol)) {
     return new Response("Symbol is outside the initial DizyQuant campaign", { status: 400 });
-  }
-
-  const markets = await getMexcMarkets(request.signal).catch(() => []);
-  const market = markets.find(
-    (value) => value.marketType === "futures" && value.sourceSymbol === symbol,
-  );
-  if (!market || !Number.isFinite(market.contractSize) || (market.contractSize ?? 0) <= 0) {
-    return new Response("DizyQuant campaign market metadata unavailable", { status: 503 });
-  }
-
-  let collector;
-  try {
-    collector = acquireDepthCollector(symbol);
-  } catch {
-    return new Response("Depth collector capacity reached", { status: 503 });
   }
 
   const encoder = new TextEncoder();
@@ -50,7 +28,6 @@ export async function GET(request: Request) {
       let closed = false;
       let pending: string | null = null;
       let flushing = false;
-      let campaign: DizyQuantCampaignDepthRuntime | null = null;
 
       flush = () => {
         flushing = false;
@@ -71,40 +48,23 @@ export async function GET(request: Request) {
           queueMicrotask(flush);
         }
       };
-      const processEnvelope = (envelope: DepthEnvelope) => {
-        if (closed || envelope.snapshot.symbol !== symbol) return;
-        try {
-          if (!campaign) {
-            const priceStep = inferDizyQuantCampaignPriceStep(
-              envelope.snapshot,
-              market.priceUnit,
-            );
-            if (priceStep === null) return;
-            campaign = new DizyQuantCampaignDepthRuntime({
-              symbol,
-              contractSize: market.contractSize!,
-              priceStep,
-            });
-            send("metadata", {
-              symbol,
-              contractSize: market.contractSize,
-              priceStep,
-              researchOnly: true,
-              campaignSymbols: DIZYQUANT_INITIAL_EVIDENCE_SYMBOLS,
-            });
-          }
-          const publication = campaign.push(envelope);
-          if (publication) send("evidence", publication);
-        } catch {
-          campaign?.clear();
-          send("resync", { symbol, reason: "research-window-reset" });
-        }
-      };
 
-      const latest = collector.getLatest();
-      if (latest) processEnvelope(latest);
-      const unsubscribe = collector.subscribe(processEnvelope);
+      const service = readDizyQuantCampaignRecorderServiceStatus();
+      send("metadata", {
+        symbol,
+        mode: "process-owned-rotating-campaign",
+        activeSymbol: service.activeSymbol,
+        residency: service.residency,
+        phase: service.phase,
+        researchOnly: true,
+      });
+      const existing = readDizyQuantCampaignDepthPublication(symbol);
+      if (existing) send("evidence", existing);
+      const unsubscribe = subscribeDizyQuantCampaignDepthPublications((publication) => {
+        if (publication.symbol === symbol) send("evidence", publication);
+      });
       const keepalive = setInterval(() => send("keepalive", { symbol }), 15_000);
+
       cleanup = () => {
         if (closed) return;
         closed = true;
@@ -112,7 +72,6 @@ export async function GET(request: Request) {
         flush = () => {};
         clearInterval(keepalive);
         unsubscribe();
-        releaseDepthCollector(symbol);
         request.signal.removeEventListener("abort", cleanup);
         try {
           controller.close();
