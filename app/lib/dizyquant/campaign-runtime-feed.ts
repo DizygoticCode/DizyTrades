@@ -32,6 +32,7 @@ export function isDizyQuantRuntimeCampaignSymbol(value: string) {
 function validEvidence(
   value: unknown,
   symbol: string,
+  sourceTimeMs: number,
   boundaryTimeMs: number,
   shockTimestampMs: number | null,
 ): value is DizyQuantLiveEvidenceBuildResult {
@@ -46,6 +47,7 @@ function validEvidence(
     evidence.shockTimestampMs === shockTimestampMs &&
     Boolean(evidence.snapshots) &&
     ladder?.availability === "fresh" &&
+    ladder.sourceTimeMs === sourceTimeMs &&
     migration?.availability === "fresh" &&
     migration.sequenceContinuous === true &&
     migration.hasGaps === false &&
@@ -120,6 +122,7 @@ export function isDizyQuantCampaignDepthPublication(
   return validEvidence(
     candidate.evidence,
     candidate.symbol,
+    candidate.sourceTimeMs!,
     candidate.boundaryTimeMs!,
     shockTimestampMs,
   );
