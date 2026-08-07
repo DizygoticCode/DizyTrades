@@ -39,11 +39,23 @@ test("terminal scrollbar polish is the final global stylesheet", () => {
   assert.ok(scrollbarStyles > mobileStyles);
 });
 
-test("Commands and Recent occupy a full-size reserved row below the topbar", () => {
+test("Commands and Recent portal into the terminal toolbar while retaining the reserved row", () => {
   assert.match(mounted, /className="global-quick-actions"/);
   assert.match(mounted, /<CommandPalette \/>/);
   assert.match(mounted, /<RecentShortcuts \/>/);
-  assert.doesNotMatch(mounted, /createPortal|MutationObserver|querySelector/);
+  assert.match(
+    mounted,
+    /const terminalToolbarSelector = "\.terminal-shell \.topbar \.system-strip";/,
+  );
+  assert.match(mounted, /new MutationObserver\(onStoreChange\)/);
+  assert.match(
+    mounted,
+    /document\.querySelector<HTMLElement>\(terminalToolbarSelector\)/,
+  );
+  assert.match(
+    mounted,
+    /terminalToolbar \? createPortal\(<QuickActions \/>, terminalToolbar\) : null/,
+  );
   assert.match(
     responsivePolish,
     /\.terminal-body-layout \{\s*padding-top: 50px;/s,
