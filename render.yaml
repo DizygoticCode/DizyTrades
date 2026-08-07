@@ -52,7 +52,7 @@ services:
       - key: DIZYFLOW_MAX_LEVELS_PER_SIDE
         value: "100"
       - key: DIZYFLOW_MAX_COLLECTORS
-        value: "2"
+        value: "3"
       - key: DIZYFLOW_COLLECTOR_IDLE_MS
         value: "30000"
       - key: DIZYFLOW_MAX_HEATMAP_RECORDS
@@ -68,7 +68,7 @@ services:
       - key: DIZYFLOW_ARCHIVE_SYMBOLS
         value: BTC_USDT
       - key: DIZYFLOW_MAX_TAPES
-        value: "2"
+        value: "3"
       - key: DIZYFLOW_HEATMAP_TOTAL_DISK_MB
         value: "512"
       - key: DIZYFLOW_MEMORY_WARN_MB
