@@ -192,13 +192,13 @@
 }
 .unit {
   position: absolute;
-  right: 9px;
+  right: 30px;
   top: 31px;
   color: var(--muted);
   pointer-events: none;
 }
 .unit + input {
-  padding-right: 45px;
+  padding-right: 72px;
 }
 .fieldError,
 .error {
