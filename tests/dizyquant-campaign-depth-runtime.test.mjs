@@ -108,6 +108,11 @@ test("runtime waits for a complete reviewed regime window before publishing labe
   assert.equal(latest.regimeWindowToMs, latest.boundaryTimeMs);
   assert.equal(latest.regimeWindowFromMs, latest.boundaryTimeMs - 60_000);
   assert.equal(latest.baselineMidpoint, 100);
+  assert.ok(latest.boundaryTimeMs - latest.sourceTimeMs >= 0);
+  assert.ok(latest.boundaryTimeMs - latest.sourceTimeMs <= 1_000);
+  assert.ok(latest.evidence.snapshots.ladder);
+  assert.equal(latest.evidence.snapshots.ladder.availability, "fresh");
+  assert.equal(latest.evidence.snapshots.ladder.sourceTimeMs, latest.sourceTimeMs);
   assert.equal(latest.shockSelectionRequired, false);
   assert.equal(latest.selectedShockTimestampMs, null);
   assert.equal(latest.researchOnly, true);
@@ -165,6 +170,20 @@ test("an incomplete 25-bps frame resets regime continuity and requires a fresh s
   assert.ok(recovered.length >= 1);
   assert.equal(recovered.at(-1).regime, "range");
   assert.equal(recovered.at(-1).hasGaps, false);
+});
+
+test("a missing source second fails the one-second as-of rule even without an explicit gap flag", () => {
+  const runtime = new DizyQuantCampaignDepthRuntime({
+    symbol: "BTC_USDT",
+    contractSize: 1,
+    priceStep: 0.1,
+  });
+  collect(runtime, 0, 65);
+  assert.equal(runtime.push(envelope(67)), null);
+  assert.equal(collect(runtime, 68, 127).length, 0);
+  const recovered = collect(runtime, 128, 135);
+  assert.ok(recovered.length >= 1);
+  assert.equal(recovered.at(-1).regime, "range");
 });
 
 test("recovery state clears the bounded regime and evidence windows", () => {
@@ -235,6 +254,7 @@ test("runtime source contract stays research-only and does not attach the record
   assert.doesNotMatch(feed, /campaign-depth-runtime/);
   assert.match(contract, /import type \{ DizyQuantLiveEvidenceBuildResult \}/);
   assert.match(runtime, /classifyDizyQuantCampaignRegime/);
+  assert.match(runtime, /MAX_REGIME_ASOF_AGE_MS/);
   assert.match(runtime, /shockTimestampMs: selectedShockTimestampMs/);
   assert.doesNotMatch(route, /evidence-recorder/);
   assert.doesNotMatch(publisher, /evidence-recorder/);
