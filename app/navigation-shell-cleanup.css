@@ -1,0 +1,175 @@
+/*
+ * Shared navigation is the only cross-product navigation surface.
+ * Product pages may retain a local context header, user identity and local
+ * controls, but legacy links to other Dizy products are hidden once the shared
+ * product switcher is present.
+ */
+body:has([data-testid="dizy-product-navigation"]) main > header nav a:is(
+  [href="/"],
+  [href="/terminal"],
+  [href="/explore"],
+  [href="/school"],
+  [href="/research"],
+  [href="/account"],
+  [href="/scanner"],
+  [href="/structure"],
+  [href="/performance"],
+  [href="/journal"],
+  [href="/backup"],
+  [href="/diagnostics"],
+  [href="/dex"]
+),
+body:has([data-testid="dizy-product-navigation"]) main > nav a:is(
+  [href="/"],
+  [href="/terminal"],
+  [href="/explore"],
+  [href="/school"],
+  [href="/research"],
+  [href="/account"],
+  [href="/scanner"],
+  [href="/structure"],
+  [href="/performance"],
+  [href="/journal"],
+  [href="/backup"],
+  [href="/diagnostics"],
+  [href="/dex"]
+) {
+  display: none !important;
+}
+
+/* The shared bar already carries the DizyTrades family identity. Keep local
+ * feature headers focused on the current workspace instead of repeating it. */
+body:has([data-testid="dizy-product-navigation"]) main > header > div > b:first-child {
+  display: none;
+}
+
+/*
+ * Terminal toolbar contract:
+ * - shared product bar is row one
+ * - the native terminal topbar is one compact row for chart/workspace actions,
+ *   runtime badges, Commands and Recent
+ * - no floated quick-action island and no empty 50px phantom workflow row
+ */
+@media (min-width: 761px) {
+  body:has(.terminal-shell) .topbar {
+    overflow: hidden !important;
+  }
+
+  body:has(.terminal-shell) .system-strip {
+    align-self: stretch !important;
+    height: 62px !important;
+    padding: 0 !important;
+    flex-wrap: nowrap !important;
+    align-content: center !important;
+    align-items: center !important;
+    column-gap: 6px !important;
+    row-gap: 0 !important;
+    overflow: hidden !important;
+  }
+
+  body:has(.terminal-shell) .system-strip::after {
+    display: none !important;
+  }
+
+  body:has(.terminal-shell) .system-strip > .nav-tab {
+    order: 1 !important;
+  }
+
+  body:has(.terminal-shell) .system-strip > .connection,
+  body:has(.terminal-shell) .system-strip > .confirmed,
+  body:has(.terminal-shell) .system-strip > .test-mode,
+  body:has(.terminal-shell) .system-strip > .lock-status,
+  body:has(.terminal-shell) .system-strip > .viewer-badge {
+    order: 2 !important;
+  }
+
+  body:has(.terminal-shell) .system-strip > .global-quick-actions {
+    position: static !important;
+    inset: auto !important;
+    z-index: auto !important;
+    order: 3 !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    margin-left: auto;
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  body:has(.terminal-shell) .global-quick-actions .command-palette-floating,
+  body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger {
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    min-width: max-content !important;
+    height: 33px !important;
+    min-height: 33px !important;
+    padding-inline: 9px !important;
+    transform: none !important;
+  }
+
+  body:has(.terminal-shell) .terminal-body-layout {
+    padding-top: 0 !important;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 761px) {
+  body:has(.terminal-shell) .system-strip {
+    column-gap: 4px !important;
+  }
+
+  body:has(.terminal-shell) .global-quick-actions .command-palette-floating,
+  body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger {
+    padding-inline: 7px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  body:has(.terminal-shell) .system-strip {
+    min-width: 0;
+    height: 56px !important;
+    padding: 0 !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: thin;
+  }
+
+  body:has(.terminal-shell) .system-strip::after {
+    display: none !important;
+  }
+
+  body:has(.terminal-shell) .system-strip > .global-quick-actions {
+    position: static !important;
+    inset: auto !important;
+    order: 3 !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    margin-left: auto;
+    display: flex;
+    flex-flow: row nowrap;
+    gap: 5px;
+  }
+
+  body:has(.terminal-shell) .global-quick-actions .command-palette-floating,
+  body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger {
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    min-width: max-content !important;
+    max-width: none !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding-inline: 7px !important;
+    transform: none !important;
+  }
+
+  body:has(.terminal-shell) .terminal-body-layout {
+    padding-top: 0 !important;
+  }
+}
