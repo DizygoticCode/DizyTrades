@@ -9,6 +9,8 @@ export const DIZYQUANT_CAMPAIGN_REGIME_SCHEMA_VERSION = 1 as const;
 export const DIZYQUANT_CAMPAIGN_REGIME_FORMULA_VERSION =
   "dizyquant-campaign-regime/1.0.0" as const;
 export const DIZYQUANT_CAMPAIGN_REGIME_GRID_MS = 1_000 as const;
+export const DIZYQUANT_CAMPAIGN_REGIME_DEPTH_COVERAGE_BPS = 25 as const;
+export const DIZYQUANT_CAMPAIGN_REGIME_MAX_LEVELS_PER_FRAME = 2_000 as const;
 export const DIZYQUANT_DIRECTIONAL_MIN_NET_BPS = 4 as const;
 export const DIZYQUANT_DIRECTIONAL_NOISE_MULTIPLE = 4 as const;
 export const DIZYQUANT_DIRECTIONAL_MIN_EFFICIENCY = 0.35 as const;
@@ -115,12 +117,15 @@ function frameStats(
     !Number.isSafeInteger(frame.timestampMs) ||
     !finitePositive(frame.midpoint) ||
     !Array.isArray(frame.levels) ||
-    !frame.levels.length
+    !frame.levels.length ||
+    frame.levels.length > DIZYQUANT_CAMPAIGN_REGIME_MAX_LEVELS_PER_FRAME
   ) {
     return null;
   }
   let bestBid = -Infinity;
   let bestAsk = Infinity;
+  let deepestBid = Infinity;
+  let deepestAsk = -Infinity;
   let bidDepth25Bps = 0;
   let askDepth25Bps = 0;
   const seen = new Set<number>();
@@ -143,29 +148,42 @@ function frameStats(
     if (level.bidContracts > 0) {
       if (price >= frame.midpoint) return null;
       bestBid = Math.max(bestBid, price);
+      deepestBid = Math.min(deepestBid, price);
       const distanceBps = (frame.midpoint - price) / frame.midpoint * 10_000;
       const notional = price * level.bidContracts * contractSize;
       if (!finiteNonNegative(distanceBps) || !finiteNonNegative(notional)) return null;
-      if (distanceBps <= 25 + 1e-9) bidDepth25Bps += notional;
+      if (distanceBps <= DIZYQUANT_CAMPAIGN_REGIME_DEPTH_COVERAGE_BPS + 1e-9) {
+        bidDepth25Bps += notional;
+      }
     }
     if (level.askContracts > 0) {
       if (price <= frame.midpoint) return null;
       bestAsk = Math.min(bestAsk, price);
+      deepestAsk = Math.max(deepestAsk, price);
       const distanceBps = (price - frame.midpoint) / frame.midpoint * 10_000;
       const notional = price * level.askContracts * contractSize;
       if (!finiteNonNegative(distanceBps) || !finiteNonNegative(notional)) return null;
-      if (distanceBps <= 25 + 1e-9) askDepth25Bps += notional;
+      if (distanceBps <= DIZYQUANT_CAMPAIGN_REGIME_DEPTH_COVERAGE_BPS + 1e-9) {
+        askDepth25Bps += notional;
+      }
     }
   }
   if (
     !finitePositive(bestBid) ||
     !finitePositive(bestAsk) ||
+    !finitePositive(deepestBid) ||
+    !finitePositive(deepestAsk) ||
     bestBid >= bestAsk ||
     !finitePositive(bidDepth25Bps) ||
     !finitePositive(askDepth25Bps)
   ) {
     return null;
   }
+  const bidBoundary =
+    frame.midpoint * (1 - DIZYQUANT_CAMPAIGN_REGIME_DEPTH_COVERAGE_BPS / 10_000);
+  const askBoundary =
+    frame.midpoint * (1 + DIZYQUANT_CAMPAIGN_REGIME_DEPTH_COVERAGE_BPS / 10_000);
+  if (deepestBid > bidBoundary + 1e-9 || deepestAsk < askBoundary - 1e-9) return null;
   const spreadBps = (bestAsk - bestBid) / frame.midpoint * 10_000;
   if (!finitePositive(spreadBps)) return null;
   return Object.freeze({ spreadBps, bidDepth25Bps, askDepth25Bps });
@@ -264,7 +282,7 @@ export function classifyDizyQuantCampaignRegime(input: Readonly<{
 
   const shocks = shockCandidates(frames, input.priceStep, input.contractSize);
   if (shocks === null) {
-    return unavailable("Campaign regime depth statistics are invalid or incomplete.", input.sequenceContinuous, input.hasGaps);
+    return unavailable("Campaign regime depth statistics or twenty-five-basis-point coverage are invalid or incomplete.", input.sequenceContinuous, input.hasGaps);
   }
 
   const signedSteps: number[] = [];
@@ -328,6 +346,7 @@ export function classifyDizyQuantCampaignRegime(input: Readonly<{
     hasGaps: false,
     limitations: Object.freeze([
       "Regime labels describe only the reviewed sixty-second public depth/midpoint predictor window; they are not strategy trend labels.",
+      "Every classified frame must prove displayed depth coverage through twenty-five basis points on both sides.",
       "Volatility-shock precedence reuses the versioned DizyQuant resilience spread/depth thresholds and never uses a future outcome.",
       "Range versus directional classification uses midpoint path geometry only and does not infer cause, participant identity or future direction.",
     ]),
