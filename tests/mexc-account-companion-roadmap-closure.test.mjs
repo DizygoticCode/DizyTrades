@@ -20,7 +20,7 @@ test("Account Companion roadmap closes only with all reviewed evidence present",
   assert.ok(section, "completed Account Companion section must exist before the next programme boundary");
   const completed = section.match(/^- \[x\]/gm) ?? [];
   const incomplete = section.match(/^- \[ \]/gm) ?? [];
-  assert.equal(completed.length, 9);
+  assert.ok(completed.length >= 10, "all reviewed Account Companion closure items must remain complete");
   assert.equal(incomplete.length, 0);
   assert.doesNotMatch(section, /Advanced pending-order simulation/, "the next programme must not leak into this audit");
   assert.match(section, /MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION\.md/);
