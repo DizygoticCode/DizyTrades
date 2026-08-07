@@ -185,7 +185,7 @@ function freezeReplaySnapshot(snapshot: DizyQuantReplaySnapshot): DizyQuantRepla
     throw new Error("Duplicate DizyQuant Replay predictor metric");
   }
   const limitations = snapshot.limitations.map((value, index) =>
-    cleanText(String(value), `DizyQuant predictor limitation ${index + 1}`),
+    cleanText(String(value), `DizyQuant predictor limitation ${index + 1}`, 250),
   );
   return Object.freeze({
     ...snapshot,
