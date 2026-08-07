@@ -12,6 +12,8 @@ The root `instrumentation.ts` starts the existing DizyFlow archive collectors fi
 
 The compact publication hub is stored on the current runtime's `globalThis` so separately bundled server modules share one process state. Browser code receives its own browser-global copy and remains only a presentation subscriber.
 
+The current runner assumes the repository's existing single-instance file-storage architecture. Horizontal application scaling must not be enabled for this campaign without a separately reviewed cross-process lease and shared durable storage contract.
+
 ## Collector budget and terminal priority
 
 Low-memory DizyFlow defaults to two depth collectors. The existing background archive reserves up to `MAX_COLLECTORS - 1` collectors and defaults to `BTC_USDT`, deliberately preserving one slot for the actively viewed market.
@@ -104,9 +106,13 @@ Stored state fails validation if any pending or completed sample lacks matching 
 
 ## Persistence
 
-Runner state is stored below the existing `DATA_DIR` boundary at:
+Campaign collection requires an explicit durable `DATA_DIR`. Unlike ordinary development storage, this dataset has no `.data` fallback: if `DATA_DIR` is absent, the service enters `storage-failed` and collects nothing.
+
+Runner state is stored below that boundary at:
 
 `dizyquant/campaign/representative-v1.json`
+
+The deployment is responsible for mapping `DATA_DIR` to storage that survives process replacement and deploys. The current repository storage architecture supports one service instance; an ephemeral filesystem is not acceptable evidence storage for this campaign.
 
 The store:
 
@@ -116,7 +122,7 @@ The store:
 - writes to a private temporary file and atomically renames it into place;
 - treats malformed or incompatible existing state as a collection-stopping error rather than resetting the campaign to zero.
 
-Completed records, pending +60-second outcomes, methodology provenance and bounded expiry audit state survive a normal process restart.
+Completed records, pending +60-second outcomes, methodology provenance and bounded expiry audit state survive a normal process restart only when the configured `DATA_DIR` is durable.
 
 A storage write failure stops campaign collection. The runner does not continue accumulating unpersisted observations.
 
@@ -129,6 +135,8 @@ Authenticated users can inspect the bounded process status through:
 The response exposes the active residency, service phase, pending/completed/expired counts and the current nine campaign cells. It is private/no-store and contains no raw credentials or account state.
 
 The status may report `waiting-collector-capacity` while normal terminal activity uses the remaining low-memory collector slot. That is expected and preferable to degrading the customer-facing terminal.
+
+A `storage-failed` phase means the campaign is not counting observations. The deployment's `DATA_DIR` durability must be corrected before collection resumes; the service never substitutes ephemeral storage or resets an incompatible dataset automatically.
 
 ## Research and safety boundary
 
