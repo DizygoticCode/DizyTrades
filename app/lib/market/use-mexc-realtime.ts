@@ -34,6 +34,10 @@ type Options = {
 
 export const MEXC_FUTURES_PUBLIC_WS_URL = "wss://contract.mexc.com/edge";
 export const MEXC_SPOT_REST_REFRESH_MS = 10_000;
+export const MEXC_FUTURES_SUBSCRIPTION_CONFIRM_MS = 10_000;
+
+const subscriptionChannel = (value: unknown) =>
+  typeof value === "string" && value.startsWith("rs.sub.") ? value : null;
 
 export function useMexcRealtime(options: Options) {
   const callbacks = useRef(options);
@@ -88,14 +92,18 @@ export function useMexcRealtime(options: Options) {
     let socket: WebSocket | null = null;
     let heartbeat: number | undefined;
     let staleTimer: number | undefined;
+    let confirmationTimer: number | undefined;
     let reconnectTimer: number | undefined;
     let attempt = 0;
     let lastActivity = Date.now();
+    let feedConfirmed = false;
+    const confirmedSubscriptions = new Set<string>();
 
     const clearTimers = () => {
       if (heartbeat) clearInterval(heartbeat);
       if (staleTimer) clearInterval(staleTimer);
-      heartbeat = staleTimer = undefined;
+      if (confirmationTimer) clearTimeout(confirmationTimer);
+      heartbeat = staleTimer = confirmationTimer = undefined;
     };
 
     const close = () => {
@@ -124,6 +132,17 @@ export function useMexcRealtime(options: Options) {
       old.close();
     };
 
+    const confirmFeed = () => {
+      if (feedConfirmed || !valid()) return;
+      feedConfirmed = true;
+      if (confirmationTimer) clearTimeout(confirmationTimer);
+      confirmationTimer = undefined;
+      const recovered = attempt > 0;
+      attempt = 0;
+      callbacks.current.onStatus("live");
+      if (recovered) callbacks.current.onResync();
+    };
+
     const reconnect = () => {
       if (!valid() || reconnectTimer) return;
       close();
@@ -138,6 +157,8 @@ export function useMexcRealtime(options: Options) {
     const connect = () => {
       if (!valid() || socket) return;
       callbacks.current.onStatus(attempt ? "reconnecting" : "connecting");
+      feedConfirmed = false;
+      confirmedSubscriptions.clear();
       const current = new WebSocket(MEXC_FUTURES_PUBLIC_WS_URL);
       socket = current;
 
@@ -162,8 +183,9 @@ export function useMexcRealtime(options: Options) {
             compress: false,
           }),
         );
-        if (attempt) callbacks.current.onResync();
-        attempt = 0;
+        confirmationTimer = window.setTimeout(() => {
+          if (valid() && socket === current && !feedConfirmed) reconnect();
+        }, MEXC_FUTURES_SUBSCRIPTION_CONFIRM_MS);
         heartbeat = window.setInterval(() => {
           if (current.readyState === WebSocket.OPEN)
             current.send(JSON.stringify({ method: "ping" }));
@@ -177,18 +199,11 @@ export function useMexcRealtime(options: Options) {
         if (!valid() || socket !== current) return;
         const message = await decodeMexcMessage(event.data);
         if (!message || !valid() || socket !== current) return;
+        lastActivity = Date.now();
         const envelope =
           message && typeof message === "object"
             ? (message as Record<string, unknown>)
             : {};
-        if (
-          envelope.channel === "pong" ||
-          envelope.method === "pong" ||
-          envelope.data === "pong"
-        ) {
-          lastActivity = Date.now();
-          callbacks.current.onStatus("live");
-        }
         const serverTs = Number(envelope.ts ?? envelope.t);
         if (Number.isFinite(serverTs) && serverTs > 0) {
           callbacks.current.onClockOffset(
@@ -198,14 +213,45 @@ export function useMexcRealtime(options: Options) {
             ),
           );
         }
+
+        // Pong proves the transport is alive, not that market subscriptions were
+        // accepted. Do not promote a failed/empty market feed to LIVE on heartbeat.
+        if (
+          envelope.channel === "pong" ||
+          envelope.method === "pong" ||
+          envelope.data === "pong"
+        )
+          return;
+
+        if (envelope.channel === "rs.error") {
+          callbacks.current.onStatus("delayed");
+          reconnect();
+          return;
+        }
+
+        const acknowledgement = subscriptionChannel(envelope.channel);
+        if (acknowledgement) {
+          if (String(envelope.data ?? "").toLowerCase() !== "success") {
+            callbacks.current.onStatus("delayed");
+            reconnect();
+            return;
+          }
+          confirmedSubscriptions.add(acknowledgement);
+          if (
+            confirmedSubscriptions.has("rs.sub.kline") &&
+            confirmedSubscriptions.has("rs.sub.deal")
+          )
+            confirmFeed();
+          return;
+        }
+
         const kline = parseMexcKline(
           message,
           options.symbol,
           options.timeframe,
         );
         if (kline) {
-          lastActivity = Date.now();
-          callbacks.current.onStatus("live");
+          confirmFeed();
           callbacks.current.onKline(kline);
         }
         const deals = parseMexcDeals(
@@ -214,8 +260,7 @@ export function useMexcRealtime(options: Options) {
           callbacks.current.contractSize,
         );
         if (deals.length) {
-          lastActivity = Date.now();
-          callbacks.current.onStatus("live");
+          confirmFeed();
           deals.forEach(callbacks.current.onDeal);
         }
       };
@@ -229,7 +274,11 @@ export function useMexcRealtime(options: Options) {
       callbacks.current.onResync();
       if (!socket || socket.readyState > WebSocket.OPEN) reconnect();
     };
-    const online = () => reconnect();
+    const online = () => {
+      if (!socket || socket.readyState >= WebSocket.CLOSING) reconnect();
+      else if (socket.readyState === WebSocket.OPEN && feedConfirmed)
+        callbacks.current.onResync();
+    };
     const offline = () => {
       callbacks.current.onStatus("offline");
       close();
