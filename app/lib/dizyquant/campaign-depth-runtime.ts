@@ -32,6 +32,7 @@ const positive = (value: number) => Number.isFinite(value) && value > 0;
 const positiveInteger = (value: number) => Number.isSafeInteger(value) && value > 0;
 const symbolPattern = /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
 const REGIME_FRAME_RETENTION = 66 as const;
+const MAX_REGIME_ASOF_AGE_MS = 1_000 as const;
 
 export function inferDizyQuantCampaignPriceStep(
   snapshot: DepthSnapshot,
@@ -185,13 +186,17 @@ export class DizyQuantCampaignDepthRuntime {
 
   private capturePending(boundaryTimeMs: number) {
     if (!this.pending) return false;
+    const sourceTimeMs = this.pending.envelope.snapshot.engineTimeMs;
     this.window.captureDepth({
-      timestampMs: this.pending.envelope.snapshot.engineTimeMs,
+      timestampMs: sourceTimeMs,
       book: this.pending.book,
       sequenceContinuous: this.pending.sequenceContinuous,
       hasGaps: this.pending.hasGaps,
     });
+    const asOfAgeMs = boundaryTimeMs - sourceTimeMs;
     if (
+      asOfAgeMs < 0 ||
+      asOfAgeMs > MAX_REGIME_ASOF_AGE_MS ||
       this.pending.hasGaps ||
       this.pending.sequenceContinuous !== true ||
       !this.pending.coverageComplete
