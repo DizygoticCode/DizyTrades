@@ -37,6 +37,7 @@ function validEvidence(
 ): value is DizyQuantLiveEvidenceBuildResult {
   if (!value || typeof value !== "object") return false;
   const evidence = value as Partial<DizyQuantLiveEvidenceBuildResult>;
+  const ladder = evidence.snapshots?.ladder;
   const migration = evidence.snapshots?.liquidityMigration;
   const resilience = evidence.snapshots?.resilience;
   return (
@@ -44,6 +45,7 @@ function validEvidence(
     evidence.windowToMs === boundaryTimeMs &&
     evidence.shockTimestampMs === shockTimestampMs &&
     Boolean(evidence.snapshots) &&
+    ladder?.availability === "fresh" &&
     migration?.availability === "fresh" &&
     migration.sequenceContinuous === true &&
     migration.hasGaps === false &&
