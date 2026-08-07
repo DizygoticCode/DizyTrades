@@ -13,6 +13,7 @@ import "./terminal-responsive-mobile.css";
 import "./terminal-scrollbar-polish.css";
 import "./terminal-topbar-polish.css";
 import "./heatmap-settings.css";
+import "./navigation-shell-cleanup.css";
 
 export const metadata: Metadata = {
   title: "DizyTrades — DizyCharts & DizySignals",
