@@ -8,6 +8,11 @@ import {
 } from "../order-flow/depth-collector.ts";
 import type { DepthEnvelope } from "../order-flow/types.ts";
 import {
+  ensureDizyQuantCampaignCollectorSeed,
+  readDizyQuantCampaignCollectorReadiness,
+  type DizyQuantCampaignCollectorReadiness,
+} from "./campaign-collector-readiness.ts";
+import {
   DizyQuantCampaignDepthRuntime,
   inferDizyQuantCampaignPriceStep,
 } from "./campaign-depth-runtime.ts";
@@ -23,7 +28,7 @@ import {
 import { publishDizyQuantCampaignDepthPublication } from "./campaign-runtime-feed.ts";
 
 export const DIZYQUANT_CAMPAIGN_RECORDER_SERVICE_VERSION =
-  "dizyquant-campaign-recorder-service/1.0.0" as const;
+  "dizyquant-campaign-recorder-service/1.1.0" as const;
 export const DIZYQUANT_CAMPAIGN_LEASE_PULSE_MS = 5_000 as const;
 export const DIZYQUANT_CAMPAIGN_MARKET_RETRY_MS = 15_000 as const;
 
@@ -32,6 +37,7 @@ export type DizyQuantCampaignRecorderServicePhase =
   | "collecting"
   | "waiting-market-metadata"
   | "waiting-collector-capacity"
+  | "waiting-depth-seed"
   | "storage-failed";
 
 export type DizyQuantCampaignRecorderServiceStatus = Readonly<{
@@ -39,6 +45,9 @@ export type DizyQuantCampaignRecorderServiceStatus = Readonly<{
   phase: DizyQuantCampaignRecorderServicePhase;
   activeSymbol: string | null;
   residency: DizyQuantCampaignResidency | null;
+  collector: DizyQuantCampaignCollectorReadiness | null;
+  lastPublicationBoundaryMs: number | null;
+  lastTargetPublicationBoundaryMs: number | null;
   lastError: string | null;
   startedAtMs: number;
   stats: ReturnType<DizyQuantCampaignRecorderRunner["stats"]> | null;
@@ -109,6 +118,8 @@ export class DizyQuantCampaignRecorderService {
   private persistence: Promise<unknown> = Promise.resolve();
   private storageFailed = false;
   private lastError: string | null = null;
+  private lastPublicationBoundaryMs: number | null = null;
+  private lastTargetPublicationBoundaryMs: number | null = null;
   private readonly startedAtMs = Date.now();
   private starting = false;
 
@@ -224,6 +235,10 @@ export class DizyQuantCampaignRecorderService {
       }
       const publication = this.runtime.push(envelope);
       if (!publication) return;
+      this.lastPublicationBoundaryMs = publication.boundaryTimeMs;
+      if (publication.boundaryTimeMs === this.residency?.predictorBoundaryMs) {
+        this.lastTargetPublicationBoundaryMs = publication.boundaryTimeMs;
+      }
       publishDizyQuantCampaignDepthPublication(publication);
       const mutation = this.runner.consumePublication(publication);
       this.persistIfChanged(mutation.changed);
@@ -281,6 +296,31 @@ export class DizyQuantCampaignRecorderService {
     }
 
     try {
+      const changingCollector =
+        collector !== this.collector || this.activeSymbol !== market.symbol;
+      if (changingCollector) {
+        const seeded = await ensureDizyQuantCampaignCollectorSeed(collector);
+        if (this.storageFailed) return;
+        if (Date.now() >= residency.toMs) {
+          this.scheduleWake(250);
+          return;
+        }
+        if (!seeded) {
+          const readiness = readDizyQuantCampaignCollectorReadiness(collector);
+          this.detachCollector();
+          this.phase = "waiting-depth-seed";
+          this.lastError =
+            readiness.lastError ?? "DizyQuant campaign authoritative depth seed is unavailable";
+          this.scheduleWake(
+            Math.min(
+              DIZYQUANT_CAMPAIGN_LEASE_PULSE_MS,
+              Math.max(250, residency.toMs - Date.now()),
+            ),
+          );
+          return;
+        }
+      }
+
       this.attachCollector(collector, market);
       this.lastError = null;
       this.phase = "collecting";
@@ -301,6 +341,11 @@ export class DizyQuantCampaignRecorderService {
       phase: this.phase,
       activeSymbol: this.activeSymbol,
       residency: this.residency,
+      collector: this.collector
+        ? readDizyQuantCampaignCollectorReadiness(this.collector)
+        : null,
+      lastPublicationBoundaryMs: this.lastPublicationBoundaryMs,
+      lastTargetPublicationBoundaryMs: this.lastTargetPublicationBoundaryMs,
       lastError: this.lastError,
       startedAtMs: this.startedAtMs,
       stats: this.runner?.stats() ?? null,
@@ -329,6 +374,9 @@ export function readDizyQuantCampaignRecorderServiceStatus(): DizyQuantCampaignR
       phase: "starting" as const,
       activeSymbol: null,
       residency: null,
+      collector: null,
+      lastPublicationBoundaryMs: null,
+      lastTargetPublicationBoundaryMs: null,
       lastError: null,
       startedAtMs: 0,
       stats: null,
