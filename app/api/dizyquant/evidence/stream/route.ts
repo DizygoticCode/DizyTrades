@@ -17,11 +17,13 @@ export const runtime = "nodejs";
 
 const encode = (event: string, value: unknown) =>
   `event: ${event}\ndata: ${JSON.stringify(value)}\n\n`;
+const initialCampaignSymbol = (value: string) =>
+  DIZYQUANT_INITIAL_EVIDENCE_SYMBOLS.some((symbol) => symbol === value);
 
 export async function GET(request: Request) {
   if (!(await requireApiUser())) return new Response("Unauthorised", { status: 401 });
   const symbol = normalizeDepthSymbol(new URL(request.url).searchParams.get("symbol") ?? "");
-  if (!symbol || !DIZYQUANT_INITIAL_EVIDENCE_SYMBOLS.includes(symbol as never)) {
+  if (!symbol || !initialCampaignSymbol(symbol)) {
     return new Response("Symbol is outside the initial DizyQuant campaign", { status: 400 });
   }
 
