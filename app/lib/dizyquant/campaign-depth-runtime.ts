@@ -5,6 +5,11 @@ import {
   DIZYQUANT_CAMPAIGN_DEPTH_RUNTIME_VERSION,
   type DizyQuantCampaignDepthPublication,
 } from "./campaign-runtime-contract.ts";
+import {
+  DIZYQUANT_CAMPAIGN_REGIME_FORMULA_VERSION,
+  classifyDizyQuantCampaignRegime,
+} from "./campaign-regime.ts";
+import type { DizyQuantLiquidityFrame } from "./liquidity-migration.ts";
 import type { BookView, DepthEnvelope, DepthSnapshot } from "../order-flow/types.ts";
 
 export {
@@ -26,6 +31,8 @@ type PendingSecond = {
 const positive = (value: number) => Number.isFinite(value) && value > 0;
 const positiveInteger = (value: number) => Number.isSafeInteger(value) && value > 0;
 const symbolPattern = /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
+const REGIME_FRAME_RETENTION = 66 as const;
+const MAX_REGIME_ASOF_AGE_MS = 1_000 as const;
 
 export function inferDizyQuantCampaignPriceStep(
   snapshot: DepthSnapshot,
@@ -90,12 +97,66 @@ function mergeContinuity(left: boolean | null, right: boolean | null) {
   return null;
 }
 
+function frameFromBook(
+  book: BookView,
+  timestampMs: number,
+  priceStep: number,
+): DizyQuantLiquidityFrame | null {
+  if (!book.valid || !book.bids.length || !book.asks.length || !positive(priceStep)) return null;
+  const bestBid = book.bids[0].price;
+  const bestAsk = book.asks[0].price;
+  if (!positive(bestBid) || !positive(bestAsk) || bestBid >= bestAsk) return null;
+  const midpoint = bestBid + (bestAsk - bestBid) / 2;
+  const levels: Array<{ priceTick: number; bidContracts: number; askContracts: number }> = [];
+  const ticks = new Set<number>();
+  const add = (side: "bid" | "ask", price: number, contractQuantity: number) => {
+    if (!positive(price) || !Number.isFinite(contractQuantity) || contractQuantity < 0) return false;
+    if (contractQuantity === 0) return true;
+    const priceTick = Math.round(price / priceStep);
+    const reconstructed = priceTick * priceStep;
+    const tolerance = Math.max(1e-9, Math.abs(priceStep) * 1e-6);
+    if (
+      !Number.isSafeInteger(priceTick) ||
+      priceTick <= 0 ||
+      !Number.isFinite(reconstructed) ||
+      Math.abs(reconstructed - price) > tolerance ||
+      ticks.has(priceTick) ||
+      (side === "bid" ? price >= midpoint : price <= midpoint)
+    ) {
+      return false;
+    }
+    ticks.add(priceTick);
+    levels.push({
+      priceTick,
+      bidContracts: side === "bid" ? contractQuantity : 0,
+      askContracts: side === "ask" ? contractQuantity : 0,
+    });
+    return true;
+  };
+  for (const level of book.bids) if (!add("bid", level.price, level.contractQuantity)) return null;
+  for (const level of book.asks) if (!add("ask", level.price, level.contractQuantity)) return null;
+  if (
+    !levels.some((level) => level.bidContracts > 0) ||
+    !levels.some((level) => level.askContracts > 0) ||
+    levels.length > 2_000
+  ) {
+    return null;
+  }
+  levels.sort((left, right) => left.priceTick - right.priceTick);
+  return Object.freeze({
+    timestampMs,
+    midpoint,
+    levels: Object.freeze(levels.map((level) => Object.freeze(level))),
+  });
+}
+
 export class DizyQuantCampaignDepthRuntime {
   readonly symbol: string;
   readonly contractSize: number;
   readonly priceStep: number;
   private window: DizyQuantLiveEvidenceWindow;
   private pending: PendingSecond | null = null;
+  private regimeFrames: DizyQuantLiquidityFrame[] = [];
   private lastBoundaryTimeMs = 0;
   private lastVersionGaps = 0;
   private lastSeenDepthTimeMs = 0;
@@ -117,19 +178,46 @@ export class DizyQuantCampaignDepthRuntime {
   clear() {
     this.window.clear();
     this.pending = null;
+    this.regimeFrames = [];
     this.lastBoundaryTimeMs = 0;
     this.lastVersionGaps = 0;
     this.lastSeenDepthTimeMs = 0;
   }
 
-  private capturePending() {
-    if (!this.pending) return;
+  private capturePending(boundaryTimeMs: number) {
+    if (!this.pending) return false;
+    const sourceTimeMs = this.pending.envelope.snapshot.engineTimeMs;
     this.window.captureDepth({
-      timestampMs: this.pending.envelope.snapshot.engineTimeMs,
+      timestampMs: sourceTimeMs,
       book: this.pending.book,
       sequenceContinuous: this.pending.sequenceContinuous,
       hasGaps: this.pending.hasGaps,
     });
+    const asOfAgeMs = boundaryTimeMs - sourceTimeMs;
+    if (
+      asOfAgeMs < 0 ||
+      asOfAgeMs > MAX_REGIME_ASOF_AGE_MS ||
+      this.pending.hasGaps ||
+      this.pending.sequenceContinuous !== true ||
+      !this.pending.coverageComplete
+    ) {
+      this.regimeFrames = [];
+      return false;
+    }
+    const frame = frameFromBook(this.pending.book, boundaryTimeMs, this.priceStep);
+    if (!frame) {
+      this.regimeFrames = [];
+      return false;
+    }
+    const previous = this.regimeFrames.at(-1);
+    if (previous && boundaryTimeMs !== previous.timestampMs + 1_000) {
+      this.regimeFrames = [];
+    }
+    this.regimeFrames.push(frame);
+    if (this.regimeFrames.length > REGIME_FRAME_RETENTION) {
+      this.regimeFrames.splice(0, this.regimeFrames.length - REGIME_FRAME_RETENTION);
+    }
+    return true;
   }
 
   push(envelope: DepthEnvelope): DizyQuantCampaignDepthPublication | null {
@@ -199,9 +287,9 @@ export class DizyQuantCampaignDepthRuntime {
     }
 
     const completedSecond = this.pending;
-    this.capturePending();
-    this.pending = next;
     const boundaryTimeMs = currentSecond;
+    this.capturePending(boundaryTimeMs);
+    this.pending = next;
     if (
       boundaryTimeMs <= 0 ||
       boundaryTimeMs <= this.lastBoundaryTimeMs ||
@@ -211,13 +299,58 @@ export class DizyQuantCampaignDepthRuntime {
     }
     this.lastBoundaryTimeMs = boundaryTimeMs;
 
+    const regimeFrames = this.regimeFrames.slice(-61);
+    const classification = classifyDizyQuantCampaignRegime({
+      frames: regimeFrames,
+      priceStep: this.priceStep,
+      contractSize: this.contractSize,
+      sequenceContinuous: regimeFrames.length === 61 ? true : null,
+      hasGaps: regimeFrames.length !== 61,
+    });
+    if (
+      !classification.available ||
+      classification.regime === null ||
+      classification.direction === null ||
+      classification.windowFromMs === null ||
+      classification.windowToMs !== boundaryTimeMs
+    ) {
+      return null;
+    }
+    const baselineMidpoint = regimeFrames.at(-1)?.midpoint ?? null;
+    if (!positive(baselineMidpoint ?? Number.NaN)) return null;
+    const selectedShockTimestampMs =
+      classification.regime === "volatility-shock"
+        ? classification.shock?.timestampMs ?? null
+        : null;
+    if (classification.regime === "volatility-shock" && selectedShockTimestampMs === null) {
+      return null;
+    }
+
     const evidence = this.window.build({
       windowToMs: boundaryTimeMs,
       evaluatedAtMs: Math.max(boundaryTimeMs, envelope.receivedAt),
       tradeSequenceContinuous: null,
       tradeHasGaps: false,
-      shockTimestampMs: null,
+      shockTimestampMs: selectedShockTimestampMs,
     });
+    if (
+      evidence.snapshots.ladder === null ||
+      evidence.snapshots.ladder.availability !== "fresh" ||
+      evidence.snapshots.liquidityMigration.availability !== "fresh" ||
+      evidence.snapshots.liquidityMigration.sequenceContinuous !== true ||
+      evidence.snapshots.liquidityMigration.hasGaps
+    ) {
+      return null;
+    }
+    if (
+      selectedShockTimestampMs !== null &&
+      (evidence.snapshots.resilience === null ||
+        evidence.snapshots.resilience.availability !== "fresh" ||
+        evidence.snapshots.resilience.sequenceContinuous !== true ||
+        evidence.snapshots.resilience.hasGaps)
+    ) {
+      return null;
+    }
 
     return Object.freeze({
       runtimeVersion: DIZYQUANT_CAMPAIGN_DEPTH_RUNTIME_VERSION,
@@ -225,12 +358,19 @@ export class DizyQuantCampaignDepthRuntime {
       sourceTimeMs: completedSecond.envelope.snapshot.engineTimeMs,
       receivedTimeMs: envelope.receivedAt,
       boundaryTimeMs,
+      baselineMidpoint: baselineMidpoint!,
       coverageBandBps: DIZYQUANT_CAMPAIGN_DEPTH_COVERAGE_BPS,
-      coverageComplete: completedSecond.coverageComplete,
-      sequenceContinuous: evidence.depthSequenceContinuous,
-      hasGaps: evidence.depthHasGaps,
+      coverageComplete: true,
+      sequenceContinuous: true,
+      hasGaps: false,
       versionGaps: completedSecond.versionGaps,
-      shockSelectionRequired: true,
+      regimeFormulaVersion: DIZYQUANT_CAMPAIGN_REGIME_FORMULA_VERSION,
+      regime: classification.regime,
+      regimeDirection: classification.direction,
+      regimeWindowFromMs: classification.windowFromMs,
+      regimeWindowToMs: classification.windowToMs,
+      selectedShockTimestampMs,
+      shockSelectionRequired: false,
       evidence,
       researchOnly: true,
       decisionEligible: false,

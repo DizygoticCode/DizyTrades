@@ -1,9 +1,17 @@
 import type { DizyQuantLiveEvidenceBuildResult } from "./live-evidence-window.ts";
 
 export const DIZYQUANT_CAMPAIGN_DEPTH_RUNTIME_VERSION =
-  "dizyquant-campaign-depth-runtime/1.0.0" as const;
+  "dizyquant-campaign-depth-runtime/1.1.0" as const;
+export const DIZYQUANT_CAMPAIGN_REGIME_RUNTIME_VERSION =
+  "dizyquant-campaign-regime/1.0.0" as const;
 export const DIZYQUANT_CAMPAIGN_DEPTH_COVERAGE_BPS = 25 as const;
 export const DIZYQUANT_CAMPAIGN_DEPTH_PUBLICATION_MS = 5_000 as const;
+
+export type DizyQuantCampaignRuntimeRegime =
+  | "range"
+  | "directional"
+  | "volatility-shock";
+export type DizyQuantCampaignRuntimeDirection = "up" | "down" | "flat";
 
 export type DizyQuantCampaignDepthPublication = Readonly<{
   runtimeVersion: typeof DIZYQUANT_CAMPAIGN_DEPTH_RUNTIME_VERSION;
@@ -11,12 +19,19 @@ export type DizyQuantCampaignDepthPublication = Readonly<{
   sourceTimeMs: number;
   receivedTimeMs: number;
   boundaryTimeMs: number;
+  baselineMidpoint: number;
   coverageBandBps: typeof DIZYQUANT_CAMPAIGN_DEPTH_COVERAGE_BPS;
-  coverageComplete: boolean;
-  sequenceContinuous: boolean | null;
-  hasGaps: boolean;
+  coverageComplete: true;
+  sequenceContinuous: true;
+  hasGaps: false;
   versionGaps: number;
-  shockSelectionRequired: true;
+  regimeFormulaVersion: typeof DIZYQUANT_CAMPAIGN_REGIME_RUNTIME_VERSION;
+  regime: DizyQuantCampaignRuntimeRegime;
+  regimeDirection: DizyQuantCampaignRuntimeDirection;
+  regimeWindowFromMs: number;
+  regimeWindowToMs: number;
+  selectedShockTimestampMs: number | null;
+  shockSelectionRequired: false;
   evidence: DizyQuantLiveEvidenceBuildResult;
   researchOnly: true;
   decisionEligible: false;

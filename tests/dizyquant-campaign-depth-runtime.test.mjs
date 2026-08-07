@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import {
   DIZYQUANT_CAMPAIGN_DEPTH_PUBLICATION_MS,
+  DIZYQUANT_CAMPAIGN_DEPTH_RUNTIME_VERSION,
   DizyQuantCampaignDepthRuntime,
   depthBookCoversDizyQuantCampaignBand,
   inferDizyQuantCampaignPriceStep,
@@ -56,6 +57,15 @@ function envelope(index, overrides = {}) {
   };
 }
 
+function collect(runtime, from, to, transform = (index) => envelope(index)) {
+  const publications = [];
+  for (let index = from; index <= to; index += 1) {
+    const publication = runtime.push(transform(index));
+    if (publication) publications.push(publication);
+  }
+  return publications;
+}
+
 test("campaign band coverage is proven from actual deepest visible prices", () => {
   const depth = levels();
   const complete = { valid: true, version: 1, bids: depth.bids, asks: depth.asks };
@@ -74,67 +84,118 @@ test("price step prefers reviewed market metadata and otherwise infers the small
   assert.equal(inferDizyQuantCampaignPriceStep(snapshot, null), 0.1);
 });
 
-test("runtime retains one as-of frame per second and publishes fresh depth evidence every five seconds", () => {
+test("runtime waits for a complete reviewed regime window before publishing labelled range evidence", () => {
   const runtime = new DizyQuantCampaignDepthRuntime({
     symbol: "BTC_USDT",
     contractSize: 1,
     priceStep: 0.1,
   });
-  const publications = [];
-  for (let index = 0; index <= 40; index += 1) {
-    const publication = runtime.push(envelope(index));
-    if (publication) publications.push(publication);
-  }
-  assert.ok(publications.length >= 6);
+  assert.equal(collect(runtime, 0, 60).length, 0);
+  const publications = collect(runtime, 61, 75);
+  assert.ok(publications.length >= 2);
   assert.ok(
     publications.every(
       (value) => value.boundaryTimeMs % DIZYQUANT_CAMPAIGN_DEPTH_PUBLICATION_MS === 0,
     ),
   );
   const latest = publications.at(-1);
+  assert.equal(latest.runtimeVersion, DIZYQUANT_CAMPAIGN_DEPTH_RUNTIME_VERSION);
   assert.equal(latest.coverageComplete, true);
+  assert.equal(latest.sequenceContinuous, true);
+  assert.equal(latest.hasGaps, false);
+  assert.equal(latest.regime, "range");
+  assert.equal(latest.regimeDirection, "flat");
+  assert.equal(latest.regimeWindowToMs, latest.boundaryTimeMs);
+  assert.equal(latest.regimeWindowFromMs, latest.boundaryTimeMs - 60_000);
+  assert.equal(latest.baselineMidpoint, 100);
+  assert.ok(latest.boundaryTimeMs - latest.sourceTimeMs >= 0);
+  assert.ok(latest.boundaryTimeMs - latest.sourceTimeMs <= 1_000);
+  assert.ok(latest.evidence.snapshots.ladder);
+  assert.equal(latest.evidence.snapshots.ladder.availability, "fresh");
+  assert.equal(latest.evidence.snapshots.ladder.sourceTimeMs, latest.sourceTimeMs);
+  assert.equal(latest.shockSelectionRequired, false);
+  assert.equal(latest.selectedShockTimestampMs, null);
   assert.equal(latest.researchOnly, true);
   assert.equal(latest.signalEligible, false);
   assert.equal(latest.executionEligible, false);
-  assert.equal(latest.shockSelectionRequired, true);
   assert.equal(latest.evidence.snapshots.liquidityMigration.availability, "fresh");
   assert.equal(latest.evidence.snapshots.liquidityMigration.sequenceContinuous, true);
   assert.equal(latest.evidence.snapshots.resilience, null);
   assert.equal(latest.evidence.tradeSequenceContinuous, null);
 });
 
-test("an incomplete 25-bps frame resets continuity instead of becoming a qualified campaign window", () => {
+test("runtime passes the deterministic selected shock into the real resilience snapshot", () => {
   const runtime = new DizyQuantCampaignDepthRuntime({
     symbol: "BTC_USDT",
     contractSize: 1,
     priceStep: 0.1,
   });
-  for (let index = 0; index <= 35; index += 1) runtime.push(envelope(index));
-  const shallow = levels();
-  runtime.push(
-    envelope(36, {
-      snapshot: { bids: shallow.bids.slice(0, 2), asks: shallow.asks.slice(0, 2) },
-    }),
-  );
-  let after = null;
-  for (let index = 37; index <= 40; index += 1) {
-    after = runtime.push(envelope(index)) ?? after;
-  }
-  assert.ok(after);
-  assert.notEqual(after.evidence.snapshots.liquidityMigration.availability, "fresh");
-  assert.equal(after.hasGaps, true);
+  const publications = collect(runtime, 0, 75, (index) => {
+    if (index !== 40) return envelope(index);
+    const depth = levels();
+    return envelope(index, {
+      snapshot: {
+        bids: depth.bids.map((level) => ({ ...level, contractQuantity: level.contractQuantity * 0.4 })),
+        asks: depth.asks,
+      },
+    });
+  });
+  const shock = publications.find((value) => value.regime === "volatility-shock");
+  assert.ok(shock);
+  assert.equal(shock.selectedShockTimestampMs, BASE + 41_000);
+  assert.equal(shock.evidence.shockTimestampMs, shock.selectedShockTimestampMs);
+  assert.ok(shock.evidence.snapshots.resilience);
+  assert.equal(shock.evidence.snapshots.resilience.availability, "fresh");
+  assert.equal(shock.evidence.snapshots.resilience.sequenceContinuous, true);
 });
 
-test("recovery state clears the bounded research window", () => {
+test("an incomplete 25-bps frame resets regime continuity and requires a fresh sixty-second window", () => {
   const runtime = new DizyQuantCampaignDepthRuntime({
     symbol: "BTC_USDT",
     contractSize: 1,
     priceStep: 0.1,
   });
-  for (let index = 0; index <= 20; index += 1) runtime.push(envelope(index));
+  collect(runtime, 0, 65);
+  const shallow = levels();
   assert.equal(
     runtime.push(
-      envelope(21, {
+      envelope(66, {
+        snapshot: { bids: shallow.bids.slice(0, 2), asks: shallow.asks.slice(0, 2) },
+      }),
+    ),
+    null,
+  );
+  assert.equal(collect(runtime, 67, 125).length, 0);
+  const recovered = collect(runtime, 126, 135);
+  assert.ok(recovered.length >= 1);
+  assert.equal(recovered.at(-1).regime, "range");
+  assert.equal(recovered.at(-1).hasGaps, false);
+});
+
+test("a missing source second fails the one-second as-of rule even without an explicit gap flag", () => {
+  const runtime = new DizyQuantCampaignDepthRuntime({
+    symbol: "BTC_USDT",
+    contractSize: 1,
+    priceStep: 0.1,
+  });
+  collect(runtime, 0, 65);
+  assert.equal(runtime.push(envelope(67)), null);
+  assert.equal(collect(runtime, 68, 127).length, 0);
+  const recovered = collect(runtime, 128, 135);
+  assert.ok(recovered.length >= 1);
+  assert.equal(recovered.at(-1).regime, "range");
+});
+
+test("recovery state clears the bounded regime and evidence windows", () => {
+  const runtime = new DizyQuantCampaignDepthRuntime({
+    symbol: "BTC_USDT",
+    contractSize: 1,
+    priceStep: 0.1,
+  });
+  collect(runtime, 0, 65);
+  assert.equal(
+    runtime.push(
+      envelope(66, {
         diagnostic: {
           recovering: true,
           sourceMode: "RECONNECTING — LAST BOOK RETAINED",
@@ -144,35 +205,47 @@ test("recovery state clears the bounded research window", () => {
     ),
     null,
   );
-  let publication = null;
-  for (let index = 22; index <= 30; index += 1) publication = runtime.push(envelope(index)) ?? publication;
-  assert.ok(publication);
-  assert.notEqual(publication.evidence.snapshots.liquidityMigration.availability, "fresh");
+  assert.equal(collect(runtime, 67, 126).length, 0);
+  const recovered = collect(runtime, 127, 135);
+  assert.ok(recovered.length >= 1);
+  assert.equal(recovered.at(-1).sequenceContinuous, true);
 });
 
-test("client campaign feed is in-memory, validated and monotonic", () => {
+test("client campaign feed validates labelled evidence and remains monotonic", () => {
   clearDizyQuantCampaignDepthPublication();
   const runtime = new DizyQuantCampaignDepthRuntime({
     symbol: "BTC_USDT",
     contractSize: 1,
     priceStep: 0.1,
   });
-  let publication = null;
-  for (let index = 0; index <= 10; index += 1) publication = runtime.push(envelope(index)) ?? publication;
-  assert.ok(publication);
+  const publications = collect(runtime, 0, 75);
+  assert.ok(publications.length >= 2);
+  const older = publications.at(-2);
+  const publication = publications.at(-1);
   assert.equal(publishDizyQuantCampaignDepthPublication(publication), publication);
   assert.equal(readDizyQuantCampaignDepthPublication("BTC_USDT"), publication);
-  const older = { ...publication, boundaryTimeMs: publication.boundaryTimeMs - 5_000 };
   assert.equal(publishDizyQuantCampaignDepthPublication(older), publication);
+  assert.equal(
+    publishDizyQuantCampaignDepthPublication({
+      ...publication,
+      regime: "volatility-shock",
+      selectedShockTimestampMs: null,
+    }),
+    null,
+  );
+  const { selectedShockTimestampMs: omitted, ...missingShockField } = publication;
+  assert.equal(omitted, null);
+  assert.equal(publishDizyQuantCampaignDepthPublication(missingShockField), null);
   assert.equal(publishDizyQuantCampaignDepthPublication({ nope: true }), null);
   clearDizyQuantCampaignDepthPublication();
 });
 
-test("runtime source contract uses the shared collector and keeps heavy research code off the client feed", async () => {
+test("runtime source contract stays research-only and does not attach the recorder yet", async () => {
   const route = await readFile("app/api/dizyquant/evidence/stream/route.ts", "utf8");
   const publisher = await readFile("app/dizyquant-snapshot-publisher.tsx", "utf8");
   const feed = await readFile("app/lib/dizyquant/campaign-runtime-feed.ts", "utf8");
   const contract = await readFile("app/lib/dizyquant/campaign-runtime-contract.ts", "utf8");
+  const runtime = await readFile("app/lib/dizyquant/campaign-depth-runtime.ts", "utf8");
   assert.match(route, /acquireDepthCollector/);
   assert.match(route, /DizyQuantCampaignDepthRuntime/);
   assert.match(route, /DIZYQUANT_INITIAL_EVIDENCE_SYMBOLS/);
@@ -180,6 +253,11 @@ test("runtime source contract uses the shared collector and keeps heavy research
   assert.match(feed, /campaign-runtime-contract/);
   assert.doesNotMatch(feed, /campaign-depth-runtime/);
   assert.match(contract, /import type \{ DizyQuantLiveEvidenceBuildResult \}/);
+  assert.match(runtime, /classifyDizyQuantCampaignRegime/);
+  assert.match(runtime, /MAX_REGIME_ASOF_AGE_MS/);
+  assert.match(runtime, /shockTimestampMs: selectedShockTimestampMs/);
+  assert.doesNotMatch(route, /evidence-recorder/);
+  assert.doesNotMatch(publisher, /evidence-recorder/);
   assert.doesNotMatch(feed, /localStorage|sessionStorage|indexedDB/i);
   assert.doesNotMatch(publisher, /localStorage.*campaign|campaign.*localStorage/i);
 });
