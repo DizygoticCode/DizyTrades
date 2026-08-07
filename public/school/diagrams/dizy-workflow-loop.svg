@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" role="img" aria-labelledby="title desc">
+<title id="title">The complete DizyTrades research loop</title>
+<desc id="desc">A connected evidence workflow from Scanner and Structure through Charts, Signals, Paper, Journal, Replay, Behaviour and Performance.</desc>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#ffd071"/></marker>
+  <style>
+    .t{font-family:Arial,Helvetica,sans-serif}.h{font-size:24px;font-weight:700;fill:#eef2fb}.k{font-size:10px;font-weight:700;letter-spacing:1.4px;fill:#8996ad}.n{font-size:16px;font-weight:700;fill:#eef2fb}.s{font-size:11px;fill:#b3bdd0}.a{fill:none;stroke:#ffd071;stroke-width:3;marker-end:url(#arrow)}
+  </style>
+</defs>
+<rect width="900" height="420" rx="24" fill="#090d16"/>
+<text class="t h" x="34" y="42">THE COMPLETE DIZYTRADES RESEARCH LOOP</text>
+<text class="t k" x="35" y="62">DISCOVER → EXPLAIN → SIMULATE → RECONSTRUCT → IMPROVE</text>
+
+<g class="t">
+  <g transform="translate(35 95)">
+    <rect width="150" height="82" rx="14" fill="#151f30" stroke="#ffb45c" stroke-width="2"/>
+    <text class="k" x="16" y="22" fill="#ffb45c">01 · DISCOVER</text><text class="n" x="16" y="47">DizyScanner</text><text class="s" x="16" y="65">bounded candidates</text>
+  </g>
+  <g transform="translate(225 95)">
+    <rect width="150" height="82" rx="14" fill="#132332" stroke="#5ed4ff" stroke-width="2"/>
+    <text class="k" x="16" y="22" fill="#5ed4ff">02 · CONTEXT</text><text class="n" x="16" y="47">DizyStructure</text><text class="s" x="16" y="65">sessions · value · swings</text>
+  </g>
+  <g transform="translate(415 95)">
+    <rect width="205" height="82" rx="14" fill="#172034" stroke="#7b9cff" stroke-width="2"/>
+    <text class="k" x="16" y="22" fill="#7b9cff">03 · EXPLAIN</text><text class="n" x="16" y="47">Charts + Signals</text><text class="s" x="16" y="65">closed-candle evidence</text>
+  </g>
+  <g transform="translate(660 95)">
+    <rect width="205" height="82" rx="14" fill="#112820" stroke="#2ee6a6" stroke-width="2"/>
+    <text class="k" x="16" y="22" fill="#2ee6a6">04 · SIMULATE</text><text class="n" x="16" y="47">DizyPaper</text><text class="s" x="16" y="65">invalidation · size · costs</text>
+  </g>
+
+  <g transform="translate(660 250)">
+    <rect width="205" height="82" rx="14" fill="#2a1c28" stroke="#ff7fc8" stroke-width="2"/>
+    <text class="k" x="16" y="22" fill="#ff7fc8">05 · RECORD</text><text class="n" x="16" y="47">DizyJournal</text><text class="s" x="16" y="65">immutable trade facts</text>
+  </g>
+  <g transform="translate(415 250)">
+    <rect width="205" height="82" rx="14" fill="#201a34" stroke="#b08cff" stroke-width="2"/>
+    <text class="k" x="16" y="22" fill="#b08cff">06 · RECONSTRUCT</text><text class="n" x="16" y="47">Replay + Historical Flow</text><text class="s" x="16" y="65">evidence available then</text>
+  </g>
+  <g transform="translate(170 250)">
+    <rect width="205" height="82" rx="14" fill="#112827" stroke="#44e9df" stroke-width="2"/>
+    <text class="k" x="16" y="22" fill="#44e9df">07 · REVIEW</text><text class="n" x="16" y="47">DizyBrain Behaviour</text><text class="s" x="16" y="65">recurring process findings</text>
+  </g>
+  <g transform="translate(35 250)">
+    <rect width="95" height="82" rx="14" fill="#281f16" stroke="#ffd071" stroke-width="2"/>
+    <text class="k" x="12" y="22" fill="#ffd071">08</text><text class="n" x="12" y="47">Measure</text><text class="s" x="12" y="65">Performance</text>
+  </g>
+</g>
+
+<path class="a" d="M185 136H218"/><path class="a" d="M375 136H408"/><path class="a" d="M620 136H653"/>
+<path class="a" d="M762 177V243"/><path class="a" d="M660 291H627"/><path class="a" d="M415 291H382"/><path class="a" d="M170 291H137"/>
+<path class="a" d="M82 250V208C82 194 92 187 107 187H808C826 187 839 173 839 155"/>
+<rect x="240" y="360" width="420" height="35" rx="17" fill="#111827" stroke="#2b3549"/>
+<text class="t s" x="450" y="382" text-anchor="middle">Improvement feeds the next investigation — never directly into automatic live trading.</text>
+</svg>

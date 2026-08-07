@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" role="img" aria-labelledby="title desc">
+<title id="title">DizyBrain Behaviour aggregation</title>
+<desc id="desc">Reviewed trades with moods, tags and process outcomes passing through validation and coverage controls into recurring observations.</desc>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#44e9df"/></marker>
+<style>.t{font-family:Arial,Helvetica,sans-serif}.h{font-size:24px;font-weight:700;fill:#eef2fb}.k{font-size:10px;font-weight:700;letter-spacing:1.2px;fill:#8996ad}.n{font-size:15px;font-weight:700;fill:#eef2fb}.s{font-size:11px;fill:#b3bdd0}.line{stroke:#44e9df;stroke-width:3;fill:none;marker-end:url(#a)}</style></defs>
+<rect width="900" height="420" rx="24" fill="#090d16"/>
+<text class="t h" x="34" y="42">DIZYBRAIN BEHAVIOUR: REVIEW AGGREGATION</text>
+<text class="t k" x="35" y="62">RECURRING PROCESS OBSERVATIONS · NOT A FORECAST</text>
+<g class="t">
+  <text class="k" x="35" y="103">REVIEWED TRADES</text>
+  <g transform="translate(35 120)"><rect width="205" height="63" rx="12" fill="#151f30" stroke="#57a5ff"/><text class="n" x="14" y="25">Trade review 041</text><text class="s" x="14" y="44">mood: rushed · tag: breakout</text><circle cx="184" cy="31" r="8" fill="#ff5c70"/></g>
+  <g transform="translate(35 194)"><rect width="205" height="63" rx="12" fill="#151f30" stroke="#57a5ff"/><text class="n" x="14" y="25">Trade review 042</text><text class="s" x="14" y="44">plan followed · outcome: loss</text><circle cx="184" cy="31" r="8" fill="#ffd071"/></g>
+  <g transform="translate(35 268)"><rect width="205" height="63" rx="12" fill="#151f30" stroke="#57a5ff"/><text class="n" x="14" y="25">Trade review 043</text><text class="s" x="14" y="44">tag: late entry · outcome: win</text><circle cx="184" cy="31" r="8" fill="#2ee6a6"/></g>
+
+  <g transform="translate(305 126)">
+    <rect width="250" height="192" rx="16" fill="#112827" stroke="#44e9df" stroke-width="2"/>
+    <text class="k" x="18" y="27" fill="#44e9df">VALIDATE + AGGREGATE</text>
+    <text class="n" x="18" y="58">Coverage controls</text>
+    <text class="s" x="18" y="82">✓ valid deterministic reviews</text>
+    <text class="s" x="18" y="104">— stale reviews counted separately</text>
+    <text class="s" x="18" y="126">— invalid / archived excluded</text>
+    <text class="n" x="18" y="158">Compare process ↔ outcome</text>
+    <text class="s" x="18" y="178">never reruns or rewrites trades</text>
+  </g>
+
+  <text class="k" x="620" y="103">RECURRING OBSERVATIONS</text>
+  <g transform="translate(620 120)"><rect width="245" height="62" rx="12" fill="#201a34" stroke="#b08cff"/><text class="n" x="14" y="25">Timing pattern</text><text class="s" x="14" y="45">late entries cluster after missed setups</text></g>
+  <g transform="translate(620 194)"><rect width="245" height="62" rx="12" fill="#281f16" stroke="#ffd071"/><text class="n" x="14" y="25">Rule pattern</text><text class="s" x="14" y="45">stop changes follow rushed decisions</text></g>
+  <g transform="translate(620 268)"><rect width="245" height="62" rx="12" fill="#112820" stroke="#2ee6a6"/><text class="n" x="14" y="25">Process vs outcome</text><text class="s" x="14" y="45">valid losses separated from poor wins</text></g>
+</g>
+<path class="line" d="M240 151H296"/><path class="line" d="M240 225H296"/><path class="line" d="M240 299H296"/>
+<path class="line" d="M555 222H611"/>
+<rect x="305" y="340" width="250" height="32" rx="16" fill="#111827" stroke="#303a4f"/><text class="t s" x="430" y="361" text-anchor="middle">coverage 37 valid · 4 stale · 2 excluded</text>
+<text class="t s" x="450" y="397" text-anchor="middle">Association is not causation. Behaviour findings never alter DizySignals, risk settings or the next trade.</text>
+</svg>
