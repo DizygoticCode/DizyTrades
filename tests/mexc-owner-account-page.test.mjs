@@ -49,22 +49,21 @@ test("Account Companion page renders safe account and provider risk context", as
   assert.doesNotMatch(source, /mexc-private-readonly/);
 });
 
-test("terminal exposes DizyAccount only through an owner-derived flag", async () => {
-  const [topbar, terminal] = await Promise.all([
-    readFile("app/dizybrain-topbar-link.tsx", "utf8"),
-    readFile("app/terminal/page.tsx", "utf8"),
+test("shared navigation exposes DizyAccount while the Account Companion page remains owner-gated", async () => {
+  const [navigation, accountPage] = await Promise.all([
+    readFile("app/lib/product-navigation.ts", "utf8"),
+    readFile("app/account/page.tsx", "utf8"),
   ]);
 
-  assert.match(topbar, /showAccountCompanion = false/);
-  assert.match(topbar, /\{showAccountCompanion \? \(/);
-  assert.match(topbar, /href="\/account"/);
-  assert.match(topbar, />◉ DizyAccount<\/a>/);
-  assert.match(
-    terminal,
-    /showAccountCompanion=\{user\.role === "owner"\}/,
-  );
+  assert.match(navigation, /id: "account"/);
+  assert.match(navigation, /label: "DizyAccount"/);
+  assert.match(navigation, /icon: "◉"/);
+  assert.match(navigation, /href: "\/account"/);
+  assert.match(navigation, /Open the owner-only read-only MEXC Account Companion/);
+  assert.match(accountPage, /const user = await requireUser\(\)/);
+  assert.match(accountPage, /if \(user\.role !== "owner"\) redirect\("\/terminal"\)/);
   assert.doesNotMatch(
-    topbar,
+    navigation,
     /mexc-owner-account-(?:snapshot|companion)|mexc-private-readonly/,
   );
 });
