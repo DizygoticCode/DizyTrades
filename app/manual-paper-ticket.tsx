@@ -163,13 +163,13 @@ export function ManualPaperTicket({
   const load = useCallback(async () => {
     const response = await fetch(`/api/manual-paper?symbol=${encodeURIComponent(symbol)}`);
     if (response.ok)
-      {const payload=(await response.json()) as { account: Account;riskPrice?:{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null;contract?:MexcContractMetadata|null;funding?:FundingRate|null;depth?:DepthEnvelope|null },nextContract=payload.contract??null;setAccount(payload.account);setRiskState(payload.riskPrice??null);setContract(nextContract);setFunding(payload.funding??null);setDepth(payload.depth??null);if(nextContract)setLeverage(current=>String(clampContractLeverage(Number(current),nextContract)))}
+      {const payload=(await response.json()) as { account: Account;riskPrice?:{price:number;source:"fair"|"last";fallback:boolean;stale?:boolean}|null;contract?:MexcContractMetadata|null;funding?:FundingRate|null;depth?:DepthEnvelope|null },nextContract=payload.contract??null;setAccount(payload.account);setRiskState(payload.riskPrice??null);setContract(current=>nextContract??(current?.symbol===symbol?current:null));setFunding(payload.funding??null);setDepth(payload.depth??null);if(nextContract)setLeverage(current=>String(clampContractLeverage(Number(current),nextContract)))}
   }, [symbol]);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external account synchronisation
     void load().catch(() => setError("Unable to load Manual Paper account."));
   }, [load]);
-  useEffect(()=>{if(!account?.positions[symbol])return;const timer=window.setInterval(()=>void load(),5000);return()=>window.clearInterval(timer)},[account?.positions,symbol,load]);
+  useEffect(()=>{const hasPosition=Boolean(account?.positions[symbol]);if(!hasPosition&&contract)return;const delay=contract?5000:3000,timer=window.setInterval(()=>void load().catch(()=>{}),delay);return()=>window.clearInterval(timer)},[account?.positions,symbol,contract,load]);
   useEffect(()=>{if(readOnly||!intelligence)return;const events=eventAdapter.current.adapt(intelligence);captureManager.current.observe(compactDizyFlowSample(intelligence),{marketKey,symbol,marketType:"futures"},events);setCaptureStatus(captureManager.current.status())},[intelligence,marketKey,readOnly,symbol]);
   const uploadCapture=useCallback(async(manager=captureManager.current)=>{try{manager.retry();const draft=manager.finalise(),response=await fetch(`/api/paper/trades/${encodeURIComponent(draft.tradeId)}/historical-dizyflow`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(draft)});const payload=await response.json() as {warning?:string|null};if(!response.ok)throw new Error("Historical flow retention failed. Retry is available.");manager.markCompleted();if(retryManager.current===manager)retryManager.current=null;setCaptureError("");setCaptureWarning(payload.warning??"");await load()}catch(reason){manager.markFailed();retryManager.current=manager;setCaptureError(reason instanceof Error?reason.message:"Historical flow retention failed.")}finally{if(manager===captureManager.current)setCaptureStatus(manager.status())}},[load]);
   useEffect(()=>{const current=account?.positions[symbol]??null,previous=previousPosition.current;if(!readOnly&&previous&&(!current||current.tradeId!==previous.tradeId)){const closed=account?.fills.slice().reverse().find(fill=>fill.side==="close"&&fill.tradeId===previous.tradeId),closingManager=captureManager.current;if(closed){try{closingManager.fullClose(Date.parse(closed.timestamp));const timer=window.setTimeout(()=>{finalizeTimers.current.delete(timer);closingManager.ready(Date.parse(closed.timestamp)+15_000);void uploadCapture(closingManager)},15_000);finalizeTimers.current.add(timer)}catch{/* A missing in-memory session remains unavailable; it is never reconstructed. */}}if(current&&current.marketKey===marketKey){captureManager.current=new HistoricalDizyFlowCaptureManager();if(intelligence)captureManager.current.observe(compactDizyFlowSample(intelligence),{marketKey,symbol:current.symbol,marketType:"futures"});}}if(!readOnly&&current&&current.marketKey===marketKey&&(!previous||previous.tradeId!==current.tradeId)){try{captureManager.current.open({tradeId:current.tradeId,marketKey:current.marketKey,symbol:current.symbol,marketType:current.marketType,entryTimeMs:Date.parse(current.openedAt)})}catch{/* Duplicate lifecycle observations cannot open a second session. */}}previousPosition.current=current;setCaptureStatus(captureManager.current.status());return()=>{}},[account,intelligence,marketKey,readOnly,symbol,uploadCapture]);
@@ -206,7 +206,7 @@ export function ManualPaperTicket({
     summary=paperAccountSummary(account?.cashBalance??0,Object.values(account?.positions??{}).map(p=>({...p,margin:p.margin??p.quantity*p.entryPrice/p.leverage})),Object.values(account?.positions??{}).map(p=>p.symbol===symbol?mark:p.lastRiskPrice)),
     equity=summary.equity,
     sizingEquity=Math.max(0,marginSnapshot?.crossEquity??equity),used=summary.usedMargin,
-    amountNumber = Math.max(0, Number(amount) || 0),
+    rawAmount=Number(amount),amountNumber = Math.max(0, rawAmount || 0),
     leverageNumber = contract?clampContractLeverage(Number(leverage),contract):Math.max(1,Number(leverage)||1),
     leverageStops=leverageStopsForContract(contract),
     targetMargin = Math.max(
@@ -231,11 +231,11 @@ export function ManualPaperTicket({
     contractOrder=depthPreview?{contractVolume:depthPreview.filledContractVolume,quantity:depthPreview.quantity,notional:depthPreview.notional}:requestedContractOrder,
     contractVolume=contractOrder?.contractVolume??0,
     quantity=contractOrder?.quantity??0,
-    notional=contractOrder?.notional??0,
+    notional=contractOrder?.notional??targetNotional,
     riskTierState=(()=>{try{return {tier:contract&&contractOrder?selectMexcContractRiskTier(contract,{contractVolume:contractOrder.contractVolume,notional:contractOrder.notional}):null,error:null as string|null}}catch{return {tier:null,error:"Requested size exceeds the documented public MEXC risk schedule."}}})(),
     riskTierPreview=riskTierState.tier,
     riskTierIssue=riskTierState.error??(riskTierPreview&&leverageNumber>riskTierPreview.maxLeverage?`Tier ${riskTierPreview.level} allows at most ${riskTierPreview.maxLeverage}× leverage.`:null),
-    margin=leverageNumber>0?notional/leverageNumber:0,
+    margin=contractOrder?notional/leverageNumber:targetMargin,
     feeRate=contract?.takerFeeRate??(account?.settings.commissionPct??0)/100,
     feeSource=contract?"MEXC public contract":"Legacy settings fallback",
     fee = Math.max(0,notional*feeRate),
@@ -253,12 +253,13 @@ export function ManualPaperTicket({
     riskAmount=stopLoss&&quantity?Math.abs(executionPrice-Number(stopLoss))*quantity:0,
     rewardRisk=stopLoss&&takeProfit&&riskAmount?Math.abs(Number(takeProfit)-executionPrice)*quantity/riskAmount:0,
     remaining = equity - used - margin - fee,
+    invalidInput=!Number.isFinite(rawAmount)||amountNumber<=0,
     invalidPriceStep=Boolean(contract&&((stopLoss&&!isMexcStepAligned(Number(stopLoss),contract.priceUnit))||(takeProfit&&!isMexcStepAligned(Number(takeProfit),contract.priceUnit)))),
-    invalidAmount = !Number.isFinite(quantity) || quantity <= 0 || margin < 0 || Boolean(contractVolumeIssue) || Boolean(riskTierIssue) || invalidPriceStep;
+    invalidAmount = invalidInput || Boolean(contract&&(!Number.isFinite(quantity) || quantity <= 0 || margin < 0 || contractVolumeIssue || riskTierIssue || invalidPriceStep));
   const choosePercent = (percent: number) => {
     const safe = Math.min(100, Math.max(0, percent));
     setSizePercent(safe);
-    setAmount(String(sliderToAmount(safe, equity, mode, leverageNumber)));
+    setAmount(String(sliderToAmount(safe, sizingEquity, mode, leverageNumber)));
   };
   const submit = async (orderSide: "long" | "short") => {
     if (
@@ -427,7 +428,7 @@ export function ManualPaperTicket({
                         String(
                           sliderToAmount(
                             sizePercent,
-                            equity,
+                            sizingEquity,
                             next,
                             leverageNumber,
                           ),
@@ -471,12 +472,12 @@ export function ManualPaperTicket({
             </label>
             <section>
               <div className={styles.sectionTitle}>
-                <span>{contract?`Leverage · MEXC public range ${contract.minLeverage}–${contract.maxLeverage}×`:"Leverage · MEXC rules unavailable"}</span>
+                <span>{contract?`Leverage · MEXC public range ${contract.minLeverage}–${contract.maxLeverage}×`:"Leverage · recovering MEXC rules…"}</span>
                 <b>{leverageNumber}×</b>
               </div>
               <label>
                 Selected leverage
-                <input type="number" min={contract?.minLeverage??1} max={contract?.maxLeverage??20} step="1" value={leverage} disabled={!contract} onChange={event=>{const value=contract?clampContractLeverage(Number(event.target.value),contract):1;setLeverage(String(value));if(sizePercent>0)setAmount(String(sliderToAmount(sizePercent,equity,mode,value)))}} />
+                <input type="number" min={contract?.minLeverage??1} max={contract?.maxLeverage??20} step="1" value={leverage} disabled={!contract} onChange={event=>{const value=contract?clampContractLeverage(Number(event.target.value),contract):1;setLeverage(String(value));if(sizePercent>0)setAmount(String(sliderToAmount(sizePercent,sizingEquity,mode,value)))}} />
               </label>
               <div className={styles.leverages}>
                 {leverageStops.map((value) => (
@@ -489,7 +490,7 @@ export function ManualPaperTicket({
                       if (sizePercent > 0)
                         setAmount(
                           String(
-                            sliderToAmount(sizePercent, equity, mode, value),
+                            sliderToAmount(sizePercent, sizingEquity, mode, value),
                           ),
                         );
                     }}
@@ -502,7 +503,7 @@ export function ManualPaperTicket({
             <section>
               <div className={styles.sectionTitle}>
                 <span>Position size</span>
-                <b>{sizePercent}%</b>
+                <b>{sizePercent}% · {money(targetNotional)}</b>
               </div>
               <div
                 className={styles.sizeControl}
@@ -567,15 +568,15 @@ export function ManualPaperTicket({
                 ["Contracts", contractVolume?String(contractVolume):"—"],
                 ["Contract size", contract?String(contract.contractSize):"—"],
                 ["Price tick", contract?String(contract.priceUnit):"—"],
-                ["Quantity", quantity.toFixed(8)],
+                ["Quantity", quantity?quantity.toFixed(8):"—"],
                 ["Margin", money(margin)],
                 ["Notional", money(notional)],
                 ["Leverage", `${leverageNumber}×`],
-                ["MEXC contract range", contract?`${contract.minLeverage}–${contract.maxLeverage}×`:"Unavailable"],
+                ["MEXC contract range", contract?`${contract.minLeverage}–${contract.maxLeverage}×`:"Recovering…"],
                 ["Risk tier", riskTierPreview?`Tier ${riskTierPreview.level} · ${riskTierPreview.riskLimitType}`:"Unavailable"],
                 ["Tier exposure", riskTierPreview?`${riskTierPreview.exposure.toLocaleString()} / ${riskTierPreview.maxExposure?.toLocaleString()??"unbounded"}`:"—"],
                 ["Tier max leverage", riskTierPreview?`${riskTierPreview.maxLeverage}×`:"—"],
-                ["Maintenance margin", riskTierPreview?`${(riskTierPreview.maintenanceMarginRate*100).toFixed(3)}%`:contract?`${(contract.maintenanceMarginRate*100).toFixed(3)}% fallback`:"Simulator fallback"],
+                ["Maintenance margin", riskTierPreview?`${(riskTierPreview.maintenanceMarginRate*100).toFixed(3)}%`:contract?`${(contract.maintenanceMarginRate*100).toFixed(3)}% fallback`:"Awaiting MEXC rules"],
                 ["Tier source", riskTierPreview?.source??"Unavailable"],
                 ["Execution assumption", "Market · taker"],
                 ["Entry fill model", depthPreview?"DizyFlow visible-book walk":"Fresh depth captured on submit"],
@@ -605,7 +606,7 @@ export function ManualPaperTicket({
               ))}
             </div>
             <div className={styles.warnings}>
-              {!contract?<span>Public MEXC contract rules unavailable — opening new paper positions is disabled.</span>:null}
+              {!contract?<span>Public MEXC contract rules are recovering — sizing remains available, but opening is disabled until real rules return.</span>:null}
               {contractVolumeIssue?<span>{contractVolumeIssue}; requested size cannot be opened.</span>:null}
               {riskTierIssue?<span>{riskTierIssue}</span>:null}
               {riskTierPreview?.source==="mexc-public-contract-flat-fallback"?<span>Public tier increment fields are unavailable; this order uses the explicit flat contract MMR fallback.</span>:null}
