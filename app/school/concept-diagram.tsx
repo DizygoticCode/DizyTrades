@@ -1,6 +1,6 @@
 import type { Lesson } from "./lessons";
 
-type DiagramAsset = { src: string; alt: string };
+type DiagramAsset = { src: string; alt: string; caption?: string };
 type DiagramType = NonNullable<Lesson["diagram"]>;
 
 const lessonDiagrams: Record<string, DiagramAsset> = {
@@ -26,6 +26,16 @@ const lessonDiagrams: Record<string, DiagramAsset> = {
   "professional-journaling": { src: "/school/diagrams/professional-journal.svg", alt: "Professional plan, execution, measurement and review journal loop" },
   "psychology-process": { src: "/school/diagrams/psychology-process.svg", alt: "Process controls placed between emotional triggers and trading decisions" },
   "dizy-methodology": { src: "/school/diagrams/dizy-methodology.svg", alt: "How Dizy combines independent closed-candle evidence and accepts no signal as a valid outcome" },
+  "dizy-workflow-overview": { src: "/school/diagrams/dizy-workflow-loop.svg", alt: "DizyScanner, DizyStructure, Charts and Signals, Paper, Journal, Replay, Behaviour and Performance connected in one research and review loop" },
+  "dizyscanner-watchlists": { src: "/school/diagrams/dizyscanner-watchlists.webp", alt: "DizyScanner product view showing market filters, scan status and setup evidence with signal age and market phase", caption: "Product screenshot · live market values shown only for interface context" },
+  "dizystructure-workspace": { src: "/school/diagrams/dizystructure-workspace.webp", alt: "DizyStructure product view showing session controls, anchored VWAP, confirmed swing references and multi-timeframe alignment", caption: "Product screenshot · live market values shown only for interface context" },
+  "dizyreplay-historical-flow": { src: "/school/diagrams/dizyreplay-historical-flow.webp", alt: "DizyReplay product view showing the replay clock, candle cursor, playback controls and reconstructed historical chart state", caption: "Product screenshot · Historical DizyFlow appears only where retained evidence exists" },
+  "guided-trade-review": { src: "/school/diagrams/guided-trade-review.svg", alt: "Journal, Replay, Historical DizyFlow and DizyBrain evidence feeding Context, Entry, Management, Exit and Reflection review stages" },
+  "dizyperformance-dashboard": { src: "/school/diagrams/dizyperformance-dashboard.webp", alt: "DizyPerformance product view populated with simulated example results for reviewed trades, expectancy, drawdown, realised PnL and R distribution", caption: "Product screenshot · simulated example results for education only" },
+  "dizybrain-behaviour": { src: "/school/diagrams/dizybrain-behaviour.svg", alt: "Reviewed trades passing through coverage and exclusion controls into recurring timing, rule and process-versus-outcome observations" },
+  "dizybackup-recovery": { src: "/school/diagrams/dizybackup-recovery.svg", alt: "Backup export, integrity validation, server dry run, conflict review and safe additive restore stages" },
+  "pending-order-execution": { src: "/school/diagrams/pending-order-lifecycle.svg", alt: "Pending order states from submission and acceptance through armed, working, activation, partial fill, fill, cancellation, rejection and expiry" },
+  "spot-order-reservations": { src: "/school/diagrams/spot-order-reservations.svg", alt: "Spot buy and sell orders moving quote or base balances between available and reserved amounts through fills, refunds and exact releases" },
 };
 
 const typeDiagrams: Partial<Record<DiagramType, DiagramAsset>> = {
@@ -46,7 +56,7 @@ export default function ConceptDiagram({ type, lessonSlug }: { type?: Lesson["di
   return (
     <figure className="concept-diagram">
       <img src={asset.src} alt={asset.alt} style={{ display: "block", width: "100%", height: "auto" }} />
-      <figcaption>Concept illustration · simplified, not market performance</figcaption>
+      <figcaption>{asset.caption ?? "Concept illustration · simplified, not market performance"}</figcaption>
     </figure>
   );
 }
