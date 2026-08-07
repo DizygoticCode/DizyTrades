@@ -18,10 +18,21 @@ test("rendered live heatmap cells advance captureEnded beyond historical archive
   assert.equal(store.getSnapshot().captureStarted, 1_000);
 });
 
-test("an older tile update cannot move the rendered live edge backwards", () => {
+test("unrelated DOM or trade updates cannot move the retained heatmap live edge backwards", () => {
   const store = new FlowRenderStore(DEFAULT_ORDER_FLOW_SETTINGS);
   store.update({
     captureEnded: 95_000,
+    heatmapTiles: [
+      { fromMs: 90_000, toMs: 95_000, price: 64_000, bidQuantity: 5, askQuantity: 0 },
+    ],
+  });
+  store.update({ captureEnded: 5_000, trades: [] });
+  assert.equal(store.getSnapshot().captureEnded, 95_000);
+});
+
+test("explicit heatmap replacement can reset the retained edge", () => {
+  const store = new FlowRenderStore(DEFAULT_ORDER_FLOW_SETTINGS);
+  store.update({
     heatmapTiles: [
       { fromMs: 90_000, toMs: 95_000, price: 64_000, bidQuantity: 5, askQuantity: 0 },
     ],
