@@ -17,10 +17,12 @@ import {
   toDizyQuantReplaySnapshot,
 } from "../app/lib/dizyquant/research.ts";
 
+const DEFAULT_CONTINUOUS_METRIC = "liquidity-turnover-vs-opening-depth-30s";
+
 const replaySnapshot = ({
   time,
   symbol = "BTC_USDT",
-  metricId = "absorption-candidate-flag",
+  metricId = DEFAULT_CONTINUOUS_METRIC,
   value = 1,
   evidenceGrade = "continuous-stream-grade",
   sequenceContinuous = true,
@@ -58,8 +60,8 @@ const sample = ({
 });
 
 const config = (overrides = {}) => ({
-  campaignId: "absorption-candidate-representative-v1",
-  metricId: "absorption-candidate-flag",
+  campaignId: "liquidity-turnover-representative-v1",
+  metricId: DEFAULT_CONTINUOUS_METRIC,
   metricVersion: 1,
   evidenceGrade: "continuous-stream-grade",
   outcomeVersion: "midpoint-response-60s-bps/1.0.0",
@@ -69,16 +71,16 @@ const config = (overrides = {}) => ({
   ...overrides,
 });
 
-test("initial campaign config fixes a bounded symbol and regime matrix", () => {
+test("initial campaign config fixes the bounded matrix for a source-supported 25-bps baseline", () => {
   const result = createInitialDizyQuantEvidenceCampaignConfig(
-    "absorption-candidate-representative-v1",
-    "absorption-candidate-flag",
+    "depth-imbalance-25bps-representative-v1",
+    "depth-imbalance-25bps",
     "midpoint-response-60s-bps/1.0.0",
   );
   assert.deepEqual(result.selectedSymbols, DIZYQUANT_INITIAL_EVIDENCE_SYMBOLS);
   assert.deepEqual(result.selectedRegimes, DIZYQUANT_INITIAL_EVIDENCE_REGIMES);
   assert.equal(result.minimumSamplesPerCell, DIZYQUANT_INITIAL_MINIMUM_SAMPLES_PER_CELL);
-  assert.equal(result.evidenceGrade, "continuous-stream-grade");
+  assert.equal(result.evidenceGrade, "snapshot-grade");
   assert.equal(result.metricVersion, 1);
   assert.ok(Object.isFrozen(result));
 });
@@ -183,14 +185,38 @@ test("snapshot-grade campaigns do not invent a continuity requirement", () => {
   assert.equal(result.qualifiedSamples[0].sequenceContinuous, null);
 });
 
-test("qualified campaign observations feed the existing deterministic Replay lab", () => {
+test("shock-only absorption fixture is labelled volatility-shock rather than range", () => {
+  const snapshot = replaySnapshot({
+    time: 1_000_000,
+    metricId: "absorption-candidate-flag",
+    value: 1,
+  });
+  const result = buildDizyQuantEvidenceCampaign([
+    sample({ index: 0, regime: "volatility-shock", outcome: -0.5, snapshot }),
+  ], {
+    campaignId: "absorption-candidate-shock-v1",
+    metricId: "absorption-candidate-flag",
+    metricVersion: 1,
+    evidenceGrade: "continuous-stream-grade",
+    outcomeVersion: "midpoint-response-60s-bps/1.0.0",
+    selectedSymbols: ["BTC_USDT"],
+    selectedRegimes: ["volatility-shock"],
+    minimumSamplesPerCell: 1,
+  });
+  assert.equal(result.status, "coverage-ready");
+  assert.equal(result.qualifiedCount, 1);
+  assert.equal(result.qualifiedSamples[0].regime, "volatility-shock");
+  assert.equal(result.qualifiedSamples[0].predictor, 1);
+});
+
+test("qualified continuous campaign observations feed the existing deterministic Replay lab", () => {
   const inputs = Array.from({ length: 80 }, (_, index) => {
-    const value = index % 2;
-    return sample({ index, value, outcome: value ? 1 : -1 });
+    const value = index % 2 ? 125 : 25;
+    return sample({ index, value, outcome: value > 100 ? 1 : -1 });
   });
   const campaign = buildDizyQuantEvidenceCampaign(inputs, config({ minimumSamplesPerCell: 50 }));
   const lab = runDizyQuantReplayLab(campaign.observations, {
-    metricId: "absorption-candidate-flag",
+    metricId: DEFAULT_CONTINUOUS_METRIC,
     nullRotations: 16,
     walkForwardFolds: 4,
   });
