@@ -14,14 +14,27 @@ export const DIZYQUANT_RUNTIME_CAMPAIGN_SYMBOLS = Object.freeze([
   "SOL_USDT",
 ] as const);
 
+type DizyQuantCampaignRuntimeFeedState = {
+  latest: Map<string, DizyQuantCampaignDepthPublication>;
+  listeners: Set<(value: DizyQuantCampaignDepthPublication) => void>;
+};
+type GlobalCampaignRuntimeFeed = typeof globalThis & {
+  __dizyQuantCampaignRuntimeFeed?: DizyQuantCampaignRuntimeFeedState;
+};
+
 const regimes = new Set<DizyQuantCampaignRuntimeRegime>([
   "range",
   "directional",
   "volatility-shock",
 ]);
 const directions = new Set<DizyQuantCampaignRuntimeDirection>(["up", "down", "flat"]);
-const latest = new Map<string, DizyQuantCampaignDepthPublication>();
-const listeners = new Set<(value: DizyQuantCampaignDepthPublication) => void>();
+const root = globalThis as GlobalCampaignRuntimeFeed;
+root.__dizyQuantCampaignRuntimeFeed ??= {
+  latest: new Map<string, DizyQuantCampaignDepthPublication>(),
+  listeners: new Set<(value: DizyQuantCampaignDepthPublication) => void>(),
+};
+const latest = root.__dizyQuantCampaignRuntimeFeed.latest;
+const listeners = root.__dizyQuantCampaignRuntimeFeed.listeners;
 
 export function isDizyQuantRuntimeCampaignSymbol(value: string) {
   return DIZYQUANT_RUNTIME_CAMPAIGN_SYMBOLS.includes(
