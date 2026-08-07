@@ -329,6 +329,8 @@ export class DizyQuantCampaignDepthRuntime {
       shockTimestampMs: selectedShockTimestampMs,
     });
     if (
+      evidence.snapshots.ladder === null ||
+      evidence.snapshots.ladder.availability !== "fresh" ||
       evidence.snapshots.liquidityMigration.availability !== "fresh" ||
       evidence.snapshots.liquidityMigration.sequenceContinuous !== true ||
       evidence.snapshots.liquidityMigration.hasGaps
