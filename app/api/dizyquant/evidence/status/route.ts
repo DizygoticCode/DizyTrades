@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "../../../../../lib/auth";
-import { readDizyQuantCampaignRecorderServiceStatus } from "../../../../../lib/dizyquant/campaign-recorder-service";
+import { requireApiUser } from "../../../../lib/auth";
+import { readDizyQuantCampaignRecorderServiceStatus } from "../../../../lib/dizyquant/campaign-recorder-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
