@@ -59,6 +59,7 @@ import type { MarketDescriptor } from "./lib/market/types";
 import type { DexMarket } from "./lib/dex/types";
 import { DIZY_USDT_POOL, splitDexOhlcv, supportsDexChartTimeframe } from "./lib/dex/dizy";
 import { marketBadge } from "./lib/market/catalogue";
+import { formatUsdMarketPrice } from "./lib/market/price-format";
 import type { CandleTimeframe } from "./lib/market/types";
 import {
   useMexcRealtime,
@@ -1218,7 +1219,7 @@ const DizyChart = forwardRef<
       <div className="chart-wrap">
         <div className="chart-canvas" ref={containerRef} />
         <canvas aria-hidden="true" className="chart-overlay" ref={overlayRef} />
-          {livePrice!==null&&view.countdownPriceMarker?<div className={`live-price-marker ${liveCandle&&liveCandle.close>liveCandle.open?"up":liveCandle&&liveCandle.close<liveCandle.open?"down":"neutral"}`} ref={markerRef}><strong>{currency.format(livePrice)}</strong><small>{countdownSeconds===null?"—":formatCountdown(countdownSeconds,timeframe as CandleTimeframe)}</small></div>:null}
+          {livePrice!==null&&view.countdownPriceMarker?<div className={`live-price-marker ${liveCandle&&liveCandle.close>liveCandle.open?"up":liveCandle&&liveCandle.close<liveCandle.open?"down":"neutral"}`} ref={markerRef}><strong>{formatUsdMarketPrice(livePrice)}</strong><small>{countdownSeconds===null?"—":formatCountdown(countdownSeconds,timeframe as CandleTimeframe)}</small></div>:null}
         <div className="chart-legend">
           <span>
             <i className="legend-vwap" />
@@ -1889,10 +1890,10 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                 />
               ) : null}
             </div>
-            {user.role!=="viewer" && futuresSelected?<div className="manual-quick"><span>MANUAL PAPER</span><button className="sell" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"short"}))}>SELL</button><b>{last?currency.format(liveLastPrice??last.close):"—"}</b><button className="buy" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"long"}))}>BUY</button></div>:null}
+            {user.role!=="viewer" && futuresSelected?<div className="manual-quick"><span>MANUAL PAPER</span><button className="sell" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"short"}))}>SELL</button><b>{last?formatUsdMarketPrice(liveLastPrice??last.close):"—"}</b><button className="buy" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"long"}))}>BUY</button></div>:null}
         <div className="quote-block">
               <strong>
-                {last ? currency.format(liveLastPrice ?? last.close) : "—"}
+                {last ? formatUsdMarketPrice(liveLastPrice ?? last.close) : "—"}
               </strong>
               <span className={change >= 0 ? "positive" : "negative"}>
                 {signed(change)}
