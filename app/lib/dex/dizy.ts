@@ -51,9 +51,7 @@ export function canonicalDizyMatches(query: string, chain?: DexChain) {
 
 export function mergeCanonicalDizyMarkets(markets: DexMarket[], query: string, chain?: DexChain) {
   if (!canonicalDizyMatches(query, chain)) return markets;
-  const withoutDuplicate = markets.filter((market) => market.poolAddress !== DIZY_USDT_POOL);
-  const indexed = markets.find((market) => market.poolAddress === DIZY_USDT_POOL);
-  return [{ ...DIZY_USDT_MARKET, ...indexed, symbol: "DIZY", name: "DIZY", quoteSymbol: "USDT", logoUrl: DIZY_LOGO_URL, labels: [...new Set([...(indexed?.labels ?? []), ...DIZY_USDT_MARKET.labels])] }, ...withoutDuplicate];
+  return [DIZY_USDT_MARKET, ...markets.filter((market) => market.poolAddress !== DIZY_USDT_POOL)];
 }
 
 export function splitDexOhlcv(candles: Candle[], timeframe: CandleTimeframe, nowMs = Date.now()) {
