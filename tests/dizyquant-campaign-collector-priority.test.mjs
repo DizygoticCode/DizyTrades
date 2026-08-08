@@ -7,6 +7,7 @@ test("campaign collector lease remains lower priority than normal terminal depth
   const service = await readFile("app/lib/dizyquant/campaign-recorder-service.ts", "utf8");
   const compactRegistry = registry.replace(/\s+/g, "");
 
+  const pruneIdleStart = compactRegistry.indexOf("constpruneIdle=()=>{");
   const acquireStart = compactRegistry.indexOf(
     "exportfunctionacquireDepthCollector(symbol:string){",
   );
@@ -15,9 +16,17 @@ test("campaign collector lease remains lower priority than normal terminal depth
     Math.max(0, acquireStart),
   );
   assert.ok(
-    acquireStart >= 0 && releaseStart > acquireStart,
-    "collector acquisition contract must remain visible to the regression",
+    pruneIdleStart >= 0 && acquireStart > pruneIdleStart && releaseStart > acquireStart,
+    "collector registry contracts must remain visible to the regression",
   );
+
+  const pruneIdle = compactRegistry.slice(pruneIdleStart, acquireStart);
+  const sortIndex = pruneIdle.indexOf("a[1].lastUsed-b[1].lastUsed");
+  const zeroReferenceIndex = pruneIdle.indexOf("if(entry.references===0)dispose(symbol,entry)");
+  assert.ok(sortIndex >= 0, "idle pruning must retain oldest-first collector ordering");
+  assert.ok(zeroReferenceIndex >= 0, "idle pruning must dispose only zero-reference collectors");
+  assert.ok(sortIndex < zeroReferenceIndex, "idle pruning must order candidates before disposal");
+
   const acquire = compactRegistry.slice(acquireStart, releaseStart);
   const pruneIndex = acquire.indexOf("if(collectors.size>=MAX_COLLECTORS)pruneIdle()");
   const capacityIndex = acquire.indexOf('throwError("DizyFlowcollectorcapacityreached")');
@@ -28,10 +37,6 @@ test("campaign collector lease remains lower priority than normal terminal depth
     "normal acquisition must prune zero-reference idle collectors before rejecting capacity",
   );
 
-  assert.match(
-    compactRegistry,
-    /constpruneIdle=\(\)=>\{[^}]*if\(entry\.references===0\)dispose\(symbol,entry\)\}/,
-  );
   assert.match(
     compactRegistry,
     /releaseDepthCollector\(symbol:string\)[\s\S]*entry\.references=Math\.max\(0,entry\.references-1\)[\s\S]*setTimeout\(\(\)=>dispose\(symbol,entry\),COLLECTOR_IDLE_MS\)/,
