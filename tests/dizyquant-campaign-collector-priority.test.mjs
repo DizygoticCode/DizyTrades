@@ -7,12 +7,20 @@ test("campaign collector lease remains lower priority than normal terminal depth
   const service = await readFile("app/lib/dizyquant/campaign-recorder-service.ts", "utf8");
   const compactRegistry = registry.replace(/\s+/g, "");
 
-  const acquire = compactRegistry.match(
-    /exportfunctionacquireDepthCollector\(symbol:string\)\{([\s\S]*?)returnentry\.collector\}/,
+  const acquireStart = compactRegistry.indexOf(
+    "exportfunctionacquireDepthCollector(symbol:string){",
   );
-  assert.ok(acquire, "collector acquisition contract must remain visible to the regression");
-  const pruneIndex = acquire[1].indexOf("if(collectors.size>=MAX_COLLECTORS)pruneIdle()");
-  const capacityIndex = acquire[1].indexOf('throwError("DizyFlowcollectorcapacityreached")');
+  const releaseStart = compactRegistry.indexOf(
+    "exportfunctionreleaseDepthCollector(symbol:string){",
+    Math.max(0, acquireStart),
+  );
+  assert.ok(
+    acquireStart >= 0 && releaseStart > acquireStart,
+    "collector acquisition contract must remain visible to the regression",
+  );
+  const acquire = compactRegistry.slice(acquireStart, releaseStart);
+  const pruneIndex = acquire.indexOf("if(collectors.size>=MAX_COLLECTORS)pruneIdle()");
+  const capacityIndex = acquire.indexOf('throwError("DizyFlowcollectorcapacityreached")');
   assert.ok(pruneIndex >= 0, "normal acquisition must retain the idle-pruning clause");
   assert.ok(capacityIndex >= 0, "normal acquisition must retain its bounded capacity guard");
   assert.ok(
