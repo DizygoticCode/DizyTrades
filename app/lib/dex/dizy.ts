@@ -24,10 +24,8 @@ const DEX_TIMEFRAME_SECONDS: Partial<Record<CandleTimeframe, number>> = {
   "1m": 60,
   "5m": 300,
   "15m": 900,
-  "30m": 1_800,
   "1h": 3_600,
   "4h": 14_400,
-  "8h": 28_800,
   "1d": 86_400,
 };
 
