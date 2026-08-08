@@ -26,10 +26,11 @@ export const documentedDexProvider: DexProvider = {
     const shaped=query?payload:{pairs:(payload.data??[]).map((x:any)=>({chainId:chain??"solana",pairAddress:x.attributes?.address,baseToken:{address:x.relationships?.base_token?.data?.id?.split("_").at(-1),symbol:x.attributes?.name?.split(" /")[0],name:x.attributes?.name?.split(" /")[0]},quoteToken:{symbol:x.attributes?.name?.split("/ ").at(-1)},dexId:x.relationships?.dex?.data?.id,priceUsd:x.attributes?.base_token_price_usd,pairCreatedAt:x.attributes?.pool_created_at?Date.parse(x.attributes.pool_created_at):undefined,liquidity:{usd:x.attributes?.reserve_in_usd},volume:{h24:x.attributes?.volume_usd?.h24},priceChange:x.attributes?.price_change_percentage,txns:{h24:x.attributes?.transactions?.h24}}))};
     const result={markets:normaliseDexScreener(shaped).filter((m)=>!chain||m.chain===chain),nextCursor:query?undefined:String(page+1),provider:this.id,receivedAt:Date.now()}; cache.set(key,result); return result;
   },
-  async candles({chain,poolAddress,interval,limit},signal){
+  async candles({chain,poolAddress,tokenAddress,interval,limit},signal){
     const timeframe=interval.endsWith("m")?"minute":interval.endsWith("h")?"hour":"day";
     const aggregate=Math.max(1,parseInt(interval)); const url=geckoUrl(`networks/${chain === "bsc" ? "bsc" : "solana"}/pools/${encodeURIComponent(poolAddress)}/ohlcv/${timeframe}`);
     url.searchParams.set("aggregate",String(aggregate)); url.searchParams.set("limit",String(Math.min(limit,1000))); url.searchParams.set("currency","usd");
+    if(tokenAddress)url.searchParams.set("token",tokenAddress);
     const response=await fetch(url,{headers:{accept:"application/json"},signal,cache:"no-store"}); if(!response.ok)throw new Error(`GeckoTerminal returned ${response.status}`); return mapGeckoOhlcv(await response.json());
   }
 };
