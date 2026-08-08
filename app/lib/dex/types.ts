@@ -12,5 +12,5 @@ export type DexPage = { markets: DexMarket[]; nextCursor?: string; provider: str
 export interface DexProvider {
   readonly id: string;
   discover(input: { query?: string; chain?: DexChain; cursor?: string }, signal?: AbortSignal): Promise<DexPage>;
-  candles(input: { chain: DexChain; poolAddress: string; interval: string; limit: number }, signal?: AbortSignal): Promise<Candle[]>;
+  candles(input: { chain: DexChain; poolAddress: string; tokenAddress?: string; interval: string; limit: number }, signal?: AbortSignal): Promise<Candle[]>;
 }
