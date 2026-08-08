@@ -1,5 +1,6 @@
 import test from "node:test";import assert from "node:assert/strict";import {readFile} from "node:fs/promises";
 import {normaliseDexScreener,choosePool,mapGeckoOhlcv} from "../app/lib/dex/normalise.ts";import {BoundedTtlCache} from "../app/lib/dex/cache.ts";import {estimateDexFill} from "../app/lib/dex/paper.ts";
+import {DIZY_USDT_POOL,mergeCanonicalDizyMarkets,splitDexOhlcv,supportsDexChartTimeframe} from "../app/lib/dex/dizy.ts";
 const fixture=JSON.parse(await readFile(new URL("./fixtures/dexscreener-pairs.json",import.meta.url)));
 test("normalises stable identities and preserves symbol collisions",()=>{const x=normaliseDexScreener(fixture);assert.equal(x.length,2);assert.equal(x[0].symbol,x[1].symbol);assert.notEqual(x[0].key,x[1].key);assert.match(x[1].key,/^bsc:/);assert.ok(x[1].labels.includes("very-low-liquidity"))});
 test("chain filtering and incremental cursors remain caller operations",()=>{const x=normaliseDexScreener(fixture);assert.deepEqual(x.filter(m=>m.chain==="solana").map(m=>m.dex),["raydium"])});
@@ -7,3 +8,6 @@ test("highest liquidity pool is selected without using ticker",()=>{const x=norm
 test("maps OHLCV and exposes insufficient history to route caller",()=>{const x=mapGeckoOhlcv({data:{attributes:{ohlcv_list:[[2,2,3,1,2.5,9],[1,1,2,.5,1.5,8]]}}});assert.deepEqual(x.map(c=>c.time),[1,2]);assert.ok(x.length<20)});
 test("bounded TTL cache expires and evicts",()=>{let now=0;const c=new BoundedTtlCache(2,10,()=>now);c.set("a",1);c.set("b",2);c.set("c",3);assert.equal(c.get("a"),undefined);assert.equal(c.size,2);now=11;assert.equal(c.get("b"),undefined)});
 test("paper fills model fees and reject impossible liquidity",()=>{const x=estimateDexFill({side:"buy",notionalUsd:100,liquidityUsd:10000,slippageBps:50,networkFeeUsd:.1});assert.equal(x.estimated,true);assert.ok(x.totalCostUsd>0);assert.throws(()=>estimateDexFill({side:"buy",notionalUsd:1001,liquidityUsd:10000,slippageBps:50,networkFeeUsd:.1}),/exceeds/)});
+
+test("canonical DIZY pool is immediately discoverable",()=>{const x=mergeCanonicalDizyMarkets([],"DIZY","solana");assert.equal(x[0].poolAddress,DIZY_USDT_POOL);assert.equal(x[0].symbol,"DIZY");assert.equal(mergeCanonicalDizyMarkets([],"DIZY","bsc").length,0)});
+test("DEX timeframe support and live-candle split preserve confirmed history",()=>{assert.equal(supportsDexChartTimeframe("1m"),true);assert.equal(supportsDexChartTimeframe("1w"),false);const candles=[{time:60,open:1,high:2,low:.5,close:1.5,volume:8},{time:120,open:1.5,high:2.2,low:1.4,close:2,volume:9}];const x=splitDexOhlcv(candles,"1m",125000);assert.deepEqual(x.closed.map(c=>c.time),[60]);assert.equal(x.live?.time,120)});
