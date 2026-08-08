@@ -22,6 +22,8 @@ jobs:
           cache: npm
       - name: Patch DEX chart selection
         run: python3 scripts/patch-dizy-live-chart.py
+      - name: Refine DEX status transition
+        run: python3 -c 'from pathlib import Path; p=Path("app/trading-terminal.tsx"); s=p.read_text(); s=s.replace("    setRealtimeStatus(\"delayed\");\n    const timer = window.setInterval(", "    const timer = window.setInterval(", 1); s=s.replace("                    setSelectedDexMarket(market);\n                    setSymbol", "                    setSelectedDexMarket(market);\n                    setRealtimeStatus(\"delayed\");\n                    setSymbol", 1); p.write_text(s)'
       - run: npm ci
       - name: Focused DEX tests
         run: node --conditions=react-server --import tsx --test tests/dex.test.mjs
