@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "../../../lib/auth";
-import { DIZY_MINT, DIZY_USDT_POOL } from "../../../lib/dex/dizy";
-import { documentedDexProvider } from "../../../lib/dex/providers";
+import { DIZY_MINT, DIZY_USDT_POOL, padDexOhlcv } from "../../../lib/dex/dizy";
+import { documentedDexProvider, raydiumMintPrice } from "../../../lib/dex/providers";
+import type { CandleTimeframe } from "../../../lib/market/types";
 
 const intervals = new Set(["1m", "5m", "15m", "1h", "4h", "1d"]);
 
@@ -17,12 +18,30 @@ export async function GET(request: Request) {
   }
   try {
     const tokenAddress = chain === "solana" && pool === DIZY_USDT_POOL ? DIZY_MINT : undefined;
-    const candles = await documentedDexProvider.candles({ chain, poolAddress: pool, tokenAddress, interval, limit }, AbortSignal.timeout(6500));
+    const rawCandles = await documentedDexProvider.candles(
+      { chain, poolAddress: pool, tokenAddress, interval, limit },
+      AbortSignal.timeout(6500),
+    );
+    let currentPrice: number | undefined;
+    if (tokenAddress) {
+      try {
+        currentPrice = await raydiumMintPrice(tokenAddress, AbortSignal.timeout(4500));
+      } catch {
+        // OHLCV remains usable when Raydium's UI price endpoint has a transient miss.
+      }
+    }
+    const candles = tokenAddress
+      ? padDexOhlcv(rawCandles, interval as CandleTimeframe, Date.now(), currentPrice)
+      : rawCandles;
     return NextResponse.json({
-      source: "GeckoTerminal documented OHLCV API",
+      source: tokenAddress
+        ? "GeckoTerminal OHLCV + Raydium API v3 price"
+        : "GeckoTerminal documented OHLCV API",
       marketKey: `${chain}:${pool}`,
       candles,
-      insufficientHistory: candles.length < 20,
+      tradeCandleCount: rawCandles.length,
+      currentPrice: currentPrice ?? rawCandles.at(-1)?.close ?? null,
+      insufficientHistory: rawCandles.length < 20,
       receivedAt: Date.now(),
     });
   } catch {
