@@ -60,7 +60,7 @@ test("keyboard reference documents only implemented palette and DOM controls", (
   assert.equal(KEYBOARD_REFERENCE.some((item) => item.keys === "DOM: Escape"), true);
 });
 
-test("root layout mounts after hydration and launchers remain existing UI actions", async () => {
+test("root layout mounts hydration-safe quick actions on every protected route", async () => {
   const [layout, mounted, palette] = await Promise.all([
     readFile("app/layout.tsx", "utf8"),
     readFile("app/command-palette-mounted.tsx", "utf8"),
@@ -73,7 +73,8 @@ test("root layout mounts after hydration and launchers remain existing UI action
   assert.match(mounted, /className="global-quick-actions"/);
   assert.match(mounted, /<CommandPalette \/>/);
   assert.match(mounted, /<RecentShortcuts \/>/);
-  assert.match(mounted, /createPortal\(<QuickActions \/>, terminalToolbar\)/);
+  assert.match(mounted, /<QuickActions \/>/);
+  assert.doesNotMatch(mounted, /createPortal|MutationObserver|querySelector/);
   assert.match(palette, /Control\+K Meta\+K/);
   assert.match(palette, /first-run-onboarding-trigger/);
   assert.match(palette, /workspace-layout-trigger/);
