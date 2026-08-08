@@ -10,6 +10,7 @@ import {
   quantizeMexcStep,
   sizeMexcContractOrder,
 } from "../app/lib/mexc-contract-metadata.ts";
+import { selectMexcContractRiskTier } from "../app/lib/manual-paper-risk-tiers.ts";
 
 const xauPayload = {
   success: true,
@@ -42,6 +43,50 @@ test("parses public MEXC contract leverage and precision", () => {
   assert.equal(value.contractSize, 0.001);
   assert.equal(value.maintenanceMarginRate, 0.0004);
   assert.equal(value.positionOpenType, 3);
+});
+
+test("selects the requested symbol from the bulk MEXC contract response", () => {
+  const btc = {
+    ...xauPayload.data[0],
+    symbol: "BTC_USDT",
+    displayNameEn: "BTCUSDT SWAP",
+    contractSize: 0.0001,
+    maxLeverage: 500,
+  };
+  const value = parseMexcContractMetadata(
+    { success: true, data: [xauPayload.data[0], btc] },
+    "BTC_USDT",
+  );
+  assert.equal(value.symbol, "BTC_USDT");
+  assert.equal(value.maxLeverage, 500);
+  assert.equal(value.contractSize, 0.0001);
+});
+
+test("unusable optional MEXC tier fields fall back without erasing valid leverage rules", () => {
+  const value = parseMexcContractMetadata(
+    {
+      success: true,
+      data: [{
+        ...xauPayload.data[0],
+        riskBaseVol: 0,
+        riskIncrVol: "",
+        riskIncrMmr: "unavailable",
+        riskIncrImr: -1,
+        riskLevelLimit: 0,
+      }],
+    },
+    "XAU_USDT",
+  );
+  assert.equal(value.maxLeverage, 1000);
+  assert.equal(value.riskBaseVol, undefined);
+  assert.equal(value.riskIncrVol, undefined);
+  assert.equal(value.riskIncrMmr, undefined);
+  assert.equal(value.riskIncrImr, undefined);
+  assert.equal(value.riskLevelLimit, undefined);
+  assert.equal(
+    selectMexcContractRiskTier(value, { contractVolume: 10, notional: 2_500 }).source,
+    "mexc-public-contract-flat-fallback",
+  );
 });
 
 test("builds practical stops while preserving and enforcing range endpoints", () => {
@@ -100,7 +145,7 @@ test("contract sizing rejects exchange minimum and maximum violations", () => {
   );
 });
 
-test("rejects malformed or mismatched contract metadata", () => {
+test("rejects malformed or mismatched core contract metadata", () => {
   assert.throws(
     () => parseMexcContractMetadata(xauPayload, "BTC_USDT"),
     /unavailable|mismatch/i,
