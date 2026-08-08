@@ -12,7 +12,8 @@ export type DizyProductId =
   | "journal"
   | "backup"
   | "ops"
-  | "dex";
+  | "dex"
+  | "dizy";
 
 export type DizyProductLink = Readonly<{
   id: DizyProductId;
@@ -135,6 +136,15 @@ export const DIZY_PRODUCT_LINKS: readonly DizyProductLink[] = [
     title: "Open public on-chain pool research",
     accent: "#9ee86f",
     routePrefixes: ["/dex"],
+  },
+  {
+    id: "dizy",
+    label: "DIZY",
+    icon: "◈",
+    href: "/dizy",
+    title: "Open the official DIZY token page",
+    accent: "#9a83ff",
+    routePrefixes: ["/dizy"],
   },
 ] as const;
 
