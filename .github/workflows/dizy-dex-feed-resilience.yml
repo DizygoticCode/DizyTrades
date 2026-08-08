@@ -27,42 +27,21 @@ jobs:
           from pathlib import Path
           p=Path('app/trading-terminal.tsx')
           text=p.read_text()
-
-          old='''        setDataSource(dexRequest ? `${payload.source.toUpperCase()} · RAYDIUM` : payload.source.toUpperCase());
-        setResultMarketKey(requestKey);'''
-          new='''        setDataSource(dexRequest ? `${payload.source.toUpperCase()} · RAYDIUM` : payload.source.toUpperCase());
-        setFeedError("");
-        setResultMarketKey(requestKey);'''
+          old='        setDataSource(dexRequest ? `${payload.source.toUpperCase()} · RAYDIUM` : payload.source.toUpperCase());\n        setResultMarketKey(requestKey);'
+          new='        setDataSource(dexRequest ? `${payload.source.toUpperCase()} · RAYDIUM` : payload.source.toUpperCase());\n        setFeedError("");\n        setResultMarketKey(requestKey);'
           if new not in text:
             if text.count(old)!=1: raise SystemExit('success-state anchor changed')
             text=text.replace(old,new,1)
-
-          old='''        const dexFailure = selectedDexMarket !== null;
-        setFeedError(
-          error instanceof Error && error.message === "Unsupported DEX timeframe"'''
-          new='''        const dexFailure = selectedDexMarket !== null;
-        if (dexFailure && !blocking) {
-          setRealtimeStatus("delayed");
-          return;
-        }
-        setFeedError(
-          error instanceof Error && error.message === "Unsupported DEX timeframe"'''
+          old='        const dexFailure = selectedDexMarket !== null;\n        setFeedError(\n          error instanceof Error && error.message === "Unsupported DEX timeframe"'
+          new='        const dexFailure = selectedDexMarket !== null;\n        if (dexFailure && !blocking) {\n          setRealtimeStatus("delayed");\n          return;\n        }\n        setFeedError(\n          error instanceof Error && error.message === "Unsupported DEX timeframe"'
           if new not in text:
             if text.count(old)!=1: raise SystemExit('DEX failure-state anchor changed')
             text=text.replace(old,new,1)
-
-          old='''    const timer = window.setInterval(
-      () => void loadMarketData({ reason: "reconnect", resetView: false }),
-      15_000,
-    );'''
-          new='''    const timer = window.setInterval(
-      () => void loadMarketData({ reason: "reconnect", resetView: false }),
-      65_000,
-    );'''
+          old='    const timer = window.setInterval(\n      () => void loadMarketData({ reason: "reconnect", resetView: false }),\n      15_000,\n    );'
+          new='    const timer = window.setInterval(\n      () => void loadMarketData({ reason: "reconnect", resetView: false }),\n      65_000,\n    );'
           if new not in text:
             if text.count(old)!=1: raise SystemExit('DEX poll interval anchor changed')
             text=text.replace(old,new,1)
-
           p.write_text(text)
           PY
       - run: npm ci
