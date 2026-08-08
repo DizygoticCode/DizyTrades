@@ -1,0 +1,62 @@
+name: Adaptive market price precision proof
+
+on:
+  push:
+    branches:
+      - fix/adaptive-market-price-precision
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/adaptive-market-price-precision
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.1
+          cache: npm
+      - name: Apply adaptive price formatter to terminal market prices
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/trading-terminal.tsx')
+          text=p.read_text()
+          anchor='import { marketBadge } from "./lib/market/catalogue";'
+          addition=anchor+'\nimport { formatUsdMarketPrice } from "./lib/market/price-format";'
+          if addition not in text:
+            if text.count(anchor)!=1: raise SystemExit('price formatter import anchor changed')
+            text=text.replace(anchor,addition,1)
+          replacements={
+            '{currency.format(livePrice)}':'{formatUsdMarketPrice(livePrice)}',
+            'last?currency.format(liveLastPrice??last.close):"—"':'last?formatUsdMarketPrice(liveLastPrice??last.close):"—"',
+            'last ? currency.format(liveLastPrice ?? last.close) : "—"':'last ? formatUsdMarketPrice(liveLastPrice ?? last.close) : "—"',
+          }
+          for old,new in replacements.items():
+            if new in text: continue
+            if text.count(old)!=1: raise SystemExit(f'price display anchor changed: {old}')
+            text=text.replace(old,new,1)
+          p.write_text(text)
+          PY
+      - run: npm ci
+      - name: Focused market-price formatter tests
+        run: node --conditions=react-server --import tsx --test tests/market-price-format.test.mjs
+      - run: npm run lint
+      - run: npm run build
+      - name: Commit verified terminal patch
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No terminal patch changes to commit."
+            exit 0
+          fi
+          git config user.name "DizyTrades CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add app/trading-terminal.tsx
+          git commit -m "Show precise prices for sub-cent markets"
+          git push origin HEAD:fix/adaptive-market-price-precision
