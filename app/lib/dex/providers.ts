@@ -8,6 +8,7 @@ import type { DexPage, DexProvider } from "./types";
 
 const DEXSCREENER_URL=process.env.DEXSCREENER_API_URL ?? "https://api.dexscreener.com";
 const GECKO_URL=process.env.GECKOTERMINAL_API_URL ?? "https://api.geckoterminal.com/api/v2";
+const RAYDIUM_V3_URL=process.env.RAYDIUM_API_V3_URL ?? "https://api-v3.raydium.io";
 const cache=new BoundedTtlCache<DexPage>(80,30_000);
 // GeckoTerminal's public API is cached upstream for about one minute. Share that
 // result across browser sessions instead of making every terminal tab hit upstream.
@@ -15,9 +16,24 @@ const ohlcvCache=new BoundedTtlCache<Candle[]>(120,55_000);
 // If the public endpoint briefly rate-limits or flakes, a recently confirmed chart
 // is safer than deleting the user's working market view.
 const staleOhlcvCache=new BoundedTtlCache<Candle[]>(120,10*60_000);
+// Raydium documents API v3 as its canonical UI/integration price surface. Its own
+// edge cache is short-lived; sharing the result here avoids needless duplicate hits.
+const raydiumPriceCache=new BoundedTtlCache<number>(80,30_000);
 const geckoHeaders=()=>({accept:"application/json;version=20230203",...(process.env.GECKOTERMINAL_API_KEY?{"x-cg-pro-api-key":process.env.GECKOTERMINAL_API_KEY}:{})});
 /** Preserve the /api/v2 base path: leading-slash URL paths silently dropped it and caused GeckoTerminal 404s. */
 export const geckoUrl=(path:string)=>new URL(`${GECKO_URL.replace(/\/$/,"")}/${path.replace(/^\//,"")}`);
+
+export async function raydiumMintPrice(mint:string,signal?:AbortSignal){
+  const cached=raydiumPriceCache.get(mint); if(cached!==undefined)return cached;
+  const url=new URL("/mint/price",RAYDIUM_V3_URL); url.searchParams.set("mints",mint);
+  const response=await fetch(url,{headers:{accept:"application/json"},signal,cache:"no-store"});
+  if(!response.ok)throw new Error(`Raydium API v3 returned ${response.status}`);
+  const payload=await response.json() as {success?:boolean;data?:Record<string,string|number|null>};
+  const price=Number(payload.data?.[mint]);
+  if(payload.success===false||!Number.isFinite(price)||price<=0)throw new Error("Raydium API v3 returned no usable mint price");
+  raydiumPriceCache.set(mint,price); return price;
+}
+
 export const documentedDexProvider: DexProvider = {
   id:"DEX Screener + GeckoTerminal",
   async discover({query="",chain,cursor},signal){

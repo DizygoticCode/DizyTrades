@@ -52,6 +52,73 @@ export function mergeCanonicalDizyMarkets(markets: DexMarket[], query: string, c
   return [DIZY_USDT_MARKET, ...markets.filter((market) => market.poolAddress !== DIZY_USDT_POOL)];
 }
 
+/**
+ * Gecko/CoinGecko OHLCV omits intervals with no trades by default. For charting,
+ * represent those real quiet intervals as flat candles with zero volume, matching
+ * CoinGecko's documented include_empty_intervals=true semantics. If an official
+ * current pool price is available, use it only on the current interval; the next
+ * OHLCV refresh will replace that provisional bar with the trade-derived candle.
+ */
+export function padDexOhlcv(
+  candles: Candle[],
+  timeframe: CandleTimeframe,
+  nowMs = Date.now(),
+  currentPrice?: number,
+) {
+  const seconds = DEX_TIMEFRAME_SECONDS[timeframe];
+  if (!seconds || !candles.length) return [...candles];
+  const ordered = [...candles].sort((a, b) => a.time - b.time);
+  const currentBucket = Math.floor(Math.floor(nowMs / 1000) / seconds) * seconds;
+  const padded: Candle[] = [];
+
+  for (const candle of ordered) {
+    const previous = padded.at(-1);
+    if (previous) {
+      for (let time = previous.time + seconds; time < candle.time; time += seconds) {
+        padded.push({
+          time,
+          open: previous.close,
+          high: previous.close,
+          low: previous.close,
+          close: previous.close,
+          volume: 0,
+        });
+      }
+    }
+    padded.push(candle);
+  }
+
+  let previous = padded.at(-1)!;
+  for (let time = previous.time + seconds; time <= currentBucket; time += seconds) {
+    const livePrice = time === currentBucket && Number.isFinite(currentPrice)
+      ? Number(currentPrice)
+      : previous.close;
+    const next: Candle = {
+      time,
+      open: previous.close,
+      high: Math.max(previous.close, livePrice),
+      low: Math.min(previous.close, livePrice),
+      close: livePrice,
+      volume: 0,
+    };
+    padded.push(next);
+    previous = next;
+  }
+
+  if (padded.at(-1)?.time === currentBucket && Number.isFinite(currentPrice)) {
+    const last = padded.at(-1)!;
+    const price = Number(currentPrice);
+    padded[padded.length - 1] = {
+      ...last,
+      high: Math.max(last.high, price),
+      low: Math.min(last.low, price),
+      close: price,
+    };
+  }
+
+  return padded;
+}
+
 export function splitDexOhlcv(candles: Candle[], timeframe: CandleTimeframe, nowMs = Date.now()) {
   const seconds = DEX_TIMEFRAME_SECONDS[timeframe];
   if (!seconds || !candles.length) return { closed: candles, live: null as Candle | null };
