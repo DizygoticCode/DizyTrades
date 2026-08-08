@@ -2,15 +2,20 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("terminal topbar exposes the bounded DizyQuant research page", async () => {
-  const source = await readFile("app/dizybrain-topbar-link.tsx", "utf8");
+test("shared product navigation exposes the bounded DizyQuant research page", async () => {
+  const [model, navigation] = await Promise.all([
+    readFile("app/lib/product-navigation.ts", "utf8"),
+    readFile("app/product-navigation.tsx", "utf8"),
+  ]);
 
-  assert.match(source, /className="nav-tab dizyquant-topbar-link"/);
-  assert.match(source, /href="\/research"/);
-  assert.match(source, />∑ DizyQuant<\/a>/);
-  assert.match(source, /Open bounded DizyQuant microstructure research/);
+  assert.match(model, /id: "quant"/);
+  assert.match(model, /label: "DizyQuant"/);
+  assert.match(model, /icon: "∑"/);
+  assert.match(model, /href: "\/research"/);
+  assert.match(model, /title: "Open bounded DizyQuant microstructure research"/);
+  assert.match(navigation, /DIZY_PRODUCT_LINKS\.map/);
 
-  const imports = source
+  const imports = `${model}\n${navigation}`
     .split("\n")
     .filter((line) => /^\s*import\b/.test(line))
     .join("\n");

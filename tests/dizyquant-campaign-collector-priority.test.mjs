@@ -5,13 +5,31 @@ import { readFile } from "node:fs/promises";
 test("campaign collector lease remains lower priority than normal terminal depth acquisition", async () => {
   const registry = await readFile("app/lib/order-flow/depth-collector.ts", "utf8");
   const service = await readFile("app/lib/dizyquant/campaign-recorder-service.ts", "utf8");
+  const compactRegistry = registry.replace(/\s+/g, "");
 
-  const acquire = registry.match(
-    /export function acquireDepthCollector\(symbol:string\)\{([\s\S]*?)return entry\.collector\}/,
+  const pruneIdleStart = compactRegistry.indexOf("constpruneIdle=()=>{");
+  const acquireStart = compactRegistry.indexOf(
+    "exportfunctionacquireDepthCollector(symbol:string){",
   );
-  assert.ok(acquire, "collector acquisition contract must remain visible to the regression");
-  const pruneIndex = acquire[1].indexOf("if(collectors.size>=MAX_COLLECTORS)pruneIdle()");
-  const capacityIndex = acquire[1].indexOf('throw Error("DizyFlow collector capacity reached")');
+  const releaseStart = compactRegistry.indexOf(
+    "exportfunctionreleaseDepthCollector(symbol:string){",
+    Math.max(0, acquireStart),
+  );
+  assert.ok(
+    pruneIdleStart >= 0 && acquireStart > pruneIdleStart && releaseStart > acquireStart,
+    "collector registry contracts must remain visible to the regression",
+  );
+
+  const pruneIdle = compactRegistry.slice(pruneIdleStart, acquireStart);
+  const sortIndex = pruneIdle.indexOf("a[1].lastUsed-b[1].lastUsed");
+  const zeroReferenceIndex = pruneIdle.indexOf("if(entry.references===0)dispose(symbol,entry)");
+  assert.ok(sortIndex >= 0, "idle pruning must retain oldest-first collector ordering");
+  assert.ok(zeroReferenceIndex >= 0, "idle pruning must dispose only zero-reference collectors");
+  assert.ok(sortIndex < zeroReferenceIndex, "idle pruning must order candidates before disposal");
+
+  const acquire = compactRegistry.slice(acquireStart, releaseStart);
+  const pruneIndex = acquire.indexOf("if(collectors.size>=MAX_COLLECTORS)pruneIdle()");
+  const capacityIndex = acquire.indexOf('throwError("DizyFlowcollectorcapacityreached")');
   assert.ok(pruneIndex >= 0, "normal acquisition must retain the idle-pruning clause");
   assert.ok(capacityIndex >= 0, "normal acquisition must retain its bounded capacity guard");
   assert.ok(
@@ -20,15 +38,11 @@ test("campaign collector lease remains lower priority than normal terminal depth
   );
 
   assert.match(
-    registry,
-    /const pruneIdle=\(\)=>\{[^}]*if\(entry\.references===0\)dispose\(symbol,entry\)\}/,
-  );
-  assert.match(
-    registry,
+    compactRegistry,
     /releaseDepthCollector\(symbol:string\)[\s\S]*entry\.references=Math\.max\(0,entry\.references-1\)[\s\S]*setTimeout\(\(\)=>dispose\(symbol,entry\),COLLECTOR_IDLE_MS\)/,
   );
   assert.match(
-    registry,
+    compactRegistry,
     /startArchiveCollectors\(\)[\s\S]*slice\(0,Math\.max\(0,MAX_COLLECTORS-1\)\)/,
   );
 

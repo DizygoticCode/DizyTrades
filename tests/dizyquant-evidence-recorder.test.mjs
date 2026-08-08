@@ -130,10 +130,17 @@ test("completed outcome is derived only from retained baseline and future midpoi
 
 test("beginning a sample snapshots mutable Replay input rather than retaining caller mutations", () => {
   const mutable = structuredClone(predictor());
+  const mutableMetric = mutable.metrics.find(
+    (metric) => metric.id === "absorption-candidate-flag",
+  );
+  assert.ok(mutableMetric, "fixture metric must exist in the Replay snapshot");
   const pending = begin({ snapshot: mutable });
-  mutable.metrics[0].value = 0;
+  mutableMetric.value = 0;
   mutable.limitations[0] = "mutated";
-  assert.equal(pending.snapshot.metrics[0].value, 1);
+  const capturedMetric = pending.snapshot.metrics.find(
+    (metric) => metric.id === "absorption-candidate-flag",
+  );
+  assert.equal(capturedMetric?.value, 1);
   assert.equal(pending.snapshot.limitations[0], "Recorder fixture.");
 });
 

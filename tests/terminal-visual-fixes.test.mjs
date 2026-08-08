@@ -39,10 +39,11 @@ test("terminal scrollbar polish is the final global stylesheet", () => {
   assert.ok(scrollbarStyles > mobileStyles);
 });
 
-test("Commands and Recent occupy a full-size reserved row below the topbar", () => {
+test("Commands and Recent mount without a cross-tree portal while retaining the reserved row", () => {
   assert.match(mounted, /className="global-quick-actions"/);
   assert.match(mounted, /<CommandPalette \/>/);
   assert.match(mounted, /<RecentShortcuts \/>/);
+  assert.match(mounted, /<QuickActions \/>/);
   assert.doesNotMatch(mounted, /createPortal|MutationObserver|querySelector/);
   assert.match(
     responsivePolish,

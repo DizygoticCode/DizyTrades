@@ -10,7 +10,8 @@ test("README reports the completed DizyQuant foundation without claiming validat
  assert.match(source,/67 stable metric identities/);
  assert.match(source,/65 informational, two experimental, zero validated and zero signal-eligible/);
  assert.match(source,/six-slice implementation programme is complete/i);
- assert.match(source,/representative evidence studies/i);
+ assert.match(source,/first bounded evidence campaign/i);
+ assert.match(source,/Coverage-ready still does not mean validated or promotable/i);
  assert.doesNotMatch(source,/DizyQuant microstructure research with Replay\/statistical validation\n/);
 });
 
@@ -18,9 +19,10 @@ test("roadmap distinguishes completed implementation from ongoing evidence studi
  const source=await read("ROADMAP.md");
  assert.match(source,/DizyQuant research foundation — complete/);
  assert.match(source,/- \[x\] deterministic Replay\/statistical laboratory and bounded public presentation/);
- assert.match(source,/Ongoing DizyQuant evidence campaigns/);
+ assert.match(source,/Active programme — DizyQuant representative evidence campaign/);
  assert.match(source,/Read-only MEXC Account Companion and shadow reconciliation/);
  assert.match(source,/Liquidity heatmap presentation and DizyFlow evidence quality/);
+ assert.match(source,/Coverage-ready does \*\*not\*\* mean validated, predictive or promotable/);
  assert.doesNotMatch(source,/### Candidate microstructure research\n\n- \[ \]/);
 });
 
