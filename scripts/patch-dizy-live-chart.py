@@ -1,0 +1,191 @@
+from pathlib import Path
+
+browser = Path("app/market-browser.tsx")
+text = browser.read_text()
+old = 'type Props = { anchorRef: RefObject<HTMLElement | null>; markets: MarketDescriptor[]; selectedMarketKey: string; favourites: string[]; onFavourite: (key: string) => void; onSelect: (market: MarketDescriptor) => void; onClose: () => void };'
+new = 'type Props = { anchorRef: RefObject<HTMLElement | null>; markets: MarketDescriptor[]; selectedMarketKey: string; selectedDexMarketKey?: string; favourites: string[]; onFavourite: (key: string) => void; onSelect: (market: MarketDescriptor) => void; onSelectDex: (market: DexMarket) => void; onClose: () => void };'
+if new not in text:
+    if text.count(old) != 1:
+        raise SystemExit("market-browser Props contract changed")
+    text = text.replace(old, new, 1)
+old = 'export function MarketBrowser({ anchorRef, markets, selectedMarketKey, favourites, onFavourite, onSelect, onClose }: Props) {'
+new = 'export function MarketBrowser({ anchorRef, markets, selectedMarketKey, selectedDexMarketKey, favourites, onFavourite, onSelect, onSelectDex, onClose }: Props) {'
+if new not in text:
+    if text.count(old) != 1:
+        raise SystemExit("MarketBrowser signature changed")
+    text = text.replace(old, new, 1)
+text = text.replace('selected={m.key===dexSelected}', 'selected={m.key===(selectedDexMarketKey??dexSelected)}')
+text = text.replace('onSelect={()=>setDexSelected(m.key)}/>', 'onSelect={()=>{setDexSelected(m.key);onSelectDex(m)}}/>')
+browser.write_text(text)
+
+terminal = Path("app/trading-terminal.tsx")
+text = terminal.read_text()
+old = 'import type { MarketDescriptor } from "./lib/market/types";'
+new = 'import type { MarketDescriptor } from "./lib/market/types";\nimport type { DexMarket } from "./lib/dex/types";\nimport { DIZY_USDT_POOL, splitDexOhlcv, supportsDexChartTimeframe } from "./lib/dex/dizy";'
+if new not in text:
+    if text.count(old) != 1:
+        raise SystemExit("terminal market import changed")
+    text = text.replace(old, new, 1)
+text = text.replace('    readOnly: boolean;\n    applyDefaultsNonce: number;', '    exchange?: string;\n    readOnly: boolean;\n    applyDefaultsNonce: number;', 1)
+text = text.replace('    timeframe,\n    readOnly,\n    applyDefaultsNonce,', '    timeframe,\n    exchange = "mexc",\n    readOnly,\n    applyDefaultsNonce,', 1)
+text = text.replace('        exchange="mexc"', '        exchange={exchange}', 1)
+old = '  const [selectedMarketKey, setSelectedMarketKey] = useState("mexc:futures:BTC_USDT");'
+new = old + '\n  const [selectedDexMarket, setSelectedDexMarket] = useState<DexMarket | null>(null);'
+if new not in text:
+    if text.count(old) != 1:
+        raise SystemExit("selected market state changed")
+    text = text.replace(old, new, 1)
+old = '  const selectedMarket=markets.find((market)=>market.key===selectedMarketKey);\n  const futuresSelected=selectedMarket?.marketType!=="spot";'
+new = '  const selectedMarket=markets.find((market)=>market.key===selectedMarketKey);\n  const dexSelected=selectedDexMarket!==null;\n  const futuresSelected=!dexSelected&&selectedMarket?.marketType!=="spot";'
+if new not in text:
+    if text.count(old) != 1:
+        raise SystemExit("selected market derivation changed")
+    text = text.replace(old, new, 1)
+
+start_marker = '      try {\n        const response = await fetch(\n          `/api/market?exchange=mexc'
+if start_marker in text:
+    start = text.index(start_marker)
+    end = text.index('      } catch (error) {', start)
+    new_try = '''      try {
+        const dexRequest = selectedDexMarket;
+        if (dexRequest && !supportsDexChartTimeframe(timeframe))
+          throw new Error("Unsupported DEX timeframe");
+        const endpoint = dexRequest
+          ? `/api/dex/ohlcv?chain=${encodeURIComponent(dexRequest.chain)}&pool=${encodeURIComponent(dexRequest.poolAddress)}&interval=${encodeURIComponent(timeframe)}&limit=${Math.min(historyCapacity, 1000)}`
+          : `/api/market?exchange=mexc&marketType=${selectedMarket?.marketType ?? "futures"}&symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&limit=${historyCapacity}`;
+        const response = await fetch(endpoint, { signal: controller.signal });
+        if (!response.ok) throw new Error("Feed unavailable");
+        const payload = (await response.json()) as { source: string; candles: Candle[] };
+        if (!payload.candles.length || (!dexRequest && payload.candles.length < 20))
+          throw new Error("Insufficient candle history");
+        if (
+          requestId !== marketRequest.current ||
+          requestKey !== `${selectedMarketKey}:${timeframe}`
+        )
+          return;
+        const dexTimeline = dexRequest
+          ? splitDexOhlcv(payload.candles, timeframe as CandleTimeframe)
+          : { closed: payload.candles, live: null as Candle | null };
+        dispatchTimeline(
+          reason === "market-change" || reason === "initial"
+            ? { type: "replaceMarket", marketKey: requestKey, closed: dexTimeline.closed, limit: historyCapacity }
+            : { type: "reconcileClosed", marketKey: requestKey, closed: dexTimeline.closed, limit: historyCapacity },
+        );
+        if (dexRequest) {
+          dispatchTimeline(dexTimeline.live
+            ? { type: "kline", marketKey: requestKey, candle: dexTimeline.live }
+            : { type: "clearLive", marketKey: requestKey });
+        }
+        if (resetView && view.autoFitOnMarketChange)
+          setViewportReset((value) => value + 1);
+        setDataSource(dexRequest ? `${payload.source.toUpperCase()} · RAYDIUM` : payload.source.toUpperCase());
+        setResultMarketKey(requestKey);
+'''
+    text = text[:start] + new_try + text[end:]
+old = '''      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError")
+          return;
+        if (requestId !== marketRequest.current) return;
+        setFeedError(error instanceof Error && error.message === "Insufficient candle history" ? "Insufficient confirmed candle history." : "MEXC candle data is currently unavailable.");
+        if (blocking) setDataSource("MEXC UNAVAILABLE");
+'''
+new = '''      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError")
+          return;
+        if (requestId !== marketRequest.current) return;
+        const dexFailure = selectedDexMarket !== null;
+        setFeedError(
+          error instanceof Error && error.message === "Unsupported DEX timeframe"
+            ? "That timeframe is not available for on-chain pool candles."
+            : error instanceof Error && error.message === "Insufficient candle history"
+              ? dexFailure ? "DIZY pool candles are still building." : "Insufficient confirmed candle history."
+              : dexFailure ? "Raydium / GeckoTerminal candle data is currently unavailable." : "MEXC candle data is currently unavailable.",
+        );
+        if (blocking) setDataSource(dexFailure ? "DEX DATA UNAVAILABLE" : "MEXC UNAVAILABLE");
+'''
+if old in text:
+    text = text.replace(old, new, 1)
+elif new not in text:
+    raise SystemExit("loadMarketData catch changed")
+old = '    [symbol, selectedMarketKey, selectedMarket, timeframe, view.autoFitOnMarketChange, historyCapacity],'
+new = '    [symbol, selectedMarketKey, selectedMarket, selectedDexMarket, timeframe, view.autoFitOnMarketChange, historyCapacity],'
+if new not in text:
+    if text.count(old) != 1:
+        raise SystemExit("loadMarketData dependencies changed")
+    text = text.replace(old, new, 1)
+text = text.replace('enabled: terminalTab === "charts" && !demo && !replayActive && view.realtimeChartUpdates,', 'enabled: terminalTab === "charts" && !dexSelected && !demo && !replayActive && view.realtimeChartUpdates,', 1)
+poll_marker = '  useEffect(() => {\n    if (!timeline.rolloverSequence || timeline.marketKey !== marketKey) return;'
+poll = '''  useEffect(() => {
+    if (!dexSelected || terminalTab !== "charts" || replayActive || !view.realtimeChartUpdates) return;
+    setRealtimeStatus("delayed");
+    const timer = window.setInterval(
+      () => void loadMarketData({ reason: "reconnect", resetView: false }),
+      15_000,
+    );
+    return () => window.clearInterval(timer);
+  }, [dexSelected, terminalTab, replayActive, view.realtimeChartUpdates, loadMarketData]);
+
+'''
+if poll not in text:
+    if text.count(poll_marker) != 1:
+        raise SystemExit("rollover effect marker changed")
+    text = text.replace(poll_marker, poll + poll_marker, 1)
+
+text = text.replace('aria-label="Search MEXC Spot and Futures markets"', 'aria-label="Search MEXC and DizyDEX markets"', 1)
+text = text.replace('<span className="coin">{(selectedMarket?.baseAsset ?? symbol.split("_")[0]).slice(0, 1)}</span>', '<span className="coin">{(selectedDexMarket?.symbol ?? selectedMarket?.baseAsset ?? symbol.split("_")[0]).slice(0, 1)}</span>', 1)
+text = text.replace('<strong>{selectedMarket?.displayName ?? symbol.replace("_", " / ")}</strong>', '<strong>{selectedDexMarket ? `${selectedDexMarket.symbol} / ${selectedDexMarket.quoteSymbol}` : selectedMarket?.displayName ?? symbol.replace("_", " / ")}</strong>', 1)
+text = text.replace('<small>MEXC · {selectedMarket ? marketBadge(selectedMarket) : "PERP"} ▾</small>', '<small>{selectedDexMarket ? `${selectedDexMarket.dex.toUpperCase()} · ${selectedDexMarket.chain.toUpperCase()} DEX` : `MEXC · ${selectedMarket ? marketBadge(selectedMarket) : "PERP"}`} ▾</small>', 1)
+if 'selectedDexMarketKey={selectedDexMarket?.key}' not in text:
+    start = text.index('                <MarketBrowser anchorRef={marketTrigger}')
+    end_marker = '                          }}/>'
+    end = text.index(end_marker, start) + len(end_marker)
+    replacement = '''                <MarketBrowser
+                  anchorRef={marketTrigger}
+                  markets={markets}
+                  selectedMarketKey={selectedMarketKey}
+                  selectedDexMarketKey={selectedDexMarket?.key}
+                  favourites={favourites}
+                  onFavourite={(key)=>setFavourites(items=>items.includes(key)?items.filter(item=>item!==key):[...items,key])}
+                  onClose={()=>{setSelectorOpen(false);requestAnimationFrame(()=>marketTrigger.current?.focus())}}
+                  onSelect={(market)=>{
+                    setSelectedDexMarket(null);
+                    setSymbol(market.sourceSymbol);
+                    setSelectedMarketKey(market.key);
+                    setSettingsOpen(false);
+                    setSelectorOpen(false);
+                    requestAnimationFrame(()=>marketTrigger.current?.focus());
+                  }}
+                  onSelectDex={(market)=>{
+                    setSelectedDexMarket(market);
+                    setSymbol(`${market.symbol}_${market.quoteSymbol}`);
+                    setSelectedMarketKey(`dex:${market.key}`);
+                    if (market.poolAddress===DIZY_USDT_POOL || !supportsDexChartTimeframe(timeframe)) setTimeframe("1m");
+                    setExecutionMode("Off");
+                    setSettingsOpen(false);
+                    setSelectorOpen(false);
+                    requestAnimationFrame(()=>marketTrigger.current?.focus());
+                  }}
+                />'''
+    text = text[:start] + replacement + text[end:]
+text = text.replace('{ALL_TIMEFRAMES.map((item) => (', '{ALL_TIMEFRAMES.filter((item) => !dexSelected || supportsDexChartTimeframe(item)).map((item) => (', 1)
+text = text.replace('{!replayActive ? <OrderFlowToolbar ', '{!replayActive && !dexSelected ? <OrderFlowToolbar ', 1)
+text = text.replace('{!replayActive ? <DizyFlowToastRail ', '{!replayActive && !dexSelected ? <DizyFlowToastRail ', 1)
+text = text.replace('                    readOnly={user.role === "viewer"}\n                    ref={chartControls}', '                    readOnly={user.role === "viewer"}\n                    exchange={dexSelected ? "raydium" : "mexc"}\n                    ref={chartControls}', 1)
+text = text.replace('              readOnly={user.role === "viewer"}\n              resetKey={viewportReset}', '              readOnly={user.role === "viewer"}\n              exchange={dexSelected ? "raydium" : "mexc"}\n              resetKey={viewportReset}', 1)
+terminal.write_text(text)
+
+tests = Path("tests/dex.test.mjs")
+text = tests.read_text()
+import_line = 'import {DIZY_USDT_POOL,mergeCanonicalDizyMarkets,splitDexOhlcv,supportsDexChartTimeframe} from "../app/lib/dex/dizy.ts";\n'
+if import_line not in text:
+    anchor = 'const fixture=JSON.parse'
+    if text.count(anchor) != 1:
+        raise SystemExit("dex test fixture anchor changed")
+    text = text.replace(anchor, import_line + anchor, 1)
+extra = '''
+test("canonical DIZY pool is immediately discoverable",()=>{const x=mergeCanonicalDizyMarkets([],"DIZY","solana");assert.equal(x[0].poolAddress,DIZY_USDT_POOL);assert.equal(x[0].symbol,"DIZY");assert.equal(mergeCanonicalDizyMarkets([],"DIZY","bsc").length,0)});
+test("DEX timeframe support and live-candle split preserve confirmed history",()=>{assert.equal(supportsDexChartTimeframe("1m"),true);assert.equal(supportsDexChartTimeframe("1w"),false);const candles=[{time:60,open:1,high:2,low:.5,close:1.5,volume:8},{time:120,open:1.5,high:2.2,low:1.4,close:2,volume:9}];const x=splitDexOhlcv(candles,"1m",125000);assert.deepEqual(x.closed.map(c=>c.time),[60]);assert.equal(x.live?.time,120)});
+'''
+if 'canonical DIZY pool is immediately discoverable' not in text:
+    text += extra
+tests.write_text(text)
