@@ -62,7 +62,7 @@ test("general settings mount the complete heatmap display controls", async () =>
   );
   assert.match(
     cache,
-    /expandHeatmapDetectionRange\(\s*view\.minPrice,\s*view\.maxPrice,\s*tuning\.detectionRangeBps\s*\)/,
+    /expandHeatmapDetectionRange\(\s*view\.minPrice,\s*view\.maxPrice,\s*tuning\.detectionRangeBps,?\s*\)/,
   );
 });
 
