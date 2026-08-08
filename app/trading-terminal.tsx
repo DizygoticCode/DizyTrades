@@ -1470,12 +1470,17 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
         if (resetView && view.autoFitOnMarketChange)
           setViewportReset((value) => value + 1);
         setDataSource(dexRequest ? `${payload.source.toUpperCase()} · RAYDIUM` : payload.source.toUpperCase());
+        setFeedError("");
         setResultMarketKey(requestKey);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError")
           return;
         if (requestId !== marketRequest.current) return;
         const dexFailure = selectedDexMarket !== null;
+        if (dexFailure && !blocking) {
+          setRealtimeStatus("delayed");
+          return;
+        }
         setFeedError(
           error instanceof Error && error.message === "Unsupported DEX timeframe"
             ? "That timeframe is not available for on-chain pool candles."
@@ -1522,7 +1527,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
     if (!dexSelected || terminalTab !== "charts" || replayActive || !view.realtimeChartUpdates) return;
     const timer = window.setInterval(
       () => void loadMarketData({ reason: "reconnect", resetView: false }),
-      15_000,
+      65_000,
     );
     return () => window.clearInterval(timer);
   }, [dexSelected, terminalTab, replayActive, view.realtimeChartUpdates, loadMarketData]);
