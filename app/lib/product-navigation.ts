@@ -139,7 +139,7 @@ export const DIZY_PRODUCT_LINKS: readonly DizyProductLink[] = [
   },
   {
     id: "dizy",
-    label: "DIZY",
+    label: "$DIZY",
     icon: "◈",
     href: "/dizy",
     title: "Open the official DIZY token page",
