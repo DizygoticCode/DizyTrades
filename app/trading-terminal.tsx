@@ -56,6 +56,8 @@ import { DizyQuantSnapshotPublisher } from "./dizyquant-snapshot-publisher";
 import { createDizyBrainSnapshot } from "./lib/dizybrain-snapshot";
 import { toDizyFlowEvidenceReference } from "./lib/order-flow/intelligence";
 import type { MarketDescriptor } from "./lib/market/types";
+import type { DexMarket } from "./lib/dex/types";
+import { DIZY_USDT_POOL, splitDexOhlcv, supportsDexChartTimeframe } from "./lib/dex/dizy";
 import { marketBadge } from "./lib/market/catalogue";
 import type { CandleTimeframe } from "./lib/market/types";
 import {
@@ -821,6 +823,7 @@ const DizyChart = forwardRef<
     countdownSeconds: number | null;
     symbol: string;
     timeframe: string;
+    exchange?: string;
     readOnly: boolean;
     applyDefaultsNonce: number;
     flowStore: FlowRenderStore;
@@ -836,6 +839,7 @@ const DizyChart = forwardRef<
     countdownSeconds,
     symbol,
     timeframe,
+    exchange = "mexc",
     readOnly,
     applyDefaultsNonce,
     flowStore,
@@ -1203,7 +1207,7 @@ const DizyChart = forwardRef<
           parallelChannel: view.manualChannelExtension,
           fibonacci: view.manualFibonacciExtension,
         }}
-        exchange="mexc"
+        exchange={exchange}
         fadeExtendedPortions={view.fadeExtendedPortions}
         globalExtension={view.globalLineExtensionOverride}
         readOnly={readOnly}
@@ -1238,6 +1242,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [timeframe, setTimeframe] = useState("15m");
   const [symbol, setSymbol] = useState("BTC_USDT");
   const [selectedMarketKey, setSelectedMarketKey] = useState("mexc:futures:BTC_USDT");
+  const [selectedDexMarket, setSelectedDexMarket] = useState<DexMarket | null>(null);
   const replayLaunchLifecycle=useRef(new JournalReplayLaunchLifecycle());
   const historicalFlowRequest=useRef(0);
   const marketKey = `${selectedMarketKey}:${timeframe}`;
@@ -1280,7 +1285,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [orderFlowSettings,setOrderFlowSettings]=useState<OrderFlowSettings>(DEFAULT_ORDER_FLOW_SETTINGS);
   const [flowHistoryOpen,setFlowHistoryOpen]=useState(false);
   const selectedMarket=markets.find((market)=>market.key===selectedMarketKey);
-  const futuresSelected=selectedMarket?.marketType!=="spot";
+  const dexSelected=selectedDexMarket!==null;
+  const futuresSelected=!dexSelected&&selectedMarket?.marketType!=="spot";
   const orderFlow=useOrderFlow({settings:orderFlowSettings,paused:!futuresSelected,symbol,contractSize:selectedMarket?.contractSize??1,priceUnit:selectedMarket?.priceUnit,priceScale:selectedMarket?.priceScale,marketKey:selectedMarket?.key,marketType:selectedMarket?.marketType,reference:liveCandle?.close?{price:liveCandle.close,source:"last"}:undefined});
   const [selectorOpen, setSelectorOpen] = useState(false);
   const marketTrigger = useRef<HTMLButtonElement>(null);
@@ -1432,47 +1438,52 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       else setBackgroundSyncing(true);
       if (blocking) setFeedError("");
       try {
-        const response = await fetch(
-          `/api/market?exchange=mexc&marketType=${selectedMarket?.marketType ?? "futures"}&symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&limit=${historyCapacity}`,
-          { signal: controller.signal },
-        );
+        const dexRequest = selectedDexMarket;
+        if (dexRequest && !supportsDexChartTimeframe(timeframe))
+          throw new Error("Unsupported DEX timeframe");
+        const endpoint = dexRequest
+          ? `/api/dex/ohlcv?chain=${encodeURIComponent(dexRequest.chain)}&pool=${encodeURIComponent(dexRequest.poolAddress)}&interval=${encodeURIComponent(timeframe)}&limit=${Math.min(historyCapacity, 1000)}`
+          : `/api/market?exchange=mexc&marketType=${selectedMarket?.marketType ?? "futures"}&symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&limit=${historyCapacity}`;
+        const response = await fetch(endpoint, { signal: controller.signal });
         if (!response.ok) throw new Error("Feed unavailable");
-        const payload = (await response.json()) as {
-          source: string;
-          candles: Candle[];
-        };
-        if (payload.candles.length < 20)
+        const payload = (await response.json()) as { source: string; candles: Candle[] };
+        if (!payload.candles.length || (!dexRequest && payload.candles.length < 20))
           throw new Error("Insufficient candle history");
         if (
           requestId !== marketRequest.current ||
           requestKey !== `${selectedMarketKey}:${timeframe}`
         )
           return;
+        const dexTimeline = dexRequest
+          ? splitDexOhlcv(payload.candles, timeframe as CandleTimeframe)
+          : { closed: payload.candles, live: null as Candle | null };
         dispatchTimeline(
           reason === "market-change" || reason === "initial"
-            ? {
-                type: "replaceMarket",
-                marketKey: requestKey,
-                closed: payload.candles,
-                limit: historyCapacity,
-              }
-            : {
-                type: "reconcileClosed",
-                marketKey: requestKey,
-                closed: payload.candles,
-                limit: historyCapacity,
-              },
+            ? { type: "replaceMarket", marketKey: requestKey, closed: dexTimeline.closed, limit: historyCapacity }
+            : { type: "reconcileClosed", marketKey: requestKey, closed: dexTimeline.closed, limit: historyCapacity },
         );
+        if (dexRequest) {
+          dispatchTimeline(dexTimeline.live
+            ? { type: "kline", marketKey: requestKey, candle: dexTimeline.live }
+            : { type: "clearLive", marketKey: requestKey });
+        }
         if (resetView && view.autoFitOnMarketChange)
           setViewportReset((value) => value + 1);
-        setDataSource(payload.source.toUpperCase());
+        setDataSource(dexRequest ? `${payload.source.toUpperCase()} · RAYDIUM` : payload.source.toUpperCase());
         setResultMarketKey(requestKey);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError")
           return;
         if (requestId !== marketRequest.current) return;
-        setFeedError(error instanceof Error && error.message === "Insufficient candle history" ? "Insufficient confirmed candle history." : "MEXC candle data is currently unavailable.");
-        if (blocking) setDataSource("MEXC UNAVAILABLE");
+        const dexFailure = selectedDexMarket !== null;
+        setFeedError(
+          error instanceof Error && error.message === "Unsupported DEX timeframe"
+            ? "That timeframe is not available for on-chain pool candles."
+            : error instanceof Error && error.message === "Insufficient candle history"
+              ? dexFailure ? "DIZY pool candles are still building." : "Insufficient confirmed candle history."
+              : dexFailure ? "Raydium / GeckoTerminal candle data is currently unavailable." : "MEXC candle data is currently unavailable.",
+        );
+        if (blocking) setDataSource(dexFailure ? "DEX DATA UNAVAILABLE" : "MEXC UNAVAILABLE");
       } finally {
         if (requestId === marketRequest.current) {
           setInitialLoading(false);
@@ -1481,12 +1492,12 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
         }
       }
     },
-    [symbol, selectedMarketKey, selectedMarket, timeframe, view.autoFitOnMarketChange, historyCapacity],
+    [symbol, selectedMarketKey, selectedMarket, selectedDexMarket, timeframe, view.autoFitOnMarketChange, historyCapacity],
   );
 
   const demo = dataSource === "DEMONSTRATION DATA";
   useMexcRealtime({
-    enabled: terminalTab === "charts" && !demo && !replayActive && view.realtimeChartUpdates,
+    enabled: terminalTab === "charts" && !dexSelected && !demo && !replayActive && view.realtimeChartUpdates,
     symbol,
     marketType: selectedMarket?.marketType ?? "futures",
     timeframe: timeframe as CandleTimeframe,
@@ -1506,6 +1517,15 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
         timeframe: timeframe as CandleTimeframe,
       });},
   });
+
+  useEffect(() => {
+    if (!dexSelected || terminalTab !== "charts" || replayActive || !view.realtimeChartUpdates) return;
+    const timer = window.setInterval(
+      () => void loadMarketData({ reason: "reconnect", resetView: false }),
+      15_000,
+    );
+    return () => window.clearInterval(timer);
+  }, [dexSelected, terminalTab, replayActive, view.realtimeChartUpdates, loadMarketData]);
 
   useEffect(() => {
     if (!timeline.rolloverSequence || timeline.marketKey !== marketKey) return;
@@ -1803,6 +1823,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               countdownSeconds={countdownSeconds}
               liveCandle={liveCandle}
               readOnly={user.role === "viewer"}
+              exchange={dexSelected ? "raydium" : "mexc"}
               resetKey={viewportReset}
               symbol={symbol}
               timeframe={timeframe}
@@ -1820,26 +1841,47 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
             <div className="symbol-block">
               <button
                 aria-expanded={selectorOpen}
-                aria-label="Search MEXC Spot and Futures markets"
+                aria-label="Search MEXC and DizyDEX markets"
                 className="symbol-selector"
                 ref={marketTrigger}
                 onClick={() => setSelectorOpen((value) => !value)}
                 type="button"
               >
-                <span className="coin">{(selectedMarket?.baseAsset ?? symbol.split("_")[0]).slice(0, 1)}</span>
+                <span className="coin">{(selectedDexMarket?.symbol ?? selectedMarket?.baseAsset ?? symbol.split("_")[0]).slice(0, 1)}</span>
                 <span>
-                  <strong>{selectedMarket?.displayName ?? symbol.replace("_", " / ")}</strong>
-                  <small>MEXC · {selectedMarket ? marketBadge(selectedMarket) : "PERP"} ▾</small>
+                  <strong>{selectedDexMarket ? `${selectedDexMarket.symbol} / ${selectedDexMarket.quoteSymbol}` : selectedMarket?.displayName ?? symbol.replace("_", " / ")}</strong>
+                  <small>{selectedDexMarket ? `${selectedDexMarket.dex.toUpperCase()} · ${selectedDexMarket.chain.toUpperCase()} DEX` : `MEXC · ${selectedMarket ? marketBadge(selectedMarket) : "PERP"}`} ▾</small>
                 </span>
               </button>
               {selectorOpen ? (
-                <MarketBrowser anchorRef={marketTrigger} markets={markets} selectedMarketKey={selectedMarketKey} favourites={favourites} onFavourite={(key)=>setFavourites(items=>items.includes(key)?items.filter(item=>item!==key):[...items,key])} onClose={()=>{setSelectorOpen(false);requestAnimationFrame(()=>marketTrigger.current?.focus())}} onSelect={(market)=>{
-                            setSymbol(market.sourceSymbol);
-                            setSelectedMarketKey(market.key);
-                            setSettingsOpen(false);
-                            setSelectorOpen(false);
-                            requestAnimationFrame(()=>marketTrigger.current?.focus());
-                          }}/>
+                <MarketBrowser
+                  anchorRef={marketTrigger}
+                  markets={markets}
+                  selectedMarketKey={selectedMarketKey}
+                  selectedDexMarketKey={selectedDexMarket?.key}
+                  favourites={favourites}
+                  onFavourite={(key)=>setFavourites(items=>items.includes(key)?items.filter(item=>item!==key):[...items,key])}
+                  onClose={()=>{setSelectorOpen(false);requestAnimationFrame(()=>marketTrigger.current?.focus())}}
+                  onSelect={(market)=>{
+                    setSelectedDexMarket(null);
+                    setSymbol(market.sourceSymbol);
+                    setSelectedMarketKey(market.key);
+                    setSettingsOpen(false);
+                    setSelectorOpen(false);
+                    requestAnimationFrame(()=>marketTrigger.current?.focus());
+                  }}
+                  onSelectDex={(market)=>{
+                    setSelectedDexMarket(market);
+                    setRealtimeStatus("delayed");
+                    setSymbol(`${market.symbol}_${market.quoteSymbol}`);
+                    setSelectedMarketKey(`dex:${market.key}`);
+                    if (market.poolAddress===DIZY_USDT_POOL || !supportsDexChartTimeframe(timeframe)) setTimeframe("1m");
+                    setExecutionMode("Off");
+                    setSettingsOpen(false);
+                    setSelectorOpen(false);
+                    requestAnimationFrame(()=>marketTrigger.current?.focus());
+                  }}
+                />
               ) : null}
             </div>
             {user.role!=="viewer" && futuresSelected?<div className="manual-quick"><span>MANUAL PAPER</span><button className="sell" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"short"}))}>SELL</button><b>{last?currency.format(liveLastPrice??last.close):"—"}</b><button className="buy" onClick={()=>window.dispatchEvent(new CustomEvent("manual-paper-quick",{detail:"long"}))}>BUY</button></div>:null}
@@ -1872,7 +1914,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               role="group"
               tabIndex={0}
             >
-              {ALL_TIMEFRAMES.map((item) => (
+              {ALL_TIMEFRAMES.filter((item) => !dexSelected || supportsDexChartTimeframe(item)).map((item) => (
                 <button
                   aria-pressed={timeframe === item}
                   className={timeframe === item ? "active" : ""}
@@ -1933,8 +1975,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               {backgroundSyncing ? "Syncing…" : "Refresh data"}
             </button>
             <div className="toolbar-spacer" />
-            {!replayActive ? <OrderFlowToolbar settings={orderFlowSettings} onChange={setOrderFlowSettings} summary={orderFlow.summary} intelligence={orderFlow.intelligence} renderStore={orderFlow.renderStore} onRetry={orderFlow.retry} onHistory={()=>setFlowHistoryOpen(true)} /> : null}
-            {!replayActive ? <DizyFlowToastRail alerts={orderFlow.summary.alerts} settings={orderFlowSettings} onHistory={()=>setFlowHistoryOpen(true)} /> : null}
+            {!replayActive && !dexSelected ? <OrderFlowToolbar settings={orderFlowSettings} onChange={setOrderFlowSettings} summary={orderFlow.summary} intelligence={orderFlow.intelligence} renderStore={orderFlow.renderStore} onRetry={orderFlow.retry} onHistory={()=>setFlowHistoryOpen(true)} /> : null}
+            {!replayActive && !dexSelected ? <DizyFlowToastRail alerts={orderFlow.summary.alerts} settings={orderFlowSettings} onHistory={()=>setFlowHistoryOpen(true)} /> : null}
             <div className="mode-control" aria-label="Execution mode">
               {(["Off", "Paper"] as const).map((mode) => (
                 <button
@@ -2027,6 +2069,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                     countdownSeconds={countdownSeconds}
                     liveCandle={liveCandle}
                     readOnly={user.role === "viewer"}
+                    exchange={dexSelected ? "raydium" : "mexc"}
                     ref={chartControls}
                     resetKey={viewportReset}
                     symbol={symbol}
