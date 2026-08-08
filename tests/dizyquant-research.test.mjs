@@ -1,84 +1,114 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-import { readFile, readdir } from "node:fs/promises";
-import path from "node:path";
-
-import {
- DIZYQUANT_RESEARCH_MODEL_VERSION,
- DIZYQUANT_STALE_AFTER_MS,
- buildDizyQuantResearchPresentation,
+import assert from"node:assert/strict";
+import{readdir,readFile}from"node:fs/promises";
+import path from"node:path";
+import test from"node:test";
+import{
+ DIZYQUANT_METRIC_DEFINITIONS,
+ DIZYQUANT_METRIC_SET_VERSION,
+ DIZYQUANT_RESEARCH_SCHEMA_VERSION,
+ buildDizyQuantResearchSnapshot,
+ canonicalDizyQuantReplayJson,
  classifyDizyQuantAvailability,
- normalizeDizyQuantResearchInput,
- serializeDizyQuantResearchInput,
-} from "../app/lib/dizyquant/index.ts";
+ toDizyQuantReplaySnapshot,
+}from"../app/lib/dizyquant/research.ts";
 
-const sample={
- schemaVersion:1,
- modelVersion:DIZYQUANT_RESEARCH_MODEL_VERSION,
+const base=(overrides={})=>({
  symbol:"BTC_USDT",
- timeframe:"15m",
- source:"mexc-public",
- observedAtMs:1_700_000_000_000,
- capturedAtMs:1_700_000_000_250,
- coverage:{fromMs:1_699_999_100_000,toMs:1_700_000_000_000,complete:true,hasGaps:false},
- metrics:[{id:"spread-price",version:1,value:1.25,status:"observed"}],
-};
-
-test("bounded presentation exposes registry status without live values or signal eligibility",()=>{
- const out=buildDizyQuantResearchPresentation(sample,sample.capturedAtMs);
- assert.equal(out.schemaVersion,1);
- assert.equal(out.modelVersion,DIZYQUANT_RESEARCH_MODEL_VERSION);
- assert.equal(out.availability,"AVAILABLE");
- assert.equal(out.metrics.length>0,true);
- assert.equal(out.metrics.some(metric=>metric.id==="spread-price"),true);
- assert.equal("value" in out.metrics[0],false);
- assert.equal("eligible" in out.metrics[0],false);
+ sourceTimeMs:1_000_000,
+ evaluatedAtMs:1_000_500,
+ maxAgeMs:2_000,
+ evidenceGrade:"snapshot-grade",
+ sequenceContinuous:null,
+ hasGaps:false,
+ sourceKinds:["depth-snapshot"],
+ coverage:{fromMs:999_000,toMs:1_000_000},
+ values:{"spread-bps":1.25,"depth-imbalance-25bps":12.5},
+ limitations:["Public displayed depth only."],
+ ...overrides,
 });
 
-test("research page consumes only the bounded presentation model",async()=>{
- const source=await readFile("app/research/page.tsx","utf8");
- assert.match(source,/buildDizyQuantResearchPresentation/);
- assert.doesNotMatch(source,/DizySignals|order-flow|depth-collector|RawTrade|live-order/i);
+test("candidate metric registry is versioned, unique and signal-ineligible",()=>{
+ assert.equal(DIZYQUANT_RESEARCH_SCHEMA_VERSION,1);
+ assert.equal(DIZYQUANT_METRIC_SET_VERSION,"dizyquant-candidates/1.4.0");
+ assert.equal(new Set(DIZYQUANT_METRIC_DEFINITIONS.map(value=>value.id)).size,DIZYQUANT_METRIC_DEFINITIONS.length);
+ assert.equal(DIZYQUANT_METRIC_DEFINITIONS.length,67);
+ assert.deepEqual(DIZYQUANT_METRIC_DEFINITIONS.filter(value=>value.evidenceGrade==="snapshot-grade").map(value=>value.id).slice(0,3),["spread-price","spread-ticks","spread-bps"]);
+ assert.ok(DIZYQUANT_METRIC_DEFINITIONS.some(value=>value.id==="flow-efficiency-bps-per-million-10s"&&value.unit==="basis-points-per-million-quote"));
+ assert.ok(DIZYQUANT_METRIC_DEFINITIONS.some(value=>value.id==="near-depth-concentration-shift-25-of-100bps-30s"&&value.unit==="percentage-points"));
+ assert.ok(DIZYQUANT_METRIC_DEFINITIONS.some(value=>value.id==="post-shock-continuation-flag"&&value.unit==="flag"));
+ const experimental=DIZYQUANT_METRIC_DEFINITIONS.filter(value=>value.promotionStatus==="experimental").map(value=>value.id).sort();
+ assert.deepEqual(experimental,["absorption-candidate-flag","exhaustion-candidate-flag"]);
+ for(const definition of DIZYQUANT_METRIC_DEFINITIONS){
+  assert.equal(definition.version,1);
+  assert.equal(definition.signalEligible,false);
+  assert.ok(["informational","experimental"].includes(definition.promotionStatus));
+  assert.ok(Object.isFrozen(definition));
+ }
+ assert.ok(Object.isFrozen(DIZYQUANT_METRIC_DEFINITIONS));
 });
 
-test("Replay identity is unchanged when the same evidence later becomes stale",()=>{
- const first=normalizeDizyQuantResearchInput(sample,sample.capturedAtMs);
- const later=normalizeDizyQuantResearchInput(sample,sample.capturedAtMs+DIZYQUANT_STALE_AFTER_MS+1);
- assert.deepEqual(serializeDizyQuantResearchInput(first),serializeDizyQuantResearchInput(later));
- assert.equal(first.availability,"AVAILABLE");
- assert.equal(later.availability,"STALE");
+test("snapshot-grade evidence can be fresh without sequence claims",()=>{
+ const snapshot=buildDizyQuantResearchSnapshot(base());
+ assert.equal(snapshot.availability,"fresh");
+ assert.equal(snapshot.evidenceGrade,"snapshot-grade");
+ assert.equal(snapshot.sequenceContinuous,null);
+ assert.equal(snapshot.availableMetricCount,2);
+ assert.equal(snapshot.decisionEligible,false);
+ assert.equal(snapshot.signalInfluence,"forbidden");
+ assert.ok(Object.isFrozen(snapshot));
+ assert.ok(Object.isFrozen(snapshot.metrics));
+ assert.ok(Object.isFrozen(snapshot.metrics[0]));
+ assert.throws(()=>{snapshot.metrics[0].value=999},TypeError);
+});
+
+test("continuous evidence requires a proven uninterrupted sequence",()=>{
+ const unknown=buildDizyQuantResearchSnapshot(base({evidenceGrade:"continuous-stream-grade",sequenceContinuous:null,sourceKinds:["depth-stream"],values:{"liquidity-added-30s":100}}));
+ const broken=buildDizyQuantResearchSnapshot(base({evidenceGrade:"continuous-stream-grade",sequenceContinuous:false,sourceKinds:["depth-stream"],values:{"liquidity-added-30s":100}}));
+ const complete=buildDizyQuantResearchSnapshot(base({evidenceGrade:"continuous-stream-grade",sequenceContinuous:true,sourceKinds:["depth-stream"],values:{"liquidity-added-30s":100}}));
+ assert.equal(unknown.availability,"gapped");
+ assert.equal(broken.availability,"gapped");
+ assert.equal(complete.availability,"fresh");
 });
 
 test("stale, explicit-gap and unavailable states never become decision eligible",()=>{
- const stale=normalizeDizyQuantResearchInput(sample,sample.capturedAtMs+DIZYQUANT_STALE_AFTER_MS+1);
- assert.equal(stale.availability,"STALE");
- const gap=normalizeDizyQuantResearchInput({...sample,coverage:{...sample.coverage,hasGaps:true}},sample.capturedAtMs);
- assert.equal(gap.availability,"GAP");
- const unavailable=normalizeDizyQuantResearchInput(null,sample.capturedAtMs);
- assert.equal(unavailable.availability,"UNAVAILABLE");
- for(const value of[stale,gap,unavailable])assert.equal("decisionEligible" in value,false);
+ const stale=buildDizyQuantResearchSnapshot(base({evaluatedAtMs:1_010_000}));
+ const gapped=buildDizyQuantResearchSnapshot(base({hasGaps:true}));
+ const unavailable=buildDizyQuantResearchSnapshot(base({values:{}}));
+ assert.deepEqual([stale.availability,gapped.availability,unavailable.availability],["stale","gapped","unavailable"]);
+ for(const snapshot of[stale,gapped,unavailable]){
+  assert.equal(snapshot.decisionEligible,false);
+  assert.equal(snapshot.signalInfluence,"forbidden");
+ }
 });
 
 test("Replay serialisation excludes evaluation-clock noise and is deterministic",()=>{
- const one=normalizeDizyQuantResearchInput(sample,sample.capturedAtMs);
- const two=normalizeDizyQuantResearchInput({...sample,metrics:[...sample.metrics]},sample.capturedAtMs);
- assert.equal(serializeDizyQuantResearchInput(one),serializeDizyQuantResearchInput(two));
- assert.doesNotMatch(serializeDizyQuantResearchInput(one),/availability|ageMs|evaluatedAt/i);
+ const first=buildDizyQuantResearchSnapshot(base({evaluatedAtMs:1_000_500,maxAgeMs:2_000}));
+ const second=buildDizyQuantResearchSnapshot(base({evaluatedAtMs:1_001_000,maxAgeMs:4_000}));
+ assert.equal(canonicalDizyQuantReplayJson(first),canonicalDizyQuantReplayJson(second));
+ const replay=toDizyQuantReplaySnapshot(first);
+ assert.equal("evaluatedAtMs"in replay,false);
+ assert.equal("ageMs"in replay,false);
+ assert.equal("maxAgeMs"in replay,false);
+ assert.equal(replay.signalInfluence,"forbidden");
+ assert.ok(Object.isFrozen(replay));
 });
 
 test("research input rejects unsafe identity, time, coverage, sources and values",()=>{
- assert.equal(normalizeDizyQuantResearchInput({...sample,symbol:"BTC_USDT<script>"},sample.capturedAtMs).availability,"UNAVAILABLE");
- assert.equal(normalizeDizyQuantResearchInput({...sample,capturedAtMs:Number.NaN},sample.capturedAtMs).availability,"UNAVAILABLE");
- assert.equal(normalizeDizyQuantResearchInput({...sample,coverage:{...sample.coverage,fromMs:sample.coverage.toMs+1}},sample.capturedAtMs).availability,"UNAVAILABLE");
- assert.equal(normalizeDizyQuantResearchInput({...sample,source:"private-account"},sample.capturedAtMs).availability,"UNAVAILABLE");
- assert.equal(normalizeDizyQuantResearchInput({...sample,metrics:[{...sample.metrics[0],value:Number.POSITIVE_INFINITY}]},sample.capturedAtMs).availability,"UNAVAILABLE");
+ assert.throws(()=>buildDizyQuantResearchSnapshot(base({symbol:"../BTC"})),/symbol/);
+ assert.throws(()=>buildDizyQuantResearchSnapshot(base({sourceTimeMs:1_010_000})),/time boundary/);
+ assert.throws(()=>buildDizyQuantResearchSnapshot(base({sourceKinds:[]})),/sources/);
+ assert.throws(()=>buildDizyQuantResearchSnapshot(base({sourceKinds:["depth-snapshot","depth-snapshot"]})),/sources/);
+ assert.throws(()=>buildDizyQuantResearchSnapshot(base({coverage:{fromMs:null,toMs:1_000_000}})),/coverage/);
+ assert.throws(()=>buildDizyQuantResearchSnapshot(base({values:{"spread-bps":Number.NaN}})),/value/);
+ assert.throws(()=>buildDizyQuantResearchSnapshot(base({values:{"not-a-metric":1}})),/Unknown/);
+ assert.throws(()=>buildDizyQuantResearchSnapshot(base({limitations:["\u0000unsafe"]})),/limitation/);
 });
 
 test("availability helper applies unavailable, gap and age precedence",()=>{
- assert.equal(classifyDizyQuantAvailability(null,0),"UNAVAILABLE");
- assert.equal(classifyDizyQuantAvailability({...sample,coverage:{...sample.coverage,hasGaps:true}},sample.capturedAtMs),"GAP");
- assert.equal(classifyDizyQuantAvailability(sample,sample.capturedAtMs+DIZYQUANT_STALE_AFTER_MS+1),"STALE");
- assert.equal(classifyDizyQuantAvailability(sample,sample.capturedAtMs),"AVAILABLE");
+ assert.equal(classifyDizyQuantAvailability(base({values:{}})),"unavailable");
+ assert.equal(classifyDizyQuantAvailability(base({hasGaps:true})),"gapped");
+ assert.equal(classifyDizyQuantAvailability(base({evidenceGrade:"continuous-stream-grade",sequenceContinuous:null})),"gapped");
+ assert.equal(classifyDizyQuantAvailability(base({evaluatedAtMs:1_010_000})),"stale");
 });
 
 async function files(root){
