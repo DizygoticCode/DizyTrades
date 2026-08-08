@@ -20,8 +20,8 @@ test("public DIZY page pins canonical identity and permanent whitepaper", () => 
   assert.match(page, new RegExp(WHITEPAPER_ID));
   assert.match(page, new RegExp(WHITEPAPER_SHA256));
   assert.match(page, /1,000,000/);
-  assert.match(page, /Mint authority[\s\S]*Revoked/);
-  assert.match(page, /Freeze authority[\s\S]*Revoked/);
+  assert.match(page, /MINT AUTHORITY[\s\S]*Revoked/);
+  assert.match(page, /FREEZE AUTHORITY[\s\S]*Revoked/);
   assert.match(page, /DizyCoin[\s\S]*nickname/);
 });
 
