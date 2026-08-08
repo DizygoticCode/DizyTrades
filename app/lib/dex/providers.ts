@@ -1,6 +1,7 @@
 import "server-only";
 import { BoundedTtlCache } from "./cache";
 import { mapGeckoOhlcv, normaliseDexScreener } from "./normalise";
+import type { Candle } from "../strategy";
 import type { DexPage, DexProvider } from "./types";
 /* GeckoTerminal's sparse JSON:API relationships are normalised immediately. */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -8,6 +9,13 @@ import type { DexPage, DexProvider } from "./types";
 const DEXSCREENER_URL=process.env.DEXSCREENER_API_URL ?? "https://api.dexscreener.com";
 const GECKO_URL=process.env.GECKOTERMINAL_API_URL ?? "https://api.geckoterminal.com/api/v2";
 const cache=new BoundedTtlCache<DexPage>(80,30_000);
+// GeckoTerminal's public API is cached upstream for about one minute. Share that
+// result across browser sessions instead of making every terminal tab hit upstream.
+const ohlcvCache=new BoundedTtlCache<Candle[]>(120,55_000);
+// If the public endpoint briefly rate-limits or flakes, a recently confirmed chart
+// is safer than deleting the user's working market view.
+const staleOhlcvCache=new BoundedTtlCache<Candle[]>(120,10*60_000);
+const geckoHeaders=()=>({accept:"application/json;version=20230203",...(process.env.GECKOTERMINAL_API_KEY?{"x-cg-pro-api-key":process.env.GECKOTERMINAL_API_KEY}:{})});
 /** Preserve the /api/v2 base path: leading-slash URL paths silently dropped it and caused GeckoTerminal 404s. */
 export const geckoUrl=(path:string)=>new URL(`${GECKO_URL.replace(/\/$/,"")}/${path.replace(/^\//,"")}`);
 export const documentedDexProvider: DexProvider = {
@@ -19,7 +27,7 @@ export const documentedDexProvider: DexProvider = {
     // delegated to GeckoTerminal rather than accumulating a global token directory.
     const url=query ? new URL("/latest/dex/search",DEXSCREENER_URL) : geckoUrl(`networks/${chain === "bsc" ? "bsc" : "solana"}/pools`);
     if(query) url.searchParams.set("q",query); else url.searchParams.set("page",String(page));
-    const response=await fetch(url,{headers:{accept:"application/json",...(process.env.GECKOTERMINAL_API_KEY?{"x-cg-pro-api-key":process.env.GECKOTERMINAL_API_KEY}:{})},signal,cache:"no-store"});
+    const response=await fetch(url,{headers:query?{accept:"application/json"}:geckoHeaders(),signal,cache:"no-store"});
     if(!response.ok) throw new Error(`${query?"DEX Screener":"GeckoTerminal"} returned ${response.status}`);
     const payload=await response.json();
     // Gecko discovery is adapted into the same documented pair shape.
@@ -27,10 +35,20 @@ export const documentedDexProvider: DexProvider = {
     const result={markets:normaliseDexScreener(shaped).filter((m)=>!chain||m.chain===chain),nextCursor:query?undefined:String(page+1),provider:this.id,receivedAt:Date.now()}; cache.set(key,result); return result;
   },
   async candles({chain,poolAddress,tokenAddress,interval,limit},signal){
+    const safeLimit=Math.min(limit,1000), key=`${chain}|${poolAddress}|${tokenAddress??"base"}|${interval}|${safeLimit}`;
+    const cached=ohlcvCache.get(key); if(cached)return cached;
     const timeframe=interval.endsWith("m")?"minute":interval.endsWith("h")?"hour":"day";
     const aggregate=Math.max(1,parseInt(interval)); const url=geckoUrl(`networks/${chain === "bsc" ? "bsc" : "solana"}/pools/${encodeURIComponent(poolAddress)}/ohlcv/${timeframe}`);
-    url.searchParams.set("aggregate",String(aggregate)); url.searchParams.set("limit",String(Math.min(limit,1000))); url.searchParams.set("currency","usd");
+    url.searchParams.set("aggregate",String(aggregate)); url.searchParams.set("limit",String(safeLimit)); url.searchParams.set("currency","usd");
     if(tokenAddress)url.searchParams.set("token",tokenAddress);
-    const response=await fetch(url,{headers:{accept:"application/json"},signal,cache:"no-store"}); if(!response.ok)throw new Error(`GeckoTerminal returned ${response.status}`); return mapGeckoOhlcv(await response.json());
+    try {
+      const response=await fetch(url,{headers:geckoHeaders(),signal,cache:"no-store"});
+      if(!response.ok)throw new Error(`GeckoTerminal returned ${response.status}`);
+      const candles=mapGeckoOhlcv(await response.json());
+      ohlcvCache.set(key,candles); staleOhlcvCache.set(key,candles); return candles;
+    } catch(error) {
+      const stale=staleOhlcvCache.get(key); if(stale)return stale;
+      throw error;
+    }
   }
 };
