@@ -3,7 +3,7 @@ import { requireApiUser } from "../../../lib/auth";
 import { DIZY_MINT, DIZY_USDT_POOL } from "../../../lib/dex/dizy";
 import { documentedDexProvider } from "../../../lib/dex/providers";
 
-const intervals = new Set(["1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d"]);
+const intervals = new Set(["1m", "5m", "15m", "1h", "4h", "1d"]);
 
 export async function GET(request: Request) {
   if (!await requireApiUser()) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
