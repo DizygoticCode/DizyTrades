@@ -12,6 +12,13 @@ test("signup requires email verification and does not issue a session", () => {
   assert.doesNotMatch(route, /createDatabaseSession|SESSION_COOKIE|issueSession/);
 });
 
+test("signup page uses the same explicit enable flag as the backend", () => {
+  const page = source("app/signup/page.tsx");
+  assert.match(page, /publicSignupEnabled/);
+  assert.match(page, /enabled=\{publicSignupEnabled\(\)\}/);
+  assert.doesNotMatch(page, /PUBLIC_SIGNUP_ENABLED\s*!==\s*["']false["']/);
+});
+
 test("login blocks a correct unverified database account", () => {
   const route = source("app/api/auth/login/route.ts");
   assert.match(route, /EMAIL_UNVERIFIED/);
