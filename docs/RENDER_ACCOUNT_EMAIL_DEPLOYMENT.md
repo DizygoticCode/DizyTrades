@@ -1,0 +1,82 @@
+# Render Account Email Deployment
+
+This document records the production runtime contract for DizyTrades public signup, email verification and password recovery on the existing Render service.
+
+## Purpose
+
+`render.yaml` declares the intended service environment, but an already-existing Render service does not prove that every variable added later to the repository has been applied to the live runtime. Account email is considered production-configured only after the live service has the required values, has restarted/redeployed with them and the real signup/recovery flows succeed.
+
+## Required live variables
+
+The DizyTrades Render service requires:
+
+```text
+PUBLIC_SIGNUP_ENABLED=true
+APP_BASE_URL=https://dizytrades.onrender.com
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=dizytrades@gmail.com
+SMTP_APP_PASSWORD=<Render secret only>
+MAIL_FROM=DizyTrades <dizytrades@gmail.com>
+```
+
+### Secret handling
+
+`SMTP_APP_PASSWORD` must be a dedicated Google App Password for the DizyTrades Gmail account.
+
+- Never use the normal Google account password.
+- Never commit the App Password to GitHub, `.env.example`, documentation, screenshots or test fixtures.
+- Keep the real value only in the protected Render environment boundary.
+- `render.yaml` must declare `SMTP_APP_PASSWORD` with `sync: false` and no `value` field.
+
+## Application preflight
+
+The account-mail boundary fails closed unless its complete configuration is valid.
+
+- Public signup requires `PUBLIC_SIGNUP_ENABLED` to equal exactly `true`.
+- `APP_BASE_URL` must resolve as a valid HTTP/HTTPS origin and must use HTTPS in production.
+- SMTP user must be a valid email address.
+- SMTP port must be valid.
+- `SMTP_APP_PASSWORD` must be non-empty.
+- Sender/host values must be valid single-line headers.
+
+The signup page and signup API use the same `publicSignupEnabled()` helper so the UI cannot present signup as enabled while the backend rejects it because the explicit flag is absent.
+
+## Applying changes to an existing Render service
+
+When one of these variables is newly introduced or changed:
+
+1. open the DizyTrades Render service environment settings;
+2. add or update the exact variable name/value;
+3. save the environment change;
+4. restart/redeploy the current reviewed commit so the running process receives the new environment;
+5. wait for the service to become Live;
+6. verify `/api/health` and the intended account flow.
+
+Do not assume a repository change to `render.yaml` retroactively populated an already-existing service.
+
+## Production smoke evidence
+
+A complete account-email smoke should prove the real runtime chain rather than only the repository declaration:
+
+1. create a new public account using a controlled test address;
+2. confirm signup creates a pending-verification account and no session;
+3. receive the DizyTrades verification email through Gmail SMTP;
+4. follow the verification link and confirm the account becomes verified;
+5. sign in and reach the protected terminal;
+6. request password recovery for that verified account;
+7. receive the reset email;
+8. complete a password change;
+9. confirm existing database sessions are revoked and the new password can sign in.
+
+Verification/reset bearer links are sensitive. Do not copy live token URLs into tickets, logs or public documentation. The tokens are single-use and expire, but they must still be handled as credentials while valid.
+
+## What this does not enable
+
+Account email configuration does not change the exchange-execution boundary.
+
+- `LIVE_TRADING_ENABLED=false` remains required.
+- Gmail credentials cannot place exchange orders.
+- Public account verification does not grant owner/admin roles.
+- Profile editing cannot change account role or sign-in email.
+- Guarded live execution remains a separate security programme.
