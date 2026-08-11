@@ -143,12 +143,14 @@ test("readable topbar retains local actions beneath the shared Dizy navigation a
   await expect(launcher).toBeVisible();
   await expect(panel).not.toHaveAttribute("style", /height/);
 
-  const [panelBox, launcherBox] = await Promise.all([
-    panel.boundingBox(),
-    launcher.boundingBox(),
-  ]);
-  expect(panelBox).not.toBeNull();
-  expect(launcherBox).not.toBeNull();
-  // Preserve visible clearance while allowing Chromium's fractional-pixel rounding.
-  expect(bottom(launcherBox!)).toBeLessThanOrEqual(panelBox!.y - 7);
+  await expect
+    .poll(async () => {
+      const [panelBox, launcherBox] = await Promise.all([
+        panel.boundingBox(),
+        launcher.boundingBox(),
+      ]);
+      if (!panelBox || !launcherBox) return Number.NEGATIVE_INFINITY;
+      return panelBox.y - bottom(launcherBox);
+    })
+    .toBeGreaterThanOrEqual(7);
 });
