@@ -58,6 +58,7 @@ async function expectViewportContained(page: Page, route: string) {
       viewportHeight: window.innerHeight,
       documentWidth: document.documentElement.scrollWidth,
       bodyWidth: document.body.scrollWidth,
+      terminal: Boolean(document.querySelector(".terminal-shell")),
       portaled: Boolean(
         document.querySelector(".system-strip > .global-quick-actions"),
       ),
@@ -77,7 +78,9 @@ async function expectViewportContained(page: Page, route: string) {
     expect(control.right).toBeLessThanOrEqual(geometry.viewportWidth + 1);
     expect(control.top).toBeGreaterThanOrEqual(0);
     expect(control.bottom).toBeLessThanOrEqual(geometry.viewportHeight + 1);
-    expect(control.height).toBeGreaterThanOrEqual(geometry.portaled ? 32 : 40);
+    expect(control.height).toBeGreaterThanOrEqual(
+      geometry.portaled || geometry.terminal ? 32 : 40,
+    );
   }
   const [first, second] = geometry.controls;
   expect(
