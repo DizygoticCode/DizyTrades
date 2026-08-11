@@ -181,6 +181,12 @@ No order permission and no browser-held exchange credentials.
 
 This programme did not create an order route and did not weaken `LIVE_TRADING_ENABLED=false`.
 
+Closure evidence is recorded in:
+
+- [docs/MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION.md](docs/MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION.md)
+- [docs/MEXC_OWNER_CONNECTION_SHUTDOWN.md](docs/MEXC_OWNER_CONNECTION_SHUTDOWN.md)
+- [docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md](docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md)
+
 ### 6. Advanced pending-order simulation and DizyAcademy — complete
 
 - [x] shared typed immutable order lifecycle and deterministic replay

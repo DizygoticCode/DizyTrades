@@ -16,19 +16,19 @@ const [readme, roadmap, homepage, metadata, research] = await Promise.all([
 
 test("README reflects the completed account, heatmap and pending-order programmes", () => {
   assert.match(readme, /### DizyAccount/);
-  assert.match(readme, /owner-only GET-only DizyAccount Companion/i);
-  assert.match(readme, /advanced futures\/spot pending-order simulation/i);
-  assert.match(readme, /live-aligned heatmap/i);
+  assert.match(readme, /Owner-only, server-side, GET-only MEXC Futures account context/i);
+  assert.match(readme, /advanced order simulator adds futures LIMIT\/GTC\/IOC\/FOK\/post-only/i);
+  assert.match(readme, /retained-liquidity heatmap history/i);
   assert.doesNotMatch(readme, /\[ \] server-side read-only MEXC Account Companion/);
   assert.doesNotMatch(readme, /\[ \] customer-facing liquidity heatmap presentation/);
   assert.doesNotMatch(readme, /DizyPerformance, Behaviour, DizyOps and Backup\/Recovery lessons/);
 });
 
 test("roadmap follows the agreed programme order", () => {
-  const evidence = roadmap.indexOf("Finish the DizyQuant representative evidence campaign");
-  const polish = roadmap.indexOf("Optional evidence-led polish");
-  const housekeeping = roadmap.indexOf("Housekeeping and security update");
-  const execution = roadmap.indexOf("Guarded execution readiness");
+  const evidence = roadmap.indexOf("Active programme — DizyQuant representative evidence campaign");
+  const polish = roadmap.indexOf("Next — optional evidence-led polish");
+  const housekeeping = roadmap.indexOf("Ongoing maintenance — supported stack, not dependency churn");
+  const execution = roadmap.indexOf("Final major programme — guarded execution readiness");
   assert.ok(evidence >= 0 && polish > evidence && housekeeping > polish && execution > housekeeping);
   assert.match(roadmap, /450 qualified observations/);
   assert.match(roadmap, /Read-only MEXC Account Companion and shadow reconciliation — complete/);
