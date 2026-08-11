@@ -5,7 +5,10 @@ import { readFile } from "node:fs/promises";
 test("toolbar has direct timeframe and separate imperative chart controls", async () => {
   const source = await readFile(new URL("../app/trading-terminal.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(source, /aria-label="More timeframes"/);
-  assert.match(source, /ALL_TIMEFRAMES\.map/);
+  assert.match(
+    source,
+    /ALL_TIMEFRAMES\.filter\(\(item\) => !dexSelected \|\| supportsDexChartTimeframe\(item\)\)\.map/,
+  );
   assert.match(source, /aria-pressed=\{timeframe === item\}/);
   assert.match(source, /chartControls\.current\?\.resetView\(\)/);
   assert.match(source, /chartControls\.current\?\.goToLive\(\)/);
