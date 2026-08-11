@@ -73,8 +73,10 @@ test("root layout mounts hydration-safe global quick actions and portals them on
   assert.match(mounted, /\.terminal-shell \.topbar \.system-strip/);
   assert.match(mounted, /MutationObserver/);
   assert.match(mounted, /getClientRects\(\)\.length > 0/);
-  assert.match(mounted, /window\.addEventListener\("resize", onStoreChange\)/);
-  assert.match(mounted, /window\.removeEventListener\("resize", onStoreChange\)/);
+  assert.match(mounted, /requestAnimationFrame/);
+  assert.match(mounted, /cancelAnimationFrame/);
+  assert.match(mounted, /window\.addEventListener\("resize", refresh\)/);
+  assert.match(mounted, /window\.removeEventListener\("resize", refresh\)/);
   assert.match(mounted, /className="global-quick-actions"/);
   assert.match(mounted, /<CommandPalette \/>/);
   assert.match(mounted, /<RecentShortcuts \/>/);
