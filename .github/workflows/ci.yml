@@ -20,7 +20,18 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - run: npm test
+      - name: Run deterministic tests
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee deterministic-test-output.txt
+      - name: Upload deterministic test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deterministic-test-diagnostics
+          path: deterministic-test-output.txt
+          if-no-files-found: error
+          retention-days: 1
       - run: npm run build
 
   browser-smoke:
