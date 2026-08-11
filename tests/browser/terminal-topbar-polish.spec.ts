@@ -1,7 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createVerifiedBrowserUser } from "./account-fixture";
 
 const testUser = {
   username: `topbar-polish-${Date.now()}`,
+  email: `topbar-polish-${Date.now()}@example.test`,
   password: "DizyTrades-Topbar-Polish-2026!",
 };
 
@@ -22,12 +24,7 @@ async function dismissOnboarding(page: Page) {
 }
 
 async function createStandardUser(page: Page) {
-  await page.goto("/signup");
-  await page.getByLabel("Username (optional)").fill(testUser.username);
-  await page.getByLabel("Password", { exact: true }).fill(testUser.password);
-  await page.getByLabel("Confirm password").fill(testUser.password);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).toHaveURL(/\/terminal$/);
+  await createVerifiedBrowserUser(page, testUser);
   await dismissOnboarding(page);
 }
 

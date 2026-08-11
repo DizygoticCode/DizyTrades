@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { createVerifiedBrowserUser } from "./account-fixture";
 
 const user = {
   username: `e2e_user_${Date.now().toString(36)}`,
+  email: `e2e-user-${Date.now().toString(36)}@example.test`,
   password: "DizyTrades-E2E-2026!",
 };
 const owner = {
@@ -107,12 +109,7 @@ test("viewer session navigates the roadmap and remains read-only", async ({ page
 });
 
 test("new user can persist profile data and validate a same-account backup", async ({ page }) => {
-  await page.goto("/signup");
-  await page.getByLabel("Username (optional)").fill(user.username);
-  await page.getByLabel("Password", { exact: true }).fill(user.password);
-  await page.getByLabel("Confirm password").fill(user.password);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).toHaveURL(/\/terminal$/);
+  await createVerifiedBrowserUser(page, user);
 
   const beforeResponse = await page.request.get("/api/profile");
   expect(beforeResponse.status()).toBe(200);

@@ -35,6 +35,18 @@ services:
         value: "true"
       - key: LEGACY_AUTH_FALLBACK_ENABLED
         value: "true"
+      - key: APP_BASE_URL
+        value: https://dizytrades.onrender.com
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_USER
+        value: dizytrades@gmail.com
+      - key: SMTP_APP_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        value: "DizyTrades <dizytrades@gmail.com>"
       - key: DIZYFLOW_LOW_MEMORY_MODE
         value: "true"
       - key: DIZYFLOW_DEPTH_TRANSPORT

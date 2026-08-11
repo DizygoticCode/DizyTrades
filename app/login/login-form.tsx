@@ -17,11 +17,13 @@ export default function LoginForm() {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [unverified, setUnverified] = useState(false);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
     setError("");
+    setUnverified(false);
     const data = new FormData(event.currentTarget);
     try {
       const response = await fetch("/api/auth/login", {
@@ -32,8 +34,11 @@ export default function LoginForm() {
           password: data.get("password"),
         }),
       });
-      const payload = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(payload.error || "Sign-in failed.");
+      const payload = await response.json() as { error?: string; code?: string };
+      if (!response.ok) {
+        if (payload.code === "EMAIL_UNVERIFIED") setUnverified(true);
+        throw new Error(payload.error || "Sign-in failed.");
+      }
       router.replace("/terminal");
       router.refresh();
     } catch (caught) {
@@ -46,6 +51,7 @@ export default function LoginForm() {
   const continueAsViewer = async () => {
     setLoading(true);
     setError("");
+    setUnverified(false);
     try {
       const response = await fetch("/api/auth/viewer", { method: "POST" });
       if (!response.ok) throw new Error("Viewer session unavailable.");
@@ -77,10 +83,11 @@ export default function LoginForm() {
         <span>Password</span>
         <input autoComplete="current-password" name="password" required type="password" />
       </label>
-      {error ? <div className="login-error" role="alert">{error}</div> : null}
+      {error ? <div className="login-error" role="alert">{error}{unverified ? <><br /><a href="/resend-verification">Resend verification email</a></> : null}</div> : null}
       <button disabled={!interactive} type="submit">
         {loading ? "Opening workspace…" : "Open DizyTrades"}
       </button>
+      <a className="signup-link" href="/forgot-password">Forgot your password?</a>
       <a className="signup-link" href="/signup">Create an account</a>
       <button className="viewer-login" disabled={!interactive} onClick={continueAsViewer} type="button">
         Open View-Only Terminal

@@ -17,9 +17,12 @@ test("landing calls to action target the public route map", async () => {
   assert.match(page, /SCHOOL_DISPLAY_NAME/);
   assert.match(page, /href="\/school"/);
 });
-test("account routes enter the protected terminal and logout stays on the public origin", async () => {
+test("verified account routes enter the protected terminal and logout stays on the public origin", async () => {
   assert.match(await source("app/login/login-form.tsx"), /router\.replace\("\/terminal"\)/);
-  assert.match(await source("app/signup/signup-form.tsx"), /router\.replace\("\/terminal"\)/);
+  const signup = await source("app/signup/signup-form.tsx");
+  assert.doesNotMatch(signup, /router\.replace\("\/terminal"\)/, "signup must not mint a terminal session before email verification");
+  assert.match(signup, /Check your inbox/);
+  assert.match(signup, /NO SESSION YET/);
   assert.match(await source("app/login/page.tsx"), /title:\s*"Sign In \| DizyTrades"/);
   assert.match(await source("app/signup/page.tsx"), /title:\s*"Create Account \| DizyTrades"/);
   const logoutRoute = await source("app/api/auth/logout/route.ts");
