@@ -23,6 +23,7 @@ const expectedDestinations = [
   "/backup",
   "/diagnostics",
   "/dex",
+  "/dizy",
 ];
 
 test("shared product navigation exposes each current standalone destination once", () => {
@@ -35,6 +36,7 @@ test("nested product pages retain their relevant active product", () => {
   assert.equal(activeDizyProduct("/scanner"), "scanner");
   assert.equal(activeDizyProduct("/account/control"), "account");
   assert.equal(activeDizyProduct("/school/lessons/order-flow"), "academy");
+  assert.equal(activeDizyProduct("/dizy"), "dizy");
   assert.equal(activeDizyProduct("/explore"), "charts");
   assert.equal(activeDizyProduct("/"), null);
 });

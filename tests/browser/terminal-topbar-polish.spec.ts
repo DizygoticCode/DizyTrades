@@ -48,26 +48,34 @@ function overlaps(first: GeometryBox, second: GeometryBox) {
   );
 }
 
-test("readable topbar exposes Dizy navigation and clears collapsed paper controls", async ({
+test("readable topbar retains local actions beneath the shared Dizy navigation and clears collapsed paper controls", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await createStandardUser(page);
 
+  const sharedNavigation = page.getByRole("navigation", {
+    name: "Dizy product navigation",
+  });
+  const sharedLinks = sharedNavigation.getByRole("link");
+  await expect(sharedNavigation).toBeVisible();
+  expect(await sharedLinks.count()).toBeGreaterThanOrEqual(10);
+
   const topbar = page.locator(".topbar");
-  const navItems = page.locator(".system-strip > .nav-tab");
+  const systemStrip = page.locator(".system-strip");
+  const navItems = page.locator(".system-strip > .nav-tab:visible");
   await expect(topbar).toBeVisible();
   await expect(navItems.first()).toBeVisible();
-  expect(await navItems.count()).toBeGreaterThanOrEqual(10);
+  expect(await navItems.count()).toBeGreaterThanOrEqual(4);
 
   const topbarBox = await topbar.boundingBox();
   expect(topbarBox).not.toBeNull();
   for (const item of await navItems.all()) {
-    await expect(item).toBeVisible();
     const box = await item.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(right(box!)).toBeLessThanOrEqual(1440);
+    expect(box!.y).toBeGreaterThanOrEqual(topbarBox!.y - 1);
     expect(bottom(box!)).toBeLessThanOrEqual(bottom(topbarBox!) + 1);
   }
   expect(
@@ -80,21 +88,34 @@ test("readable topbar exposes Dizy navigation and clears collapsed paper control
   await expect(statusBadges).toHaveCount(4);
   const connectionBox = await statusBadges.first().boundingBox();
   expect(connectionBox).not.toBeNull();
-  expect(connectionBox!.y).toBeGreaterThanOrEqual(bottom(topbarBox!) - 1);
+  expect(connectionBox!.y).toBeGreaterThanOrEqual(topbarBox!.y - 1);
+  expect(bottom(connectionBox!)).toBeLessThanOrEqual(bottom(topbarBox!) + 1);
   expect(
     await statusBadges.first().evaluate((node) => getComputedStyle(node).fontSize),
   ).toBe("9.25px");
 
   const quickActions = page.locator(".global-quick-actions");
-  const quickBox = await quickActions.boundingBox();
+  await expect(quickActions).toBeVisible();
+  expect(
+    await quickActions.evaluate((node) =>
+      node.parentElement?.classList.contains("system-strip"),
+    ),
+  ).toBe(true);
+  const [stripBox, quickBox] = await Promise.all([
+    systemStrip.boundingBox(),
+    quickActions.boundingBox(),
+  ]);
+  expect(stripBox).not.toBeNull();
   expect(quickBox).not.toBeNull();
+  expect(quickBox!.x).toBeGreaterThanOrEqual(stripBox!.x - 1);
+  expect(right(quickBox!)).toBeLessThanOrEqual(right(stripBox!) + 1);
   for (const badge of await statusBadges.all()) {
     const box = await badge.boundingBox();
     expect(box).not.toBeNull();
     expect(overlaps(box!, quickBox!)).toBe(false);
   }
 
-  /* Wide or zoomed-out desktop: preserve the complete brand before DizyCharts. */
+  /* Wide or zoomed-out desktop: preserve the complete brand before local DizyCharts actions. */
   await page.setViewportSize({ width: 1800, height: 900 });
   const brand = page.locator(".brand-lockup");
   const brandSubtitle = page.locator(".brand-lockup small");
@@ -122,12 +143,14 @@ test("readable topbar exposes Dizy navigation and clears collapsed paper control
   await expect(launcher).toBeVisible();
   await expect(panel).not.toHaveAttribute("style", /height/);
 
-  const [panelBox, launcherBox] = await Promise.all([
-    panel.boundingBox(),
-    launcher.boundingBox(),
-  ]);
-  expect(panelBox).not.toBeNull();
-  expect(launcherBox).not.toBeNull();
-  // Preserve visible clearance while allowing Chromium's fractional-pixel rounding.
-  expect(bottom(launcherBox!)).toBeLessThanOrEqual(panelBox!.y - 7);
+  await expect
+    .poll(async () => {
+      const [panelBox, launcherBox] = await Promise.all([
+        panel.boundingBox(),
+        launcher.boundingBox(),
+      ]);
+      if (!panelBox || !launcherBox) return Number.NEGATIVE_INFINITY;
+      return panelBox.y - bottom(launcherBox);
+    })
+    .toBeGreaterThanOrEqual(7);
 });

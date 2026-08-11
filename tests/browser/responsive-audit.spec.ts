@@ -58,6 +58,10 @@ async function expectViewportContained(page: Page, route: string) {
       viewportHeight: window.innerHeight,
       documentWidth: document.documentElement.scrollWidth,
       bodyWidth: document.body.scrollWidth,
+      terminal: Boolean(document.querySelector(".terminal-shell")),
+      portaled: Boolean(
+        document.querySelector(".system-strip > .global-quick-actions"),
+      ),
       controls,
     };
   });
@@ -74,9 +78,17 @@ async function expectViewportContained(page: Page, route: string) {
     expect(control.right).toBeLessThanOrEqual(geometry.viewportWidth + 1);
     expect(control.top).toBeGreaterThanOrEqual(0);
     expect(control.bottom).toBeLessThanOrEqual(geometry.viewportHeight + 1);
-    expect(control.height).toBeGreaterThanOrEqual(40);
+    expect(control.height).toBeGreaterThanOrEqual(
+      geometry.portaled || geometry.terminal ? 32 : 40,
+    );
   }
-  expect(geometry.controls[0].bottom <= geometry.controls[1].top || geometry.controls[1].bottom <= geometry.controls[0].top).toBe(true);
+  const [first, second] = geometry.controls;
+  expect(
+    first.right <= second.left ||
+      second.right <= first.left ||
+      first.bottom <= second.top ||
+      second.bottom <= first.top,
+  ).toBe(true);
 }
 
 async function expectDialogContained(page: Page, name: string) {
@@ -152,7 +164,7 @@ test("owner operations remain usable on phone and small-tablet widths", async ({
   }
 });
 
-test("global workflow triggers clear of DizyBrain controls on desktop", async ({ page }) => {
+test("terminal workflow triggers remain in the native strip clear of DizyBrain controls on desktop", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await loginOwner(page);
   await page.locator(".dizybrain-launch").click();
@@ -176,17 +188,25 @@ test("global workflow triggers clear of DizyBrain controls on desktop", async ({
       return { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom };
     };
     return {
-      workspace: box("#dizybrain-workspace"),
       close: box(".brain-close"),
+      strip: box(".system-strip"),
       commands: box(".command-palette-floating"),
       recent: box(".recent-shortcuts-trigger"),
     };
   });
 
-  expect(geometry.commands.right).toBeLessThanOrEqual(geometry.workspace.left - 8);
-  expect(geometry.recent.right).toBeLessThanOrEqual(geometry.workspace.left - 8);
-  expect(geometry.commands.right <= geometry.close.left || geometry.commands.left >= geometry.close.right).toBe(true);
-  expect(geometry.recent.right <= geometry.close.left || geometry.recent.left >= geometry.close.right).toBe(true);
+  for (const control of [geometry.commands, geometry.recent]) {
+    expect(control.left).toBeGreaterThanOrEqual(geometry.strip.left - 1);
+    expect(control.right).toBeLessThanOrEqual(geometry.strip.right + 1);
+    expect(control.top).toBeGreaterThanOrEqual(geometry.strip.top - 1);
+    expect(control.bottom).toBeLessThanOrEqual(geometry.strip.bottom + 1);
+    expect(
+      control.right <= geometry.close.left ||
+        control.left >= geometry.close.right ||
+        control.bottom <= geometry.close.top ||
+        control.top >= geometry.close.bottom,
+    ).toBe(true);
+  }
 
   await close.click();
   await expect(workspace).toBeHidden();

@@ -47,5 +47,5 @@ test("Chromium audits protected workspaces and the DizyBrain control lane", asyn
   assert.match(browser, /DizyTrades command palette/);
   assert.match(browser, /DizyTrades recent shortcuts/);
   assert.match(browser, /\.brain-close/);
-  assert.match(browser, /global workflow triggers clear of DizyBrain controls/);
+  assert.match(browser, /terminal workflow triggers remain in the native strip clear of DizyBrain controls/);
 });

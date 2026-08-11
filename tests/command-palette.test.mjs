@@ -60,7 +60,7 @@ test("keyboard reference documents only implemented palette and DOM controls", (
   assert.equal(KEYBOARD_REFERENCE.some((item) => item.keys === "DOM: Escape"), true);
 });
 
-test("root layout mounts after hydration and launchers remain existing UI actions", async () => {
+test("root layout mounts hydration-safe global quick actions and portals them only into a visible terminal strip", async () => {
   const [layout, mounted, palette] = await Promise.all([
     readFile("app/layout.tsx", "utf8"),
     readFile("app/command-palette-mounted.tsx", "utf8"),
@@ -69,9 +69,21 @@ test("root layout mounts after hydration and launchers remain existing UI action
   assert.match(layout, /<CommandPaletteMounted \/>/);
   assert.match(mounted, /useSyncExternalStore/);
   assert.match(mounted, /\(\) => true, \(\) => false/);
-  assert.match(mounted, /return mounted \? \(/);
+  assert.match(mounted, /if \(!mounted\) return null;/);
+  assert.match(mounted, /\.terminal-shell \.topbar \.system-strip/);
+  assert.match(mounted, /MutationObserver/);
+  assert.match(mounted, /getClientRects\(\)\.length > 0/);
+  assert.match(mounted, /requestAnimationFrame/);
+  assert.match(mounted, /cancelAnimationFrame/);
+  assert.match(mounted, /window\.addEventListener\("resize", refresh\)/);
+  assert.match(mounted, /window\.removeEventListener\("resize", refresh\)/);
+  assert.match(mounted, /className="global-quick-actions"/);
   assert.match(mounted, /<CommandPalette \/>/);
   assert.match(mounted, /<RecentShortcuts \/>/);
+  assert.match(
+    mounted,
+    /terminalToolbar \? createPortal\(<QuickActions \/>, terminalToolbar\) : <QuickActions \/>/,
+  );
   assert.match(palette, /Control\+K Meta\+K/);
   assert.match(palette, /first-run-onboarding-trigger/);
   assert.match(palette, /workspace-layout-trigger/);

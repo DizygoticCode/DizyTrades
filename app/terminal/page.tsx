@@ -4,7 +4,7 @@ import { DizyBrainShell } from "../dizybrain-shell";
 import { FirstRunOnboarding } from "../first-run-onboarding";
 import { WorkspaceLayouts } from "../workspace-layouts";
 import { WorkspaceStatePolish } from "../workspace-state-polish";
-import TradingTerminal from "../trading-terminal";
+import { TerminalClientShell } from "../terminal-client-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ export default async function TerminalPage() {
       <FirstRunOnboarding userId={user.id} userName={user.name} />
       <WorkspaceLayouts readOnly={user.role === "viewer"} />
       <WorkspaceStatePolish workspace="terminal" />
-      <TradingTerminal user={user} />
+      <TerminalClientShell user={user} />
     </DizyBrainShell>
   );
 }

@@ -8,6 +8,7 @@ const [
   visualFixes,
   responsivePolish,
   scrollbarPolish,
+  navigationCleanup,
   globals,
   terminal,
   orderFlowToolbar,
@@ -17,6 +18,7 @@ const [
   readFile("app/terminal-visual-fixes.css", "utf8"),
   readFile("app/terminal-responsive-polish.css", "utf8"),
   readFile("app/terminal-scrollbar-polish.css", "utf8"),
+  readFile("app/navigation-shell-cleanup.css", "utf8"),
   readFile("app/globals.css", "utf8"),
   readFile("app/trading-terminal.tsx", "utf8"),
   readFile("app/order-flow-toolbar.tsx", "utf8"),
@@ -39,22 +41,25 @@ test("terminal scrollbar polish is the final global stylesheet", () => {
   assert.ok(scrollbarStyles > mobileStyles);
 });
 
-test("Commands and Recent occupy a full-size reserved row below the topbar", () => {
+test("Commands and Recent stay global and portal into the native terminal strip without a reserved row", () => {
   assert.match(mounted, /className="global-quick-actions"/);
   assert.match(mounted, /<CommandPalette \/>/);
   assert.match(mounted, /<RecentShortcuts \/>/);
-  assert.doesNotMatch(mounted, /createPortal|MutationObserver|querySelector/);
+  assert.match(mounted, /\.terminal-shell \.topbar \.system-strip/);
   assert.match(
-    responsivePolish,
-    /\.terminal-body-layout \{\s*padding-top: 50px;/s,
+    mounted,
+    /terminalToolbar \? createPortal\(<QuickActions \/>, terminalToolbar\) : <QuickActions \/>/,
   );
   assert.match(
-    responsivePolish,
-    /\.global-quick-actions \{\s*position: absolute;[^}]*top: 68px;/s,
+    navigationCleanup,
+    /\.system-strip > \.global-quick-actions \{[^}]*position: static !important;/s,
   );
-  assert.match(responsivePolish, /flex-flow: row wrap;/);
-  assert.match(responsivePolish, /min-width: max-content !important;/);
-  assert.match(responsivePolish, /font-size: 10px !important;/);
+  assert.match(
+    navigationCleanup,
+    /\.terminal-body-layout \{\s*padding-top: 0 !important;/s,
+  );
+  assert.match(navigationCleanup, /flex-flow: row nowrap;/);
+  assert.match(navigationCleanup, /min-width: max-content !important;/);
 });
 
 test("user settings remains a full-height independent terminal sidebar", () => {

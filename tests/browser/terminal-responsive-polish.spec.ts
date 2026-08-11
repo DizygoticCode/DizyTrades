@@ -41,19 +41,41 @@ async function contained(element: Locator) {
 }
 
 test("terminal controls remain contained with DOM and settings open", async ({ page }) => {
+  const hydrationErrors: string[] = [];
+  page.on("pageerror", (error) => {
+    if (/Hydration failed/i.test(error.message)) hydrationErrors.push(error.message);
+  });
+
   await page.setViewportSize({ width: 1440, height: 900 });
   await createStandardUser(page);
 
   const topbar = page.locator(".topbar");
+  const systemStrip = page.locator(".system-strip");
   const quickActions = page.locator(".global-quick-actions");
   await expect(quickActions).toBeVisible();
-  const [topbarBox, quickBox] = await Promise.all([
+  await expect
+    .poll(() =>
+      quickActions.evaluate((node) =>
+        node.parentElement?.classList.contains("system-strip"),
+      ),
+    )
+    .toBe(true);
+  const [topbarBox, stripBox, quickBox] = await Promise.all([
     topbar.boundingBox(),
+    systemStrip.boundingBox(),
     quickActions.boundingBox(),
   ]);
   expect(topbarBox).not.toBeNull();
+  expect(stripBox).not.toBeNull();
   expect(quickBox).not.toBeNull();
-  expect(quickBox!.y).toBeGreaterThanOrEqual(topbarBox!.y + topbarBox!.height);
+  expect(quickBox!.x).toBeGreaterThanOrEqual(stripBox!.x - 1);
+  expect(quickBox!.x + quickBox!.width).toBeLessThanOrEqual(
+    stripBox!.x + stripBox!.width + 1,
+  );
+  expect(quickBox!.y).toBeGreaterThanOrEqual(topbarBox!.y - 1);
+  expect(quickBox!.y + quickBox!.height).toBeLessThanOrEqual(
+    topbarBox!.y + topbarBox!.height + 1,
+  );
   await expect(page.getByRole("button", { name: /Commands/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Recent" })).toBeVisible();
 
@@ -164,6 +186,8 @@ test("terminal controls remain contained with DOM and settings open", async ({ p
     expect(cardGeometry.left).toBeGreaterThanOrEqual(dockGeometry.left - 1);
     expect(cardGeometry.right).toBeLessThanOrEqual(dockGeometry.right + 1);
   }
+
+  expect(hydrationErrors).toEqual([]);
 });
 
 test("terminal workflow buttons and DizyFlow wrap without page overflow", async ({ page }) => {
