@@ -41,12 +41,15 @@ test("terminal scrollbar polish is the final global stylesheet", () => {
   assert.ok(scrollbarStyles > mobileStyles);
 });
 
-test("Commands and Recent portal into the native terminal strip without a reserved row", () => {
+test("Commands and Recent stay global and portal into the native terminal strip without a reserved row", () => {
   assert.match(mounted, /className="global-quick-actions"/);
   assert.match(mounted, /<CommandPalette \/>/);
   assert.match(mounted, /<RecentShortcuts \/>/);
   assert.match(mounted, /\.terminal-shell \.topbar \.system-strip/);
-  assert.match(mounted, /terminalToolbar \? createPortal\(<QuickActions \/>, terminalToolbar\) : null/);
+  assert.match(
+    mounted,
+    /terminalToolbar \? createPortal\(<QuickActions \/>, terminalToolbar\) : <QuickActions \/>/,
+  );
   assert.match(
     navigationCleanup,
     /\.system-strip > \.global-quick-actions \{[^}]*position: static !important;/s,
