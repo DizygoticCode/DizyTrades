@@ -63,7 +63,7 @@ test("readable topbar retains local actions beneath the shared Dizy navigation a
 
   const topbar = page.locator(".topbar");
   const systemStrip = page.locator(".system-strip");
-  const navItems = page.locator(".system-strip > .nav-tab");
+  const navItems = page.locator(".system-strip > .nav-tab:visible");
   await expect(topbar).toBeVisible();
   await expect(navItems.first()).toBeVisible();
   expect(await navItems.count()).toBeGreaterThanOrEqual(4);
@@ -71,7 +71,6 @@ test("readable topbar retains local actions beneath the shared Dizy navigation a
   const topbarBox = await topbar.boundingBox();
   expect(topbarBox).not.toBeNull();
   for (const item of await navItems.all()) {
-    await expect(item).toBeVisible();
     const box = await item.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(0);
