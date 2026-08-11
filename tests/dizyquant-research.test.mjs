@@ -121,11 +121,14 @@ async function files(root){
  return out;
 }
 
-function assertNoExecutionCoupling(source){
- assert.doesNotMatch(source,/\b(?:placeOrder|submitOrder)\s*\(/i);
- assert.doesNotMatch(source,/\b(?:const|let|var|function|class|type|interface)\s+(?:apiKey|secret|credentials?|orderInstruction)\b/i);
- assert.doesNotMatch(source,/\.\s*(?:apiKey|secret|credentials?|orderInstruction)\b/);
- assert.doesNotMatch(source,/\b(?:apiKey|secret|credentials?|orderInstruction)\s*:/i);
+function assertNoExecutionCoupling(source,{allowSameOriginFetchCredentials=false}={}){
+ const guardedSource=allowSameOriginFetchCredentials
+  ? source.replace(/\bcredentials\s*:\s*"same-origin"\s*,?/g,"")
+  : source;
+ assert.doesNotMatch(guardedSource,/\b(?:placeOrder|submitOrder)\s*\(/i);
+ assert.doesNotMatch(guardedSource,/\b(?:const|let|var|function|class|type|interface)\s+(?:apiKey|secret|credentials?|orderInstruction)\b/i);
+ assert.doesNotMatch(guardedSource,/\.\s*(?:apiKey|secret|credentials?|orderInstruction)\b/);
+ assert.doesNotMatch(guardedSource,/\b(?:apiKey|secret|credentials?|orderInstruction)\s*:/i);
 }
 
 test("DizyQuant has only bounded approved consumers and no DizySignals influence",async()=>{
@@ -176,7 +179,7 @@ test("DizyQuant has only bounded approved consumers and no DizySignals influence
  assert.match(campaign,/Next sample boundary in/);
  assert.doesNotMatch(campaignImports,/backtest|paper-simulation|live-order|use-order-flow|mexc/i);
  assert.doesNotMatch(campaign,/DizySignals|runDizyQuantReplayLab|closeDizyQuantCampaign|placeOrder|submitOrder|live-order|paper-simulation|mexc-private/i);
- assertNoExecutionCoupling(campaign);
+ assertNoExecutionCoupling(campaign,{allowSameOriginFetchCredentials:true});
  const terminal=await readFile(tradingTerminal,"utf8"),terminalDizyQuantLines=terminal.split("\n").filter(line=>/DizyQuant/.test(line));
  assert.equal(terminalDizyQuantLines.length,2);
  assert.match(terminal,/import \{ DizyQuantSnapshotPublisher \} from "\.\/dizyquant-snapshot-publisher";/);
