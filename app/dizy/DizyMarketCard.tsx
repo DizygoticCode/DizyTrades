@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import styles from "./page.module.css";
+import styles from "./DizyMarketCard.module.css";
 
 const REFRESH_MS = 60_000;
 
@@ -95,30 +95,30 @@ export default function DizyMarketCard() {
   const path = useMemo(() => chartPath(market?.points ?? []), [market?.points]);
   const changeClass =
     market?.change24hPct == null
-      ? styles.marketNeutral
+      ? styles.neutral
       : market.change24hPct > 0
-        ? styles.marketPositive
+        ? styles.positive
         : market.change24hPct < 0
-          ? styles.marketNegative
-          : styles.marketNeutral;
+          ? styles.negative
+          : styles.neutral;
 
   return (
-    <article className={styles.marketCard} aria-labelledby="dizy-market-ticker">
-      <div className={styles.marketTicker}>
+    <article className={styles.card} aria-labelledby="dizy-market-ticker">
+      <div className={styles.ticker}>
         <div>
-          <span className={styles.marketLabel}>DIZY / USD</span>
+          <span className={styles.label}>DIZY / USD</span>
           <strong id="dizy-market-ticker">
             {market ? formatPrice(market.priceUsd) : refreshFailed ? "Unavailable" : "Loading…"}
           </strong>
         </div>
-        <div className={`${styles.marketChange} ${changeClass}`}>
+        <div className={`${styles.change} ${changeClass}`}>
           <span>24H</span>
           <strong>{market ? formatChange(market.change24hPct) : "—"}</strong>
         </div>
       </div>
 
-      <div className={styles.marketChart}>
-        <div className={styles.marketChartHeader}>
+      <div className={styles.chart}>
+        <div className={styles.chartHeader}>
           <span>24 hour price</span>
           <span>{market?.points.length ? `${market.points.length} points` : "Hourly"}</span>
         </div>
@@ -132,17 +132,17 @@ export default function DizyMarketCard() {
             <path d={path} vectorEffect="non-scaling-stroke" />
           </svg>
         ) : (
-          <div className={styles.marketChartEmpty}>
+          <div className={styles.empty}>
             {refreshFailed ? "Public chart data is temporarily unavailable." : "Loading 24h chart…"}
           </div>
         )}
-        <div className={styles.marketAxis} aria-hidden="true">
+        <div className={styles.axis} aria-hidden="true">
           <span>24h ago</span>
           <span>Now</span>
         </div>
       </div>
 
-      <div className={styles.marketMeta}>
+      <div className={styles.meta}>
         <span>GeckoTerminal · canonical Raydium pool</span>
         <span>
           {market
@@ -151,7 +151,7 @@ export default function DizyMarketCard() {
         </span>
       </div>
       {market && refreshFailed ? (
-        <p className={styles.marketNotice}>Latest refresh failed; showing the last received market snapshot.</p>
+        <p className={styles.notice}>Latest refresh failed; showing the last received market snapshot.</p>
       ) : null}
     </article>
   );
