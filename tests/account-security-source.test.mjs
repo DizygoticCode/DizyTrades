@@ -42,11 +42,15 @@ test("recovery requests use generic enumeration-safe responses", () => {
   assert.match(resend, /createEmailVerificationTokenForEmail/);
 });
 
-test("Render keeps the Gmail App Password outside source control", () => {
+test("Render declares the complete production account-mail boundary without committing the App Password", () => {
   const render = source("render.yaml");
-  assert.match(render, /- key: SMTP_APP_PASSWORD\s+sync: false/);
+  assert.match(render, /- key: PUBLIC_SIGNUP_ENABLED\s+value: ["']true["']/);
+  assert.match(render, /- key: APP_BASE_URL\s+value: https:\/\/dizytrades\.onrender\.com/);
   assert.match(render, /- key: SMTP_HOST\s+value: smtp\.gmail\.com/);
   assert.match(render, /- key: SMTP_PORT\s+value: ["']465["']/);
+  assert.match(render, /- key: SMTP_USER\s+value: dizytrades@gmail\.com/);
+  assert.match(render, /- key: SMTP_APP_PASSWORD\s+sync: false/);
+  assert.match(render, /- key: MAIL_FROM\s+value: ["']DizyTrades <dizytrades@gmail\.com>["']/);
   assert.doesNotMatch(render, /SMTP_APP_PASSWORD\s+value:/);
 });
 
