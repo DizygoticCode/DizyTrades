@@ -45,15 +45,25 @@ test("terminal controls remain contained with DOM and settings open", async ({ p
   await createStandardUser(page);
 
   const topbar = page.locator(".topbar");
+  const systemStrip = page.locator(".system-strip");
   const quickActions = page.locator(".global-quick-actions");
   await expect(quickActions).toBeVisible();
-  const [topbarBox, quickBox] = await Promise.all([
+  const [topbarBox, stripBox, quickBox] = await Promise.all([
     topbar.boundingBox(),
+    systemStrip.boundingBox(),
     quickActions.boundingBox(),
   ]);
   expect(topbarBox).not.toBeNull();
+  expect(stripBox).not.toBeNull();
   expect(quickBox).not.toBeNull();
-  expect(quickBox!.y).toBeGreaterThanOrEqual(topbarBox!.y + topbarBox!.height);
+  expect(quickBox!.x).toBeGreaterThanOrEqual(stripBox!.x - 1);
+  expect(quickBox!.x + quickBox!.width).toBeLessThanOrEqual(
+    stripBox!.x + stripBox!.width + 1,
+  );
+  expect(quickBox!.y).toBeGreaterThanOrEqual(topbarBox!.y - 1);
+  expect(quickBox!.y + quickBox!.height).toBeLessThanOrEqual(
+    topbarBox!.y + topbarBox!.height + 1,
+  );
   await expect(page.getByRole("button", { name: /Commands/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Recent" })).toBeVisible();
 
