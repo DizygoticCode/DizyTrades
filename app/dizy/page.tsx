@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import SiteHeader, { Brand } from "../marketing/site-header";
+import DizyMarketCard from "./DizyMarketCard";
+import { DIZY_MINT, DIZY_POOL } from "./token-config";
 import styles from "./page.module.css";
 
-const DIZY_MINT = "J9Bevbd4BS23cjoWbKazG1LGwRsAhr2iRQq6uo31BEaY";
-const DIZY_POOL = "2mH8umwN2FfEx23bzTUuTXjQZ5G9rLNuJ2VWEkgynowA";
 const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-const TOKEN_LOGO_URL = "https://gateway.irys.xyz/RAcoiCCewukn5Q9JMnHoMQK3nB8oFqrucA9GRTpNg16";
 const TOKEN_METADATA_URL = "https://gateway.irys.xyz/91617Uu3fWVinM84nGSm65LXUub519AWfDZc3Uq457dh";
 const WHITEPAPER_URL = "https://gateway.irys.xyz/8mV7TWV5P7nqDim6YJJ2akP3HA8Fe6bUyTu1ivxu39QG";
 const OFFICIAL_X_URL = "https://x.com/DizyTradesApp";
@@ -69,12 +69,17 @@ export default function DizyPage() {
             </div>
           </div>
           <div className={styles.coinPanel}>
-            <div
-              className={styles.coinLogo}
-              role="img"
-              aria-label="DIZY token logo"
-              style={{ backgroundImage: `url(${TOKEN_LOGO_URL})` }}
-            />
+            <div className={styles.coinLogo}>
+              <Image
+                src="/api/dizy/logo"
+                alt="DIZY token logo"
+                width={230}
+                height={230}
+                priority
+                unoptimized
+                style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+              />
+            </div>
             <strong>DIZY</strong>
             <span>$DIZY</span>
             <small>DizyCoin is the informal community nickname for the same DIZY token — not a second asset.</small>
@@ -102,6 +107,7 @@ export default function DizyPage() {
             </div>
             <p>DIZY has an active DIZY/USDT CPMM on Raydium. Use the exact mint and canonical pool address below when checking market data or a swap route.</p>
           </div>
+          <DizyMarketCard />
           <div className={styles.designNote}>
             <strong>Canonical Raydium pool</strong>
             <p>{DIZY_POOL}</p>
