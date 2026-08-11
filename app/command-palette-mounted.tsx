@@ -50,7 +50,7 @@ export function CommandPaletteMounted() {
     <>
       <AccessibilityFoundation />
       <DizyBrainGlobalToolOffset />
-      {terminalToolbar ? createPortal(<QuickActions />, terminalToolbar) : null}
+      {terminalToolbar ? createPortal(<QuickActions />, terminalToolbar) : <QuickActions />}
     </>
   );
 }
