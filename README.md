@@ -24,7 +24,7 @@
 
 ## Current state — 11 August 2026
 
-DizyTrades has moved well beyond its original chart-and-strategy simulator into a connected research and review platform. The current `main` branch includes the charting terminal, deterministic signal engine, market-microstructure tooling, realistic paper execution, read-only account reconciliation, replay, journal, analytics, education, backup/recovery and the bounded DizyQuant research programme.
+DizyTrades has moved well beyond its original chart-and-strategy simulator into a connected research and review platform. Current `main` includes the charting terminal, deterministic signal engine, market-microstructure tooling, realistic paper execution, read-only account reconciliation, replay, journal, analytics, education, backup/recovery, personal profiles and verified public-account recovery.
 
 The repository baseline has also been cleaned up:
 
@@ -34,8 +34,11 @@ The repository baseline has also been cleaned up:
 - Next.js and `eslint-config-next` are on the focused 16.2.12 security/patch release.
 - the persistent MEXC contract-metadata recovery path used by Manual Paper has been repaired and regression-tested.
 - DIZY is live on Solana with an official public DizyTrades token page.
+- public signup now requires email verification before session creation.
+- verified database accounts have enumeration-safe self-service password recovery with session revocation after reset.
+- authenticated owner/admin/user identities have a personal profile surface for display name, bounded bio and avatar.
 
-The active engineering/research priority is now the **DizyQuant representative evidence campaign**, not another broad feature-expansion programme.
+The first bounded DizyQuant representative campaign is no longer treated as the active build programme. DizyQuant remains isolated from DizySignals unless a future separate promotion review explicitly changes that boundary. The near-term engineering queue is evidence-led polish where justified, supported-stack maintenance and then an explicit decision about guarded live-execution readiness.
 
 ## What DizyTrades is
 
@@ -86,13 +89,15 @@ Public market-microstructure context beneath the candles: Market Depth, a virtua
 
 ### DizyQuant
 
-A versioned public-market microstructure research layer kept deliberately parallel to DizySignals. The registry currently contains **67 stable metric identities: 65 informational, two experimental, zero validated and zero signal-eligible**.
+A versioned public-market microstructure research layer kept deliberately parallel to DizySignals. The registry contains stable informational and experimental metric identities with no automatic signal influence.
 
 It includes snapshot-grade spread/depth/imbalance measurements, public aggressor flow, visible-depth pressure, displayed-liquidity turnover/persistence/migration, shock recovery/replenishment measures and a deterministic held-out/null/walk-forward Replay laboratory.
 
-### DizyAccount
+### DizyAccount and personal profiles
 
-Owner-only, server-side, GET-only MEXC Futures account context. It can ingest balances, positions and provider risk state, then perform deterministic shadow reconciliation against DizyPaper without changing either account. It has no order route and no browser-held exchange credentials.
+DizyAccount is the owner-only, server-side, GET-only MEXC Futures account companion. It can ingest balances, positions and provider risk state, then perform deterministic shadow reconciliation against DizyPaper without changing either account. It has no order route and no browser-held exchange credentials.
+
+Separately, authenticated non-viewer identities have a personal DizyTrades profile for display name, bounded bio and avatar. Profile mutation cannot change role or sign-in email. Legacy owner/admin credentials remain managed in the Render environment boundary.
 
 ### DizyScanner
 
@@ -141,19 +146,21 @@ The official DIZY page contains the canonical token identity, documentation, exp
 
 ## DizyQuant research status
 
-The six-slice DizyQuant implementation foundation is complete. The active programme is the first bounded representative-evidence campaign.
+The six-slice DizyQuant implementation foundation and the first bounded representative-evidence programme are treated as closed for the current roadmap. Current DizyQuant formulas remain research-only unless a separate versioned follow-up or promotion review is opened.
 
-Initial matrix:
+No DizyQuant result is silently promoted into DizySignals, decision logic or execution. A future signal-influence proposal still requires representative evidence, an explicit promotion PR and independent review.
 
-- **Symbols:** BTC_USDT, ETH_USDT and SOL_USDT
-- **Regimes:** range, directional and volatility-shock
-- **Coverage threshold:** 50 qualified observations per symbol × regime cell
-- **First matrix:** 450 qualified observations before all nine cells are coverage-ready
-- **Submitted-sample ceiling:** 10,000
+See [docs/DIZYQUANT_RESEARCH_CONTRACT.md](docs/DIZYQUANT_RESEARCH_CONTRACT.md) and [docs/DIZYQUANT_CAMPAIGN_CLOSURE.md](docs/DIZYQUANT_CAMPAIGN_CLOSURE.md).
 
-Coverage-ready does **not** mean validated, predictive or promotable. Every research result remains decision-ineligible, signal-ineligible and execution-ineligible unless representative evidence later supports a separate explicit promotion review.
+## Account security and recovery
 
-See [docs/DIZYQUANT_RESEARCH_CONTRACT.md](docs/DIZYQUANT_RESEARCH_CONTRACT.md).
+Public signup requires an explicit `PUBLIC_SIGNUP_ENABLED=true` deployment flag and a valid account-mail configuration. New accounts require an email address and remain blocked from authenticated sessions until verification succeeds.
+
+Verification and password-reset tokens are random, hashed at rest, expiring and single-use. Recovery responses are enumeration-safe. A successful password reset revokes existing database sessions.
+
+Production account mail is server-side only. Gmail SMTP credentials never enter browser state, and the Gmail App Password must remain only in the protected Render environment boundary.
+
+See [SECURITY.md](SECURITY.md) and [docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md](docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md).
 
 ## Safety boundaries
 
@@ -164,7 +171,8 @@ The repository currently contains:
 - no write-capable private exchange trading endpoint
 - no live order-placement route
 - no enabled execution capability
-- no DizyQuant metric promoted into DizySignals
+- no automatic DizyQuant influence on DizySignals
+- verified public-account signup and recovery isolated from exchange execution
 
 `LIVE_TRADING_ENABLED=false` remains a required deployment boundary. The read-only MEXC connection proves only the Account Companion observation boundary. Any future write-capable execution path requires separate credential custody, risk validation, idempotency, reconciliation, account limits, kill switches, recovery rehearsal and independent security approval.
 
@@ -183,7 +191,7 @@ npx playwright install --with-deps chromium
 npm run test:e2e
 ```
 
-The browser smoke job runs with the repository's CI/test environment, including `CI=true`, the dedicated test session secret and public-signup test mode. A change is not described as green merely because one stage passes; deterministic tests, production build and Chromium are all part of the current baseline.
+The browser smoke job runs with the repository's CI/test environment, including `CI=true`, a dedicated test session secret and an isolated mail boundary. Browser tests do not weaken production email verification.
 
 Dependency upgrades are intentionally focused. The project does not merge broad Dependabot bundles simply because they exist.
 
@@ -207,9 +215,25 @@ Open `http://localhost:3000`.
 
 Place generated `salt:hash` values in the matching password-hash environment variables and set `SESSION_SECRET` to at least 32 random characters. Public signup and legacy emergency access must each be explicitly enabled. Temporary plaintext test passwords require `ALLOW_TEST_PLAINTEXT_PASSWORDS=true` and are blocked whenever live trading is enabled.
 
+If local public signup is enabled, configure the account-mail variables from `.env.example` with a safe local/test mail boundary. Do not place the production Gmail App Password in committed files or test fixtures.
+
 ## Deployment and recovery
 
 The beta is deployed on Render as a Node service with persistent application storage, automatic deploys from `main` and `/api/health` monitoring.
+
+The intended production account-email environment is declared in `render.yaml`, but an existing Render service must be checked explicitly when new variables are introduced. The live service requires:
+
+```text
+PUBLIC_SIGNUP_ENABLED=true
+APP_BASE_URL=https://dizytrades.onrender.com
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=dizytrades@gmail.com
+SMTP_APP_PASSWORD=<Render secret only>
+MAIL_FROM=DizyTrades <dizytrades@gmail.com>
+```
+
+After adding or changing those values, save them and restart/redeploy the reviewed commit so the running process receives the new environment. A repository declaration alone is not treated as production proof. Full details and the smoke-test contract live in [docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md](docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md).
 
 The deployment-observation contract is read-only: it resolves the configured DizyTrades service, waits for the expected commit and verifies the public simulation-only health boundary without changing Render.
 
@@ -225,7 +249,9 @@ Visible DOM depth can be cancelled, changed or hidden. Queue-ahead is an educati
 
 DizyAccount reflects the owner's read-only MEXC provider state when fresh. DizyPaper reconciliation is observational rather than corrective.
 
-DizyQuant uses aggregated public price-level data. It does not know individual order identity, trader identity, true queue position, hidden liquidity or institutional intent. Experimental absorption/exhaustion candidates are versioned depth-only research rules—not diagnoses or trading calls.
+DizyQuant uses aggregated public price-level data. It does not know individual order identity, trader identity, true queue position, hidden liquidity or institutional intent. Experimental research rules are not diagnoses or trading calls.
+
+Public accounts now have verification and self-service recovery, but MFA is still deferred to the guarded-execution security programme.
 
 ## Key documents
 
@@ -236,6 +262,7 @@ DizyQuant uses aggregated public price-level data. It does not know individual o
 - [PRINCIPLES.md](PRINCIPLES.md) — engineering/product principles
 - [RELEASE_NOTES.md](RELEASE_NOTES.md) — release history
 - [docs/DIZYQUANT_RESEARCH_CONTRACT.md](docs/DIZYQUANT_RESEARCH_CONTRACT.md) — DizyQuant evidence contract
+- [docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md](docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md) — production signup/recovery mail configuration
 
 ## Contributing
 
