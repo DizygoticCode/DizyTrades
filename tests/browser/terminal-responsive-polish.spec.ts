@@ -41,6 +41,11 @@ async function contained(element: Locator) {
 }
 
 test("terminal controls remain contained with DOM and settings open", async ({ page }) => {
+  const hydrationErrors: string[] = [];
+  page.on("pageerror", (error) => {
+    if (/Hydration failed/i.test(error.message)) hydrationErrors.push(error.message);
+  });
+
   await page.setViewportSize({ width: 1440, height: 900 });
   await createStandardUser(page);
 
@@ -48,6 +53,13 @@ test("terminal controls remain contained with DOM and settings open", async ({ p
   const systemStrip = page.locator(".system-strip");
   const quickActions = page.locator(".global-quick-actions");
   await expect(quickActions).toBeVisible();
+  await expect
+    .poll(() =>
+      quickActions.evaluate((node) =>
+        node.parentElement?.classList.contains("system-strip"),
+      ),
+    )
+    .toBe(true);
   const [topbarBox, stripBox, quickBox] = await Promise.all([
     topbar.boundingBox(),
     systemStrip.boundingBox(),
@@ -174,6 +186,8 @@ test("terminal controls remain contained with DOM and settings open", async ({ p
     expect(cardGeometry.left).toBeGreaterThanOrEqual(dockGeometry.left - 1);
     expect(cardGeometry.right).toBeLessThanOrEqual(dockGeometry.right + 1);
   }
+
+  expect(hydrationErrors).toEqual([]);
 });
 
 test("terminal workflow buttons and DizyFlow wrap without page overflow", async ({ page }) => {
