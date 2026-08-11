@@ -1,6 +1,7 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { AccessibilityFoundation } from "./accessibility-foundation";
 import { CommandPalette } from "./command-palette";
@@ -13,28 +14,9 @@ function subscribeMounted() {
   return () => {};
 }
 
-function subscribeToolbar(onStoreChange: () => void) {
-  const observer = new MutationObserver(onStoreChange);
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["class", "style"],
-  });
-  window.addEventListener("resize", onStoreChange);
-  return () => {
-    observer.disconnect();
-    window.removeEventListener("resize", onStoreChange);
-  };
-}
-
-function getToolbarSnapshot() {
+function findVisibleTerminalToolbar() {
   const toolbar = document.querySelector<HTMLElement>(terminalToolbarSelector);
   return toolbar && toolbar.getClientRects().length > 0 ? toolbar : null;
-}
-
-function getToolbarServerSnapshot() {
-  return null;
 }
 
 function QuickActions() {
@@ -48,11 +30,34 @@ function QuickActions() {
 
 export function CommandPaletteMounted() {
   const mounted = useSyncExternalStore(subscribeMounted, () => true, () => false);
-  const terminalToolbar = useSyncExternalStore(
-    subscribeToolbar,
-    getToolbarSnapshot,
-    getToolbarServerSnapshot,
-  );
+  const [terminalToolbar, setTerminalToolbar] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    let frame = 0;
+    const refresh = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const next = findVisibleTerminalToolbar();
+        setTerminalToolbar((current) => (current === next ? current : next));
+      });
+    };
+
+    refresh();
+    const observer = new MutationObserver(refresh);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "style"],
+    });
+    window.addEventListener("resize", refresh);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", refresh);
+    };
+  }, []);
 
   if (!mounted) return null;
 
