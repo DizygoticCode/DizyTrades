@@ -92,5 +92,8 @@ test("terminal publishes the existing safe workspace evidence and research rende
   assert.match(panel, /Research-only observation/);
   assert.match(panel, /signal-eligible/);
   assert.match(panel, /execution-eligible/);
+  assert.match(panel, /Terminal snapshot awaiting refresh/);
+  assert.match(panel, /Terminal snapshot published/);
+  assert.doesNotMatch(panel, /Stored evidence is stale/);
   assert.doesNotMatch(panel, /placeOrder|submitOrder|apiKey|secret|raw book/i);
 });

@@ -121,16 +121,19 @@ async function files(root){
  return out;
 }
 
-function assertNoExecutionCoupling(source){
- assert.doesNotMatch(source,/\b(?:placeOrder|submitOrder)\s*\(/i);
- assert.doesNotMatch(source,/\b(?:const|let|var|function|class|type|interface)\s+(?:apiKey|secret|credentials?|orderInstruction)\b/i);
- assert.doesNotMatch(source,/\.\s*(?:apiKey|secret|credentials?|orderInstruction)\b/);
- assert.doesNotMatch(source,/\b(?:apiKey|secret|credentials?|orderInstruction)\s*:/i);
+function assertNoExecutionCoupling(source,{allowSameOriginFetchCredentials=false}={}){
+ const guardedSource=allowSameOriginFetchCredentials
+  ? source.replace(/\bcredentials\s*:\s*"same-origin"\s*,?/g,"")
+  : source;
+ assert.doesNotMatch(guardedSource,/\b(?:placeOrder|submitOrder)\s*\(/i);
+ assert.doesNotMatch(guardedSource,/\b(?:const|let|var|function|class|type|interface)\s+(?:apiKey|secret|credentials?|orderInstruction)\b/i);
+ assert.doesNotMatch(guardedSource,/\.\s*(?:apiKey|secret|credentials?|orderInstruction)\b/);
+ assert.doesNotMatch(guardedSource,/\b(?:apiKey|secret|credentials?|orderInstruction)\s*:/i);
 }
 
 test("DizyQuant has only bounded approved consumers and no DizySignals influence",async()=>{
- const researchPage=path.join("app","research","page.tsx"),marketingPage=path.join("app","marketing","marketing-page.tsx"),siteHeader=path.join("app","marketing","site-header.tsx"),productNavigationModel=path.join("app","lib","product-navigation.ts"),homePage=path.join("app","page.tsx"),statusRoute=path.join("app","api","dizyquant","evidence","status","route.ts"),streamRoute=path.join("app","api","dizyquant","evidence","stream","route.ts"),exportRoute=path.join("app","api","dizyquant","evidence","export","route.ts"),livePublisher=path.join("app","dizyquant-snapshot-publisher.tsx"),livePanel=path.join("app","research","dizyquant-live-panel.tsx"),tradingTerminal=path.join("app","trading-terminal.tsx");
- const allowed=new Set([researchPage,marketingPage,siteHeader,productNavigationModel,homePage,statusRoute,streamRoute,exportRoute,livePublisher,livePanel,tradingTerminal]),offenders=[];
+ const researchPage=path.join("app","research","page.tsx"),marketingPage=path.join("app","marketing","marketing-page.tsx"),siteHeader=path.join("app","marketing","site-header.tsx"),productNavigationModel=path.join("app","lib","product-navigation.ts"),homePage=path.join("app","page.tsx"),statusRoute=path.join("app","api","dizyquant","evidence","status","route.ts"),streamRoute=path.join("app","api","dizyquant","evidence","stream","route.ts"),exportRoute=path.join("app","api","dizyquant","evidence","export","route.ts"),livePublisher=path.join("app","dizyquant-snapshot-publisher.tsx"),livePanel=path.join("app","research","dizyquant-live-panel.tsx"),campaignStatus=path.join("app","research","dizyquant-campaign-status.tsx"),tradingTerminal=path.join("app","trading-terminal.tsx");
+ const allowed=new Set([researchPage,marketingPage,siteHeader,productNavigationModel,homePage,statusRoute,streamRoute,exportRoute,livePublisher,livePanel,campaignStatus,tradingTerminal]),offenders=[];
  for(const file of await files("app")){
   if(file.startsWith(path.join("app","lib","dizyquant")))continue;
   const source=await readFile(file,"utf8");
@@ -139,6 +142,7 @@ test("DizyQuant has only bounded approved consumers and no DizySignals influence
  assert.deepEqual(offenders,[]);
  const page=await readFile(researchPage,"utf8");
  assert.match(page,/buildDizyQuantResearchPresentation/);
+ assert.match(page,/DizyQuantCampaignStatus/);
  assert.doesNotMatch(page,/DizySignals|order-flow|depth-collector|RawTrade|live-order/i);
  for(const file of[marketingPage,siteHeader,productNavigationModel,homePage]){
   const source=await readFile(file,"utf8"),imports=source.split("\n").filter(line=>/^\s*import\b/.test(line)).join("\n");
@@ -168,6 +172,14 @@ test("DizyQuant has only bounded approved consumers and no DizySignals influence
  assert.doesNotMatch(panelImports,/backtest|paper-simulation|live-order|use-order-flow|mexc/i);
  assertNoExecutionCoupling(panel);
  assert.match(panel,/never stores raw candles, DOM rows, account data, credentials or order instructions/i);
+ const campaign=await readFile(campaignStatus,"utf8"),campaignImports=campaign.split("\n").filter(line=>/^\s*import\b/.test(line)).join("\n");
+ assert.match(campaign,/fetch\("\/api\/dizyquant\/evidence\/status"/);
+ assert.match(campaign,/credentials: "same-origin"/);
+ assert.match(campaign,/Collecting live/);
+ assert.match(campaign,/Next sample boundary in/);
+ assert.doesNotMatch(campaignImports,/backtest|paper-simulation|live-order|use-order-flow|mexc/i);
+ assert.doesNotMatch(campaign,/DizySignals|runDizyQuantReplayLab|closeDizyQuantCampaign|placeOrder|submitOrder|live-order|paper-simulation|mexc-private/i);
+ assertNoExecutionCoupling(campaign,{allowSameOriginFetchCredentials:true});
  const terminal=await readFile(tradingTerminal,"utf8"),terminalDizyQuantLines=terminal.split("\n").filter(line=>/DizyQuant/.test(line));
  assert.equal(terminalDizyQuantLines.length,2);
  assert.match(terminal,/import \{ DizyQuantSnapshotPublisher \} from "\.\/dizyquant-snapshot-publisher";/);

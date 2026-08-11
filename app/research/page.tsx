@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { buildDizyQuantResearchPresentation } from "@/app/lib/dizyquant/presentation";
+import { DizyQuantCampaignStatus } from "./dizyquant-campaign-status";
 import { DizyQuantLivePanel } from "./dizyquant-live-panel";
 import styles from "./research.module.css";
 
@@ -37,6 +38,7 @@ export default function DizyQuantResearchPage() {
     </section>
     <section className={styles.section}>
       <div className={styles.heading}><p>ACTIVE EVIDENCE CAMPAIGN</p><h2>Representative coverage before conclusions.</h2></div>
+      <DizyQuantCampaignStatus />
       <div className={styles.sliceGrid}>{campaignScope.map(([value, label, summary]) => <article key={label}><span>{value}</span><small>bounded scope</small><h3>{label}</h3><p>{summary}</p></article>)}</div>
       <div className={styles.warning} role="note"><strong>Coverage-ready is not validation.</strong><span>Qualified samples still require held-out, circular-null and walk-forward review. Every result remains decision-ineligible, signal-ineligible, execution-ineligible and promotion-ineligible until a separate reviewed promotion change says otherwise.</span></div>
     </section>

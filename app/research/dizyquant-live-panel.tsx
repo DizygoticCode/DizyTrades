@@ -16,7 +16,7 @@ const stateLabel: Record<DizyQuantLiveState, string> = {
   live: "Live terminal evidence",
   limited: "Limited / recovering evidence",
   replay: "Historical Replay evidence",
-  stale: "Stored evidence is stale",
+  stale: "Terminal snapshot awaiting refresh",
 };
 
 const signed = (value: number | null) => value === null ? "Unavailable" : `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
@@ -64,7 +64,7 @@ export function DizyQuantLivePanel() {
     <div className={styles.liveDetails}>
       <span>Strategy: {snapshot.strategy.direction} · {snapshot.strategy.marketBias} · {snapshot.strategy.marketPhase}</span>
       <span>Flow: {snapshot.flow.availability} · {snapshot.flow.wallCount} walls · {snapshot.flow.sweepCount} sweeps · {snapshot.flow.absorptionCount} absorption candidates</span>
-      <span>Published {stamp(snapshot.capturedAt)} · {snapshot.flow.limitationCount} flow limitations</span>
+      <span>Terminal snapshot published {stamp(snapshot.capturedAt)} · {snapshot.flow.limitationCount} flow limitations</span>
     </div>
     <p className={styles.liveBoundary}><strong>Research-only observation.</strong> These derived factors are not signal-eligible, decision-eligible or execution-eligible, and they do not alter DizySignals, paper trading or live-order logic.</p>
   </section>;
