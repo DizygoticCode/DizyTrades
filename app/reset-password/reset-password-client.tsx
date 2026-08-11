@@ -1,18 +1,20 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState, useSyncExternalStore } from "react";
+
+const subscribeToHash = () => () => undefined;
+const resetToken = () => new URLSearchParams(window.location.hash.replace(/^#/, "")).get("token") || "";
+const serverResetToken = () => "";
 
 export default function ResetPasswordClient() {
-  const [token, setToken] = useState<string | null>(null);
+  const token = useSyncExternalStore(subscribeToHash, resetToken, serverResetToken);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [complete, setComplete] = useState(false);
 
   useEffect(() => {
-    const value = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("token") || "";
-    window.history.replaceState(null, "", window.location.pathname);
-    setToken(value || null);
-  }, []);
+    if (token) window.history.replaceState(null, "", window.location.pathname);
+  }, [token]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -33,7 +35,6 @@ export default function ResetPasswordClient() {
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error || "Password could not be reset.");
       setComplete(true);
-      setToken(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Password could not be reset.");
     } finally {
@@ -41,7 +42,7 @@ export default function ResetPasswordClient() {
     }
   }
 
-  if (token === null && !complete) return <div className="login-card" role="status">
+  if (!token && !complete) return <div className="login-card" role="status">
     <div className="login-brand"><div className="brand-mark" aria-hidden="true"><span /><span /><span /></div><div><strong>DizyTrades</strong><small>Everything Dizy™</small></div></div>
     <div className="test-chip"><i /> ACCOUNT SECURITY</div>
     <h1>Reset link unavailable</h1>
