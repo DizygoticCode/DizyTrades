@@ -4,11 +4,13 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("terminal quick actions portal into the native system strip only", async () => {
+test("quick actions stay global and portal into the native terminal system strip when available", async () => {
   const source = await read("app/command-palette-mounted.tsx");
   assert.match(source, /\.terminal-shell \.topbar \.system-strip/);
-  assert.match(source, /terminalToolbar \? createPortal\(<QuickActions \/>, terminalToolbar\) : null/);
-  assert.doesNotMatch(source, /: <QuickActions \/>/);
+  assert.match(
+    source,
+    /terminalToolbar \? createPortal\(<QuickActions \/>, terminalToolbar\) : <QuickActions \/>/,
+  );
   assert.equal((source.match(/<CommandPalette \/>/g) ?? []).length, 1);
   assert.equal((source.match(/<RecentShortcuts \/>/g) ?? []).length, 1);
 });
