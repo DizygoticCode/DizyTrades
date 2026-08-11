@@ -2,18 +2,34 @@
 
 DizyTrades is a transparent, deterministic crypto research, simulation and review platform. The enduring mission lives in [VISION.md](VISION.md); technical boundaries live in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-This roadmap reflects merged `main` as of August 2026. Items are not promises of dates. They move only after focused implementation, deterministic validation and review.
+This roadmap reflects merged `main` as of **11 August 2026**. Items are not promises of dates. Work moves only after focused implementation, deterministic validation and review.
 
 ## Current roadmap order
 
-The platform-building phase is largely complete. The active sequence is now deliberately narrower:
+The broad platform-building phase is largely complete. The active sequence is deliberately narrower:
 
 1. **Finish the DizyQuant representative evidence campaign.**
-2. **Optional evidence-led polish** based on what the campaign and production use actually reveal.
-3. **Housekeeping and security update** for supported dependency patches, documentation/security sync and CI recovery.
-4. **Guarded execution readiness** only after every execution-security boundary is independently satisfied.
+2. **Apply optional evidence-led polish** only where the campaign or production use exposes a real reason.
+3. **Maintain the supported stack** with focused dependency, documentation and operational updates.
+4. **Consider guarded execution readiness** only after every execution-security boundary is independently satisfied.
 
 No large feature programme is inserted between these stages merely because the platform can support one.
+
+## 11 August 2026 checkpoint — baseline reset complete
+
+The previous CI/maintenance backlog has been cleared.
+
+- [x] repair the deterministic CI baseline against the current architecture
+- [x] restore GitHub Actions as an active merge signal
+- [x] require lint, complete deterministic tests, production build and Chromium/Playwright smoke before merge
+- [x] fix the terminal Commands/Recent integration without reintroducing hydration mismatch
+- [x] apply the focused Next.js 16.2.12 / `eslint-config-next` 16.2.12 security and patch update
+- [x] keep React, Lightweight Charts, Playwright, Tailwind, TypeScript and Node type majors out of that focused security patch
+- [x] repair persistent MEXC contract-metadata recovery for Manual Paper while keeping core contract rules strict
+- [x] close superseded/stale dependency and token-page pull requests instead of carrying an artificial backlog
+- [x] sync README and ROADMAP with the current platform state
+
+GitHub Actions is no longer treated as silent or unavailable. The repository's ordinary merge gate is again authoritative.
 
 ## Current product generation — complete
 
@@ -26,11 +42,11 @@ No large feature programme is inserted between these stages merely because the p
 - [x] shared route-aware product navigation across the Dizy family
 - [x] unified MEXC Spot/Futures and DizyDEX discovery
 - [x] DizySignals confirmed-candle confluence engine
-- [x] DizyBrain typed explanation workspace
+- [x] DizyBrain typed explanation/review workspace
 - [x] DizyFlow Market Depth, DOM, retained liquidity, heatmap and public trades
 - [x] DizyQuant versioned microstructure registry, Replay lab and bounded `/research` page
 - [x] owner-only read-only DizyAccount Companion
-- [x] bounded production diagnostics and explicit feed-health states
+- [x] bounded DizyOps production diagnostics and explicit feed-health states
 
 ### Professional workflow
 
@@ -60,7 +76,8 @@ No large feature programme is inserted between these stages merely because the p
 
 ### Reliability and operations
 
-- [x] deterministic unit, integration and browser-validation contracts
+- [x] deterministic unit/integration contracts
+- [x] active GitHub Actions merge gate
 - [x] Playwright Chromium smoke coverage
 - [x] protected DizyOps diagnostics workspace
 - [x] full JSON backup export and Journal CSV
@@ -69,8 +86,6 @@ No large feature programme is inserted between these stages merely because the p
 - [x] read-only Render deployment observation and exact-commit health verification contracts
 - [x] destructive application recovery rehearsal in isolated temporary data roots
 - [x] authentication/storage, simulator-accounting, Replay, backup-conflict and browser-accessibility reviews
-
-GitHub Actions workflow definitions remain in the repository, but hosted runs are currently silent. Until that service recovers, focused deterministic checks and the Render production build remain the release gate; no documentation should pretend otherwise.
 
 ## Completed programmes
 
@@ -86,21 +101,22 @@ GitHub Actions workflow definitions remain in the repository, but hosted runs ar
 - [x] maintenance tiers and bankruptcy-price audit
 - [x] clearer isolated versus cross-margin assumptions
 - [x] migration-safe history and backup support
+- [x] recovery from unusable optional public MEXC tier fields without erasing valid core leverage rules
 
-The simulator is more realistic without claiming exchange-exact fills, queue priority or liquidation behaviour.
+The simulator is designed to be more realistic without claiming exchange-exact fills, queue priority or liquidation behaviour.
 
 ### 2. Workflow, navigation and accessibility polish
 
 - [x] saved workspace layouts and presets
 - [x] shared Dizy product navigation with one active destination model
 - [x] terminal-specific second toolbar for chart/workspace actions
-- [x] terminal-only Commands and Recent quick actions
+- [x] Commands and Recent quick actions with hydration-safe terminal integration
 - [x] command palette and keyboard reference
 - [x] recent markets, reviews and learning shortcuts
 - [x] first-run onboarding
 - [x] responsive and mobile audit
 - [x] focus order, screen-reader and reduced-motion audit
-- [x] empty, delayed and recovery state polish
+- [x] empty, delayed and recovery-state polish
 - [x] optional, visibly disclosed MEXC referral link without tracking or trading dependency
 
 ### 3. Independent correctness and security reviews
@@ -122,7 +138,7 @@ Evidence is recorded in:
 - [docs/BACKUP_RESTORE_CONFLICT_AUDIT.md](docs/BACKUP_RESTORE_CONFLICT_AUDIT.md)
 - [docs/BROWSER_ACCESSIBILITY_INDEPENDENT_REVIEW.md](docs/BROWSER_ACCESSIBILITY_INDEPENDENT_REVIEW.md)
 
-A destructive provider persistent-disk snapshot rollback is intentionally deferred to the guarded-execution security milestone, when isolated infrastructure and cost can be justified.
+A destructive provider persistent-disk snapshot rollback remains intentionally deferred to the guarded-execution security milestone, when isolated infrastructure and cost can be justified.
 
 ### 4. DizyQuant research foundation — complete
 
@@ -144,7 +160,7 @@ Current registry state:
 - [x] zero decision-eligible or signal-eligible metrics
 - [x] repository firewall against unreviewed DizySignals influence
 
-The implementation programme is finished. DizyQuant is not “finished science”: the representative evidence campaign below is the active research programme.
+The implementation foundation is finished. DizyQuant is not "finished science": the representative evidence campaign below is the active research programme.
 
 See [docs/DIZYQUANT_RESEARCH_CONTRACT.md](docs/DIZYQUANT_RESEARCH_CONTRACT.md) and the bounded public `/research` page.
 
@@ -163,9 +179,13 @@ No order permission and no browser-held exchange credentials.
 - [x] owner-controlled credential removal and shutdown workflow
 - [x] independent review of the complete read-only boundary
 
-The credential activation contract is documented in [docs/MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION.md](docs/MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION.md). The shutdown runbook is recorded in [docs/MEXC_OWNER_CONNECTION_SHUTDOWN.md](docs/MEXC_OWNER_CONNECTION_SHUTDOWN.md), and the completed boundary review is recorded in [docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md](docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md).
-
 This programme did not create an order route and did not weaken `LIVE_TRADING_ENABLED=false`.
+
+Closure evidence is recorded in:
+
+- [docs/MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION.md](docs/MEXC_OWNER_READONLY_CREDENTIAL_ACTIVATION.md)
+- [docs/MEXC_OWNER_CONNECTION_SHUTDOWN.md](docs/MEXC_OWNER_CONNECTION_SHUTDOWN.md)
+- [docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md](docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md)
 
 ### 6. Advanced pending-order simulation and DizyAcademy — complete
 
@@ -183,26 +203,39 @@ This programme did not create an order route and did not weaken `LIVE_TRADING_EN
 - [x] owner-only DizyOps removed from the ordinary-user Academy path
 - [x] independent accounting, replay and live-routing-boundary audit
 
-Evidence is recorded in [docs/PENDING_ORDER_PROGRAMME_AUDIT.md](docs/PENDING_ORDER_PROGRAMME_AUDIT.md). The programme remains simulation-only.
+The programme remains simulation-only.
 
 ### 7. Liquidity heatmap presentation and DizyFlow evidence quality — complete for the current beta
 
-The retained evidence engine and customer-facing presentation have now been reviewed together rather than treating data retention as proof of a correct visual.
-
-- [x] retained-history tiles render into the chart through the real DizyFlow store
+- [x] retained-history tiles render through the real DizyFlow store
 - [x] live depth transitions bridge from retained history to the current live-candle edge
-- [x] live display coverage is kept separate from historical archive coverage
+- [x] live display coverage remains separate from historical archive coverage
 - [x] sequence gaps clear synthetic live continuity instead of painting across missing evidence
 - [x] unrelated DOM/trade updates cannot drag an already rendered heatmap edge backwards
 - [x] initial/backfill catch-up may fill historical gaps without pretending those samples existed earlier
-- [x] heatmap and trade-bubble defaults are restrained so candles remain readable
+- [x] heatmap and trade-bubble defaults remain restrained so candles are readable
 - [x] explicit live, delayed, stale, gapped and unavailable semantics remain part of the evidence model
 
-Future heatmap changes should now be evidence-led polish or bug fixes, not a standing foundation programme.
+Future heatmap work should be evidence-led polish or bug repair, not another standing foundation programme.
+
+### 8. DIZY public token surface — complete for the current engineering scope
+
+DIZY is a live Solana cryptoasset associated with the DizyTrades ecosystem.
+
+- [x] canonical Solana mint identity published
+- [x] fixed 1,000,000 DIZY supply documented
+- [x] 9-decimal SPL identity documented
+- [x] mint and freeze authorities revoked
+- [x] official public `/dizy` page live
+- [x] permanent public documentation/metadata references exposed through the official page
+- [x] canonical Raydium DIZY/USDT market documented
+- [x] token language kept separate from guarantees of return, exchange listing or live DizyTrades execution
+
+External directory/listing review is administrative and does not block the product roadmap.
 
 ## Active programme — DizyQuant representative evidence campaign
 
-### 8. Finish the first bounded campaign
+### 9. Finish the first bounded campaign
 
 The collection and qualification machinery already exists. The work now is to collect representative evidence and make explicit research decisions.
 
@@ -229,7 +262,7 @@ Coverage-ready does **not** mean validated, predictive or promotable. This progr
 
 ## Next — optional evidence-led polish
 
-### 9. Improve only what the evidence or production use justifies
+### 10. Improve only what evidence or real production use justifies
 
 This stage is intentionally conditional. It is not another feature-expansion programme.
 
@@ -242,27 +275,38 @@ Possible work includes:
 - [ ] tighten explanations, unavailable states and evidence provenance where users can still misread them
 - [ ] add focused visual or deterministic regression coverage for any production issue uncovered
 
-Large institutional-style features remain parked unless this evidence creates a concrete reason to build them.
+Large institutional-style features remain parked unless evidence creates a concrete reason to build them.
 
-## Then — housekeeping and security update
+## Ongoing maintenance — supported stack, not dependency churn
 
-### 10. Maintain the stack before execution work
+### 11. Keep the base current and reviewable
 
-The goal is a supported, well-documented base for the final security milestone, not indiscriminate dependency churn.
+The emergency CI-recovery item is complete. Maintenance is now continuous rather than a one-off roadmap blocker.
 
-- [ ] test and apply supported Next.js/React security and patch updates
-- [ ] test Lightweight Charts and other useful minor/patch dependency updates independently
-- [ ] restore or diagnose GitHub Actions hosted runs before relying on CI status claims again
-- [ ] re-audit README, ROADMAP, SECURITY and deployment documentation against the live platform
-- [ ] review package/runtime engine alignment and remove stale configuration
-- [ ] run focused dependency/browser regressions before each accepted update
-- [ ] keep TypeScript 7 and mismatched Node-major type upgrades separate unless a dedicated migration is justified
+Current base:
+
+- Node.js 22.23.1
+- Next.js 16.2.12
+- React / React DOM 19.2.6
+- TypeScript 5.9.3
+- Lightweight Charts 5.0.x
+
+Rules and remaining maintenance:
+
+- [x] recover the GitHub Actions merge gate
+- [x] apply the focused Next.js 16.2.12 security/patch update
+- [x] re-audit README and ROADMAP after the CI/security cleanup
+- [ ] test useful supported dependency updates independently rather than as broad bundles
+- [ ] keep `SECURITY.md`, `ARCHITECTURE.md` and deployment documentation synchronized whenever their actual boundaries change
+- [ ] review runtime/package engine alignment when Node support requirements change
+- [ ] run focused dependency/browser regressions before every accepted framework/runtime update
+- [ ] keep TypeScript major migrations and mismatched Node-major type upgrades separate unless dedicated migration work is justified
 
 No dependency bundle is merged merely because Dependabot opened it.
 
 ## Final major programme — guarded execution readiness
 
-### 11. Security architecture before any live order route
+### 12. Security architecture before any live order route
 
 The completed DizyAccount read-only companion is a prerequisite and observation layer. It is **not** an execution approval.
 
@@ -288,7 +332,7 @@ Only after those gates pass should an explicit decision be made about whether to
 
 ## Parked institutional-style analysis
 
-These are ideas, not active roadmap commitments:
+These remain ideas, not active roadmap commitments:
 
 - [ ] footprint data model and visualisation where public data genuinely supports it
 - [ ] bid/ask delta and cumulative delta
@@ -306,11 +350,15 @@ Useful for public charting, market study, deterministic signals, public order-fl
 
 ### Operational Research Platform — achieved
 
-DizyPaper Fidelity V2, shared workflow/navigation, DizyQuant’s six-slice foundation, DizyFlow heatmap presentation, deployment/recovery contracts and focused independent reviews are complete.
+DizyPaper Fidelity V2, shared workflow/navigation, DizyQuant's six-slice foundation, DizyFlow heatmap presentation, deployment/recovery contracts, CI baseline and focused independent reviews are complete.
 
 ### Read-only Account Companion — achieved
 
 The owner-only companion can ingest and label private account state, add provider risk context, reconcile it with DizyPaper, calculate non-executable previews, persist tamper-evident shadow evidence and fail closed through an owner-controlled shutdown. It remains strictly separate from guarded live execution.
+
+### DIZY public launch surface — achieved
+
+The live Solana token identity, fixed supply, revoked authorities, official DizyTrades token page and canonical public market references are published. External directory approval is not represented as an engineering milestone.
 
 ### Evidence-qualified DizyQuant promotion — conditional
 
@@ -324,7 +372,7 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 
 - One focused concern per pull request.
 - Work from current `main`.
-- Run focused deterministic checks, the complete test suite where available, production build and relevant Chromium checks before merge.
+- Run lint, the complete deterministic suite, production build and relevant Chromium checks before merge.
 - Keep display preferences separate from strategy and risk logic.
 - Preserve immutable trade, Replay and research evidence.
 - Do not infer unavailable exchange, feed or account data.

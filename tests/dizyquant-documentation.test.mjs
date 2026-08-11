@@ -9,9 +9,9 @@ test("README reports the completed DizyQuant foundation without claiming validat
  assert.match(source,/DizyQuant Research/);
  assert.match(source,/67 stable metric identities/);
  assert.match(source,/65 informational, two experimental, zero validated and zero signal-eligible/);
- assert.match(source,/six-slice implementation programme is complete/i);
- assert.match(source,/first bounded evidence campaign/i);
- assert.match(source,/Coverage-ready still does not mean validated or promotable/i);
+ assert.match(source,/six-slice DizyQuant implementation foundation is complete/i);
+ assert.match(source,/first bounded representative-evidence campaign/i);
+ assert.match(source,/Coverage-ready does \*\*not\*\* mean validated, predictive or promotable/i);
  assert.doesNotMatch(source,/DizyQuant microstructure research with Replay\/statistical validation\n/);
 });
 
