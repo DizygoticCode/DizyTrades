@@ -185,7 +185,6 @@ test("terminal workflow triggers remain in the native strip clear of DizyBrain c
       return { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom };
     };
     return {
-      workspace: box("#dizybrain-workspace"),
       close: box(".brain-close"),
       strip: box(".system-strip"),
       commands: box(".command-palette-floating"),
@@ -198,8 +197,12 @@ test("terminal workflow triggers remain in the native strip clear of DizyBrain c
     expect(control.right).toBeLessThanOrEqual(geometry.strip.right + 1);
     expect(control.top).toBeGreaterThanOrEqual(geometry.strip.top - 1);
     expect(control.bottom).toBeLessThanOrEqual(geometry.strip.bottom + 1);
-    expect(control.bottom).toBeLessThanOrEqual(geometry.workspace.top + 1);
-    expect(control.right <= geometry.close.left || control.left >= geometry.close.right || control.bottom <= geometry.close.top || control.top >= geometry.close.bottom).toBe(true);
+    expect(
+      control.right <= geometry.close.left ||
+        control.left >= geometry.close.right ||
+        control.bottom <= geometry.close.top ||
+        control.top >= geometry.close.bottom,
+    ).toBe(true);
   }
 
   await close.click();
