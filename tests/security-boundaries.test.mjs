@@ -121,16 +121,16 @@ test("authentication throttling remains active when SQLite is unavailable", asyn
   assert.equal(consumeRateLimit(["login:ip:203.0.113.4"], 2, 60_000), true);
 });
 
-test("the auth database is private and validates accounts at its own boundary", async () => {
+test("the auth database is private and validates required-email accounts at its own boundary", async () => {
   await assert.rejects(
-    createAccount({ username: "<script>", password: "correct horse battery staple" }),
+    createAccount({ username: "<script>", email: "invalid-name@example.test", password: "correct horse battery staple" }),
     /INVALID_ACCOUNT/,
   );
   await assert.rejects(
     createAccount({ email: "not-an-email", password: "correct horse battery staple" }),
     /INVALID_ACCOUNT/,
   );
-  await createAccount({ username: "valid_user", password: "correct horse battery staple" });
+  await createAccount({ username: "valid_user", email: "valid-user@example.test", password: "correct horse battery staple" });
   const mode = (await stat(join(directory, "auth.sqlite"))).mode & 0o777;
   assert.equal(mode, 0o600);
 });
