@@ -24,7 +24,7 @@ const storedSnapshot = (capturedAt: number) => ({
   sourceConfidencePct: 75,
 });
 
-test("DizyQuant renders bounded live factors and marks expired evidence stale", async ({ page }) => {
+test("DizyQuant renders bounded live factors and marks expired terminal snapshots awaiting refresh", async ({ page }) => {
   await page.addInitScript(({ key, snapshot }) => {
     if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(snapshot));
   }, { key: storageKey, snapshot: storedSnapshot(Date.now()) });
@@ -44,5 +44,5 @@ test("DizyQuant renders bounded live factors and marks expired evidence stale", 
   await page.evaluate(({ key, snapshot }) => localStorage.setItem(key, JSON.stringify(snapshot)), { key: storageKey, snapshot: storedSnapshot(Date.now() - 60_000) });
   await page.reload();
   await expect(page.getByTestId("dizyquant-live-panel")).toHaveAttribute("data-state", "stale");
-  await expect(page.getByTestId("dizyquant-live-panel")).toContainText("Stored evidence is stale");
+  await expect(page.getByTestId("dizyquant-live-panel")).toContainText("Terminal snapshot awaiting refresh");
 });
