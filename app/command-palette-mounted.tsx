@@ -9,12 +9,14 @@ import { DizyBrainGlobalToolOffset } from "./dizybrain-global-tool-offset";
 import { RecentShortcuts } from "./recent-shortcuts";
 
 const terminalToolbarSelector = ".terminal-shell .topbar .system-strip";
+const terminalHydratedEvent = "dizy-terminal-hydrated";
 
 function subscribeMounted() {
   return () => {};
 }
 
 function findVisibleTerminalToolbar() {
+  if (document.body.dataset.dizyTerminalHydrated !== "true") return null;
   const toolbar = document.querySelector<HTMLElement>(terminalToolbarSelector);
   return toolbar && toolbar.getClientRects().length > 0 ? toolbar : null;
 }
@@ -48,14 +50,16 @@ export function CommandPaletteMounted() {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["class", "style"],
+      attributeFilter: ["class", "style", "data-dizy-terminal-hydrated"],
     });
     window.addEventListener("resize", refresh);
+    window.addEventListener(terminalHydratedEvent, refresh);
 
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
       window.removeEventListener("resize", refresh);
+      window.removeEventListener(terminalHydratedEvent, refresh);
     };
   }, []);
 
