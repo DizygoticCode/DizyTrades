@@ -128,9 +128,9 @@ function assertNoExecutionCoupling(source){
  assert.doesNotMatch(source,/\b(?:apiKey|secret|credentials?|orderInstruction)\s*:/i);
 }
 
-test("DizyQuant has only bounded presentation consumers and no DizySignals influence",async()=>{
- const researchPage=path.join("app","research","page.tsx"),marketingPage=path.join("app","marketing","marketing-page.tsx"),siteHeader=path.join("app","marketing","site-header.tsx"),productNavigationModel=path.join("app","lib","product-navigation.ts"),homePage=path.join("app","page.tsx"),statusRoute=path.join("app","api","dizyquant","evidence","status","route.ts"),streamRoute=path.join("app","api","dizyquant","evidence","stream","route.ts"),livePublisher=path.join("app","dizyquant-snapshot-publisher.tsx"),livePanel=path.join("app","research","dizyquant-live-panel.tsx"),tradingTerminal=path.join("app","trading-terminal.tsx");
- const allowed=new Set([researchPage,marketingPage,siteHeader,productNavigationModel,homePage,statusRoute,streamRoute,livePublisher,livePanel,tradingTerminal]),offenders=[];
+test("DizyQuant has only bounded approved consumers and no DizySignals influence",async()=>{
+ const researchPage=path.join("app","research","page.tsx"),marketingPage=path.join("app","marketing","marketing-page.tsx"),siteHeader=path.join("app","marketing","site-header.tsx"),productNavigationModel=path.join("app","lib","product-navigation.ts"),homePage=path.join("app","page.tsx"),statusRoute=path.join("app","api","dizyquant","evidence","status","route.ts"),streamRoute=path.join("app","api","dizyquant","evidence","stream","route.ts"),exportRoute=path.join("app","api","dizyquant","evidence","export","route.ts"),livePublisher=path.join("app","dizyquant-snapshot-publisher.tsx"),livePanel=path.join("app","research","dizyquant-live-panel.tsx"),tradingTerminal=path.join("app","trading-terminal.tsx");
+ const allowed=new Set([researchPage,marketingPage,siteHeader,productNavigationModel,homePage,statusRoute,streamRoute,exportRoute,livePublisher,livePanel,tradingTerminal]),offenders=[];
  for(const file of await files("app")){
   if(file.startsWith(path.join("app","lib","dizyquant")))continue;
   const source=await readFile(file,"utf8");
@@ -152,6 +152,12 @@ test("DizyQuant has only bounded presentation consumers and no DizySignals influ
   assert.doesNotMatch(source,/DizySignals|placeOrder|submitOrder|live-order|paper-simulation|mexc-private/i);
   assertNoExecutionCoupling(source);
  }
+ const exportSource=await readFile(exportRoute,"utf8");
+ assert.match(exportSource,/export async function GET/);
+ assert.match(exportSource,/user\.role !== "owner"/);
+ assert.match(exportSource,/buildDizyQuantCampaignStudyExport/);
+ assert.doesNotMatch(exportSource,/DizySignals|runDizyQuantReplayLab|closeDizyQuantCampaign|placeOrder|submitOrder|live-order|paper-simulation|mexc-private/i);
+ assertNoExecutionCoupling(exportSource);
  const publisher=await readFile(livePublisher,"utf8"),publisherImports=publisher.split("\n").filter(line=>/^\s*import\b/.test(line)).join("\n");
  assert.match(publisher,/createDizyQuantLiveSnapshot/);
  assert.match(publisher,/writeDizyQuantLiveSnapshot/);
