@@ -48,6 +48,16 @@ export default defineConfig({
           ROB_NAME: "E2E Owner",
           ROB_EMAIL: "e2e-owner@dizytrades.local",
           ROB_PASSWORD: "DizyTrades-E2E-Owner-2026!",
+          // Browser signup tests need the mail boundary configured so the real
+          // route creates a pending-verification account. Port 1 is intentionally
+          // closed: delivery fails fast and is recorded as undelivered without
+          // contacting an external mail service.
+          SMTP_HOST: "127.0.0.1",
+          SMTP_PORT: "1",
+          SMTP_USER: "e2e-mailer@dizytrades.local",
+          SMTP_APP_PASSWORD: "e2e-only-not-a-real-secret",
+          MAIL_FROM: "DizyTrades E2E <e2e-mailer@dizytrades.local>",
+          APP_BASE_URL: baseURL,
         },
       },
 });
