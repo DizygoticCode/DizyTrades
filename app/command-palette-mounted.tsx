@@ -15,12 +15,22 @@ function subscribeMounted() {
 
 function subscribeToolbar(onStoreChange: () => void) {
   const observer = new MutationObserver(onStoreChange);
-  observer.observe(document.body, { childList: true, subtree: true });
-  return () => observer.disconnect();
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "style"],
+  });
+  window.addEventListener("resize", onStoreChange);
+  return () => {
+    observer.disconnect();
+    window.removeEventListener("resize", onStoreChange);
+  };
 }
 
 function getToolbarSnapshot() {
-  return document.querySelector<HTMLElement>(terminalToolbarSelector);
+  const toolbar = document.querySelector<HTMLElement>(terminalToolbarSelector);
+  return toolbar && toolbar.getClientRects().length > 0 ? toolbar : null;
 }
 
 function getToolbarServerSnapshot() {
