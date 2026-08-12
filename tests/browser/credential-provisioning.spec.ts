@@ -6,7 +6,7 @@ import { createHmac } from "node:crypto";
 test.use({ trace: "off", screenshot: "off", video: "off" });
 
 const enabled = process.env.CREDENTIAL_PROVISIONING_ENABLED === "true" && process.env.CREDENTIAL_CUSTODY_ENABLED === "true";
-function decodeBase32(value: string) { const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";let bits="",output=[];for(const char of value.replace(/=+$/,"")){bits+=alphabet.indexOf(char).toString(2).padStart(5,"0");while(bits.length>=8){output.push(Number.parseInt(bits.slice(0,8),2));bits=bits.slice(8);}}return Buffer.from(output); }
+function decodeBase32(value: string) { const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";let bits="";const output=[];for(const char of value.replace(/=+$/,"")){bits+=alphabet.indexOf(char).toString(2).padStart(5,"0");while(bits.length>=8){output.push(Number.parseInt(bits.slice(0,8),2));bits=bits.slice(8);}}return Buffer.from(output); }
 function totp(secret: Buffer, now=Date.now()) { const counter=Buffer.alloc(8);counter.writeBigUInt64BE(BigInt(Math.floor(now/30_000)));const mac=createHmac("sha1",secret).update(counter).digest(),offset=mac[19]&15;return String((mac.readUInt32BE(offset)&0x7fffffff)%1e6).padStart(6,"0"); }
 const ownerEmail=process.env.ROB_EMAIL ?? "e2e-owner@dizytrades.local",ownerPassword=process.env.ROB_PASSWORD ?? "DizyTrades-E2E-Owner-2026!";
 async function loginOwner(page: import("@playwright/test").Page) { await page.goto("/login"); await page.getByLabel("Username or email").fill(ownerEmail); await page.getByLabel("Password").fill(ownerPassword); await page.getByRole("button",{name:"Open DizyTrades"}).click(); await expect(page).toHaveURL(/\/terminal$/); }
