@@ -195,3 +195,10 @@ Before live execution is considered, DizyTrades requires at minimum:
 - controlled provider persistent-disk snapshot rollback and service-restart rehearsal;
 - restricted test-account rollout;
 - independent security review before meaningful capital.
+# Future execution credential custody
+
+DizyTrades has a dedicated, server-only SQLite custody boundary for synthetic validation and future MEXC execution credentials. It encrypts the complete API-key/secret payload with AES-256-GCM, a fresh 96-bit nonce, and canonical authenticated ownership AAD. The AAD binds the stable database user, bounded account reference, exchange, future-execution purpose, record id, envelope version, and key version. Only bounded non-secret lifecycle metadata is audited.
+
+Custody is disabled by default and disconnected from routes, browser code, MEXC signing/network transports, and `app/lib/execution`. Its existence adds **no live execution capability**. The ordinary application boots without custody keys while disabled. Custody operations fail closed unless an active version and a dedicated 32-byte keyring are explicitly configured. Keys must be distinct from `SESSION_SECRET`, `MFA_ENCRYPTION_KEY`, password material, and all exchange credentials.
+
+Rotation decrypts and re-encrypts within one SQLite transaction; historical key versions must remain available during rewrap, and plaintext is never persisted. A later externally managed KMS can implement the same versioned record contract. Provisioning and any execution-provider wiring require separate security review. The MEXC Account Companion remains a separate GET-only, allow-listed, read-only subsystem.

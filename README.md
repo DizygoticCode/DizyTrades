@@ -2,6 +2,8 @@
 
 # DizyTrades
 
+Future MEXC execution credential custody is encrypted, server-only, disabled by default, and fully disconnected from execution. Operators must not configure custody keys unless deliberately testing the isolated custody service; see `SECURITY.md`. The existing MEXC Account Companion remains separate and read-only.
+
 ### Everything Dizy™
 
 **A transparent, simulation-first crypto research, charting, execution-practice and review platform.**

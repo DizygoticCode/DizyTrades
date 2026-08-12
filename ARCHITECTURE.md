@@ -421,3 +421,8 @@ rollout; and independent security approval.
 ## Pull-request rule
 
 A feature PR should normally touch only the layers it needs. Changes crossing transport, strategy, simulation, replay, storage and interface boundaries must explain why, add contract tests and document what deliberately remains unchanged.
+# Credential-custody compartment
+
+`app/lib/credential-custody` is a server-only, networkless compartment backed by `DATA_DIR/credential-custody.sqlite`. It owns versioned AES-256-GCM envelopes, ownership-bound AAD, metadata inspection, callback-scoped open, atomic rewrap, revocation, and secret-free lifecycle audit records. It has no import relationship in either direction with the execution airlock and no relationship with the separate MEXC read-only Account Companion.
+
+The compartment is deliberately not exposed through a production route or UI. `CREDENTIAL_CUSTODY_ENABLED` defaults to false. `CREDENTIAL_CUSTODY_KEYRING` is a bounded JSON object mapping numeric versions to dedicated base64/hex 32-byte keys; `CREDENTIAL_CUSTODY_ACTIVE_KEY_VERSION` selects the write/rewrap version. Missing historical versions fail closed.
