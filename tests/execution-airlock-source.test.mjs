@@ -5,13 +5,25 @@ import test from "node:test";
 
 const root = process.cwd();
 const text = (path) => readFileSync(join(root, path), "utf8");
+const excludedSourceDirectories = new Set([
+  ".git",
+  ".next",
+  "coverage",
+  "node_modules",
+  "playwright-report",
+  "test-results",
+  "tests",
+]);
 function filesBelow(path) {
   const output = [];
   const visit = (current) => {
     if (!existsSync(current)) return;
     for (const entry of readdirSync(current)) {
       const child = join(current, entry);
-      if (statSync(child).isDirectory()) visit(child);
+      const childPath = relative(root, child).replaceAll("\\", "/");
+      if (statSync(child).isDirectory()) {
+        if (!excludedSourceDirectories.has(childPath.split("/")[0])) visit(child);
+      }
       else output.push(relative(root, child).replaceAll("\\", "/"));
     }
   };
@@ -61,9 +73,10 @@ test("no route or client module imports the execution airlock", () => {
 });
 
 test("application code has one execution implementation import path and no boundary bypass", () => {
-  const applicationFiles = filesBelow("app").filter((path) => /\.[cm]?[jt]sx?$/.test(path)
+  const applicationFiles = filesBelow(".").filter((path) => /\.[cm]?[jt]sx?$/.test(path)
     && !path.startsWith("app/lib/execution/internal/")
     && path !== "app/lib/execution/boundary.ts");
+  assert.ok(applicationFiles.includes("instrumentation.ts"), "root server entrypoints are scanned");
   for (const path of applicationFiles) {
     assert.equal(importsExecutionInternal(path, text(path)), false, `${path} imports isolated implementation`);
   }
@@ -76,6 +89,15 @@ test("application code has one execution implementation import path and no bound
     'export * from "@/lib/execution/internal/service";',
   ]) {
     assert.equal(importsExecutionInternal("app/lib/execution/bridge.ts", source), true, source);
+  }
+  for (const source of [
+    'import "./app/lib/execution/internal/testing";',
+    'export { createServerExecutionBoundary } from "./app/lib/execution/internal/composition";',
+    'const boundary = await import("./app/lib/execution/internal/boundary-service");',
+    'const service = require("./app/lib/execution/internal/service");',
+    'export * from "@/lib/execution/internal/audit";',
+  ]) {
+    assert.equal(importsExecutionInternal("instrumentation.ts", source), true, source);
   }
   const boundarySource = text("app/lib/execution/boundary.ts");
   assert.match(boundarySource, /export const executionBoundary = createServerExecutionBoundary\(\)/);
