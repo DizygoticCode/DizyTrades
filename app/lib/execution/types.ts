@@ -3,6 +3,17 @@ import "server-only";
 import type { MexcContractMetadata } from "../mexc-contract-metadata";
 
 export const EXECUTION_CONTRACT_VERSION = "execution-airlock/1.0.0" as const;
+export const SYNTHETIC_PROVIDER_CONTRACT_VERSION = "synthetic-provider/1.0.0" as const;
+
+export type SyntheticProviderScenario = "would-accept" | "would-reject" | "would-timeout" | "would-unknown";
+export type SyntheticProviderResult = Readonly<{
+  contractVersion: typeof SYNTHETIC_PROVIDER_CONTRACT_VERSION;
+  providerKind: "non-executing";
+  provenance: "deterministic-synthetic-fixture";
+  outcome: SyntheticProviderScenario;
+  executed: false;
+  reasonClass: "none" | "policy" | "timeout" | "indeterminate";
+}>;
 
 export type ExecutionState =
   | "received"
@@ -105,12 +116,15 @@ export type ExecutionBlockCode =
   | "MAINTENANCE_STOP"
   | "EMERGENCY_STOP"
   | "DUPLICATE_INTENT"
-  | "ADAPTER_UNAVAILABLE";
+  | "ADAPTER_UNAVAILABLE"
+  | "PROVIDER_EXCEPTION"
+  | "PROVIDER_MALFORMED_RESULT"
+  | "SYNTHETIC_PROVIDER_OUTCOME";
 
 export type ExecutionResult = Readonly<{
   intentId: string;
   idempotencyKey: string;
-  state: "blocked" | "rejected";
+  state: "blocked" | "rejected" | "prepared";
   executed: false;
   duplicate: boolean;
   reason: ExecutionBlockCode | ExecutionRejectionCode;
@@ -128,12 +142,14 @@ export type ExecutionResult = Readonly<{
     leverage: number;
     reduceOnly: boolean;
   }> | null;
+  providerResult?: SyntheticProviderResult;
 }>;
 
 export type ExecutionAuditKind =
   | "intent-received" | "validation-passed" | "validation-rejected"
   | "execution-blocked" | "duplicate-intent-detected" | "kill-switch-active"
-  | "adapter-unavailable";
+  | "adapter-unavailable"
+  | "provider-evaluated" | "provider-failed";
 
 export type ExecutionAuditEvent = Readonly<{
   schemaVersion: "execution-audit/1.0.0";

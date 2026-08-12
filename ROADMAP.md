@@ -415,4 +415,4 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 - [x] Add disabled, encrypted, server-only future credential custody with key versioning and atomic rewrap.
 - [x] Add a disabled-by-default, owner-only fresh-password + fresh-TOTP provisioning and revocation ceremony with metadata-only status.
 - [x] Complete the separately reviewed, strongly authenticated credential provisioning ceremony design.
-- [ ] Review and design execution mechanics/provider wiring. Custody completion does not complete controlled activation or live execution.
+- [x] Review and design non-executing provider mechanics behind `ExecutionBoundary`. The deterministic synthetic contract is complete; it is not wired to custody or provisioning and does not complete controlled activation or live execution.
