@@ -228,6 +228,13 @@ export async function createAccount(input: { username?: string; email: string; p
 const PRIVILEGED_MIGRATION_KEY = "legacy-privileged-accounts-v1";
 type PrivilegedSpec = Readonly<{ id: "rob" | "friend"; email: string; name: string; role: "owner" | "admin"; password: string }>;
 
+/** Completed migration makes stable privileged identities database-authoritative. */
+export function privilegedAccountMigrationCompleted() {
+  const db = getAuthDatabase();
+  if (!db) return false;
+  return Boolean(db.prepare("SELECT 1 FROM privileged_account_migrations WHERE migration_key=?").get(PRIVILEGED_MIGRATION_KEY));
+}
+
 function privilegedSpecs(): PrivilegedSpec[] | null {
   const values = [
     { id: "rob", email: process.env.ROB_EMAIL || "", name: process.env.ROB_NAME?.trim() || "Rob", role: "owner", password: process.env.ROB_PASSWORD || "" },

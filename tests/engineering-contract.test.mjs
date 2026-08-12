@@ -56,7 +56,7 @@ test("production blueprint remains simulation-only with explicit emergency acces
   );
   assert.match(
     render,
-    /key: LEGACY_AUTH_FALLBACK_ENABLED\n\s+value: ["']true["']/,
+    /key: LEGACY_AUTH_FALLBACK_ENABLED\n\s+value: ["']false["']/,
   );
   assert.match(
     render,

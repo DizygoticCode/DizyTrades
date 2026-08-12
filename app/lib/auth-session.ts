@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHmac } from "node:crypto";
-import { createDatabaseSession } from "./auth-db";
+import { createDatabaseSession, privilegedAccountMigrationCompleted } from "./auth-db";
 import {
   configuredUsers,
   legacyAuthFallbackEnabled,
@@ -63,6 +63,10 @@ export function parseSessionToken(token: string | undefined): AuthUser | null {
     if (ownerId === "guest" && payload.role === "viewer" && payload.email === "") return VIEWER_USER;
     if (payload.role !== "owner" && payload.role !== "admin") return null;
     if (!legacyAuthFallbackEnabled()) return null;
+    // Once the one-way privileged migration has completed, rob/friend sessions
+    // are revocable database rows. Never let an older signed token bypass that
+    // authority (including after password reset or MFA break-glass recovery).
+    if ((ownerId === "rob" || ownerId === "friend") && privilegedAccountMigrationCompleted()) return null;
     const legacy = configuredUsers().find((user) => user.id === ownerId && user.email === payload.email);
     return legacy ? withoutSecrets(legacy) : null;
   } catch {

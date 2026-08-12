@@ -7,6 +7,7 @@ import test from "node:test";
 import { assertMfaConfiguration, authenticateDatabaseUserDetailed, beginMfaEnrollment, closeAuthDatabaseForTests, completeMfaChallenge, completeMfaEmailRecovery, confirmMfaEnrollment, consumeRateLimit, createAccount, createDatabaseSession, createEmailVerificationTokenForUser, createMfaChallenge, createMfaEmailRecoveryToken, databaseSession, disableMfa, getAuthDatabase, getMfaStatus, migratePrivilegedAccounts, regenerateRecoveryCodes, resetPasswordWithToken, createPasswordResetTokenForEmail, verifyCurrentMfa, verifyEmailToken } from "../app/lib/auth-db.ts";
 import { POST as requestRecovery } from "../app/api/auth/mfa/email-recovery/request/route.ts";
 import { POST as completeRecovery } from "../app/api/auth/mfa/email-recovery/complete/route.ts";
+import { createSessionToken, parseSessionToken, VIEWER_USER } from "../app/lib/auth-session.ts";
 const key=Buffer.alloc(32,7),now=1_800_000_000_000;
 function code(secret,time=now){const c=Buffer.alloc(8);c.writeBigUInt64BE(BigInt(Math.floor(time/30000)));const h=createHmac("sha1",secret).update(c).digest(),o=h[19]&15;return String((h.readUInt32BE(o)&0x7fffffff)%1e6).padStart(6,"0")}
 async function fixture(fn){const root=await mkdtemp(join(tmpdir(),"dizy-mfa-")),prior={data:process.env.DATA_DIR,key:process.env.MFA_ENCRYPTION_KEY,node:process.env.NODE_ENV};process.env.DATA_DIR=root;process.env.MFA_ENCRYPTION_KEY=key.toString("base64url");process.env.NODE_ENV="test";closeAuthDatabaseForTests();try{const user=await createAccount({email:"mfa@example.test",password:"correct-horse-battery"});verifyEmailToken(createEmailVerificationTokenForUser(user.id).token);await fn(user)}finally{closeAuthDatabaseForTests();if(prior.data===undefined)delete process.env.DATA_DIR;else process.env.DATA_DIR=prior.data;if(prior.key===undefined)delete process.env.MFA_ENCRYPTION_KEY;else process.env.MFA_ENCRYPTION_KEY=prior.key;if(prior.node===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=prior.node;await rm(root,{recursive:true,force:true})}}
@@ -120,14 +121,16 @@ test("links for a disabled credential cannot disable a newly enrolled credential
 
 test("privileged owner and admin identities remain stable across break-glass recovery",async()=>{
   const root=await mkdtemp(join(tmpdir(),"dizy-mfa-privileged-"));
-  const prior=Object.fromEntries(["DATA_DIR","MFA_ENCRYPTION_KEY","NODE_ENV","ROB_EMAIL","FRIEND_EMAIL","ROB_PASSWORD","FRIEND_PASSWORD","ALLOW_TEST_PLAINTEXT_PASSWORDS","LIVE_TRADING_ENABLED"].map(name=>[name,process.env[name]]));
-  Object.assign(process.env,{DATA_DIR:root,MFA_ENCRYPTION_KEY:key.toString("base64url"),NODE_ENV:"test",ROB_EMAIL:"fixture-owner@example.test",FRIEND_EMAIL:"fixture-admin@example.test",ROB_PASSWORD:"fixture owner password",FRIEND_PASSWORD:"fixture admin password",ALLOW_TEST_PLAINTEXT_PASSWORDS:"true",LIVE_TRADING_ENABLED:"false"});
+  const prior=Object.fromEntries(["DATA_DIR","MFA_ENCRYPTION_KEY","NODE_ENV","ROB_EMAIL","FRIEND_EMAIL","ROB_PASSWORD","FRIEND_PASSWORD","LEGACY_AUTH_FALLBACK_ENABLED","ALLOW_TEST_PLAINTEXT_PASSWORDS","LIVE_TRADING_ENABLED"].map(name=>[name,process.env[name]]));
+  Object.assign(process.env,{DATA_DIR:root,MFA_ENCRYPTION_KEY:key.toString("base64url"),NODE_ENV:"test",ROB_EMAIL:"fixture-owner@example.test",FRIEND_EMAIL:"fixture-admin@example.test",ROB_PASSWORD:"fixture owner password",FRIEND_PASSWORD:"fixture admin password",LEGACY_AUTH_FALLBACK_ENABLED:"true",ALLOW_TEST_PLAINTEXT_PASSWORDS:"true",LIVE_TRADING_ENABLED:"false"});
   closeAuthDatabaseForTests();
   try {
-    assert.equal((await migratePrivilegedAccounts()).status,"migrated"); activateMfa("rob");
-    const token=createMfaEmailRecoveryToken(createMfaChallenge("rob")).token; assert.equal(completeMfaEmailRecovery(token),true);
+    const owner={id:"rob",name:"Rob",email:process.env.ROB_EMAIL,role:"owner"},legacyOwner=createSessionToken(owner,3600),viewer=createSessionToken(VIEWER_USER,3600);
+    assert.deepEqual(parseSessionToken(legacyOwner),owner); assert.equal((await migratePrivilegedAccounts()).status,"migrated"); assert.equal(parseSessionToken(legacyOwner),null); assert.deepEqual(parseSessionToken(viewer),VIEWER_USER); activateMfa("rob");
+    const databaseToken=createDatabaseSession(owner,3600),token=createMfaEmailRecoveryToken(createMfaChallenge("rob")).token; assert.equal(completeMfaEmailRecovery(token),true);
+    assert.equal(databaseSession(databaseToken),null); assert.equal(parseSessionToken(legacyOwner),null); assert.deepEqual(parseSessionToken(viewer),VIEWER_USER);
     assert.deepEqual(getAuthDatabase().prepare("SELECT id,role FROM users WHERE id IN ('rob','friend') ORDER BY id").all().map(row=>({...row})),[{id:"friend",role:"admin"},{id:"rob",role:"owner"}]);
   } finally {
-    closeAuthDatabaseForTests(); for(const [name,value] of Object.entries(prior)) value===undefined?delete process.env[name]:process.env[name]=value; await rm(root,{recursive:true,force:true});
+    closeAuthDatabaseForTests(); for(const [name,value] of Object.entries(prior)) { if(value===undefined) delete process.env[name]; else process.env[name]=value; } await rm(root,{recursive:true,force:true});
   }
 });
