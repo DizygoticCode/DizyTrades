@@ -162,3 +162,14 @@ export async function sendPasswordResetEmail(to: string, token: string) {
     html: shell("Reset your DizyTrades password", "A password reset was requested for your DizyTrades account.", "Choose a new password", href, note),
   });
 }
+
+export async function sendMfaRecoveryEmail(to: string, token: string) {
+  const href = tokenUrl("/recover-mfa", token);
+  const note = "This break-glass link expires after 15 minutes and can be used once. It does not change your password.";
+  return sendAccountMail({
+    to,
+    subject: "Recover access to DizyTrades MFA",
+    text: `Recover DizyTrades MFA\n\nOpen this link to disable the current authenticator and revoke every active session:\n${href}\n\n${note}`,
+    html: shell("Recover access to MFA", "This break-glass action disables the current authenticator and recovery codes, and revokes every active session.", "Recover MFA", href, note),
+  });
+}

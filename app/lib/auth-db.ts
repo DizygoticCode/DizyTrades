@@ -16,6 +16,7 @@ export const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60_000;
 export const PASSWORD_RESET_TTL_MS = 60 * 60_000;
 export const ACCOUNT_AVATAR_MAX_BYTES = 512 * 1024;
 export const MFA_CHALLENGE_TTL_MS = 5 * 60_000;
+export const MFA_EMAIL_RECOVERY_TTL_MS = 15 * 60_000;
 
 type AttemptBucket = { count: number; resetAt: number };
 const fallbackAttempts = new Map<string, AttemptBucket>();
@@ -128,6 +129,18 @@ function migrate(db: DatabaseSync) {
       INSERT INTO schema_migrations(version, applied_at) VALUES (5, datetime('now'));
       COMMIT;`);
   }
+  const versionSix = db.prepare("SELECT 1 FROM schema_migrations WHERE version=6").get();
+  if (!versionSix) {
+    db.exec(`BEGIN IMMEDIATE;
+      CREATE TABLE mfa_email_recovery_tokens (
+        token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      CREATE INDEX mfa_email_recovery_user_idx ON mfa_email_recovery_tokens(user_id);
+      INSERT INTO schema_migrations(version, applied_at) VALUES (6, datetime('now'));
+      COMMIT;`);
+  }
 }
 
 export function getAuthDatabase() {
@@ -214,6 +227,13 @@ export async function createAccount(input: { username?: string; email: string; p
 
 const PRIVILEGED_MIGRATION_KEY = "legacy-privileged-accounts-v1";
 type PrivilegedSpec = Readonly<{ id: "rob" | "friend"; email: string; name: string; role: "owner" | "admin"; password: string }>;
+
+/** Completed migration makes stable privileged identities database-authoritative. */
+export function privilegedAccountMigrationCompleted() {
+  const db = getAuthDatabase();
+  if (!db) return false;
+  return Boolean(db.prepare("SELECT 1 FROM privileged_account_migrations WHERE migration_key=?").get(PRIVILEGED_MIGRATION_KEY));
+}
 
 function privilegedSpecs(): PrivilegedSpec[] | null {
   const values = [
@@ -496,7 +516,60 @@ export function verifyCurrentMfa(userId: string, proof: string, now = Date.now()
 }
 
 export function regenerateRecoveryCodes(userId: string) { const db = getAuthDatabase(), id = safeOwnerId(userId, "account"); if (!db || mfaRow(id)?.state !== "active") return null; db.exec("BEGIN IMMEDIATE"); try { const codes = replaceRecoveryCodes(db, id); db.prepare("UPDATE sessions SET revoked_at=? WHERE user_id=?").run(Date.now(), id); db.exec("COMMIT"); return codes; } catch (e) { db.exec("ROLLBACK"); throw e; } }
-export function disableMfa(userId: string) { const db = getAuthDatabase(), id = safeOwnerId(userId, "account"); if (!db) return false; db.exec("BEGIN IMMEDIATE"); try { db.prepare("DELETE FROM mfa_credentials WHERE user_id=?").run(id); db.prepare("DELETE FROM mfa_recovery_codes WHERE user_id=?").run(id); db.prepare("DELETE FROM mfa_challenges WHERE user_id=?").run(id); db.prepare("UPDATE sessions SET revoked_at=? WHERE user_id=?").run(Date.now(), id); db.exec("COMMIT"); return true; } catch (e) { db.exec("ROLLBACK"); throw e; } }
+export function disableMfa(userId: string) { const db = getAuthDatabase(), id = safeOwnerId(userId, "account"); if (!db) return false; db.exec("BEGIN IMMEDIATE"); try { db.prepare("DELETE FROM mfa_credentials WHERE user_id=?").run(id); db.prepare("DELETE FROM mfa_recovery_codes WHERE user_id=?").run(id); db.prepare("DELETE FROM mfa_challenges WHERE user_id=?").run(id); db.prepare("DELETE FROM mfa_email_recovery_tokens WHERE user_id=?").run(id); db.prepare("UPDATE sessions SET revoked_at=? WHERE user_id=?").run(Date.now(), id); db.exec("COMMIT"); return true; } catch (e) { db.exec("ROLLBACK"); throw e; } }
+
+/** Resolve only a live password-created MFA challenge; never accepts a session or legacy identity. */
+export function mfaEmailRecoveryCandidate(challenge: string, now = Date.now()) {
+  if (!validAccountToken(challenge)) return null;
+  const row = getAuthDatabase()?.prepare(`SELECT c.user_id,u.email FROM mfa_challenges c
+    JOIN users u ON u.id=c.user_id JOIN mfa_credentials m ON m.user_id=u.id AND m.state='active'
+    WHERE c.token_hash=? AND c.consumed_at IS NULL AND c.expires_at>? AND u.email_verified_at IS NOT NULL`)
+    .get(digest(challenge), now) as { user_id: string; email: string | null } | undefined;
+  return row?.email ? { userId: row.user_id, email: row.email } : null;
+}
+
+export function createMfaEmailRecoveryToken(challenge: string, now = Date.now()) {
+  const candidate = mfaEmailRecoveryCandidate(challenge, now), db = getAuthDatabase();
+  if (!candidate || !db) return null;
+  const token = freshAccountToken();
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    // Re-check under the write lock, consume the login challenge, and invalidate older links.
+    const live = mfaEmailRecoveryCandidate(challenge, now);
+    if (!live || live.userId !== candidate.userId) { db.exec("COMMIT"); return null; }
+    db.prepare("UPDATE mfa_challenges SET consumed_at=? WHERE token_hash=? AND consumed_at IS NULL").run(now, digest(challenge));
+    db.prepare("DELETE FROM mfa_email_recovery_tokens WHERE expires_at<=? OR user_id=?").run(now, candidate.userId);
+    db.prepare("INSERT INTO mfa_email_recovery_tokens(token_hash,user_id,expires_at,created_at) VALUES(?,?,?,?)")
+      .run(digest(token), candidate.userId, now + MFA_EMAIL_RECOVERY_TTL_MS, now);
+    db.exec("COMMIT");
+    return { email: candidate.email, token, userId: candidate.userId };
+  } catch (error) { db.exec("ROLLBACK"); throw error; }
+}
+
+export function mfaEmailRecoveryTokenCandidate(token: string, now = Date.now()) {
+  if (!validAccountToken(token)) return null;
+  const row = getAuthDatabase()?.prepare("SELECT user_id FROM mfa_email_recovery_tokens WHERE token_hash=? AND expires_at>?")
+    .get(digest(token), now) as { user_id: string } | undefined;
+  return row?.user_id || null;
+}
+
+export function completeMfaEmailRecovery(token: string, now = Date.now()) {
+  const db = getAuthDatabase();
+  if (!db || !validAccountToken(token)) return false;
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const row = db.prepare("SELECT user_id FROM mfa_email_recovery_tokens WHERE token_hash=? AND expires_at>?")
+      .get(digest(token), now) as { user_id: string } | undefined;
+    if (!row) { db.exec("COMMIT"); return false; }
+    db.prepare("DELETE FROM mfa_credentials WHERE user_id=?").run(row.user_id);
+    db.prepare("DELETE FROM mfa_recovery_codes WHERE user_id=?").run(row.user_id);
+    db.prepare("DELETE FROM mfa_challenges WHERE user_id=?").run(row.user_id);
+    db.prepare("DELETE FROM mfa_email_recovery_tokens WHERE user_id=?").run(row.user_id);
+    db.prepare("DELETE FROM sessions WHERE user_id=?").run(row.user_id);
+    db.exec("COMMIT");
+    return true;
+  } catch (error) { db.exec("ROLLBACK"); throw error; }
+}
 
 function freshAccountToken() {
   return randomBytes(32).toString("base64url");
