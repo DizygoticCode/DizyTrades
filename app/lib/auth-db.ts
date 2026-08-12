@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -15,6 +15,7 @@ const ACCOUNT_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 export const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60_000;
 export const PASSWORD_RESET_TTL_MS = 60 * 60_000;
 export const ACCOUNT_AVATAR_MAX_BYTES = 512 * 1024;
+export const MFA_CHALLENGE_TTL_MS = 5 * 60_000;
 
 type AttemptBucket = { count: number; resetAt: number };
 const fallbackAttempts = new Map<string, AttemptBucket>();
@@ -30,9 +31,9 @@ function migrate(db: DatabaseSync) {
     COMMIT;`);
 
   const versionTwo = db.prepare("SELECT 1 FROM schema_migrations WHERE version=2").get();
-  if (versionTwo) return;
-  db.exec("BEGIN IMMEDIATE");
-  try {
+  if (!versionTwo) {
+   db.exec("BEGIN IMMEDIATE");
+   try {
     db.exec(`
       ALTER TABLE users ADD COLUMN email_verified_at TEXT;
       CREATE TABLE email_verification_tokens (
@@ -66,9 +67,53 @@ function migrate(db: DatabaseSync) {
       INSERT INTO schema_migrations(version, applied_at) VALUES (2, datetime('now'));
     `);
     db.exec("COMMIT");
-  } catch (error) {
+   } catch (error) {
     try { db.exec("ROLLBACK"); } catch { /* transaction already ended */ }
     throw error;
+   }
+  }
+  const versionThree = db.prepare("SELECT 1 FROM schema_migrations WHERE version=3").get();
+  if (!versionThree) {
+   db.exec("BEGIN IMMEDIATE");
+   try {
+    db.exec(`
+      ALTER TABLE sessions ADD COLUMN last_seen_at INTEGER;
+      ALTER TABLE sessions ADD COLUMN revoked_at INTEGER;
+      UPDATE sessions SET last_seen_at=created_at WHERE last_seen_at IS NULL;
+      CREATE TABLE mfa_credentials (
+        user_id TEXT PRIMARY KEY, state TEXT NOT NULL CHECK(state IN ('pending','active')),
+        secret_ciphertext BLOB NOT NULL, nonce BLOB NOT NULL, auth_tag BLOB NOT NULL,
+        key_version INTEGER NOT NULL, created_at INTEGER NOT NULL, activated_at INTEGER,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      CREATE TABLE mfa_recovery_codes (
+        id TEXT PRIMARY KEY, user_id TEXT NOT NULL, code_hash TEXT NOT NULL,
+        created_at INTEGER NOT NULL, consumed_at INTEGER,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      CREATE INDEX mfa_recovery_user_idx ON mfa_recovery_codes(user_id);
+      CREATE TABLE mfa_challenges (
+        token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL, consumed_at INTEGER, attempts INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      CREATE INDEX mfa_challenge_user_idx ON mfa_challenges(user_id);
+      INSERT INTO schema_migrations(version, applied_at) VALUES (3, datetime('now'));
+    `);
+    db.exec("COMMIT");
+   } catch (error) {
+     try { db.exec("ROLLBACK"); } catch { /* transaction already ended */ }
+     throw error;
+   }
+  }
+  const versionFour = db.prepare("SELECT 1 FROM schema_migrations WHERE version=4").get();
+  if (!versionFour) {
+    db.exec(`BEGIN IMMEDIATE;
+      CREATE TABLE privileged_account_migrations (
+        migration_key TEXT PRIMARY KEY, completed_at TEXT NOT NULL
+      );
+      INSERT INTO schema_migrations(version, applied_at) VALUES (4, datetime('now'));
+      COMMIT;`);
   }
 }
 
@@ -76,6 +121,7 @@ export function getAuthDatabase() {
   if (unavailable) return null;
   if (database) return database;
   try {
+    if (process.env.NODE_ENV === "production") assertMfaConfiguration();
     mkdirSync(dirname(authPath()), { recursive: true, mode: 0o700 });
     database = new DatabaseSync(authPath());
     migrate(database);
@@ -153,10 +199,72 @@ export async function createAccount(input: { username?: string; email: string; p
   return { id, name: displayName, email, role: "user" } satisfies AuthUser;
 }
 
+const PRIVILEGED_MIGRATION_KEY = "legacy-privileged-accounts-v1";
+type PrivilegedSpec = Readonly<{ id: "rob" | "friend"; email: string; name: string; role: "owner" | "admin"; password: string }>;
+
+function privilegedSpecs(): PrivilegedSpec[] | null {
+  const values = [
+    { id: "rob", email: process.env.ROB_EMAIL || "", name: process.env.ROB_NAME?.trim() || "Rob", role: "owner", password: process.env.ROB_PASSWORD || "" },
+    { id: "friend", email: process.env.FRIEND_EMAIL || "", name: process.env.FRIEND_NAME?.trim() || "Nick", role: "admin", password: process.env.FRIEND_PASSWORD || "" },
+  ] as const;
+  if (values.every(value => !value.email && !value.password)) return null;
+  if (values.some(value => !value.email)) throw new Error("PRIVILEGED_ACCOUNT_MIGRATION_CONFIGURATION_INVALID");
+  return values.map(value => ({ ...value, email: validateEmail(value.email) }));
+}
+
+/** One-way bootstrap from trusted legacy plaintext inputs into ordinary database credentials. */
+export async function migratePrivilegedAccounts() {
+  const specs = privilegedSpecs();
+  if (!specs) return { status: "not-configured" } as const;
+  const db = getAuthDatabase();
+  if (!db) throw new Error("PRIVILEGED_ACCOUNT_MIGRATION_AUTH_UNAVAILABLE");
+  const completed = db.prepare("SELECT completed_at FROM privileged_account_migrations WHERE migration_key=?").get(PRIVILEGED_MIGRATION_KEY);
+  const rows = db.prepare("SELECT id,username,username_normalized,email,email_normalized,password_hash,display_name,role,email_verified_at FROM users WHERE id IN ('rob','friend') OR email_normalized IN (?,?) OR username_normalized IN ('rob','friend',?,?)")
+    .all(specs[0].email, specs[1].email, specs[0].email, specs[1].email) as Array<UserRow & { username_normalized: string | null; email_normalized: string | null }>;
+  for (const spec of specs) {
+    const byId = rows.find(row => row.id === spec.id);
+    const collisions = rows.filter(row => row.id !== spec.id && (row.email_normalized === spec.email || row.username_normalized === spec.id || row.username_normalized === spec.email));
+    if (collisions.length || (byId && (byId.email_normalized !== spec.email || byId.role !== spec.role))) {
+      throw new Error("PRIVILEGED_ACCOUNT_MIGRATION_CONFLICT");
+    }
+    if (byId && (!byId.email_verified_at || !byId.password_hash.startsWith("scrypt$"))) throw new Error("PRIVILEGED_ACCOUNT_MIGRATION_CONFLICT");
+  }
+  if (completed) return { status: "completed" } as const;
+
+  const missing = specs.filter(spec => !rows.some(row => row.id === spec.id));
+  if (missing.some(spec => !spec.password)) throw new Error("PRIVILEGED_ACCOUNT_MIGRATION_PASSWORD_REQUIRED");
+  const hashes = new Map<string, string>();
+  for (const spec of missing) hashes.set(spec.id, await hashPassword(spec.password));
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    // Recheck all uniqueness relationships under the write lock; never elevate or merge an existing row.
+    for (const spec of specs) {
+      const conflict = db.prepare("SELECT id,role,email_normalized FROM users WHERE id=? OR email_normalized=? OR username_normalized IN (?,?)").all(spec.id, spec.email, spec.id, spec.email) as Array<{ id: string; role: string; email_normalized: string | null }>;
+      if (conflict.some(row => row.id !== spec.id || row.role !== spec.role || row.email_normalized !== spec.email)) throw new Error("PRIVILEGED_ACCOUNT_MIGRATION_CONFLICT");
+      if (!conflict.length) db.prepare("INSERT INTO users(id,username,username_normalized,email,email_normalized,password_hash,display_name,role,created_at,email_verified_at) VALUES(?,NULL,NULL,?,?,?,?,?,?,?)")
+        .run(spec.id, spec.email, spec.email, hashes.get(spec.id)!, spec.name.slice(0, 64), spec.role, new Date().toISOString(), new Date().toISOString());
+    }
+    db.prepare("INSERT INTO privileged_account_migrations(migration_key,completed_at) VALUES(?,?)").run(PRIVILEGED_MIGRATION_KEY, new Date().toISOString());
+    db.exec("COMMIT");
+    return { status: "migrated" } as const;
+  } catch (error) {
+    try { db.exec("ROLLBACK"); } catch { /* transaction already ended */ }
+    throw error;
+  }
+}
+
+export function databaseHasPrivilegedIdentity(identifier: string) {
+  const normalized = normaliseIdentifier(identifier);
+  if (!normalized) return false;
+  const db = getAuthDatabase();
+  if (!db) return false;
+  return Boolean(db.prepare("SELECT 1 FROM users WHERE id IN ('rob','friend') AND (id=? OR email_normalized=? OR username_normalized=?)").get(normalized, normalized, normalized));
+}
+
 export type DatabaseAuthenticationResult =
   | Readonly<{ status: "invalid" }>
   | Readonly<{ status: "email-unverified"; email: string }>
-  | Readonly<{ status: "authenticated"; user: AuthUser }>;
+  | Readonly<{ status: "authenticated"; user: AuthUser; mfaEnabled: boolean }>;
 
 export async function authenticateDatabaseUserDetailed(identifier: string, password: string): Promise<DatabaseAuthenticationResult> {
   const normalized = normaliseIdentifier(identifier);
@@ -166,7 +274,8 @@ export async function authenticateDatabaseUserDetailed(identifier: string, passw
   const row = db.prepare("SELECT id,username,email,password_hash,display_name,role,email_verified_at FROM users WHERE username_normalized=? OR email_normalized=?").get(normalized, normalized) as UserRow | undefined;
   if (!row || !await verifyPassword(password, row.password_hash)) return { status: "invalid" };
   if (row.email && !row.email_verified_at) return { status: "email-unverified", email: row.email };
-  return { status: "authenticated", user: publicUser(row) };
+  const mfa = db.prepare("SELECT state FROM mfa_credentials WHERE user_id=?").get(row.id) as { state: string } | undefined;
+  return { status: "authenticated", user: publicUser(row), mfaEnabled: mfa?.state === "active" };
 }
 
 export async function authenticateDatabaseUser(identifier: string, password: string) {
@@ -186,7 +295,7 @@ export function createDatabaseSession(user: AuthUser, maxAgeSeconds: number) {
   db.exec("BEGIN IMMEDIATE");
   try {
     db.prepare("DELETE FROM sessions WHERE user_id=? OR expires_at<=?").run(ownerId, now);
-    db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at,created_at) VALUES(?,?,?,?)").run(digest(token), ownerId, now + maxAgeSeconds * 1000, now);
+    db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at,created_at,last_seen_at,revoked_at) VALUES(?,?,?,?,?,NULL)").run(digest(token), ownerId, now + maxAgeSeconds * 1000, now, now);
     db.exec("COMMIT");
     return token;
   } catch (error) {
@@ -199,15 +308,160 @@ export function databaseSession(token: string) {
   if (!isOpaqueSessionToken(token)) return null;
   const db = getAuthDatabase();
   if (!db) return null;
-  const row = db.prepare("SELECT u.id,u.username,u.email,u.password_hash,u.display_name,u.role,u.email_verified_at FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?").get(digest(token), Date.now()) as UserRow | undefined;
+  const now = Date.now();
+  const row = db.prepare("SELECT u.id,u.username,u.email,u.password_hash,u.display_name,u.role,u.email_verified_at,s.last_seen_at FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND s.revoked_at IS NULL").get(digest(token), now) as (UserRow & { last_seen_at: number }) | undefined;
   if (!row || (row.email && !row.email_verified_at)) return null;
+  if (now - row.last_seen_at >= 15 * 60_000) db.prepare("UPDATE sessions SET last_seen_at=? WHERE token_hash=? AND revoked_at IS NULL").run(now, digest(token));
   return publicUser(row);
 }
 
 export function revokeDatabaseSession(token: string) {
   if (!isOpaqueSessionToken(token)) return;
-  getAuthDatabase()?.prepare("DELETE FROM sessions WHERE token_hash=?").run(digest(token));
+  getAuthDatabase()?.prepare("UPDATE sessions SET revoked_at=? WHERE token_hash=?").run(Date.now(), digest(token));
 }
+
+function mfaKey() {
+  const encoded = process.env.MFA_ENCRYPTION_KEY || "";
+  let key: Buffer;
+  try { key = Buffer.from(encoded, "base64url"); } catch { key = Buffer.alloc(0); }
+  if (key.length === 32 && encoded.length >= 43) return key;
+  if (process.env.NODE_ENV !== "production" && !encoded) return createHash("sha256").update("local-only-mfa-key-not-for-deployment").digest();
+  throw new Error("MFA_ENCRYPTION_KEY must be a base64url-encoded 32-byte key distinct from SESSION_SECRET");
+}
+
+export function assertMfaConfiguration() {
+  const key = mfaKey();
+  const sessionSecret = process.env.SESSION_SECRET || "";
+  let decodedSession = Buffer.alloc(0);
+  try { decodedSession = Buffer.from(sessionSecret, "base64url"); } catch { /* not base64url */ }
+  const exactReuse = Boolean(sessionSecret) && sessionSecret === (process.env.MFA_ENCRYPTION_KEY || "");
+  const decodedReuse = decodedSession.length === key.length && timingSafeEqual(decodedSession, key);
+  if (exactReuse || decodedReuse) {
+    throw new Error("MFA_ENCRYPTION_KEY must not reuse SESSION_SECRET");
+  }
+}
+
+function encryptMfaSecret(secret: Buffer) {
+  const nonce = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", mfaKey(), nonce);
+  cipher.setAAD(Buffer.from("dizytrades:mfa:v1"));
+  return { ciphertext: Buffer.concat([cipher.update(secret), cipher.final()]), nonce, tag: cipher.getAuthTag() };
+}
+
+function decryptMfaSecret(row: { secret_ciphertext: Uint8Array; nonce: Uint8Array; auth_tag: Uint8Array; key_version: number }) {
+  if (row.key_version !== 1) throw new Error("Unsupported MFA key version");
+  const decipher = createDecipheriv("aes-256-gcm", mfaKey(), Buffer.from(row.nonce));
+  decipher.setAAD(Buffer.from("dizytrades:mfa:v1"));
+  decipher.setAuthTag(Buffer.from(row.auth_tag));
+  return Buffer.concat([decipher.update(Buffer.from(row.secret_ciphertext)), decipher.final()]);
+}
+
+const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+function base32(value: Buffer) {
+  let bits = 0, accumulator = 0, result = "";
+  for (const byte of value) { accumulator = (accumulator << 8) | byte; bits += 8; while (bits >= 5) { result += BASE32[(accumulator >>> (bits -= 5)) & 31]; } }
+  if (bits) result += BASE32[(accumulator << (5 - bits)) & 31];
+  return result;
+}
+
+function totp(secret: Buffer, time = Date.now()) {
+  const counter = Buffer.alloc(8); counter.writeBigUInt64BE(BigInt(Math.floor(time / 30_000)));
+  const mac = createHmac("sha1", secret).update(counter).digest();
+  const offset = mac[19] & 15;
+  return (((mac.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).toString().padStart(6, "0"));
+}
+
+function validTotp(secret: Buffer, code: string, now = Date.now()) {
+  if (!/^\d{6}$/.test(code)) return false;
+  return [-1, 0, 1].some(step => timingSafeEqual(Buffer.from(code), Buffer.from(totp(secret, now + step * 30_000))));
+}
+
+function mfaRow(userId: string) {
+  return getAuthDatabase()?.prepare("SELECT state,secret_ciphertext,nonce,auth_tag,key_version FROM mfa_credentials WHERE user_id=?").get(safeOwnerId(userId, "account")) as { state: "pending" | "active"; secret_ciphertext: Uint8Array; nonce: Uint8Array; auth_tag: Uint8Array; key_version: number } | undefined;
+}
+
+export function getMfaStatus(userId: string) { return { enabled: mfaRow(userId)?.state === "active", pending: mfaRow(userId)?.state === "pending" }; }
+
+export async function verifyAccountPassword(userId: string, password: string) {
+  if (!password || password.length > 128) return false;
+  const row = getAuthDatabase()?.prepare("SELECT password_hash FROM users WHERE id=?").get(safeOwnerId(userId, "account")) as { password_hash: string } | undefined;
+  return Boolean(row && await verifyPassword(password, row.password_hash));
+}
+
+export function beginMfaEnrollment(userId: string) {
+  assertMfaConfiguration();
+  const id = safeOwnerId(userId, "account"), db = getAuthDatabase();
+  if (!db) throw new Error("AUTH_UNAVAILABLE");
+  const existing = mfaRow(id);
+  if (existing?.state === "active") throw new Error("MFA_ALREADY_ACTIVE");
+  const secret = randomBytes(20), encrypted = encryptMfaSecret(secret), now = Date.now();
+  db.exec("BEGIN IMMEDIATE");
+  try {
+   const result = db.prepare(`INSERT INTO mfa_credentials(user_id,state,secret_ciphertext,nonce,auth_tag,key_version,created_at,activated_at)
+    VALUES(?,'pending',?,?,?,?,?,NULL) ON CONFLICT(user_id) DO UPDATE SET state='pending',secret_ciphertext=excluded.secret_ciphertext,nonce=excluded.nonce,auth_tag=excluded.auth_tag,key_version=1,created_at=excluded.created_at,activated_at=NULL WHERE mfa_credentials.state='pending'`)
+    .run(id, encrypted.ciphertext, encrypted.nonce, encrypted.tag, 1, now);
+   if (result.changes !== 1 || mfaRow(id)?.state !== "pending") throw new Error("MFA_ALREADY_ACTIVE");
+   db.prepare("DELETE FROM mfa_recovery_codes WHERE user_id=?").run(id);
+   db.exec("COMMIT");
+  } catch (error) {
+   try { db.exec("ROLLBACK"); } catch { /* transaction already ended */ }
+   throw error;
+  }
+  return base32(secret);
+}
+
+function freshRecoveryCodes() { return Array.from({ length: 10 }, () => `${randomBytes(5).toString("hex").toUpperCase()}-${randomBytes(5).toString("hex").toUpperCase()}`); }
+function replaceRecoveryCodes(db: DatabaseSync, userId: string) {
+  const codes = freshRecoveryCodes(), now = Date.now();
+  db.prepare("DELETE FROM mfa_recovery_codes WHERE user_id=?").run(userId);
+  const insert = db.prepare("INSERT INTO mfa_recovery_codes(id,user_id,code_hash,created_at,consumed_at) VALUES(?,?,?,?,NULL)");
+  for (const code of codes) insert.run(randomUUID(), userId, digest(`recovery:${code}`), now);
+  return codes;
+}
+
+export function confirmMfaEnrollment(userId: string, code: string, now = Date.now()) {
+  const id = safeOwnerId(userId, "account"), db = getAuthDatabase(), row = mfaRow(id);
+  if (!db || row?.state !== "pending" || !validTotp(decryptMfaSecret(row), code, now)) return null;
+  db.exec("BEGIN IMMEDIATE");
+  try { db.prepare("UPDATE mfa_credentials SET state='active',activated_at=? WHERE user_id=? AND state='pending'").run(now, id); const codes = replaceRecoveryCodes(db, id); db.exec("COMMIT"); return codes; }
+  catch (error) { db.exec("ROLLBACK"); throw error; }
+}
+
+export function createMfaChallenge(userId: string, now = Date.now()) {
+  const db = getAuthDatabase(), id = safeOwnerId(userId, "account"); if (!db || mfaRow(id)?.state !== "active") return null;
+  const token = randomBytes(32).toString("base64url");
+  db.prepare("DELETE FROM mfa_challenges WHERE expires_at<=? OR user_id=?").run(now, id);
+  db.prepare("INSERT INTO mfa_challenges(token_hash,user_id,created_at,expires_at,consumed_at,attempts) VALUES(?,?,?,?,NULL,0)").run(digest(token), id, now, now + MFA_CHALLENGE_TTL_MS);
+  return token;
+}
+
+export function completeMfaChallenge(token: string, proof: string, now = Date.now()) {
+  if (!ACCOUNT_TOKEN.test(token)) return null;
+  const db = getAuthDatabase(); if (!db) return null;
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const row = db.prepare("SELECT user_id,expires_at,consumed_at,attempts FROM mfa_challenges WHERE token_hash=?").get(digest(token)) as { user_id: string; expires_at: number; consumed_at: number | null; attempts: number } | undefined;
+    if (!row || row.consumed_at || row.expires_at <= now || row.attempts >= 5) { db.exec("COMMIT"); return null; }
+    db.prepare("UPDATE mfa_challenges SET attempts=attempts+1 WHERE token_hash=?").run(digest(token));
+    const credential = mfaRow(row.user_id); let recoveryUsed = false, valid = credential?.state === "active" && validTotp(decryptMfaSecret(credential), proof, now);
+    if (!valid) { const recovery = db.prepare("SELECT id FROM mfa_recovery_codes WHERE user_id=? AND code_hash=? AND consumed_at IS NULL").get(row.user_id, digest(`recovery:${proof.trim().toUpperCase()}`)) as { id: string } | undefined; if (recovery) { db.prepare("UPDATE mfa_recovery_codes SET consumed_at=? WHERE id=? AND consumed_at IS NULL").run(now, recovery.id); valid = recoveryUsed = true; } }
+    if (!valid) { db.exec("COMMIT"); return null; }
+    db.prepare("UPDATE mfa_challenges SET consumed_at=? WHERE token_hash=? AND consumed_at IS NULL").run(now, digest(token));
+    const user = db.prepare("SELECT id,username,email,password_hash,display_name,role,email_verified_at FROM users WHERE id=?").get(row.user_id) as UserRow;
+    db.exec("COMMIT"); return { user: publicUser(user), recoveryUsed };
+  } catch (error) { db.exec("ROLLBACK"); throw error; }
+}
+
+export function verifyCurrentMfa(userId: string, proof: string, now = Date.now()) {
+  const id = safeOwnerId(userId, "account"), row = mfaRow(id), db = getAuthDatabase();
+  if (!db || row?.state !== "active") return false;
+  if (validTotp(decryptMfaSecret(row), proof, now)) return true;
+  const result = db.prepare("UPDATE mfa_recovery_codes SET consumed_at=? WHERE id=(SELECT id FROM mfa_recovery_codes WHERE user_id=? AND code_hash=? AND consumed_at IS NULL LIMIT 1) AND consumed_at IS NULL").run(now, id, digest(`recovery:${proof.trim().toUpperCase()}`));
+  return result.changes === 1;
+}
+
+export function regenerateRecoveryCodes(userId: string) { const db = getAuthDatabase(), id = safeOwnerId(userId, "account"); if (!db || mfaRow(id)?.state !== "active") return null; db.exec("BEGIN IMMEDIATE"); try { const codes = replaceRecoveryCodes(db, id); db.prepare("UPDATE sessions SET revoked_at=? WHERE user_id=?").run(Date.now(), id); db.exec("COMMIT"); return codes; } catch (e) { db.exec("ROLLBACK"); throw e; } }
+export function disableMfa(userId: string) { const db = getAuthDatabase(), id = safeOwnerId(userId, "account"); if (!db) return false; db.exec("BEGIN IMMEDIATE"); try { db.prepare("DELETE FROM mfa_credentials WHERE user_id=?").run(id); db.prepare("DELETE FROM mfa_recovery_codes WHERE user_id=?").run(id); db.prepare("DELETE FROM mfa_challenges WHERE user_id=?").run(id); db.prepare("UPDATE sessions SET revoked_at=? WHERE user_id=?").run(Date.now(), id); db.exec("COMMIT"); return true; } catch (e) { db.exec("ROLLBACK"); throw e; } }
 
 function freshAccountToken() {
   return randomBytes(32).toString("base64url");

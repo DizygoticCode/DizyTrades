@@ -328,7 +328,11 @@ export class DepthCollector {
     socket.addEventListener("message", (event) => this.handleSocketData(event.data));
     socket.addEventListener("close", () => this.socketClosed(socket));
     socket.addEventListener("error", () => {
-      if (socket === this.socket) socket.close();
+      if (socket !== this.socket) return;
+      // Detach first: some development WebSocket implementations synchronously
+      // emit another error from close(), which must not recursively close forever.
+      this.socketClosed(socket);
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) socket.close();
     });
   }
 
