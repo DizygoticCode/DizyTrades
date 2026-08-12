@@ -6,6 +6,7 @@ import { executionCapabilityGate } from "./gate";
 import { defaultExecutionKillSwitches, executionKillSwitchReason, type ExecutionKillSwitches } from "./kill-switch";
 import type { ExecutionResult } from "./types";
 import { validateExecutionIntent, type ExecutionIntentInput, type ExecutionPrerequisites } from "./validation";
+import { createExecutionPreview } from "./preview";
 
 export type ExecutionServiceResponse = Readonly<{
   result: ExecutionResult;
@@ -39,7 +40,7 @@ export class ExecutionAirlockService {
       occurredAt, kind, ...identity, ...(reason ? { reason } : {}),
     }));
     audit("intent-received");
-    const validation = validateExecutionIntent(input, prerequisites);
+    const validation = validateExecutionIntent(input, prerequisites, new Date(occurredAt));
     if (!validation.ok) {
       const reason = validation.rejections[0].code;
       audit("validation-rejected", reason);
@@ -70,7 +71,7 @@ export class ExecutionAirlockService {
     const killReason = executionKillSwitchReason(switches, validation.intent);
     const reason = gate.reason === "adapter-unavailable" ? "ADAPTER_UNAVAILABLE" : killReason;
     audit(reason === "ADAPTER_UNAVAILABLE" ? "adapter-unavailable" : "kill-switch-active", reason);
-    const result = this.adapter.prepare(validation.intent, reason);
+    const result = this.adapter.prepare(validation.intent, createExecutionPreview(validation.intent, prerequisites), reason);
     audit("execution-blocked", reason);
     this.processed.set(idempotencyScope, result);
     return Object.freeze({ result, auditEvents: Object.freeze(events) });

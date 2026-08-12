@@ -11,11 +11,16 @@ import {
   type ExecutionRejectionCode,
   type ExecutionValidationResult,
 } from "./types";
+import { serverExecutionPolicy } from "./policy";
 
 export type ExecutionIntentInput = Readonly<Record<string, unknown>>;
 export type ExecutionPrerequisites = Readonly<{
-  contracts: ReadonlyMap<string, MexcContractMetadata>;
-  accountStateFresh: boolean;
+  contracts: ReadonlyMap<string, MexcContractMetadata> | null;
+  referencePrices: ReadonlyMap<string, Readonly<{ price: number; observedAt: string }>> | null;
+  accountState: Readonly<{
+    observedAt: string;
+    positions: readonly Readonly<{ symbol: string; side: "long" | "short"; quantity: number }>[];
+  }> | null;
 }>;
 
 const identityPattern = /^[a-z0-9_-]{1,120}$/i;
@@ -25,6 +30,7 @@ const symbolPattern = /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
 export function validateExecutionIntent(
   input: ExecutionIntentInput,
   prerequisites: ExecutionPrerequisites,
+  now: Date = new Date(),
 ): ExecutionValidationResult {
   const rejections: ExecutionRejection[] = [];
   const reject = (code: ExecutionRejectionCode, field: string, message: string) =>
@@ -37,12 +43,15 @@ export function validateExecutionIntent(
   const quantity = typeof input.quantity === "number" ? input.quantity : NaN;
   const leverage = typeof input.leverage === "number" ? input.leverage : NaN;
   const price = typeof input.price === "number" ? input.price : undefined;
-  const contract = prerequisites.contracts.get(symbol);
+  const contract = prerequisites.contracts?.get(symbol);
+  const policy = serverExecutionPolicy();
+  const reference = prerequisites.referencePrices?.get(symbol);
 
   if (![userId, accountId, intentId].every((value) => identityPattern.test(value))) reject("INVALID_IDENTITY", "identity", "User, account and intent identities are required.");
   if (!keyPattern.test(idempotencyKey)) reject("INVALID_IDEMPOTENCY_KEY", "idempotencyKey", "Idempotency key is invalid.");
   if (!symbolPattern.test(symbol)) reject("INVALID_SYMBOL", "symbol", "Symbol format is invalid.");
   else if (!contract) reject("UNKNOWN_SYMBOL", "symbol", "Symbol is not present in current contract metadata.");
+  else if (!policy.allowedSymbols.includes(symbol)) reject("POLICY_SYMBOL_DENIED", "symbol", "Symbol is not allowed by server policy.");
   if (input.marketType !== "futures") reject("INVALID_SYMBOL", "marketType", "Only the current futures capability is represented.");
   if (input.side !== "long" && input.side !== "short") reject("INVALID_SIDE", "side", "Side must be long or short.");
   if (input.orderType !== "market" && input.orderType !== "limit") reject("INVALID_ORDER_TYPE", "orderType", "Order type must be market or limit.");
@@ -60,11 +69,34 @@ export function validateExecutionIntent(
   else if (input.orderType === "limit" && contract && !isMexcStepAligned(price!, contract.priceUnit)) reject("INVALID_PRICE", "price", "Limit price must align with the current contract price step.");
   if (input.orderType === "market" && input.price !== undefined) reject("INVALID_PRICE", "price", "Market intents cannot specify a price.");
   if (!Number.isInteger(leverage) || !contract || leverage < contract.minLeverage || leverage > contract.maxLeverage) reject("INVALID_LEVERAGE", "leverage", "Leverage is outside current contract metadata limits.");
+  else if (leverage > policy.maximumLeverage) reject("POLICY_LEVERAGE_EXCEEDED", "leverage", "Leverage exceeds server policy.");
   if (typeof input.reduceOnly !== "boolean") reject("INVALID_REDUCE_ONLY", "reduceOnly", "Reduce-only intent must be explicit.");
   if (input.source !== "manual" && input.source !== "signal") reject("INVALID_SOURCE", "source", "Intent source is invalid.");
   const createdAt = typeof input.createdAt === "string" ? input.createdAt : "";
   if (!createdAt || !Number.isFinite(Date.parse(createdAt))) reject("INVALID_TIMESTAMP", "createdAt", "Creation timestamp is invalid.");
-  if (!prerequisites.accountStateFresh) reject("PREREQUISITE_STATE_STALE", "accountState", "Fresh prerequisite account state is required.");
+  const nowMs = now.getTime();
+  if (!reference || !Number.isFinite(reference.price) || reference.price <= 0 || !Number.isFinite(Date.parse(reference.observedAt))) {
+    reject("REFERENCE_PRICE_MISSING", "referencePrice", "An authoritative reference price is required.");
+  } else if (nowMs - Date.parse(reference.observedAt) < 0 || nowMs - Date.parse(reference.observedAt) > policy.maximumReferencePriceAgeMs) {
+    reject("REFERENCE_PRICE_STALE", "referencePrice", "The authoritative reference price is stale.");
+  }
+  const account = prerequisites.accountState;
+  if (!account || !Number.isFinite(Date.parse(account.observedAt)) || !Array.isArray(account.positions)
+    || account.positions.some((position) => !symbolPattern.test(position.symbol)
+      || (position.side !== "long" && position.side !== "short")
+      || !Number.isFinite(position.quantity) || position.quantity <= 0)) reject("ACCOUNT_STATE_MISSING", "accountState", "Valid account and position state is required.");
+  else if (nowMs - Date.parse(account.observedAt) < 0 || nowMs - Date.parse(account.observedAt) > policy.maximumAccountStateAgeMs) reject("ACCOUNT_STATE_STALE", "accountState", "Account state is stale.");
+  if (contract && reference && Number.isFinite(quantity) && quantity > 0) {
+    const notional = quantity * reference.price;
+    if (!Number.isFinite(notional) || notional > policy.maximumOrderNotional) reject("POLICY_NOTIONAL_EXCEEDED", "quantity", "Estimated notional exceeds server policy.");
+  }
+  if (input.reduceOnly === true && account) {
+    const opposingSide = input.side === "long" ? "short" : "long";
+    const position = account.positions.find((item) => item.symbol === symbol && item.side === opposingSide);
+    if (!position || !Number.isFinite(position.quantity) || position.quantity <= 0 || quantity > position.quantity) {
+      reject("REDUCE_ONLY_VIOLATION", "reduceOnly", "Reduce-only intent must decrease an opposing supplied position without crossing zero.");
+    }
+  }
   if (rejections.length) return Object.freeze({ ok: false, intent: null, rejections: Object.freeze(rejections) });
 
   const intent: ExecutionIntent = Object.freeze({

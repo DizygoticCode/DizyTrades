@@ -319,6 +319,12 @@ slice does **not** complete any live-execution requirement below: each item must
 still be made operational, durable where required, exercised and independently
 approved before an exchange write path is considered.
 
+A second readiness slice now exercises an in-memory, server-only deterministic
+risk preview against a versioned default-deny policy and fresh supplied price,
+account and position state. It remains non-routable and non-executing. The
+requirements below remain unchecked because this slice is not operational
+execution infrastructure and has not received independent security approval.
+
 Live execution remains disabled until every relevant requirement below is implemented, exercised and independently reviewed:
 
 - [ ] isolated execution service or equivalently isolated execution boundary

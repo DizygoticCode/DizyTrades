@@ -45,7 +45,15 @@ export type ExecutionRejectionCode =
   | "INVALID_REDUCE_ONLY"
   | "INVALID_SOURCE"
   | "INVALID_TIMESTAMP"
-  | "PREREQUISITE_STATE_STALE";
+  | "PREREQUISITE_STATE_STALE"
+  | "POLICY_SYMBOL_DENIED"
+  | "POLICY_LEVERAGE_EXCEEDED"
+  | "POLICY_NOTIONAL_EXCEEDED"
+  | "REFERENCE_PRICE_MISSING"
+  | "REFERENCE_PRICE_STALE"
+  | "ACCOUNT_STATE_MISSING"
+  | "ACCOUNT_STATE_STALE"
+  | "REDUCE_ONLY_VIOLATION";
 
 export type ExecutionRejection = Readonly<{
   code: ExecutionRejectionCode;
@@ -79,6 +87,11 @@ export type ExecutionResult = Readonly<{
     side: "long" | "short";
     orderType: "market" | "limit";
     quantity: number;
+    normalizedContractVolume: number;
+    referencePrice: number;
+    estimatedNotional: number;
+    estimatedMargin: number;
+    policyVersion: string;
     price?: number;
     leverage: number;
     reduceOnly: boolean;
