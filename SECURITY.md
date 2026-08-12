@@ -10,6 +10,13 @@ DizyTrades is an active research, education and simulation platform. It is not a
 - No browser workflow requests or stores exchange credentials.
 - The public health and diagnostics surfaces must continue to report live execution as disabled.
 
+The server-only execution airlock defines immutable intent, validation,
+idempotency, kill-switch and secret-free audit-event contracts. Its only adapter
+is non-executing, has no network dependency and always returns a blocked result.
+There is no execution route or production exchange adapter. This is an
+architecture-only prerequisite and does not approve live execution; DizyAccount
+remains read-only and DizyPaper remains simulation-only.
+
 Never commit passwords, session secrets, API keys, Gmail App Passwords, `.env` files or exported account backups.
 
 The authentication/storage review is recorded in [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md). The completed read-only account boundary is recorded in [docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md](docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md). Neither approves exchange write permission.
