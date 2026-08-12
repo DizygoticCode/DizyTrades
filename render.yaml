@@ -23,6 +23,12 @@ services:
         value: /var/data/dizytrades
       - key: LIVE_TRADING_ENABLED
         value: "false"
+      - key: CREDENTIAL_CUSTODY_ENABLED
+        value: "false"
+      - key: CREDENTIAL_CUSTODY_ACTIVE_KEY_VERSION
+        sync: false
+      - key: CREDENTIAL_CUSTODY_KEYRING
+        sync: false
       - key: MFA_ENCRYPTION_KEY
         sync: false
       - key: OWNER_MEXC_ACCOUNT_COMPANION_ENABLED

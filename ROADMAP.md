@@ -410,3 +410,8 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 - Live trading remains disabled until the final security milestone is complete.
 - Prefer the existing Render service, GitHub workflows and free tooling.
 - Do not create paid services, disks, databases, APIs or subscriptions without explicit owner approval.
+# Guarded execution readiness
+
+- [x] Add disabled, encrypted, server-only future credential custody with key versioning and atomic rewrap.
+- [ ] Design a separately reviewed, strongly authenticated credential provisioning ceremony.
+- [ ] Review and design execution mechanics/provider wiring. Custody completion does not complete controlled activation or live execution.
