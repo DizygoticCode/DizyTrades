@@ -8,10 +8,11 @@ This roadmap reflects merged `main` as of **11 August 2026**. Items are not prom
 
 The broad platform-building phase is largely complete. The active sequence is deliberately narrower:
 
-1. **Finish the DizyQuant representative evidence campaign.**
-2. **Apply optional evidence-led polish** only where the campaign or production use exposes a real reason.
-3. **Maintain the supported stack** with focused dependency, documentation and operational updates.
-4. **Consider guarded execution readiness** only after every execution-security boundary is independently satisfied.
+1. **Apply optional evidence-led polish** only where production use exposes a real reason.
+2. **Maintain the supported stack** with focused dependency, documentation and operational updates.
+3. **Consider guarded execution readiness** only after every execution-security boundary is independently satisfied.
+
+The first bounded DizyQuant representative campaign is closed for the current roadmap. DizyQuant remains research-only unless a separate versioned follow-up or promotion PR is justified by evidence.
 
 No large feature programme is inserted between these stages merely because the platform can support one.
 
@@ -28,6 +29,10 @@ The previous CI/maintenance backlog has been cleared.
 - [x] repair persistent MEXC contract-metadata recovery for Manual Paper while keeping core contract rules strict
 - [x] close superseded/stale dependency and token-page pull requests instead of carrying an artificial backlog
 - [x] sync README and ROADMAP with the current platform state
+- [x] require verified email before new public accounts can receive a session
+- [x] add enumeration-safe resend-verification and password recovery for verified database accounts
+- [x] add persistent personal profiles for database and legacy owner/admin identities
+- [x] production-smoke the Render/Gmail verification and reset path without weakening production verification
 
 GitHub Actions is no longer treated as silent or unavailable. The repository's ordinary merge gate is again authoritative.
 
@@ -37,6 +42,8 @@ GitHub Actions is no longer treated as silent or unavailable. The repository's o
 
 - [x] public marketing site and real view-only terminal
 - [x] account authentication and isolated user profiles
+- [x] verified public signup and password recovery
+- [x] personal profile editing with bounded avatar storage
 - [x] DizyCharts multi-timeframe terminal
 - [x] manual drawing and saved chart workspaces
 - [x] shared route-aware product navigation across the Dizy family
@@ -73,6 +80,7 @@ GitHub Actions is no longer treated as silent or unavailable. The repository's o
 - [x] DizyQuant snapshot-grade and continuous-stream-grade formula layers
 - [x] DizyQuant held-out, null-baseline and walk-forward laboratory
 - [x] continuity-qualified representative-evidence campaign contract
+- [x] first bounded representative campaign closed for the current roadmap without automatic signal promotion
 
 ### Reliability and operations
 
@@ -151,18 +159,17 @@ The six focused implementation slices are complete:
 - [x] shock resilience, replenishment and experimental candidate events
 - [x] deterministic Replay/statistical laboratory and bounded public presentation
 
-Current registry state:
+Current research boundary:
 
-- [x] 67 stable metric identities
-- [x] 65 informational metrics
-- [x] two experimental depth-only candidate flags
-- [x] zero validated metrics
-- [x] zero decision-eligible or signal-eligible metrics
+- [x] stable informational and experimental metric identities
+- [x] no automatic decision eligibility
+- [x] no automatic signal eligibility
 - [x] repository firewall against unreviewed DizySignals influence
+- [x] first bounded representative campaign closed for the current roadmap
 
-The implementation foundation is finished. DizyQuant is not "finished science": the representative evidence campaign below is the active research programme.
+DizyQuant is not declared "finished science". Its current programme is simply no longer an active roadmap blocker. Any follow-up hypothesis, revised formula or signal-influence proposal must be separate and versioned.
 
-See [docs/DIZYQUANT_RESEARCH_CONTRACT.md](docs/DIZYQUANT_RESEARCH_CONTRACT.md) and the bounded public `/research` page.
+See [docs/DIZYQUANT_RESEARCH_CONTRACT.md](docs/DIZYQUANT_RESEARCH_CONTRACT.md), [docs/DIZYQUANT_CAMPAIGN_CLOSURE.md](docs/DIZYQUANT_CAMPAIGN_CLOSURE.md) and the bounded public `/research` page.
 
 ### 5. Read-only MEXC Account Companion and shadow reconciliation — complete
 
@@ -233,34 +240,27 @@ DIZY is a live Solana cryptoasset associated with the DizyTrades ecosystem.
 
 External directory/listing review is administrative and does not block the product roadmap.
 
-## Active programme — DizyQuant representative evidence campaign
+### 9. Verified account lifecycle and personal profiles — complete
 
-### 9. Finish the first bounded campaign
+The public account lifecycle now fails closed around email ownership without weakening production verification.
 
-The collection and qualification machinery already exists. The work now is to collect representative evidence and make explicit research decisions.
+- [x] require email for public signup
+- [x] block login/session creation until verification succeeds
+- [x] send bounded TLS SMTP verification mail from the server
+- [x] keep verification/reset bearer tokens hashed at rest, expiring and single-use
+- [x] keep bearer tokens in URL fragments rather than request query strings
+- [x] provide enumeration-safe resend-verification and forgot-password flows
+- [x] revoke database sessions after successful password reset
+- [x] persist personal display name, bounded bio and bounded avatar storage
+- [x] keep role and sign-in email immutable from the personal profile API
+- [x] keep legacy owner/admin credentials in the protected Render environment boundary
+- [x] isolate Playwright from external SMTP without weakening the production contract
+- [x] production-smoke signup → Gmail verification → verified login → terminal
+- [x] production-smoke forgot password → Gmail reset → password change → session revocation
 
-Initial campaign matrix:
+The live Render account-email environment contract is documented in [docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md](docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md).
 
-- **Symbols:** BTC_USDT, ETH_USDT and SOL_USDT
-- **Regimes:** range, directional and volatility-shock
-- **Coverage threshold:** 50 qualified observations per symbol × regime cell
-- **First-matrix minimum:** 450 qualified observations before every cell is coverage-ready
-- **Submitted-sample ceiling:** 10,000
-
-Required work:
-
-- [ ] collect continuity-qualified samples across all nine cells
-- [ ] retain stable rejection reasons for gapped, unavailable, mismatched and out-of-scope evidence
-- [ ] run Replay studies for candidate metrics and outcomes
-- [ ] compare held-out results with circular-null and walk-forward baselines
-- [ ] inspect false positives, false negatives, sensitivity and regime dependence
-- [ ] record retain, reject or revise decisions per formula version
-- [ ] keep every result decision-ineligible, signal-ineligible and execution-ineligible during research
-- [ ] open a separate promotion PR only if representative evidence warrants it
-
-Coverage-ready does **not** mean validated, predictive or promotable. This programme may validly reject every current hypothesis.
-
-## Next — optional evidence-led polish
+## Optional evidence-led polish
 
 ### 10. Improve only what evidence or real production use justifies
 
@@ -268,7 +268,7 @@ This stage is intentionally conditional. It is not another feature-expansion pro
 
 Possible work includes:
 
-- [ ] improve DizyQuant campaign/research presentation where it makes results easier to audit
+- [ ] improve DizyQuant research presentation only where it makes results easier to audit
 - [ ] remove or de-emphasise metrics that create noise without useful evidence
 - [ ] refine Scanner, Structure, Replay, Performance or DizyFlow UX where real use exposes friction
 - [ ] improve rendering/performance only where measurement shows a real bottleneck
@@ -296,8 +296,10 @@ Rules and remaining maintenance:
 - [x] recover the GitHub Actions merge gate
 - [x] apply the focused Next.js 16.2.12 security/patch update
 - [x] re-audit README and ROADMAP after the CI/security cleanup
+- [x] synchronize `SECURITY.md`, `ARCHITECTURE.md` and deployment documentation after the verified-account rollout
+- [x] align signup-page availability with the backend's explicit `PUBLIC_SIGNUP_ENABLED=true` contract
+- [x] document the existing-service Render environment/redeploy requirement for production account mail
 - [ ] test useful supported dependency updates independently rather than as broad bundles
-- [ ] keep `SECURITY.md`, `ARCHITECTURE.md` and deployment documentation synchronized whenever their actual boundaries change
 - [ ] review runtime/package engine alignment when Node support requirements change
 - [ ] run focused dependency/browser regressions before every accepted framework/runtime update
 - [ ] keep TypeScript major migrations and mismatched Node-major type upgrades separate unless dedicated migration work is justified
@@ -350,11 +352,15 @@ Useful for public charting, market study, deterministic signals, public order-fl
 
 ### Operational Research Platform — achieved
 
-DizyPaper Fidelity V2, shared workflow/navigation, DizyQuant's six-slice foundation, DizyFlow heatmap presentation, deployment/recovery contracts, CI baseline and focused independent reviews are complete.
+DizyPaper Fidelity V2, shared workflow/navigation, DizyQuant's research foundation/current bounded campaign, DizyFlow heatmap presentation, deployment/recovery contracts, verified account lifecycle, CI baseline and focused independent reviews are complete for the current roadmap.
 
 ### Read-only Account Companion — achieved
 
-The owner-only companion can ingest and label private account state, add provider risk context, reconcile it with DizyPaper, calculate non-executable previews, persist tamper-evident shadow evidence and fail closed through an owner-controlled shutdown. It remains strictly separate from guarded live execution.
+The owner-only companion can ingest and label private account state, add provider risk context, reconcile it with DizyPaper, calculate non-executable previews, persist shadow evidence and fail closed through an owner-controlled shutdown. It remains strictly separate from guarded live execution.
+
+### Verified Account Lifecycle — achieved
+
+Public accounts require verified email before session creation and support self-service recovery with session revocation. Personal profile editing remains role/email-safe and separate from exchange connectivity.
 
 ### DIZY public launch surface — achieved
 
@@ -362,7 +368,7 @@ The live Solana token identity, fixed supply, revoked authorities, official Dizy
 
 ### Evidence-qualified DizyQuant promotion — conditional
 
-A metric may be considered only after representative held-out studies and a separate promotion review. This milestone may validly reject every current hypothesis.
+A metric may be considered only after representative evidence and a separate promotion review. This milestone may validly remain unstarted indefinitely.
 
 ### Guarded Trading Platform — conditional future
 
