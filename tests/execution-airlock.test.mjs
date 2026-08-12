@@ -161,6 +161,22 @@ test("synthetic provider lifecycle outcomes are deterministic and never execute"
   }
 });
 
+test("synthetic provider evaluation requires the explicit disabled gate posture", () => {
+  for (const environment of [{}, { LIVE_TRADING_ENABLED: "TRUE" }]) {
+    const response = makeService({
+      environment,
+      now: () => new Date("2026-08-12T12:01:00Z"),
+      readKillSwitches: () => enabledSwitchState,
+      syntheticProviderScenario: "would-accept",
+    }).process(valid, prerequisites);
+    assert.equal(response.result.state, "blocked");
+    assert.equal(response.result.executed, false);
+    assert.equal(response.result.reason, "GLOBAL_EXECUTION_DISABLED");
+    assert.equal(response.result.providerResult, undefined);
+    assert.equal(response.auditEvents.some(({ kind }) => kind === "provider-evaluated"), false);
+  }
+});
+
 test("provider is downstream of authentication, kill switches, validation, policy and idempotency", () => {
   const options = { environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z"), syntheticProviderScenario: "would-accept" };
   const killed = makeService({ ...options, readKillSwitches: () => ({ ...enabledSwitchState, emergencyStop: true }) }).process(valid, prerequisites);
@@ -181,12 +197,18 @@ test("provider is downstream of authentication, kill switches, validation, polic
 
 test("provider exceptions and malformed results fail closed with bounded errors", () => {
   for (const [syntheticProviderFault, reason] of [["exception", "PROVIDER_EXCEPTION"], ["malformed-result", "PROVIDER_MALFORMED_RESULT"]]) {
-    const response = makeService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z"), readKillSwitches: () => enabledSwitchState, syntheticProviderScenario: "would-accept", syntheticProviderFault }).process(valid, prerequisites);
+    const service = makeService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z"), readKillSwitches: () => enabledSwitchState, syntheticProviderScenario: "would-accept", syntheticProviderFault });
+    const response = service.process(valid, prerequisites);
     assert.equal(response.result.executed, false);
     assert.equal(response.result.state, "blocked");
     assert.equal(response.result.reason, reason);
     assert.equal(response.result.providerResult, undefined);
     assert.doesNotMatch(JSON.stringify(response), /Synthetic provider fault|apiKey|secret/i);
+    const duplicate = service.process(valid, prerequisites);
+    assert.equal(duplicate.result.executed, false);
+    assert.equal(duplicate.result.duplicate, true);
+    assert.equal(duplicate.result.reason, "DUPLICATE_INTENT");
+    assert.deepEqual(duplicate.auditEvents.map(({ kind }) => kind), ["intent-received", "validation-passed", "duplicate-intent-detected"]);
   }
 });
 

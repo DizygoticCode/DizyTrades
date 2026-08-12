@@ -66,7 +66,7 @@ export class ExecutionAirlockService {
     const gate = executionCapabilityGate(this.options.environment);
     const reason = gate.reason === "adapter-unavailable" ? "ADAPTER_UNAVAILABLE" : (boundaryKillReason ?? "GLOBAL_EXECUTION_DISABLED");
     const preview = createExecutionPreview(validation.intent, prerequisites);
-    if (this.options.syntheticProviderScenario && !boundaryKillReason && gate.reason !== "adapter-unavailable") {
+    if (this.options.syntheticProviderScenario && !boundaryKillReason && gate.reason === "disabled") {
       try {
         if (this.options.syntheticProviderFault === "exception") throw new Error("Synthetic provider fault");
         const providerResult: unknown = this.options.syntheticProviderFault === "malformed-result"
@@ -74,7 +74,9 @@ export class ExecutionAirlockService {
           : evaluateSyntheticProvider(this.options.syntheticProviderScenario, { intent: validation.intent, preview });
         if (!isSyntheticProviderResult(providerResult)) {
           audit("provider-failed", "PROVIDER_MALFORMED_RESULT");
-          return Object.freeze({ result: Object.freeze({ intentId: validation.intent.intentId, idempotencyKey: validation.intent.idempotencyKey, state: "blocked", executed: false, duplicate: false, reason: "PROVIDER_MALFORMED_RESULT", preview }), auditEvents: Object.freeze(events) });
+          const result = Object.freeze({ intentId: validation.intent.intentId, idempotencyKey: validation.intent.idempotencyKey, state: "blocked" as const, executed: false as const, duplicate: false, reason: "PROVIDER_MALFORMED_RESULT" as const, preview });
+          this.processed.set(idempotencyScope, result);
+          return Object.freeze({ result, auditEvents: Object.freeze(events) });
         }
         audit("provider-evaluated", "SYNTHETIC_PROVIDER_OUTCOME");
         const result = Object.freeze({ intentId: validation.intent.intentId, idempotencyKey: validation.intent.idempotencyKey, state: "prepared" as const, executed: false as const, duplicate: false, reason: "SYNTHETIC_PROVIDER_OUTCOME" as const, preview, providerResult });
@@ -82,7 +84,9 @@ export class ExecutionAirlockService {
         return Object.freeze({ result, auditEvents: Object.freeze(events) });
       } catch {
         audit("provider-failed", "PROVIDER_EXCEPTION");
-        return Object.freeze({ result: Object.freeze({ intentId: validation.intent.intentId, idempotencyKey: validation.intent.idempotencyKey, state: "blocked", executed: false, duplicate: false, reason: "PROVIDER_EXCEPTION", preview }), auditEvents: Object.freeze(events) });
+        const result = Object.freeze({ intentId: validation.intent.intentId, idempotencyKey: validation.intent.idempotencyKey, state: "blocked" as const, executed: false as const, duplicate: false, reason: "PROVIDER_EXCEPTION" as const, preview });
+        this.processed.set(idempotencyScope, result);
+        return Object.freeze({ result, auditEvents: Object.freeze(events) });
       }
     }
     audit(reason === "ADAPTER_UNAVAILABLE" ? "adapter-unavailable" : "kill-switch-active", reason);
