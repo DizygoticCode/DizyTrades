@@ -21,7 +21,7 @@ function filesBelow(path) {
 
 test("execution boundary is server-only and contains exactly one non-executing adapter", () => {
   const files = filesBelow("app/lib/execution");
-  assert.deepEqual(files.filter((path) => path.endsWith("adapter.ts")), ["app/lib/execution/adapter.ts"]);
+  assert.deepEqual(files.filter((path) => path.endsWith("adapter.ts")), ["app/lib/execution/internal/adapter.ts"]);
   for (const path of files) {
     const source = text(path);
     assert.match(source, /^import "server-only";/, path);
@@ -29,8 +29,8 @@ test("execution boundary is server-only and contains exactly one non-executing a
     assert.doesNotMatch(source, /\/api\/v1\/private\/(?:order|position\/(?:change|submit|cancel)|account\/(?:transfer|withdraw))/i, path);
     assert.doesNotMatch(source, /(?:WRITE|TRADING)_(?:API_)?(?:KEY|SECRET)|PRIVATE_KEY/, path);
   }
-  assert.match(text("app/lib/execution/adapter.ts"), /NonExecutingExecutionAdapter/);
-  assert.doesNotMatch(text("app/lib/execution/adapter.ts"), /Real|Live|Mexc/);
+  assert.match(text("app/lib/execution/internal/adapter.ts"), /NonExecutingExecutionAdapter/);
+  assert.doesNotMatch(text("app/lib/execution/internal/adapter.ts"), /Real|Live|Mexc/);
 });
 
 test("no route or client module imports the execution airlock", () => {
@@ -39,6 +39,23 @@ test("no route or client module imports the execution airlock", () => {
     if (path.startsWith("app/api/") || /^\s*["']use client["'];/m.test(source)) {
       assert.doesNotMatch(source, /lib\/execution|\.\/execution\//, path);
     }
+  }
+});
+
+test("application code has one execution implementation import path and no boundary bypass", () => {
+  const implementationModules = ["adapter", "audit", "gate", "kill-switch", "policy", "preview", "service", "validation"];
+  for (const path of filesBelow("app").filter((path) => /\.[cm]?[jt]sx?$/.test(path) && !path.startsWith("app/lib/execution/"))) {
+    const source = text(path);
+    for (const implementationModule of implementationModules) {
+      assert.doesNotMatch(source, new RegExp(`lib/execution/${implementationModule}|execution/${implementationModule}`), `${path} bypasses boundary`);
+    }
+  }
+  assert.match(text("app/lib/execution/boundary.ts"), /ExecutionAirlockService/);
+  assert.match(text("app/lib/execution/boundary.ts"), /authenticateInternalCaller/);
+  assert.match(text("app/lib/execution/boundary.ts"), /readKillSwitches/);
+  assert.equal(filesBelow("app/api").some((path) => /execution/i.test(path)), false);
+  for (const path of filesBelow("app").filter((path) => /\.[cm]?[jt]sx?$/.test(path) && !path.startsWith("app/lib/execution/internal/") && path !== "app/lib/execution/boundary.ts")) {
+    assert.doesNotMatch(text(path), /execution\/internal\//, `${path} imports isolated implementation`);
   }
 });
 
@@ -51,6 +68,9 @@ test("production remains false, private MEXC is GET-only and paper routes remain
   const paperRoute = text("app/api/manual-paper/route.ts");
   assert.match(paperRoute, /submitManualOrder/);
   assert.doesNotMatch(paperRoute, /lib\/execution|mexc-private-readonly|requestMexcPrivateRead/);
+  for (const path of filesBelow("app/api").filter((path) => /paper.*route\.ts$|manual-paper\/route\.ts$/.test(path))) {
+    assert.doesNotMatch(text(path), /lib\/execution/, path);
+  }
 });
 
 test("repository has no MEXC private order-write endpoint or execution API route", () => {

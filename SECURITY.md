@@ -23,6 +23,15 @@ boundary; missing, invalid, stale or policy-violating evidence is rejected. A
 successful preview is a sanitized estimate, not an exchange instruction, and
 cannot place, cancel or amend an order.
 
+The isolated `ExecutionBoundary` is the only permitted application import into
+the airlock implementation. It authenticates a server-internal caller through a
+server-owned verifier, requires the verified caller's user/account binding to
+match the request, and obtains kill-switch state through its own dependency.
+Caller-supplied intent fields cannot override identity, policy or global,
+per-user or per-account shutdown state. Verifier and shutdown-provider failures
+fail closed before a preview. There is still no public execution route, write
+transport, signing implementation or write-key custody.
+
 Never commit passwords, session secrets, API keys, Gmail App Passwords, `.env` files or exported account backups.
 
 The authentication/storage review is recorded in [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md). The completed read-only account boundary is recorded in [docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md](docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md). Neither approves exchange write permission.
