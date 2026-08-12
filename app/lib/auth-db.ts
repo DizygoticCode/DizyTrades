@@ -515,6 +515,22 @@ export function verifyCurrentMfa(userId: string, proof: string, now = Date.now()
   return result.changes === 1;
 }
 
+/** TOTP-only proof for high-risk ceremonies. Recovery codes are deliberately rejected. */
+export function verifyFreshTotp(userId: string, proof: string, now = Date.now()) {
+  const id = safeOwnerId(userId, "account"), row = mfaRow(id), db = getAuthDatabase();
+  const current = row?.state === "active" ? totp(decryptMfaSecret(row), now) : "";
+  if (!db || !/^\d{6}$/.test(proof) || !current || !timingSafeEqual(Buffer.from(proof), Buffer.from(current))) return false;
+  db.exec(`CREATE TABLE IF NOT EXISTS privileged_totp_replay (
+    user_id TEXT PRIMARY KEY, counter INTEGER NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`);
+  const counter = Math.floor(now / 30_000);
+  const result = db.prepare(`INSERT INTO privileged_totp_replay(user_id,counter) VALUES(?,?)
+    ON CONFLICT(user_id) DO UPDATE SET counter=excluded.counter
+    WHERE privileged_totp_replay.counter < excluded.counter`).run(id, counter);
+  return result.changes === 1;
+}
+
 export function regenerateRecoveryCodes(userId: string) { const db = getAuthDatabase(), id = safeOwnerId(userId, "account"); if (!db || mfaRow(id)?.state !== "active") return null; db.exec("BEGIN IMMEDIATE"); try { const codes = replaceRecoveryCodes(db, id); db.prepare("UPDATE sessions SET revoked_at=? WHERE user_id=?").run(Date.now(), id); db.exec("COMMIT"); return codes; } catch (e) { db.exec("ROLLBACK"); throw e; } }
 export function disableMfa(userId: string) { const db = getAuthDatabase(), id = safeOwnerId(userId, "account"); if (!db) return false; db.exec("BEGIN IMMEDIATE"); try { db.prepare("DELETE FROM mfa_credentials WHERE user_id=?").run(id); db.prepare("DELETE FROM mfa_recovery_codes WHERE user_id=?").run(id); db.prepare("DELETE FROM mfa_challenges WHERE user_id=?").run(id); db.prepare("DELETE FROM mfa_email_recovery_tokens WHERE user_id=?").run(id); db.prepare("UPDATE sessions SET revoked_at=? WHERE user_id=?").run(Date.now(), id); db.exec("COMMIT"); return true; } catch (e) { db.exec("ROLLBACK"); throw e; } }
 

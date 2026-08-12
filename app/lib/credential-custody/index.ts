@@ -163,6 +163,16 @@ export function inspectCredential(bindingInput: Binding) {
   try { return metadata(select(db, binding)); } finally { db.close(); }
 }
 
+/** Metadata-only lookup used by the provisioning boundary. */
+export function inspectActiveCredential(userIdInput: string, accountRefInput: string) {
+  const userId = validToken(userIdInput), accountRef = validToken(accountRefInput), db = openDatabase();
+  try {
+    const row = db.prepare("SELECT * FROM custody_records WHERE user_id=? AND account_ref=? AND exchange=? AND purpose=?")
+      .get(userId, accountRef, CUSTODY_EXCHANGE, CUSTODY_PURPOSE) as RecordRow | undefined;
+    return row ? metadata(row) : null;
+  } finally { db.close(); }
+}
+
 export function withCredentials(bindingInput: Binding, consume: (credentials: Credentials) => void) {
   const binding = validateBinding(bindingInput); const ring = keyring(); const db = openDatabase();
   try {
