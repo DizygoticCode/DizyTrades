@@ -19,6 +19,13 @@ test("login controls remain disabled until client hydration attaches their handl
   assert.doesNotMatch(source, /setTimeout|setHydrated/);
 });
 
+test("MFA login accepts authenticator and alphanumeric recovery codes", async () => {
+  const source = await readFile(loginFormPath, "utf8");
+
+  assert.match(source, /autoComplete="one-time-code" inputMode="text" name="proof"/);
+  assert.doesNotMatch(source, /inputMode="numeric" name="proof"/);
+});
+
 test("deployed acceptance observes the viewer endpoint before trusting terminal hydration", async () => {
   const source = await readFile(acceptancePath, "utf8");
   const listener = source.indexOf('page.on("response", observeTerminalResponse)');
