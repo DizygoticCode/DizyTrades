@@ -47,6 +47,21 @@ test("invalid intent returns useful typed structural rejection reasons", () => {
   assert.equal(stale.rejections.at(-1).code, "PREREQUISITE_STATE_STALE");
 });
 
+test("quantity obeys contract volume bounds and step alignment", () => {
+  for (const quantity of [0.00001, 10.0001, 0.00015]) {
+    const result = validateExecutionIntent({ ...valid, quantity }, prerequisites);
+    assert.equal(result.ok, false);
+    assert.equal(result.rejections.some(({ code }) => code === "INVALID_QUANTITY"), true);
+  }
+  assert.equal(validateExecutionIntent({ ...valid, quantity: 0.0001 }, prerequisites).ok, true);
+});
+
+test("limit price obeys the contract price step", () => {
+  const result = validateExecutionIntent({ ...valid, price: 65000.05 }, prerequisites);
+  assert.equal(result.ok, false);
+  assert.equal(result.rejections.some(({ code }) => code === "INVALID_PRICE"), true);
+});
+
 test("kill-switch contract represents global, user, account, stale, maintenance and emergency blocks", () => {
   const base = { globalDisabled: false, disabledUserIds: new Set(), disabledAccountIds: new Set(), providerStateFresh: true, maintenance: false, emergencyStop: false };
   assert.equal(executionKillSwitchReason({ ...base, globalDisabled: true }, valid), "GLOBAL_EXECUTION_DISABLED");
@@ -80,6 +95,18 @@ test("airlock always blocks, detects duplicate keys deterministically and perfor
   }
 });
 
+test("idempotency keys are isolated by authenticated user and account identity", () => {
+  const service = new ExecutionAirlockService({ environment: { LIVE_TRADING_ENABLED: "false" } });
+  const first = service.process(valid, prerequisites);
+  const otherUser = service.process({ ...valid, intentId: "intent-0002", userId: "user-2" }, prerequisites);
+  const otherAccount = service.process({ ...valid, intentId: "intent-0003", accountId: "account-2" }, prerequisites);
+  assert.equal(first.result.duplicate, false);
+  assert.equal(otherUser.result.duplicate, false);
+  assert.equal(otherUser.result.intentId, "intent-0002");
+  assert.equal(otherAccount.result.duplicate, false);
+  assert.equal(otherAccount.result.intentId, "intent-0003");
+});
+
 test("execution audit events hash identities, omit secrets and reject secret-shaped metadata", () => {
   const event = createExecutionAuditEvent({ eventId: "event-0001", occurredAt: valid.createdAt, kind: "execution-blocked", intentId: valid.intentId, idempotencyKey: valid.idempotencyKey, userId: valid.userId, symbol: valid.symbol, reason: "GLOBAL_EXECUTION_DISABLED" });
   const encoded = JSON.stringify(event);
@@ -87,4 +114,13 @@ test("execution audit events hash identities, omit secrets and reject secret-sha
   assert.doesNotMatch(encoded, new RegExp(valid.userId));
   assert.equal(Object.isFrozen(event), true);
   assert.throws(() => createExecutionAuditEvent({ eventId: "event-0002", occurredAt: valid.createdAt, kind: "execution-blocked", intentId: valid.intentId, idempotencyKey: valid.idempotencyKey, userId: valid.userId, apiSecret: "never-store-this" }), /Sensitive execution audit/);
+  assert.doesNotThrow(() => createExecutionAuditEvent({ ...valid, eventId: "event-token", occurredAt: valid.createdAt, kind: "validation-rejected", intentId: "session-intent", userId: "token-user" }));
+});
+
+test("rejected input is not copied into audit events", () => {
+  const service = new ExecutionAirlockService();
+  const response = service.process({ ...valid, symbol: "TOKEN", intentId: "secret" }, prerequisites);
+  assert.equal(response.result.state, "rejected");
+  const audit = JSON.stringify(response.auditEvents);
+  assert.doesNotMatch(audit, /TOKEN|secret/);
 });

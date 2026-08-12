@@ -1,6 +1,9 @@
 import "server-only";
 
-import type { MexcContractMetadata } from "../mexc-contract-metadata";
+import {
+  isMexcStepAligned,
+  type MexcContractMetadata,
+} from "../mexc-contract-metadata";
 import {
   EXECUTION_CONTRACT_VERSION,
   type ExecutionIntent,
@@ -44,7 +47,17 @@ export function validateExecutionIntent(
   if (input.side !== "long" && input.side !== "short") reject("INVALID_SIDE", "side", "Side must be long or short.");
   if (input.orderType !== "market" && input.orderType !== "limit") reject("INVALID_ORDER_TYPE", "orderType", "Order type must be market or limit.");
   if (!Number.isFinite(quantity) || quantity <= 0) reject("INVALID_QUANTITY", "quantity", "Quantity must be positive and finite.");
+  else if (contract) {
+    const contractVolume = quantity / contract.contractSize;
+    if (
+      !Number.isFinite(contractVolume)
+      || contractVolume < contract.minVol
+      || contractVolume > contract.maxVol
+      || !isMexcStepAligned(contractVolume, contract.volUnit)
+    ) reject("INVALID_QUANTITY", "quantity", "Quantity must satisfy current contract volume limits and step size.");
+  }
   if (input.orderType === "limit" && (!Number.isFinite(price) || price! <= 0)) reject("INVALID_PRICE", "price", "A positive finite price is required for a limit intent.");
+  else if (input.orderType === "limit" && contract && !isMexcStepAligned(price!, contract.priceUnit)) reject("INVALID_PRICE", "price", "Limit price must align with the current contract price step.");
   if (input.orderType === "market" && input.price !== undefined) reject("INVALID_PRICE", "price", "Market intents cannot specify a price.");
   if (!Number.isInteger(leverage) || !contract || leverage < contract.minLeverage || leverage > contract.maxLeverage) reject("INVALID_LEVERAGE", "leverage", "Leverage is outside current contract metadata limits.");
   if (typeof input.reduceOnly !== "boolean") reject("INVALID_REDUCE_ONLY", "reduceOnly", "Reduce-only intent must be explicit.");

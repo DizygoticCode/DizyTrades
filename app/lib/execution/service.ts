@@ -28,11 +28,11 @@ export class ExecutionAirlockService {
   process(input: ExecutionIntentInput, prerequisites: ExecutionPrerequisites): ExecutionServiceResponse {
     const events: ExecutionAuditEvent[] = [];
     const occurredAt = (this.options.now ?? (() => new Date()))().toISOString();
-    const identity = {
-      intentId: typeof input.intentId === "string" ? input.intentId : "invalid-intent",
-      idempotencyKey: typeof input.idempotencyKey === "string" ? input.idempotencyKey : "invalid-key",
-      userId: typeof input.userId === "string" ? input.userId : "invalid-user",
-      symbol: typeof input.symbol === "string" ? input.symbol : undefined,
+    let identity = {
+      intentId: "unvalidated-intent",
+      idempotencyKey: "unvalidated-key",
+      userId: "unvalidated-user",
+      symbol: undefined as string | undefined,
     };
     const audit = (kind: ExecutionAuditKind, reason?: ExecutionResult["reason"]) => events.push(createExecutionAuditEvent({
       eventId: `airlock-${++this.sequence}`,
@@ -48,8 +48,19 @@ export class ExecutionAirlockService {
         auditEvents: Object.freeze(events),
       });
     }
+    identity = {
+      intentId: validation.intent.intentId,
+      idempotencyKey: validation.intent.idempotencyKey,
+      userId: validation.intent.userId,
+      symbol: validation.intent.symbol,
+    };
     audit("validation-passed");
-    const duplicate = this.processed.get(validation.intent.idempotencyKey);
+    const idempotencyScope = JSON.stringify([
+      validation.intent.userId,
+      validation.intent.accountId,
+      validation.intent.idempotencyKey,
+    ]);
+    const duplicate = this.processed.get(idempotencyScope);
     if (duplicate) {
       audit("duplicate-intent-detected", "DUPLICATE_INTENT");
       return Object.freeze({ result: Object.freeze({ ...duplicate, duplicate: true, reason: "DUPLICATE_INTENT" }), auditEvents: Object.freeze(events) });
@@ -61,7 +72,7 @@ export class ExecutionAirlockService {
     audit(reason === "ADAPTER_UNAVAILABLE" ? "adapter-unavailable" : "kill-switch-active", reason);
     const result = this.adapter.prepare(validation.intent, reason);
     audit("execution-blocked", reason);
-    this.processed.set(validation.intent.idempotencyKey, result);
+    this.processed.set(idempotencyScope, result);
     return Object.freeze({ result, auditEvents: Object.freeze(events) });
   }
 }

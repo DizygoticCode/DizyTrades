@@ -26,7 +26,7 @@ export type ExecutionAuditEvent = Readonly<{
 }>;
 
 const safeValue = /^[a-zA-Z0-9_:-]{1,120}$/;
-const forbidden = /api.?key|secret|signature|authorization|credential|cookie|session|token|password/i;
+const forbiddenField = /api.?key|secret|signature|authorization|credential|cookie|session|token|password/i;
 
 const digest = (namespace: string, value: string) =>
   createHash("sha256").update(`${namespace}:${value}`, "utf8").digest("hex");
@@ -41,9 +41,8 @@ export function createExecutionAuditEvent(input: Readonly<{
   symbol?: string;
   reason?: ExecutionBlockCode | ExecutionRejectionCode;
 }>): ExecutionAuditEvent {
-  for (const [field, value] of Object.entries(input)) {
-    if (forbidden.test(field) && field !== "idempotencyKey") throw new TypeError("Sensitive execution audit field is forbidden.");
-    if (typeof value === "string" && forbidden.test(value)) throw new TypeError("Sensitive execution audit value is forbidden.");
+  for (const field of Object.keys(input)) {
+    if (forbiddenField.test(field) && field !== "idempotencyKey") throw new TypeError("Sensitive execution audit field is forbidden.");
   }
   if (!safeValue.test(input.eventId) || !safeValue.test(input.intentId) || !Number.isFinite(Date.parse(input.occurredAt))) {
     throw new TypeError("Execution audit identity or timestamp is invalid.");
