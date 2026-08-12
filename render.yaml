@@ -25,6 +25,8 @@ services:
         value: "false"
       - key: CREDENTIAL_CUSTODY_ENABLED
         value: "false"
+      - key: CREDENTIAL_PROVISIONING_ENABLED
+        value: "false"
       - key: CREDENTIAL_CUSTODY_ACTIVE_KEY_VERSION
         sync: false
       - key: CREDENTIAL_CUSTODY_KEYRING

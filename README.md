@@ -4,6 +4,8 @@
 
 Future MEXC execution credential custody is encrypted, server-only, disabled by default, and fully disconnected from execution. Operators must not configure custody keys unless deliberately testing the isolated custody service; see `SECURITY.md`. The existing MEXC Account Companion remains separate and read-only.
 
+An owner-only provisioning ceremony can hand synthetic/future credentials directly into custody when both custody and provisioning are deliberately enabled. It requires fresh password and TOTP proof, has no secret readback or MEXC verification, and remains disabled in production. It adds no paid service and no live-write capability.
+
 ### Everything Dizy™
 
 **A transparent, simulation-first crypto research, charting, execution-practice and review platform.**

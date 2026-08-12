@@ -338,7 +338,7 @@ occurred. It adds no exchange write capability.
 Live execution remains disabled until every relevant requirement below is implemented, exercised and independently reviewed:
 
 - [ ] isolated execution service or equivalently isolated execution boundary
-- [ ] encrypted live-trading credential custody suitable for write-capable keys
+- [x] encrypted future live-trading credential custody suitable for write-capable keys (disabled and disconnected; no execution wiring)
 - [x] MFA and hardened database-backed sessions
 - [ ] shared authentication and abuse rate limiting before any horizontal multi-instance deployment (current supported production is one Render instance with persistent SQLite state and vertical scaling first)
 - [ ] server-side order preview and risk validation
@@ -413,5 +413,6 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 # Guarded execution readiness
 
 - [x] Add disabled, encrypted, server-only future credential custody with key versioning and atomic rewrap.
-- [ ] Design a separately reviewed, strongly authenticated credential provisioning ceremony.
+- [x] Add a disabled-by-default, owner-only fresh-password + fresh-TOTP provisioning and revocation ceremony with metadata-only status.
+- [x] Complete the separately reviewed, strongly authenticated credential provisioning ceremony design.
 - [ ] Review and design execution mechanics/provider wiring. Custody completion does not complete controlled activation or live execution.
