@@ -16,7 +16,7 @@ const [readme, roadmap, homepage, metadata, research] = await Promise.all([
 
 test("README reflects the completed account, heatmap and pending-order programmes", () => {
   assert.match(readme, /### DizyAccount/);
-  assert.match(readme, /Owner-only, server-side, GET-only MEXC Futures account context/i);
+  assert.match(readme, /DizyAccount is the owner-only, server-side, GET-only MEXC Futures account companion/i);
   assert.match(readme, /advanced order simulator adds futures LIMIT\/GTC\/IOC\/FOK\/post-only/i);
   assert.match(readme, /retained-liquidity heatmap history/i);
   assert.doesNotMatch(readme, /\[ \] server-side read-only MEXC Account Companion/);
@@ -25,12 +25,11 @@ test("README reflects the completed account, heatmap and pending-order programme
 });
 
 test("roadmap follows the agreed programme order", () => {
-  const evidence = roadmap.indexOf("Active programme — DizyQuant representative evidence campaign");
-  const polish = roadmap.indexOf("Next — optional evidence-led polish");
+  const polish = roadmap.indexOf("Optional evidence-led polish");
   const housekeeping = roadmap.indexOf("Ongoing maintenance — supported stack, not dependency churn");
   const execution = roadmap.indexOf("Final major programme — guarded execution readiness");
-  assert.ok(evidence >= 0 && polish > evidence && housekeeping > polish && execution > housekeeping);
-  assert.match(roadmap, /450 qualified observations/);
+  assert.ok(polish >= 0 && housekeeping > polish && execution > housekeeping);
+  assert.match(roadmap, /first bounded representative campaign closed for the current roadmap/);
   assert.match(roadmap, /Read-only MEXC Account Companion and shadow reconciliation — complete/);
   assert.match(roadmap, /Liquidity heatmap presentation and DizyFlow evidence quality — complete for the current beta/);
 });

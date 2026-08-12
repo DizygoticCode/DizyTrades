@@ -7,22 +7,20 @@ const read=path=>readFile(path,"utf8");
 test("README reports the completed DizyQuant foundation without claiming validation",async()=>{
  const source=await read("README.md");
  assert.match(source,/DizyQuant Research/);
- assert.match(source,/67 stable metric identities/);
- assert.match(source,/65 informational, two experimental, zero validated and zero signal-eligible/);
- assert.match(source,/six-slice DizyQuant implementation foundation is complete/i);
- assert.match(source,/first bounded representative-evidence campaign/i);
- assert.match(source,/Coverage-ready does \*\*not\*\* mean validated, predictive or promotable/i);
+ assert.match(source,/stable informational and experimental metric identities with no automatic signal influence/);
+ assert.match(source,/six-slice DizyQuant implementation foundation and the first bounded representative-evidence programme are treated as closed/i);
+ assert.match(source,/No DizyQuant result is silently promoted into DizySignals, decision logic or execution/);
  assert.doesNotMatch(source,/DizyQuant microstructure research with Replay\/statistical validation\n/);
 });
 
-test("roadmap distinguishes completed implementation from ongoing evidence studies",async()=>{
+test("roadmap distinguishes completed research from any future promotion",async()=>{
  const source=await read("ROADMAP.md");
  assert.match(source,/DizyQuant research foundation — complete/);
  assert.match(source,/- \[x\] deterministic Replay\/statistical laboratory and bounded public presentation/);
- assert.match(source,/Active programme — DizyQuant representative evidence campaign/);
+ assert.match(source,/first bounded representative campaign closed for the current roadmap/);
  assert.match(source,/Read-only MEXC Account Companion and shadow reconciliation/);
  assert.match(source,/Liquidity heatmap presentation and DizyFlow evidence quality/);
- assert.match(source,/Coverage-ready does \*\*not\*\* mean validated, predictive or promotable/);
+ assert.match(source,/no automatic signal eligibility/);
  assert.doesNotMatch(source,/### Candidate microstructure research\n\n- \[ \]/);
 });
 
@@ -32,8 +30,9 @@ test("vision and architecture preserve the research-to-signal firewall",async()=
  assert.match(vision,/none are validated or signal-eligible/);
  assert.doesNotMatch(vision,/DizyQuant.*future measurable microstructure research/);
  assert.match(architecture,/bounded read-only DizyQuant research registry/);
- assert.match(architecture,/65 informational and two experimental/);
- assert.match(architecture,/promotionEligible: false/);
+ assert.match(architecture,/stable informational\/experimental identities/);
+ assert.match(architecture,/signalEligible: false/);
+ assert.match(architecture,/decisionEligible: false/);
  assert.match(architecture,/public `\/research` route/);
 });
 

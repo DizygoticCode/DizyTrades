@@ -1,6 +1,6 @@
 # DizyTrades Architecture
 
-This document describes the current boundaries between public market data, deterministic analysis, microstructure research, simulation, replay, review, analytics, operations and future exchange connectivity.
+This document describes the current boundaries between public market data, deterministic analysis, microstructure research, simulation, replay, review, analytics, authentication, operations and future exchange connectivity.
 
 The enduring mission lives in [VISION.md](VISION.md). Delivery order lives in [ROADMAP.md](ROADMAP.md).
 
@@ -31,7 +31,7 @@ Typed live market state + bounded retained history
  Behaviour aggregation + DizyPerformance
 ```
 
-Authentication, profiles, workspaces, Paper accounts, Journals, retained evidence, backups and audit storage sit beside the public market-data path. They must not be mixed into provider transport.
+Authentication, email verification/recovery, personal profiles, workspaces, Paper accounts, Journals, retained evidence, backups and audit storage sit beside the public market-data path. They must not be mixed into provider transport.
 
 DizyQuant is a parallel research path, not a shortcut into DizySignals. Its public page exposes definitions and status only; it does not load live values or raw order-book messages.
 
@@ -45,6 +45,7 @@ DizyQuant is a parallel research path, not a shortcut into DizySignals. Its publ
 - DizyAcademy
 - DizyDEX discovery
 - sign-in and signup
+- email verification, resend-verification and password-recovery pages
 - loading, recovery and not-found states
 
 ### Protected research and workflow
@@ -58,10 +59,28 @@ DizyQuant is a parallel research path, not a shortcut into DizySignals. Its publ
 - DizyStructure
 - DizyJournal and Guided Review
 - DizyPerformance
+- personal account profile
+- owner-only DizyAccount Companion
 - DizyOps
 - DizyBackup
 
 Viewer sessions may access selected read-only research surfaces but cannot write profile, Paper, Journal, workspace, backup or account data.
+
+## Authentication and personal-account boundary
+
+Public database accounts are stored in server-side SQLite. Passwords use versioned salted scrypt hashes. Successful login issues a random opaque session token while only its SHA-256 digest is retained in the database.
+
+New public accounts require an email address and start unverified. Signup creates no authenticated session. Verification must complete before the account can log in or receive a database session.
+
+Email-verification and password-reset tokens are random, hashed at rest, expiring and single-use. Their browser links carry the bearer token in the URL fragment; the client removes the fragment before calling the same-origin verification/reset API.
+
+Password reset is available only to verified database accounts. Successful reset changes the password hash and revokes existing database sessions. Forgot-password and resend-verification requests remain enumeration-safe and rate-limited.
+
+The account profile layer stores display name, bounded bio and optional PNG/JPEG/WebP avatar bytes in SQLite for database and legacy owner/admin identities. Profile mutation cannot change role or sign-in email.
+
+Legacy owner/admin identities remain environment-backed behind `LEGACY_AUTH_FALLBACK_ENABLED=true`. They preserve stable owner IDs for existing data and are deliberately outside the public self-service password-reset flow.
+
+Production verification/recovery mail is a server-only TLS SMTP boundary configured by Render environment variables. The intended runtime values are declared in `render.yaml`; `SMTP_APP_PASSWORD` remains secret-only. Existing Render services may require newly introduced variables to be added explicitly before restart/redeploy.
 
 ## External data boundary
 
@@ -124,7 +143,7 @@ Responsibilities:
 
 DizySignals must not scrape rendered labels, consume TradingView widget state, treat current order-book imbalance as prediction or accept DizyQuant metrics without representative validation and a separately reviewed promotion change.
 
-The repository contract keeps every current DizyQuant metric `signalEligible: false`, every research snapshot `decisionEligible: false`, and signal influence `forbidden`.
+The repository contract keeps every current DizyQuant metric `signalEligible: false`, every research snapshot `decisionEligible: false`, and signal influence `forbidden` unless a future reviewed promotion explicitly changes that boundary.
 
 ## DizyBrain
 
@@ -163,7 +182,7 @@ Current implementation:
 5. shock resilience, replenishment and two explicitly experimental depth-only candidate flags;
 6. deterministic Replay/statistical laboratory plus a bounded read-only presentation model.
 
-The registry currently contains 67 stable metric identities: 65 informational and two experimental. None are validated, decision-eligible or signal-eligible.
+The registry contains stable informational/experimental identities and remains isolated from live decision, signal and execution eligibility unless a separately reviewed promotion changes those flags.
 
 Evidence states are explicit:
 
@@ -172,7 +191,7 @@ Evidence states are explicit:
 - **gapped** — values exist but required continuity is absent or broken;
 - **unavailable** — no finite metric value exists.
 
-The Replay lab uses an ordered training prefix and held-out suffix, deterministic circular-rotation null comparisons and bounded expanding-prefix walk-forward checks. It may recommend retaining an experimental formula, rejecting its current form or recording insufficient evidence. Every result is emitted with `promotionEligible: false`; promotion requires a separate reviewed change.
+The Replay lab uses an ordered training prefix and held-out suffix, deterministic circular-rotation null comparisons and bounded expanding-prefix walk-forward checks. It may recommend retaining an experimental formula, rejecting its current form or recording insufficient evidence. Promotion always requires a separate reviewed change.
 
 The public `/research` route consumes only the frozen presentation model. It displays metric identities, units, evidence grades, status, completed slices and safeguards. It exposes no live research values, raw depth, trade streams, account data or signal inputs.
 
@@ -226,6 +245,14 @@ Responsibilities:
 
 Fair/Mark is the preferred risk source when available. A chart display selector must not alter the simulator's authoritative risk source. Existing fills and backups remain migration-safe.
 
+## DizyAccount
+
+DizyAccount is the owner-only private read boundary between DizyTrades and the current MEXC Futures account.
+
+Its transport is server-side, typed and GET-only. Credentials are held in the Render environment, never the browser. Permission attestation and the software allowlist restrict the connection to read-only account/trade endpoints.
+
+It may expose bounded balances, positions, account-health/risk context, DizyPaper shadow reconciliation, non-executable hypothetical order previews and persistent shadow-audit evidence. It has no live-order path and cannot silently broaden permissions in response to provider errors.
+
 ## DizyJournal
 
 Journal entries retain immutable or versioned references rather than current mutable settings.
@@ -267,7 +294,7 @@ It must not fabricate account equity or percentages where starting balance is un
 
 ## DizyOps
 
-DizyOps exposes bounded owner-only operational metadata:
+DizyOps exposes bounded owner/admin operational metadata:
 
 - deployed build/runtime identity
 - storage and retained-evidence status
@@ -278,7 +305,7 @@ It must not expose credentials, private user payloads or unbounded logs.
 
 ## DizyBackup
 
-Backup export is owner-scoped and excludes authentication records, session tokens and secrets.
+Backup export is owner-scoped and excludes authentication records, session tokens, account verification/reset tokens and secrets.
 
 Restore requirements:
 
@@ -295,9 +322,11 @@ Restore requirements:
 
 ## Storage and identity
 
-- signed HTTP-only sessions
-- SQLite-backed public accounts where available
-- legacy owner/admin fallback
+- SQLite-backed public account credentials and verification state
+- hashed opaque database-session tokens
+- hashed email-verification and password-reset tokens
+- legacy owner/admin fallback sessions
+- personal display-name/bio/avatar profiles
 - isolated per-user profile settings
 - saved chart workspaces
 - Paper state and fills
@@ -308,13 +337,21 @@ Restore requirements:
 - bounded audit records
 - owner-scoped backups
 
-Writes are atomic where file-backed and serialised where concurrent mutation could corrupt state. Persistent disk supports one service instance; horizontal scaling requires shared managed storage.
+Writes are atomic where file-backed and serialised where concurrent mutation could corrupt state. Persistent disk supports one service instance; horizontal scaling requires shared managed storage and shared authentication/rate-limiting state.
+
+## Deployment configuration boundary
+
+`render.yaml` is the repository declaration of the intended Render service, but it is not treated as proof that every newly added variable already exists on an older live service.
+
+For verified signup and recovery, the live service requires `PUBLIC_SIGNUP_ENABLED=true`, the canonical HTTPS `APP_BASE_URL`, Gmail SMTP host/port/user/from settings and the secret-only `SMTP_APP_PASSWORD`. When those variables are introduced to an existing service they must be verified in the live Render environment and applied by restart/redeploy before production mail is considered configured.
+
+Production behaviour, not the YAML file alone, is the final evidence boundary.
 
 ## Live-execution boundary
 
 The current repository contains no enabled live-order path. `LIVE_TRADING_ENABLED=false` remains required.
 
-Future connectivity begins read-only. Any write path requires a separate execution architecture:
+Future connectivity must preserve the already-completed read-only observation layer and introduce write capability only through a separate guarded execution architecture:
 
 ```text
 User intent
@@ -330,7 +367,7 @@ Acknowledgement and reconciliation
 Immutable audit record
 ```
 
-Encrypted credentials, MFA, loss limits, symbol/notional/leverage limits, reduce-only enforcement, stale-price rejection, emergency shutdown and independent security review are mandatory before execution.
+Encrypted write-capable credentials, MFA, shared abuse controls, loss limits, symbol/notional/leverage limits, reduce-only enforcement, stale-price/account-state rejection, emergency shutdown, provider-recovery rehearsal and independent security review are mandatory before execution.
 
 ## Pull-request rule
 
