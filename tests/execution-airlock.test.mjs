@@ -18,7 +18,7 @@ const observedAt = "2026-08-12T12:00:45.000Z";
 const prerequisites = Object.freeze({
   contracts: new Map([[contract.symbol, contract]]),
   referencePrices: new Map([[contract.symbol, Object.freeze({ price: 65000, observedAt })]]),
-  accountState: Object.freeze({ observedAt, positions: Object.freeze([]) }),
+  accountState: Object.freeze({ userId: "user-1", accountId: "account-1", observedAt, positions: Object.freeze([]) }),
 });
 const valid = Object.freeze({
   intentId: "intent-0001", idempotencyKey: "idempotency-0001",
@@ -56,6 +56,14 @@ test("quantity obeys contract volume bounds and step alignment", () => {
     assert.equal(result.rejections.some(({ code }) => code === "INVALID_QUANTITY"), true);
   }
   assert.equal(validateExecutionIntent({ ...valid, quantity: 0.0001 }, prerequisites, new Date("2026-08-12T12:01:00Z")).ok, true);
+});
+
+test("tolerance-aligned quantities are quantized before preview estimates", () => {
+  const service = new ExecutionAirlockService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z") });
+  const response = service.process({ ...valid, quantity: 0.00100000000001 }, prerequisites);
+  assert.equal(response.result.preview.quantity, 0.001);
+  assert.equal(response.result.preview.normalizedContractVolume, 10);
+  assert.equal(response.result.preview.estimatedNotional, 65);
 });
 
 test("limit price obeys the contract price step", () => {
@@ -109,8 +117,14 @@ test("literal true still ends at adapter-unavailable without execution", () => {
 test("idempotency keys are isolated by authenticated user and account identity", () => {
   const service = new ExecutionAirlockService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z") });
   const first = service.process(valid, prerequisites);
-  const otherUser = service.process({ ...valid, intentId: "intent-0002", userId: "user-2" }, prerequisites);
-  const otherAccount = service.process({ ...valid, intentId: "intent-0003", accountId: "account-2" }, prerequisites);
+  const otherUser = service.process(
+    { ...valid, intentId: "intent-0002", userId: "user-2" },
+    { ...prerequisites, accountState: { ...prerequisites.accountState, userId: "user-2" } },
+  );
+  const otherAccount = service.process(
+    { ...valid, intentId: "intent-0003", accountId: "account-2" },
+    { ...prerequisites, accountState: { ...prerequisites.accountState, accountId: "account-2" } },
+  );
   assert.equal(first.result.duplicate, false);
   assert.equal(otherUser.result.duplicate, false);
   assert.equal(otherUser.result.intentId, "intent-0002");
@@ -148,6 +162,19 @@ test("server policy denies symbols, leverage, notional and attempted client over
   assert.equal(override.rejections.some(({ code }) => code === "POLICY_LEVERAGE_EXCEEDED"), true);
 });
 
+test("limit notional policy and preview use the higher validated limit price", () => {
+  const now = new Date("2026-08-12T12:01:00Z");
+  const underAtReferenceOverAtLimit = { ...valid, quantity: 0.5, price: 110000 };
+  const result = validateExecutionIntent(underAtReferenceOverAtLimit, prerequisites, now);
+  assert.equal(result.ok, false);
+  assert.equal(result.rejections.some(({ code }) => code === "POLICY_NOTIONAL_EXCEEDED"), true);
+
+  const service = new ExecutionAirlockService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => now });
+  const accepted = service.process({ ...valid, price: 70000 }, prerequisites);
+  assert.equal(accepted.result.preview.estimatedNotional, 70);
+  assert.equal(accepted.result.preview.estimatedMargin, 7);
+});
+
 test("missing, stale and future-dated prerequisite state fails closed", () => {
   const now = new Date("2026-08-12T12:01:30Z");
   const missing = validateExecutionIntent(valid, { ...prerequisites, referencePrices: new Map(), accountState: null }, now);
@@ -160,7 +187,26 @@ test("missing, stale and future-dated prerequisite state fails closed", () => {
 test("reduce-only requires and cannot exceed an opposing position", () => {
   const now = new Date("2026-08-12T12:01:00Z");
   assert.equal(validateExecutionIntent({ ...valid, reduceOnly: true }, prerequisites, now).rejections.some(({ code }) => code === "REDUCE_ONLY_VIOLATION"), true);
-  const shortPosition = { ...prerequisites, accountState: { observedAt, positions: [{ symbol: valid.symbol, side: "short", quantity: 0.001 }] } };
+  const shortPosition = { ...prerequisites, accountState: { userId: valid.userId, accountId: valid.accountId, observedAt, positions: [{ symbol: valid.symbol, side: "short", quantity: 0.001 }] } };
   assert.equal(validateExecutionIntent({ ...valid, reduceOnly: true }, shortPosition, now).ok, true);
   assert.equal(validateExecutionIntent({ ...valid, quantity: 0.002, reduceOnly: true }, shortPosition, now).rejections.some(({ code }) => code === "REDUCE_ONLY_VIOLATION"), true);
+});
+
+test("cross-user and cross-account snapshots cannot validate or satisfy reduce-only", () => {
+  const now = new Date("2026-08-12T12:01:00Z");
+  for (const identity of [
+    { userId: "user-2", accountId: valid.accountId },
+    { userId: valid.userId, accountId: "account-2" },
+  ]) {
+    const foreign = {
+      ...prerequisites,
+      accountState: { ...identity, observedAt, positions: [{ symbol: valid.symbol, side: "short", quantity: valid.quantity }] },
+    };
+    const regular = validateExecutionIntent(valid, foreign, now);
+    assert.equal(regular.ok, false);
+    assert.equal(regular.rejections.some(({ code }) => code === "ACCOUNT_STATE_IDENTITY_MISMATCH"), true);
+    const reduceOnly = validateExecutionIntent({ ...valid, reduceOnly: true }, foreign, now);
+    assert.equal(reduceOnly.ok, false);
+    assert.equal(reduceOnly.rejections.some(({ code }) => code === "ACCOUNT_STATE_IDENTITY_MISMATCH"), true);
+  }
 });

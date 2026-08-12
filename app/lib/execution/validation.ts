@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   isMexcStepAligned,
+  quantizeMexcStep,
   type MexcContractMetadata,
 } from "../mexc-contract-metadata";
 import {
@@ -18,6 +19,8 @@ export type ExecutionPrerequisites = Readonly<{
   contracts: ReadonlyMap<string, MexcContractMetadata> | null;
   referencePrices: ReadonlyMap<string, Readonly<{ price: number; observedAt: string }>> | null;
   accountState: Readonly<{
+    userId: string;
+    accountId: string;
     observedAt: string;
     positions: readonly Readonly<{ symbol: string; side: "long" | "short"; quantity: number }>[];
   }> | null;
@@ -40,12 +43,13 @@ export function validateExecutionIntent(
   const intentId = typeof input.intentId === "string" ? input.intentId : "";
   const idempotencyKey = typeof input.idempotencyKey === "string" ? input.idempotencyKey : "";
   const symbol = typeof input.symbol === "string" ? input.symbol : "";
-  const quantity = typeof input.quantity === "number" ? input.quantity : NaN;
+  const requestedQuantity = typeof input.quantity === "number" ? input.quantity : NaN;
   const leverage = typeof input.leverage === "number" ? input.leverage : NaN;
   const price = typeof input.price === "number" ? input.price : undefined;
   const contract = prerequisites.contracts?.get(symbol);
   const policy = serverExecutionPolicy();
   const reference = prerequisites.referencePrices?.get(symbol);
+  let quantity = requestedQuantity;
 
   if (![userId, accountId, intentId].every((value) => identityPattern.test(value))) reject("INVALID_IDENTITY", "identity", "User, account and intent identities are required.");
   if (!keyPattern.test(idempotencyKey)) reject("INVALID_IDEMPOTENCY_KEY", "idempotencyKey", "Idempotency key is invalid.");
@@ -55,15 +59,19 @@ export function validateExecutionIntent(
   if (input.marketType !== "futures") reject("INVALID_SYMBOL", "marketType", "Only the current futures capability is represented.");
   if (input.side !== "long" && input.side !== "short") reject("INVALID_SIDE", "side", "Side must be long or short.");
   if (input.orderType !== "market" && input.orderType !== "limit") reject("INVALID_ORDER_TYPE", "orderType", "Order type must be market or limit.");
-  if (!Number.isFinite(quantity) || quantity <= 0) reject("INVALID_QUANTITY", "quantity", "Quantity must be positive and finite.");
+  if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0) reject("INVALID_QUANTITY", "quantity", "Quantity must be positive and finite.");
   else if (contract) {
-    const contractVolume = quantity / contract.contractSize;
+    const contractVolume = requestedQuantity / contract.contractSize;
     if (
       !Number.isFinite(contractVolume)
       || contractVolume < contract.minVol
       || contractVolume > contract.maxVol
       || !isMexcStepAligned(contractVolume, contract.volUnit)
     ) reject("INVALID_QUANTITY", "quantity", "Quantity must satisfy current contract volume limits and step size.");
+    else {
+      const normalizedVolume = quantizeMexcStep(contractVolume, contract.volUnit, "nearest");
+      quantity = Number((normalizedVolume * contract.contractSize).toPrecision(15));
+    }
   }
   if (input.orderType === "limit" && (!Number.isFinite(price) || price! <= 0)) reject("INVALID_PRICE", "price", "A positive finite price is required for a limit intent.");
   else if (input.orderType === "limit" && contract && !isMexcStepAligned(price!, contract.priceUnit)) reject("INVALID_PRICE", "price", "Limit price must align with the current contract price step.");
@@ -81,16 +89,21 @@ export function validateExecutionIntent(
     reject("REFERENCE_PRICE_STALE", "referencePrice", "The authoritative reference price is stale.");
   }
   const account = prerequisites.accountState;
-  if (!account || !Number.isFinite(Date.parse(account.observedAt)) || !Array.isArray(account.positions)
+  if (!account || !identityPattern.test(account.userId) || !identityPattern.test(account.accountId)
+    || !Number.isFinite(Date.parse(account.observedAt)) || !Array.isArray(account.positions)
     || account.positions.some((position) => !symbolPattern.test(position.symbol)
       || (position.side !== "long" && position.side !== "short")
       || !Number.isFinite(position.quantity) || position.quantity <= 0)) reject("ACCOUNT_STATE_MISSING", "accountState", "Valid account and position state is required.");
+  else if (account.userId !== userId || account.accountId !== accountId) reject("ACCOUNT_STATE_IDENTITY_MISMATCH", "accountState", "Account state must belong to the validated user and account.");
   else if (nowMs - Date.parse(account.observedAt) < 0 || nowMs - Date.parse(account.observedAt) > policy.maximumAccountStateAgeMs) reject("ACCOUNT_STATE_STALE", "accountState", "Account state is stale.");
   if (contract && reference && Number.isFinite(quantity) && quantity > 0) {
-    const notional = quantity * reference.price;
+    const valuationPrice = input.orderType === "limit" && Number.isFinite(price)
+      ? Math.max(reference.price, price!)
+      : reference.price;
+    const notional = quantity * valuationPrice;
     if (!Number.isFinite(notional) || notional > policy.maximumOrderNotional) reject("POLICY_NOTIONAL_EXCEEDED", "quantity", "Estimated notional exceeds server policy.");
   }
-  if (input.reduceOnly === true && account) {
+  if (input.reduceOnly === true && account && account.userId === userId && account.accountId === accountId) {
     const opposingSide = input.side === "long" ? "short" : "long";
     const position = account.positions.find((item) => item.symbol === symbol && item.side === opposingSide);
     if (!position || !Number.isFinite(position.quantity) || position.quantity <= 0 || quantity > position.quantity) {
