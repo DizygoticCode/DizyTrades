@@ -45,9 +45,17 @@ function decode32(value: string) {
   if (decoded.length !== 32) fail();
   return decoded;
 }
-function maybeDecode(value: string | undefined) {
-  if (!value) return null;
-  try { return decode32(value); } catch { return null; }
+function reservedKeyCandidates(value: string | undefined, includeRawUtf8 = false) {
+  if (!value) return [];
+  const candidates: Buffer[] = [];
+  const add = (candidate: Buffer) => {
+    if (candidate.length === 32 && !candidates.some((existing) => timingSafeEqual(existing, candidate))) candidates.push(candidate);
+  };
+  if (/^[0-9a-fA-F]{64}$/.test(value)) add(Buffer.from(value, "hex"));
+  if (/^[A-Za-z0-9+/]{43}=$/.test(value)) add(Buffer.from(value, "base64"));
+  if (/^[A-Za-z0-9_-]{43}=?$/.test(value)) add(Buffer.from(value, "base64url"));
+  if (includeRawUtf8) add(Buffer.from(value, "utf8"));
+  return candidates;
 }
 function keyring() {
   if (process.env.CREDENTIAL_CUSTODY_ENABLED !== "true") fail();
@@ -59,7 +67,10 @@ function keyring() {
   const entries = Object.entries(raw as Record<string, unknown>);
   if (!entries.length || entries.length > 16) fail();
   const keys = new Map<number, Buffer>();
-  const reserved = [maybeDecode(process.env.SESSION_SECRET), maybeDecode(process.env.MFA_ENCRYPTION_KEY)].filter(Boolean) as Buffer[];
+  const reserved = [
+    ...reservedKeyCandidates(process.env.SESSION_SECRET, true),
+    ...reservedKeyCandidates(process.env.MFA_ENCRYPTION_KEY),
+  ];
   for (const [versionText, encoded] of entries) {
     const version = Number(versionText);
     if (!Number.isSafeInteger(version) || version < 1 || version > 1_000_000 || typeof encoded !== "string") fail();
@@ -152,12 +163,13 @@ export function inspectCredential(bindingInput: Binding) {
   try { return metadata(select(db, binding)); } finally { db.close(); }
 }
 
-export function withCredentials(bindingInput: Binding, use: (credentials: Credentials) => void) {
+export function withCredentials(bindingInput: Binding, consume: (credentials: Credentials) => void) {
   const binding = validateBinding(bindingInput); const ring = keyring(); const db = openDatabase();
   try {
     const row = select(db, binding); const key = ring.keys.get(row.key_version); if (!key) fail();
-    const credentials = decrypt(row, binding, key); use(credentials);
+    const credentials = decrypt(row, binding, key);
     audit(db, "open", binding, row.key_version, Date.now());
+    consume(credentials);
   } finally { db.close(); }
 }
 

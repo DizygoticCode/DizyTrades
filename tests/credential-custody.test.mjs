@@ -49,6 +49,19 @@ test("opens only inside the narrow callback and ownership/AAD mismatches fail cl
     assert.throws(() => withCredentials({ ...binding, ...changed }, () => {}), /CREDENTIAL_CUSTODY_UNAVAILABLE/);
 });
 
+test("records one secret-free open event before a credential consumer throws", () => {
+  storeCredentials({ ...binding, credentials: synthetic });
+  assert.throws(() => withCredentials(binding, () => { throw new Error("synthetic consumer failure"); }), /synthetic consumer failure/);
+  const db = new DatabaseSync(custodyDatabasePathForTests());
+  const events = db.prepare("SELECT event_type,record_id,user_id,account_ref,key_version FROM custody_audit ORDER BY id").all();
+  db.close();
+  assert.deepEqual(events.map((event) => event.event_type), ["create", "open"]);
+  assert.deepEqual({ ...events[1] }, { event_type: "open", record_id: binding.recordId, user_id: binding.userId,
+    account_ref: binding.accountRef, key_version: 1 });
+  assert.equal(JSON.stringify(events).includes(synthetic.apiKey), false);
+  assert.equal(JSON.stringify(events).includes(synthetic.apiSecret), false);
+});
+
 test("tampered envelope fields and wrong key fail authenticated closed", () => {
   for (const field of ["nonce", "ciphertext", "auth_tag", "key_version"]) {
     rmSync(directory, { recursive: true, force: true }); directory = mkdtempSync(join(tmpdir(), "dizy-custody-")); process.env.DATA_DIR = directory;
@@ -78,6 +91,22 @@ test("configuration is disabled by default, strict, and separated from session/M
     process.env.CREDENTIAL_CUSTODY_ENABLED = "true"; process.env.CREDENTIAL_CUSTODY_ACTIVE_KEY_VERSION = "1";
     process.env.CREDENTIAL_CUSTODY_KEYRING = JSON.stringify({ 1: v1 }); delete process.env.MFA_ENCRYPTION_KEY; delete process.env.SESSION_SECRET;
   }
+});
+
+test("rejects reserved raw key bytes across supported encodings and raw session use", () => {
+  const raw = Buffer.alloc(32, 17);
+  const representations = [raw.toString("base64url"), raw.toString("base64"), raw.toString("hex")];
+  for (const encoded of representations) {
+    process.env.MFA_ENCRYPTION_KEY = encoded;
+    assert.throws(() => storeCredentials({ ...binding, credentials: synthetic }), /CREDENTIAL_CUSTODY_UNAVAILABLE/, `MFA ${encoded}`);
+    delete process.env.MFA_ENCRYPTION_KEY;
+    process.env.SESSION_SECRET = encoded;
+    assert.throws(() => storeCredentials({ ...binding, credentials: synthetic }), /CREDENTIAL_CUSTODY_UNAVAILABLE/, `session ${encoded}`);
+    delete process.env.SESSION_SECRET;
+  }
+  process.env.SESSION_SECRET = "12345678901234567890123456789012";
+  process.env.CREDENTIAL_CUSTODY_KEYRING = JSON.stringify({ 1: Buffer.from(process.env.SESSION_SECRET).toString("base64") });
+  assert.throws(() => storeCredentials({ ...binding, credentials: synthetic }), /CREDENTIAL_CUSTODY_UNAVAILABLE/, "raw session secret");
 });
 
 test("rotation is atomic, versioned, and revoke prevents subsequent open without audit leakage", () => {
