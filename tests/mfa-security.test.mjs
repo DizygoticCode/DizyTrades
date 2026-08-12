@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { assertMfaConfiguration, beginMfaEnrollment, closeAuthDatabaseForTests, completeMfaChallenge, confirmMfaEnrollment, consumeRateLimit, createAccount, createDatabaseSession, createEmailVerificationTokenForUser, createMfaChallenge, databaseSession, disableMfa, getAuthDatabase, getMfaStatus, regenerateRecoveryCodes, verifyCurrentMfa, verifyEmailToken } from "../app/lib/auth-db.ts";
+import { assertMfaConfiguration, beginMfaEnrollment, closeAuthDatabaseForTests, completeMfaChallenge, completeMfaEmailRecovery, confirmMfaEnrollment, consumeRateLimit, createAccount, createDatabaseSession, createEmailVerificationTokenForUser, createMfaChallenge, createMfaEmailRecoveryToken, databaseSession, disableMfa, getAuthDatabase, getMfaStatus, regenerateRecoveryCodes, resetPasswordWithToken, createPasswordResetTokenForEmail, verifyCurrentMfa, verifyEmailToken } from "../app/lib/auth-db.ts";
 const key=Buffer.alloc(32,7),now=1_800_000_000_000;
 function code(secret,time=now){const c=Buffer.alloc(8);c.writeBigUInt64BE(BigInt(Math.floor(time/30000)));const h=createHmac("sha1",secret).update(c).digest(),o=h[19]&15;return String((h.readUInt32BE(o)&0x7fffffff)%1e6).padStart(6,"0")}
 async function fixture(fn){const root=await mkdtemp(join(tmpdir(),"dizy-mfa-")),prior={data:process.env.DATA_DIR,key:process.env.MFA_ENCRYPTION_KEY,node:process.env.NODE_ENV};process.env.DATA_DIR=root;process.env.MFA_ENCRYPTION_KEY=key.toString("base64url");process.env.NODE_ENV="test";closeAuthDatabaseForTests();try{const user=await createAccount({email:"mfa@example.test",password:"correct-horse-battery"});verifyEmailToken(createEmailVerificationTokenForUser(user.id).token);await fn(user)}finally{closeAuthDatabaseForTests();if(prior.data===undefined)delete process.env.DATA_DIR;else process.env.DATA_DIR=prior.data;if(prior.key===undefined)delete process.env.MFA_ENCRYPTION_KEY;else process.env.MFA_ENCRYPTION_KEY=prior.key;if(prior.node===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=prior.node;await rm(root,{recursive:true,force:true})}}
@@ -16,3 +16,27 @@ test("production MFA encryption key fails closed",()=>fixture(async user=>{proce
 test("active MFA cannot be downgraded by beginning password-only enrollment again",()=>fixture(async user=>{beginMfaEnrollment(user.id);const recovery=confirmMfaEnrollment(user.id,code(secret()),now),before=getAuthDatabase().prepare("SELECT state,hex(secret_ciphertext) secret,(SELECT count(*) FROM mfa_recovery_codes WHERE user_id=?) recovery_count FROM mfa_credentials WHERE user_id=?").get(user.id,user.id);assert.throws(()=>beginMfaEnrollment(user.id),/MFA_ALREADY_ACTIVE/);const after=getAuthDatabase().prepare("SELECT state,hex(secret_ciphertext) secret,(SELECT count(*) FROM mfa_recovery_codes WHERE user_id=?) recovery_count FROM mfa_credentials WHERE user_id=?").get(user.id,user.id);assert.deepEqual(after,before);assert.equal(verifyCurrentMfa(user.id,recovery[0],now),true)}));
 test("exact configured SESSION_SECRET reuse as the MFA key fails closed",()=>fixture(async()=>{process.env.NODE_ENV="production";process.env.SESSION_SECRET=process.env.MFA_ENCRYPTION_KEY;assert.throws(()=>assertMfaConfiguration(),/must not reuse/);delete process.env.SESSION_SECRET}));
 test("persisted MFA proof buckets are bounded without proof material in keys",()=>fixture(async user=>{const keys=[`mfa:disable:user:${user.id}`,"mfa:disable:ip:203.0.113.20"];for(let i=0;i<5;i++)assert.equal(consumeRateLimit(keys,5,60_000),false);assert.equal(consumeRateLimit(keys,5,60_000),true);const rows=getAuthDatabase().prepare("SELECT bucket FROM auth_attempts").all();assert.equal(rows.length,2);assert.equal(JSON.stringify(rows).includes("123456"),false)}));
+test("verified-email break-glass recovery is hashed, expiring, single-use, and atomically revokes MFA state",()=>fixture(async user=>{
+  beginMfaEnrollment(user.id); const codes=confirmMfaEnrollment(user.id,code(secret()),now);
+  const session=createDatabaseSession(user,3600), challenge=createMfaChallenge(user.id,now), recovery=createMfaEmailRecoveryToken(challenge,now);
+  assert.ok(recovery); const stored=getAuthDatabase().prepare("SELECT token_hash FROM mfa_email_recovery_tokens").get();
+  assert.notEqual(stored.token_hash,recovery.token); assert.equal(stored.token_hash.includes(recovery.token),false);
+  assert.equal(completeMfaEmailRecovery(recovery.token,now+900001),false);
+  assert.deepEqual(getMfaStatus(user.id),{enabled:true,pending:false}); assert.equal(verifyCurrentMfa(user.id,codes[0],now),true);
+  const next=createMfaEmailRecoveryToken(createMfaChallenge(user.id,now),now); assert.ok(next);
+  assert.equal(completeMfaEmailRecovery(recovery.token,now),false,"new request invalidates old token");
+  assert.equal(completeMfaEmailRecovery(next.token,now),true); assert.equal(completeMfaEmailRecovery(next.token,now),false);
+  assert.deepEqual(getMfaStatus(user.id),{enabled:false,pending:false}); assert.equal(databaseSession(session),null);
+  assert.equal(getAuthDatabase().prepare("SELECT count(*) n FROM mfa_recovery_codes WHERE user_id=?").get(user.id).n,0);
+  assert.equal(getAuthDatabase().prepare("SELECT count(*) n FROM mfa_challenges WHERE user_id=?").get(user.id).n,0);
+  assert.equal(getAuthDatabase().prepare("SELECT role FROM users WHERE id=?").get(user.id).role,"user");
+  assert.ok(beginMfaEnrollment(user.id),"fresh enrollment can begin");
+}));
+test("password reset leaves active MFA and identity unchanged",()=>fixture(async user=>{
+  beginMfaEnrollment(user.id); confirmMfaEnrollment(user.id,code(secret()),now);
+  const before=getAuthDatabase().prepare("SELECT id,role,password_hash,email_verified_at FROM users WHERE id=?").get(user.id);
+  const reset=createPasswordResetTokenForEmail(user.email); assert.ok(reset); assert.equal(await resetPasswordWithToken(reset.token,"a-brand-new-password"),true);
+  const after=getAuthDatabase().prepare("SELECT id,role,password_hash,email_verified_at FROM users WHERE id=?").get(user.id);
+  assert.equal(after.id,before.id); assert.equal(after.role,before.role); assert.equal(after.email_verified_at,before.email_verified_at); assert.notEqual(after.password_hash,before.password_hash);
+  assert.deepEqual(getMfaStatus(user.id),{enabled:true,pending:false});
+}));

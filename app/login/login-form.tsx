@@ -19,6 +19,7 @@ export default function LoginForm() {
   const [error, setError] = useState("");
   const [unverified, setUnverified] = useState(false);
   const [challenge, setChallenge] = useState("");
+  const [recoveryRequested, setRecoveryRequested] = useState(false);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -78,6 +79,14 @@ export default function LoginForm() {
     }
   };
 
+  const requestMfaRecovery = async () => {
+    setLoading(true); setError("");
+    try {
+      await fetch("/api/auth/mfa/email-recovery/request", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ challenge }) });
+      setRecoveryRequested(true);
+    } finally { setLoading(false); }
+  };
+
   const interactive = hydrated && !loading;
 
   if (challenge) return <form className="login-card" onSubmit={completeMfa}>
@@ -85,7 +94,8 @@ export default function LoginForm() {
     <label><span>Verification code</span><input autoComplete="one-time-code" inputMode="text" name="proof" required /></label>
     {error ? <div className="login-error" role="alert">{error}</div> : null}
     <button disabled={!interactive} type="submit">{loading ? "Verifying…" : "Verify and sign in"}</button>
-    <button className="viewer-login" type="button" onClick={() => setChallenge("")}>Cancel</button>
+    {recoveryRequested ? <div role="status">If this database account has verified email, a 15-minute recovery link has been sent.</div> : <><button className="viewer-login" type="button" onClick={requestMfaRecovery}>Lost authenticator? Recover MFA by verified email</button><p>This break-glass action disables MFA and recovery codes, revokes active sessions, and requires fresh enrolment. It does not reset your password.</p></>}
+    <button className="viewer-login" type="button" onClick={() => { setChallenge(""); setRecoveryRequested(false); }}>Cancel</button>
   </form>;
   return (
     <form className="login-card" onSubmit={submit}>
