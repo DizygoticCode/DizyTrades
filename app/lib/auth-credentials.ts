@@ -13,7 +13,7 @@ export const publicSignupEnabled = () => process.env.PUBLIC_SIGNUP_ENABLED === "
 export const legacyAuthFallbackEnabled = () => process.env.LEGACY_AUTH_FALLBACK_ENABLED === "true";
 
 function testPlaintextPasswordsAllowed() {
-  return process.env.ALLOW_TEST_PLAINTEXT_PASSWORDS === "true" && process.env.LIVE_TRADING_ENABLED !== "true";
+  return process.env.NODE_ENV !== "production" && process.env.ALLOW_TEST_PLAINTEXT_PASSWORDS === "true" && process.env.LIVE_TRADING_ENABLED !== "true";
 }
 
 function validLegacyHash(value: string) {
