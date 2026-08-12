@@ -5,6 +5,13 @@
 DizyTrades is an active research, education and simulation platform. It is not a live exchange executor.
 
 - `LIVE_TRADING_ENABLED` must remain `false`.
+
+Execution provider mechanics remain inside the server-only `ExecutionBoundary`.
+The only production provider is deterministic and non-executing: every result is
+synthetic, explicitly provenance-marked and `executed:false`. It has no HTTP,
+MEXC signing, credential custody or provisioning import. Routes, clients and
+DizyPaper cannot import provider internals, and all authentication, kill-switch,
+validation, policy and duplicate decisions fail closed before provider evaluation.
 - The owner-only DizyAccount Companion may use server-held **read-only** MEXC Futures credentials for approved GET-only account and trade-read endpoints.
 - No private exchange write client or order-placement route exists.
 - No browser workflow requests or stores exchange credentials.

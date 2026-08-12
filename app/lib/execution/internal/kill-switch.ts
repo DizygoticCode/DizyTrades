@@ -14,14 +14,14 @@ export type ExecutionKillSwitches = Readonly<{
 export function executionKillSwitchReason(
   switches: ExecutionKillSwitches,
   identity: Readonly<{ userId: string; accountId: string }>,
-): ExecutionBlockCode {
+): ExecutionBlockCode | null {
   if (switches.emergencyStop) return "EMERGENCY_STOP";
   if (switches.maintenance) return "MAINTENANCE_STOP";
   if (switches.globalDisabled) return "GLOBAL_EXECUTION_DISABLED";
   if (switches.disabledUserIds.has(identity.userId)) return "USER_EXECUTION_DISABLED";
   if (switches.disabledAccountIds.has(identity.accountId)) return "ACCOUNT_EXECUTION_DISABLED";
   if (!switches.providerStateFresh) return "PROVIDER_STATE_STALE";
-  return "GLOBAL_EXECUTION_DISABLED";
+  return null;
 }
 
 export function defaultExecutionKillSwitches(): ExecutionKillSwitches {

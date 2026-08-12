@@ -34,6 +34,8 @@ function makeService(options = {}) {
   const boundary = createTestExecutionBoundary({
     environment: options.environment,
     now: options.now,
+    syntheticProviderScenario: options.syntheticProviderScenario,
+    syntheticProviderFault: options.syntheticProviderFault,
     readKillSwitches: options.readKillSwitches ?? (() => ({ ...enabledSwitchState, globalDisabled: true })),
     authenticateInternalCaller: ({ callerId, assertionId }) => {
       const [userId, accountId] = assertionId.split(":");
@@ -133,6 +135,59 @@ test("literal true still ends at adapter-unavailable without execution", () => {
   assert.equal(response.result.reason, "ADAPTER_UNAVAILABLE");
   assert.equal(response.result.executed, false);
   assert.equal(response.result.state, "blocked");
+});
+
+test("synthetic provider lifecycle outcomes are deterministic and never execute", () => {
+  const expectedReason = { "would-accept": "none", "would-reject": "policy", "would-timeout": "timeout", "would-unknown": "indeterminate" };
+  for (const scenario of Object.keys(expectedReason)) {
+    const service = makeService({
+      environment: { LIVE_TRADING_ENABLED: "false" },
+      now: () => new Date("2026-08-12T12:01:00Z"),
+      readKillSwitches: () => enabledSwitchState,
+      syntheticProviderScenario: scenario,
+    });
+    const response = service.process(valid, prerequisites);
+    assert.equal(response.result.executed, false);
+    assert.equal(response.result.state, "prepared");
+    assert.deepEqual(response.result.providerResult, {
+      contractVersion: "synthetic-provider/1.0.0",
+      providerKind: "non-executing",
+      provenance: "deterministic-synthetic-fixture",
+      outcome: scenario,
+      executed: false,
+      reasonClass: expectedReason[scenario],
+    });
+    assert.doesNotMatch(JSON.stringify(response), /orderId|fill|tradeId|apiKey|secret/i);
+  }
+});
+
+test("provider is downstream of authentication, kill switches, validation, policy and idempotency", () => {
+  const options = { environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z"), syntheticProviderScenario: "would-accept" };
+  const killed = makeService({ ...options, readKillSwitches: () => ({ ...enabledSwitchState, emergencyStop: true }) }).process(valid, prerequisites);
+  assert.equal(killed.result.reason, "EMERGENCY_STOP");
+  assert.equal(killed.result.providerResult, undefined);
+  const invalid = makeService({ ...options, readKillSwitches: () => enabledSwitchState }).process({ ...valid, quantity: -1 }, prerequisites);
+  assert.equal(invalid.result.state, "rejected");
+  assert.equal(invalid.result.providerResult, undefined);
+  const policyRejected = makeService({ ...options, readKillSwitches: () => enabledSwitchState }).process({ ...valid, leverage: 21 }, prerequisites);
+  assert.equal(policyRejected.result.reason, "POLICY_LEVERAGE_EXCEEDED");
+  assert.equal(policyRejected.result.providerResult, undefined);
+  const service = makeService({ ...options, readKillSwitches: () => enabledSwitchState });
+  service.process(valid, prerequisites);
+  const duplicate = service.process(valid, prerequisites);
+  assert.equal(duplicate.result.reason, "DUPLICATE_INTENT");
+  assert.equal(duplicate.auditEvents.some(({ kind }) => kind === "provider-evaluated"), false);
+});
+
+test("provider exceptions and malformed results fail closed with bounded errors", () => {
+  for (const [syntheticProviderFault, reason] of [["exception", "PROVIDER_EXCEPTION"], ["malformed-result", "PROVIDER_MALFORMED_RESULT"]]) {
+    const response = makeService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z"), readKillSwitches: () => enabledSwitchState, syntheticProviderScenario: "would-accept", syntheticProviderFault }).process(valid, prerequisites);
+    assert.equal(response.result.executed, false);
+    assert.equal(response.result.state, "blocked");
+    assert.equal(response.result.reason, reason);
+    assert.equal(response.result.providerResult, undefined);
+    assert.doesNotMatch(JSON.stringify(response), /Synthetic provider fault|apiKey|secret/i);
+  }
 });
 
 test("isolated boundary authenticates its internal caller and binds user and account", () => {

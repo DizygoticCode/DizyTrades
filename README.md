@@ -180,6 +180,12 @@ The repository currently contains:
 
 `LIVE_TRADING_ENABLED=false` remains a required deployment boundary. The read-only MEXC connection proves only the Account Companion observation boundary. Any future write-capable execution path requires separate credential custody, risk validation, idempotency, reconciliation, account limits, kill switches, recovery rehearsal and independent security approval.
 
+The guarded execution boundary includes non-executing provider-mechanics
+scaffolding only. It deterministically models synthetic provider lifecycle
+outcomes, always reports `executed:false`, and is disconnected from MEXC write
+transport, signing, custody and provisioning. It does not place, cancel or amend
+orders and does not complete submission, acknowledgement or reconciliation.
+
 See [SECURITY.md](SECURITY.md), [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md), [docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md](docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md) and [docs/SIMULATOR_ACCOUNTING_AUDIT.md](docs/SIMULATOR_ACCOUNTING_AUDIT.md).
 
 ## CI and release gate

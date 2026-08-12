@@ -62,14 +62,28 @@ test("execution boundary is server-only and contains exactly one non-executing a
   }
   assert.match(text("app/lib/execution/internal/adapter.ts"), /NonExecutingExecutionAdapter/);
   assert.doesNotMatch(text("app/lib/execution/internal/adapter.ts"), /Real|Live|Mexc/);
+  const provider = text("app/lib/execution/internal/provider.ts");
+  assert.equal((provider.match(/class NonExecutingProvider/g) ?? []).length, 1);
+  assert.doesNotMatch(provider, /\bfetch\s*\(|axios|https?:\/\/|createHmac|sign(?:er|ature)|Mexc/i);
 });
 
-test("no route or client module imports the execution airlock", () => {
+test("provider mechanics have no write transport, signing, custody or provisioning dependency", () => {
+  for (const path of filesBelow("app/lib/execution")) {
+    const source = text(path);
+    assert.doesNotMatch(source, /credential-(?:custody|provisioning)|mexc-private|requestMexc|decryptCredential/i, path);
+    assert.doesNotMatch(source, /method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/i, path);
+  }
+});
+
+test("no route, client or paper module imports execution/provider internals", () => {
   for (const path of filesBelow("app").filter((path) => /\.[cm]?[jt]sx?$/.test(path))) {
     const source = text(path);
     if (path.startsWith("app/api/") || /^\s*["']use client["'];/m.test(source)) {
       assert.doesNotMatch(source, /lib\/execution|\.\/execution\//, path);
     }
+  }
+  for (const path of filesBelow("app").filter((path) => /paper/i.test(path))) {
+    if (/\.[cm]?[jt]sx?$/.test(path)) assert.equal(importsExecutionInternal(path, text(path)), false, path);
   }
 });
 

@@ -8,6 +8,7 @@ import type {
   ExecutionBoundaryResponse,
   ExecutionRejectionCode,
   ExecutionResult,
+  SyntheticProviderScenario,
 } from "../types";
 
 export type ExecutionCallerVerifier = (
@@ -19,6 +20,9 @@ export type ExecutionBoundaryDependencies = Readonly<{
   readKillSwitches: () => ExecutionKillSwitches;
   environment?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
+  /** Test-only deterministic lifecycle fixture; production composition never sets it. */
+  syntheticProviderScenario?: SyntheticProviderScenario;
+  syntheticProviderFault?: "exception" | "malformed-result";
 }>;
 
 const rejected = (reason: ExecutionRejectionCode): ExecutionBoundaryResponse => Object.freeze({
@@ -66,6 +70,8 @@ export class InternalExecutionBoundary {
     this.airlock = new ExecutionAirlockService({
       environment: dependencies.environment,
       now: dependencies.now,
+      syntheticProviderScenario: dependencies.syntheticProviderScenario,
+      syntheticProviderFault: dependencies.syntheticProviderFault,
     });
   }
 
@@ -87,7 +93,7 @@ export class InternalExecutionBoundary {
       return rejected("CALLER_IDENTITY_MISMATCH");
     }
 
-    let killReason: ExecutionResult["reason"];
+    let killReason: ExecutionResult["reason"] | null;
     try {
       const switches: unknown = this.dependencies.readKillSwitches();
       if (!isKillSwitchState(switches)) return rejected("BOUNDARY_DEPENDENCY_FAILURE");

@@ -351,6 +351,15 @@ Production behaviour, not the YAML file alone, is the final evidence boundary.
 
 The current repository contains no enabled live-order path. `LIVE_TRADING_ENABLED=false` remains required.
 
+The server-owned `ExecutionBoundary` now also contains a narrow provider-mechanics
+contract. Its single production implementation is `NonExecutingProvider`: it has
+no network, signer, credential or custody dependency and returns only typed,
+deterministic `would-accept`, `would-reject`, `would-timeout` or `would-unknown`
+outcomes with synthetic provenance and `executed:false`. Authentication, kill
+switches, structural validation, policy preview and duplicate detection precede
+provider evaluation. This contract is design scaffolding, not exchange submission,
+acknowledgement or reconciliation, and application code cannot inject a provider.
+
 The first guarded-execution architecture slice adds a **server-only execution
 airlock**. A validated, immutable futures intent passes through structural risk
 validation, local idempotency detection, typed kill switches and an execution
