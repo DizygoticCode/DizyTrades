@@ -351,6 +351,20 @@ Production behaviour, not the YAML file alone, is the final evidence boundary.
 
 The current repository contains no enabled live-order path. `LIVE_TRADING_ENABLED=false` remains required.
 
+The first guarded-execution architecture slice adds a **server-only execution
+airlock**. A validated, immutable futures intent passes through structural risk
+validation, local idempotency detection, typed kill switches and an execution
+service boundary to the repository's sole adapter: a non-executing adapter that
+can only return `blocked`. There is no execution API route, exchange payload,
+network transport or production exchange write adapter. Setting the generic
+live flag to any value cannot connect this airlock to MEXC; even the literal
+`true` value fails closed as `adapter-unavailable`.
+
+DizyAccount remains an independent owner-only, GET-only observation and shadow
+reconciliation layer. DizyPaper and pending orders remain simulation-only. This
+slice defines architecture and preliminary structural checks, not live risk
+approval or guarded-execution completion.
+
 Future connectivity must preserve the already-completed read-only observation layer and introduce write capability only through a separate guarded execution architecture:
 
 ```text
@@ -368,6 +382,14 @@ Immutable audit record
 ```
 
 Encrypted write-capable credentials, MFA, shared abuse controls, loss limits, symbol/notional/leverage limits, reduce-only enforcement, stale-price/account-state rejection, emergency shutdown, provider-recovery rehearsal and independent security review are mandatory before execution.
+
+Future stages still require encrypted credential custody; MFA and hardened
+sessions; shared abuse/rate limiting; full server-side risk validation; durable
+idempotency; exchange acknowledgement and reconciliation; symbol, leverage,
+notional and daily-loss limits; enforceable reduce-only behaviour; authoritative
+stale-state rejection; operational global/per-user kill switches; an immutable
+execution audit trail; provider rollback rehearsal; restricted test-account
+rollout; and independent security approval.
 
 ## Pull-request rule
 

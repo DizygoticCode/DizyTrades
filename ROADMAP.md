@@ -312,6 +312,13 @@ No dependency bundle is merged merely because Dependabot opened it.
 
 The completed DizyAccount read-only companion is a prerequisite and observation layer. It is **not** an execution approval.
 
+An initial non-executing airlock now defines server-only intent, structural
+validation, local duplicate detection, kill-switch and audit-event contracts.
+Its sole adapter always blocks and has no exchange transport. This architecture
+slice does **not** complete any live-execution requirement below: each item must
+still be made operational, durable where required, exercised and independently
+approved before an exchange write path is considered.
+
 Live execution remains disabled until every relevant requirement below is implemented, exercised and independently reviewed:
 
 - [ ] isolated execution service or equivalently isolated execution boundary
