@@ -360,6 +360,14 @@ network transport or production exchange write adapter. Setting the generic
 live flag to any value cannot connect this airlock to MEXC; even the literal
 `true` value fails closed as `adapter-unavailable`.
 
+The second slice adds a deterministic server-owned, default-deny preview policy.
+Fresh authoritative reference prices, fresh supplied account/position state,
+allowed symbols, leverage/notional ceilings, contract volume normalization and
+reduce-only exposure checks must all pass before the immutable estimate is
+created. The estimate records contract volume, reference price, notional,
+margin and policy version, but still ends at the same blocking adapter with
+`executed: false`.
+
 DizyAccount remains an independent owner-only, GET-only observation and shadow
 reconciliation layer. DizyPaper and pending orders remain simulation-only. This
 slice defines architecture and preliminary structural checks, not live risk

@@ -17,6 +17,12 @@ There is no execution route or production exchange adapter. This is an
 architecture-only prerequisite and does not approve live execution; DizyAccount
 remains read-only and DizyPaper remains simulation-only.
 
+The deterministic preview layer accepts prerequisite market/account snapshots
+only as evidence, never as policy. Risk limits are compiled into the server-only
+boundary; missing, invalid, stale or policy-violating evidence is rejected. A
+successful preview is a sanitized estimate, not an exchange instruction, and
+cannot place, cancel or amend an order.
+
 Never commit passwords, session secrets, API keys, Gmail App Passwords, `.env` files or exported account backups.
 
 The authentication/storage review is recorded in [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md). The completed read-only account boundary is recorded in [docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md](docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md). Neither approves exchange write permission.
