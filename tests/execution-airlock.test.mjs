@@ -4,7 +4,8 @@ import test from "node:test";
 import { createExecutionAuditEvent } from "../app/lib/execution/internal/audit.ts";
 import { executionCapabilityGate } from "../app/lib/execution/internal/gate.ts";
 import { executionKillSwitchReason } from "../app/lib/execution/internal/kill-switch.ts";
-import { ExecutionBoundary } from "../app/lib/execution/boundary.ts";
+import { executionBoundary } from "../app/lib/execution/boundary.ts";
+import { createTestExecutionBoundary } from "../app/lib/execution/internal/testing.ts";
 import { validateExecutionIntent } from "../app/lib/execution/internal/validation.ts";
 
 const contract = Object.freeze({
@@ -30,7 +31,7 @@ const valid = Object.freeze({
 
 const enabledSwitchState = Object.freeze({ globalDisabled: false, disabledUserIds: new Set(), disabledAccountIds: new Set(), providerStateFresh: true, maintenance: false, emergencyStop: false });
 function makeService(options = {}) {
-  const boundary = new ExecutionBoundary({
+  const boundary = createTestExecutionBoundary({
     environment: options.environment,
     now: options.now,
     readKillSwitches: options.readKillSwitches ?? (() => ({ ...enabledSwitchState, globalDisabled: true })),
@@ -141,13 +142,13 @@ test("isolated boundary authenticates its internal caller and binds user and acc
     now: () => new Date("2026-08-12T12:01:00Z"),
   };
   const request = { callerAssertion: { callerId: "dizytrades-server", assertionId: "assertion-1" }, userId: valid.userId, accountId: valid.accountId, intent: valid, prerequisites };
-  const unauthenticated = new ExecutionBoundary({ ...base, authenticateInternalCaller: () => null }).preview(request);
+  const unauthenticated = createTestExecutionBoundary({ ...base, authenticateInternalCaller: () => null }).preview(request);
   assert.equal(unauthenticated.result.reason, "CALLER_UNAUTHENTICATED");
   assert.equal(unauthenticated.result.executed, false);
-  const foreign = new ExecutionBoundary({ ...base, authenticateInternalCaller: () => ({ callerId: "dizytrades-server", userId: "user-2", accountId: valid.accountId }) }).preview(request);
+  const foreign = createTestExecutionBoundary({ ...base, authenticateInternalCaller: () => ({ callerId: "dizytrades-server", userId: "user-2", accountId: valid.accountId }) }).preview(request);
   assert.equal(foreign.result.reason, "CALLER_IDENTITY_MISMATCH");
   assert.equal(foreign.result.preview, null);
-  const wrongCaller = new ExecutionBoundary({ ...base, authenticateInternalCaller: () => ({ callerId: "another-service", userId: valid.userId, accountId: valid.accountId }) }).preview(request);
+  const wrongCaller = createTestExecutionBoundary({ ...base, authenticateInternalCaller: () => ({ callerId: "another-service", userId: valid.userId, accountId: valid.accountId }) }).preview(request);
   assert.equal(wrongCaller.result.reason, "CALLER_UNAUTHENTICATED");
 });
 
@@ -165,7 +166,7 @@ test("kill switches are boundary-owned and cannot be overridden by intent fields
 });
 
 test("boundary dependency failures are isolated and fail without a preview", () => {
-  const boundary = new ExecutionBoundary({
+  const boundary = createTestExecutionBoundary({
     authenticateInternalCaller: () => ({ callerId: "dizytrades-server", userId: valid.userId, accountId: valid.accountId }),
     readKillSwitches: () => { throw new Error("provider unavailable"); },
   });
@@ -173,6 +174,40 @@ test("boundary dependency failures are isolated and fail without a preview", () 
   assert.equal(response.result.reason, "BOUNDARY_DEPENDENCY_FAILURE");
   assert.equal(response.result.executed, false);
   assert.equal(response.result.preview, null);
+});
+
+test("malformed authentication and kill-switch dependency output fails closed", () => {
+  const request = { callerAssertion: { callerId: "dizytrades-server", assertionId: "assertion-1" }, userId: valid.userId, accountId: valid.accountId, intent: valid, prerequisites };
+  const authenticated = () => ({ callerId: "dizytrades-server", userId: valid.userId, accountId: valid.accountId });
+  for (const authenticateInternalCaller of [
+    () => undefined,
+    () => ({ callerId: "dizytrades-server", userId: valid.userId }),
+    () => { throw new Error("authentication unavailable"); },
+  ]) {
+    const response = createTestExecutionBoundary({ authenticateInternalCaller, readKillSwitches: () => enabledSwitchState }).preview(request);
+    assert.equal(response.result.reason, "BOUNDARY_DEPENDENCY_FAILURE");
+    assert.equal(response.result.executed, false);
+    assert.equal(response.result.preview, null);
+  }
+  for (const malformed of [
+    null,
+    {},
+    { ...enabledSwitchState, disabledUserIds: null },
+    { ...enabledSwitchState, disabledAccountIds: [valid.accountId] },
+    { ...enabledSwitchState, maintenance: "false" },
+    { ...enabledSwitchState, disabledUserIds: new Set([null]) },
+  ]) {
+    const response = createTestExecutionBoundary({ authenticateInternalCaller: authenticated, readKillSwitches: () => malformed }).preview(request);
+    assert.equal(response.result.reason, "BOUNDARY_DEPENDENCY_FAILURE");
+    assert.equal(response.result.executed, false);
+    assert.equal(response.result.preview, null);
+  }
+});
+
+test("application boundary is a server-owned singleton with no construction API", async () => {
+  const importedAgain = await import("../app/lib/execution/boundary.ts");
+  assert.equal(importedAgain.executionBoundary, executionBoundary);
+  assert.deepEqual(Object.keys(importedAgain), ["executionBoundary"]);
 });
 
 test("idempotency keys are isolated by authenticated user and account identity", () => {

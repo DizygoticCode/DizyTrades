@@ -368,7 +368,8 @@ created. The estimate records contract volume, reference price, notional,
 margin and policy version, but still ends at the same blocking adapter with
 `executed: false`.
 
-The third readiness slice puts that airlock behind `ExecutionBoundary`, the sole
+The third readiness slice puts that airlock behind a server-owned singleton,
+`executionBoundary`, the sole
 application-facing server-side entry point. Its narrow request carries an
 internal caller assertion, an explicit user/account binding, an intent and the
 authoritative prerequisites. A server-owned verifier must authenticate and bind
@@ -376,8 +377,11 @@ the caller to that exact user/account before validation. The boundary, rather
 than its caller, reads global, per-user and per-account kill-switch state and
 passes only the resulting block reason into the internal airlock. Authentication
 or dependency failure is isolated as a rejected, preview-free, `executed: false`
-response. Source contracts forbid routes, client modules, paper routes and other
-application modules from importing the implementation modules directly.
+response. Its construction and dependency-injection seam are internal, so an
+application caller cannot replace those dependencies or reset process-local
+idempotency by constructing another airlock. Source contracts forbid routes,
+client modules, paper routes and other application modules from importing the
+implementation modules directly.
 
 This isolation is process-local readiness architecture, not an operationally
 independent or durable execution service. Idempotency remains in memory, audit

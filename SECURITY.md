@@ -23,13 +23,17 @@ boundary; missing, invalid, stale or policy-violating evidence is rejected. A
 successful preview is a sanitized estimate, not an exchange instruction, and
 cannot place, cancel or amend an order.
 
-The isolated `ExecutionBoundary` is the only permitted application import into
-the airlock implementation. It authenticates a server-internal caller through a
-server-owned verifier, requires the verified caller's user/account binding to
-match the request, and obtains kill-switch state through its own dependency.
+The isolated `executionBoundary` singleton is the only permitted application
+import into the airlock implementation. It authenticates a server-internal
+caller through a server-owned verifier, requires the verified caller's
+user/account binding to match the request, and obtains kill-switch state through
+its own dependency.
 Caller-supplied intent fields cannot override identity, policy or global,
-per-user or per-account shutdown state. Verifier and shutdown-provider failures
-fail closed before a preview. There is still no public execution route, write
+per-user or per-account shutdown state. Construction and dependency injection
+remain internal/test-only, preventing application callers from resetting the
+in-memory idempotency store. Malformed output, exceptions, and other verifier or
+shutdown-provider failures fail closed before a preview. There is still no
+public execution route, write
 transport, signing implementation or write-key custody.
 
 Never commit passwords, session secrets, API keys, Gmail App Passwords, `.env` files or exported account backups.

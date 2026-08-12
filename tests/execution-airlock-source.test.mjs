@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, join, normalize, relative, resolve } from "node:path";
 import test from "node:test";
 
 const root = process.cwd();
@@ -17,6 +17,24 @@ function filesBelow(path) {
   };
   visit(join(root, path));
   return output;
+}
+
+const moduleSpecifiers = (source) => [
+  ...source.matchAll(/\b(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?["']([^"']+)["']/g),
+  ...source.matchAll(/\b(?:import|require)\s*\(\s*["']([^"']+)["']\s*\)/g),
+].map((match) => match[1]);
+
+function importsExecutionInternal(path, source) {
+  return moduleSpecifiers(source).some((specifier) => {
+    if (specifier.startsWith(".")) {
+      const target = relative(root, resolve(root, dirname(path), specifier)).replaceAll("\\", "/");
+      return target === "app/lib/execution/internal" || target.startsWith("app/lib/execution/internal/");
+    }
+    const target = normalize(specifier).replaceAll("\\", "/");
+    return target === "execution/internal"
+      || target.includes("/execution/internal/")
+      || target.endsWith("/execution/internal");
+  });
 }
 
 test("execution boundary is server-only and contains exactly one non-executing adapter", () => {
@@ -43,20 +61,26 @@ test("no route or client module imports the execution airlock", () => {
 });
 
 test("application code has one execution implementation import path and no boundary bypass", () => {
-  const implementationModules = ["adapter", "audit", "gate", "kill-switch", "policy", "preview", "service", "validation"];
-  for (const path of filesBelow("app").filter((path) => /\.[cm]?[jt]sx?$/.test(path) && !path.startsWith("app/lib/execution/"))) {
-    const source = text(path);
-    for (const implementationModule of implementationModules) {
-      assert.doesNotMatch(source, new RegExp(`lib/execution/${implementationModule}|execution/${implementationModule}`), `${path} bypasses boundary`);
-    }
+  const applicationFiles = filesBelow("app").filter((path) => /\.[cm]?[jt]sx?$/.test(path)
+    && !path.startsWith("app/lib/execution/internal/")
+    && path !== "app/lib/execution/boundary.ts");
+  for (const path of applicationFiles) {
+    assert.equal(importsExecutionInternal(path, text(path)), false, `${path} imports isolated implementation`);
   }
-  assert.match(text("app/lib/execution/boundary.ts"), /ExecutionAirlockService/);
-  assert.match(text("app/lib/execution/boundary.ts"), /authenticateInternalCaller/);
-  assert.match(text("app/lib/execution/boundary.ts"), /readKillSwitches/);
+  for (const source of [
+    'export { ExecutionAirlockService } from "./internal/service";',
+    'import service from "../execution/internal/service";',
+    'export * from "../../lib/execution/internal/audit";',
+    'const service = await import("./internal/service");',
+    'const service = require("./internal/service");',
+    'export * from "@/lib/execution/internal/service";',
+  ]) {
+    assert.equal(importsExecutionInternal("app/lib/execution/bridge.ts", source), true, source);
+  }
+  const boundarySource = text("app/lib/execution/boundary.ts");
+  assert.match(boundarySource, /export const executionBoundary = createServerExecutionBoundary\(\)/);
+  assert.doesNotMatch(boundarySource, /export class|export type .*Dependencies|constructor\s*\(/);
   assert.equal(filesBelow("app/api").some((path) => /execution/i.test(path)), false);
-  for (const path of filesBelow("app").filter((path) => /\.[cm]?[jt]sx?$/.test(path) && !path.startsWith("app/lib/execution/internal/") && path !== "app/lib/execution/boundary.ts")) {
-    assert.doesNotMatch(text(path), /execution\/internal\//, `${path} imports isolated implementation`);
-  }
 });
 
 test("production remains false, private MEXC is GET-only and paper routes remain simulation-only", () => {
