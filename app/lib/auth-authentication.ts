@@ -12,7 +12,7 @@ export async function authenticateUserDetailed(identifier: string, password: str
   const normalized = identifier.trim().toLowerCase();
   const privilegedIdentifier = [process.env.ROB_EMAIL, process.env.FRIEND_EMAIL].some(value => value?.trim().toLowerCase() === normalized);
   try { await migratePrivilegedAccounts(); }
-  catch { if (privilegedIdentifier) return { status: "invalid" }; }
+  catch { return { status: "invalid" }; }
   const database = await authenticateDatabaseUserDetailed(identifier, password);
   if (database.status === "email-unverified") return database;
   if (database.status === "authenticated") return { status: "authenticated", user: applyAccountProfile(database.user), mfaEnabled: database.mfaEnabled, credentialSource: "database" };

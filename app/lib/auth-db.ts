@@ -115,6 +115,19 @@ function migrate(db: DatabaseSync) {
       INSERT INTO schema_migrations(version, applied_at) VALUES (4, datetime('now'));
       COMMIT;`);
   }
+  const versionFive = db.prepare("SELECT 1 FROM schema_migrations WHERE version=5").get();
+  if (!versionFive) {
+    db.exec(`BEGIN IMMEDIATE;
+      CREATE TABLE privileged_identity_aliases (
+        alias_normalized TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL CHECK(user_id IN ('rob','friend')),
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      CREATE INDEX privileged_identity_aliases_user_idx ON privileged_identity_aliases(user_id);
+      INSERT INTO schema_migrations(version, applied_at) VALUES (5, datetime('now'));
+      COMMIT;`);
+  }
 }
 
 export function getAuthDatabase() {
@@ -214,11 +227,33 @@ function privilegedSpecs(): PrivilegedSpec[] | null {
 
 /** One-way bootstrap from trusted legacy plaintext inputs into ordinary database credentials. */
 export async function migratePrivilegedAccounts() {
-  const specs = privilegedSpecs();
-  if (!specs) return { status: "not-configured" } as const;
   const db = getAuthDatabase();
   if (!db) throw new Error("PRIVILEGED_ACCOUNT_MIGRATION_AUTH_UNAVAILABLE");
   const completed = db.prepare("SELECT completed_at FROM privileged_account_migrations WHERE migration_key=?").get(PRIVILEGED_MIGRATION_KEY);
+  if (completed) {
+    // Completion makes the stable database identities authoritative. In particular,
+    // bootstrap environment values may be removed or become stale after an email
+    // change and must never be used to reconcile current account data.
+    const identities = db.prepare("SELECT id,email_normalized,role,email_verified_at,password_hash FROM users WHERE id IN ('rob','friend') ORDER BY id").all() as Array<UserRow & { email_normalized: string | null }>;
+    if (identities.length !== 2 || identities.some(row => row.role !== (row.id === "rob" ? "owner" : "admin") || !row.email_normalized || !row.email_verified_at || !row.password_hash.startsWith("scrypt$"))) {
+      throw new Error("PRIVILEGED_ACCOUNT_MIGRATION_CONFLICT");
+    }
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const row of identities) {
+        const alias = db.prepare("SELECT user_id FROM privileged_identity_aliases WHERE alias_normalized=?").get(row.email_normalized) as { user_id: string } | undefined;
+        if (alias && alias.user_id !== row.id) throw new Error("PRIVILEGED_ACCOUNT_MIGRATION_CONFLICT");
+        if (!alias) db.prepare("INSERT INTO privileged_identity_aliases(alias_normalized,user_id,created_at) VALUES(?,?,?)").run(row.email_normalized, row.id, new Date().toISOString());
+      }
+      db.exec("COMMIT");
+    } catch (error) {
+      try { db.exec("ROLLBACK"); } catch { /* transaction already ended */ }
+      throw error;
+    }
+    return { status: "completed" } as const;
+  }
+  const specs = privilegedSpecs();
+  if (!specs) return { status: "not-configured" } as const;
   const rows = db.prepare("SELECT id,username,username_normalized,email,email_normalized,password_hash,display_name,role,email_verified_at FROM users WHERE id IN ('rob','friend') OR email_normalized IN (?,?) OR username_normalized IN ('rob','friend',?,?)")
     .all(specs[0].email, specs[1].email, specs[0].email, specs[1].email) as Array<UserRow & { username_normalized: string | null; email_normalized: string | null }>;
   for (const spec of specs) {
@@ -229,8 +264,6 @@ export async function migratePrivilegedAccounts() {
     }
     if (byId && (!byId.email_verified_at || !byId.password_hash.startsWith("scrypt$"))) throw new Error("PRIVILEGED_ACCOUNT_MIGRATION_CONFLICT");
   }
-  if (completed) return { status: "completed" } as const;
-
   const missing = specs.filter(spec => !rows.some(row => row.id === spec.id));
   if (missing.some(spec => !spec.password)) throw new Error("PRIVILEGED_ACCOUNT_MIGRATION_PASSWORD_REQUIRED");
   const hashes = new Map<string, string>();
@@ -243,6 +276,7 @@ export async function migratePrivilegedAccounts() {
       if (conflict.some(row => row.id !== spec.id || row.role !== spec.role || row.email_normalized !== spec.email)) throw new Error("PRIVILEGED_ACCOUNT_MIGRATION_CONFLICT");
       if (!conflict.length) db.prepare("INSERT INTO users(id,username,username_normalized,email,email_normalized,password_hash,display_name,role,created_at,email_verified_at) VALUES(?,NULL,NULL,?,?,?,?,?,?,?)")
         .run(spec.id, spec.email, spec.email, hashes.get(spec.id)!, spec.name.slice(0, 64), spec.role, new Date().toISOString(), new Date().toISOString());
+      db.prepare("INSERT INTO privileged_identity_aliases(alias_normalized,user_id,created_at) VALUES(?,?,?)").run(spec.email, spec.id, new Date().toISOString());
     }
     db.prepare("INSERT INTO privileged_account_migrations(migration_key,completed_at) VALUES(?,?)").run(PRIVILEGED_MIGRATION_KEY, new Date().toISOString());
     db.exec("COMMIT");
@@ -258,7 +292,8 @@ export function databaseHasPrivilegedIdentity(identifier: string) {
   if (!normalized) return false;
   const db = getAuthDatabase();
   if (!db) return false;
-  return Boolean(db.prepare("SELECT 1 FROM users WHERE id IN ('rob','friend') AND (id=? OR email_normalized=? OR username_normalized=?)").get(normalized, normalized, normalized));
+  return Boolean(db.prepare(`SELECT 1 FROM users WHERE id IN ('rob','friend') AND (id=? OR email_normalized=? OR username_normalized=?)
+    UNION ALL SELECT 1 FROM privileged_identity_aliases WHERE alias_normalized=? LIMIT 1`).get(normalized, normalized, normalized, normalized));
 }
 
 export type DatabaseAuthenticationResult =
