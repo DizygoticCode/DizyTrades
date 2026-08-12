@@ -251,7 +251,7 @@ DizyAccount reflects the owner's read-only MEXC provider state when fresh. DizyP
 
 DizyQuant uses aggregated public price-level data. It does not know individual order identity, trader identity, true queue position, hidden liquidity or institutional intent. Experimental research rules are not diagnoses or trading calls.
 
-Public accounts now have verification and self-service recovery, but MFA is still deferred to the guarded-execution security programme.
+Public database accounts have verification, self-service recovery and optional TOTP MFA with one-time recovery codes. MFA secrets are encrypted under a dedicated deployment key. Legacy owner/admin compatibility remains available for the ordinary application but does not satisfy future guarded-execution MFA.
 
 ## Key documents
 

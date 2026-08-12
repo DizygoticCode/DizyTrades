@@ -33,15 +33,15 @@ export {
 export type AuthenticationResult =
   | Readonly<{ status: "invalid" }>
   | Readonly<{ status: "email-unverified"; email: string }>
-  | Readonly<{ status: "authenticated"; user: AuthUser }>;
+  | Readonly<{ status: "authenticated"; user: AuthUser; mfaEnabled: boolean; credentialSource: "database" | "legacy" }>;
 
 export async function authenticateUserDetailed(identifier: string, password: string): Promise<AuthenticationResult> {
   const database = await authenticateDatabaseUserDetailed(identifier, password);
   if (database.status === "email-unverified") return database;
-  if (database.status === "authenticated") return { status: "authenticated", user: applyAccountProfile(database.user) };
+  if (database.status === "authenticated") return { status: "authenticated", user: applyAccountProfile(database.user), mfaEnabled: database.mfaEnabled, credentialSource: "database" };
   const legacy = await authenticateLegacyUser(identifier, password);
   return legacy
-    ? { status: "authenticated", user: applyAccountProfile(legacy) }
+    ? { status: "authenticated", user: applyAccountProfile(legacy), mfaEnabled: false, credentialSource: "legacy" }
     : { status: "invalid" };
 }
 

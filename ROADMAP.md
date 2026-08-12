@@ -338,8 +338,8 @@ Live execution remains disabled until every relevant requirement below is implem
 
 - [ ] isolated execution service or equivalently isolated execution boundary
 - [ ] encrypted live-trading credential custody suitable for write-capable keys
-- [ ] MFA and hardened database-backed sessions
-- [ ] shared authentication and abuse rate limiting for multi-instance deployment
+- [x] MFA and hardened database-backed sessions
+- [ ] shared authentication and abuse rate limiting before any horizontal multi-instance deployment (current supported production is one Render instance with persistent SQLite state and vertical scaling first)
 - [ ] server-side order preview and risk validation
 - [ ] idempotent order submission
 - [ ] exchange acknowledgement and deterministic reconciliation

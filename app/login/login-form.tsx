@@ -18,6 +18,7 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [unverified, setUnverified] = useState(false);
+  const [challenge, setChallenge] = useState("");
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -34,11 +35,12 @@ export default function LoginForm() {
           password: data.get("password"),
         }),
       });
-      const payload = await response.json() as { error?: string; code?: string };
+      const payload = await response.json() as { error?: string; code?: string; mfaRequired?: boolean; challenge?: string };
       if (!response.ok) {
         if (payload.code === "EMAIL_UNVERIFIED") setUnverified(true);
         throw new Error(payload.error || "Sign-in failed.");
       }
+      if (payload.mfaRequired && payload.challenge) { setChallenge(payload.challenge); return; }
       router.replace("/terminal");
       router.refresh();
     } catch (caught) {
@@ -46,6 +48,18 @@ export default function LoginForm() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const completeMfa = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setLoading(true); setError("");
+    const proof = new FormData(event.currentTarget).get("proof");
+    try {
+      const response = await fetch("/api/auth/mfa/challenge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ challenge, proof }) });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "MFA verification failed.");
+      setChallenge(""); router.replace("/terminal"); router.refresh();
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "MFA verification failed."); }
+    finally { setLoading(false); }
   };
 
   const continueAsViewer = async () => {
@@ -66,6 +80,13 @@ export default function LoginForm() {
 
   const interactive = hydrated && !loading;
 
+  if (challenge) return <form className="login-card" onSubmit={completeMfa}>
+    <h1>Two-factor verification</h1><p>Enter your authenticator code or a one-time recovery code.</p>
+    <label><span>Verification code</span><input autoComplete="one-time-code" inputMode="numeric" name="proof" required /></label>
+    {error ? <div className="login-error" role="alert">{error}</div> : null}
+    <button disabled={!interactive} type="submit">{loading ? "Verifying…" : "Verify and sign in"}</button>
+    <button className="viewer-login" type="button" onClick={() => setChallenge("")}>Cancel</button>
+  </form>;
   return (
     <form className="login-card" onSubmit={submit}>
       <div className="login-brand">
