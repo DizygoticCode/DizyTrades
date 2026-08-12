@@ -10,6 +10,7 @@ import {
 
 const authEnvironmentKeys = [
   "ALLOW_TEST_PLAINTEXT_PASSWORDS",
+  "NODE_ENV",
   "LIVE_TRADING_ENABLED",
   "PUBLIC_SIGNUP_ENABLED",
   "LEGACY_AUTH_FALLBACK_ENABLED",
@@ -91,6 +92,16 @@ test("blocks plaintext mode during live trading", async () => {
     await authenticateUser("owner@example.test", "unique-throwaway-owner-password"),
     null,
   );
+});
+
+test("production ignores plaintext legacy passwords even when the test flag is set", async () => {
+  process.env.NODE_ENV = "production";
+  process.env.LEGACY_AUTH_FALLBACK_ENABLED = "true";
+  process.env.ALLOW_TEST_PLAINTEXT_PASSWORDS = "true";
+  process.env.LIVE_TRADING_ENABLED = "false";
+  process.env.ROB_EMAIL = "rob.noyce@gmail.com";
+  process.env.ROB_PASSWORD = "production-plaintext-must-not-authenticate";
+  assert.equal(await authenticateUser("rob.noyce@gmail.com", "production-plaintext-must-not-authenticate"), null);
 });
 
 test("uses scrypt hashes when plaintext mode is disabled", async () => {

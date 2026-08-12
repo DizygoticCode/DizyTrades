@@ -213,7 +213,11 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-Place generated `salt:hash` values in the matching password-hash environment variables and set `SESSION_SECRET` to at least 32 random characters. Public signup and legacy emergency access must each be explicitly enabled. Temporary plaintext test passwords require `ALLOW_TEST_PLAINTEXT_PASSWORDS=true` and are blocked whenever live trading is enabled.
+Place generated `salt:hash` values in the matching password-hash environment variables and set `SESSION_SECRET` to at least 32 random characters. Public signup and legacy emergency access must each be explicitly enabled. Temporary plaintext test passwords require `ALLOW_TEST_PLAINTEXT_PASSWORDS=true`, are never accepted in production, and are blocked whenever live trading is enabled.
+
+### Privileged-account cutover
+
+The first migration deployment keeps the existing `ROB_EMAIL`, `FRIEND_EMAIL`, `ROB_PASSWORD`, and `FRIEND_PASSWORD` server environment values in place. Startup authentication converts those inputs once into verified SQLite accounts with stable IDs `rob` and `friend`, modern password hashes, and owner/admin roles; plaintext is never stored. Verify both database-backed logins, Nick's forgot/reset-password flow, and MFA enrollment before removing `ROB_PASSWORD` and `FRIEND_PASSWORD`. Keep `ALLOW_TEST_PLAINTEXT_PASSWORDS=false` in production. The durable migration marker makes restarts idempotent and never overwrites database passwords, sessions, or MFA state.
 
 If local public signup is enabled, configure the account-mail variables from `.env.example` with a safe local/test mail boundary. Do not place the production Gmail App Password in committed files or test fixtures.
 

@@ -161,7 +161,7 @@ Replay uses only the revealed candle prefix. Historical DizyFlow is returned onl
 
 ## Temporary plaintext-password test mode
 
-Server-only plaintext environment passwords are a temporary test-only fallback. They require `ALLOW_TEST_PLAINTEXT_PASSWORDS=true` and are blocked when `LIVE_TRADING_ENABLED=true`.
+Server-only plaintext environment passwords are one-time privileged-account migration inputs or a non-production test seam. Production never authenticates directly against them, `ALLOW_TEST_PLAINTEXT_PASSWORDS` is false in the Render blueprint, and live trading also blocks the test seam.
 
 Use unique throwaway passwords, never commit or reuse them, and retain salted scrypt authentication for normal accounts.
 

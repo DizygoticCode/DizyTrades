@@ -328,7 +328,9 @@ export class DepthCollector {
     socket.addEventListener("message", (event) => this.handleSocketData(event.data));
     socket.addEventListener("close", () => this.socketClosed(socket));
     socket.addEventListener("error", () => {
-      if (socket === this.socket) socket.close();
+      // ws can synchronously emit another error from close(). Clear collector
+      // ownership before closing so a failed transport cannot recurse forever.
+      if (socket === this.socket) this.restartStalledSocket();
     });
   }
 

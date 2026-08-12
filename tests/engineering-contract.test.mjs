@@ -60,7 +60,7 @@ test("production blueprint remains simulation-only with explicit emergency acces
   );
   assert.match(
     render,
-    /key: ALLOW_TEST_PLAINTEXT_PASSWORDS\n\s+value: ["']true["']/,
+    /key: ALLOW_TEST_PLAINTEXT_PASSWORDS\n\s+value: ["']false["']/,
   );
   assert.match(render, /^\s*- key: ROB_PASSWORD\s*$/m);
   assert.match(render, /^\s*- key: FRIEND_PASSWORD\s*$/m);

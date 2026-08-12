@@ -82,7 +82,7 @@ export default function LoginForm() {
 
   if (challenge) return <form className="login-card" onSubmit={completeMfa}>
     <h1>Two-factor verification</h1><p>Enter your authenticator code or a one-time recovery code.</p>
-    <label><span>Verification code</span><input autoComplete="one-time-code" inputMode="numeric" name="proof" required /></label>
+    <label><span>Verification code</span><input autoComplete="one-time-code" inputMode="text" name="proof" required /></label>
     {error ? <div className="login-error" role="alert">{error}</div> : null}
     <button disabled={!interactive} type="submit">{loading ? "Verifying…" : "Verify and sign in"}</button>
     <button className="viewer-login" type="button" onClick={() => setChallenge("")}>Cancel</button>

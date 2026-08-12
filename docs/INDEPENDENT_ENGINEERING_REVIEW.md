@@ -24,7 +24,7 @@ A runtime-version change triggers both operational rehearsals as well as normal 
 
 The engineering review initially classified `ROB_PASSWORD` and `FRIEND_PASSWORD` as unused and removed their Blueprint slots while forcing `ALLOW_TEST_PLAINTEXT_PASSWORDS=false`. That assumption was wrong for the deployed private beta: Rob and Nick still use those server-side Render secrets for their stable `rob` and `friend` emergency identities.
 
-The Blueprint now retains both plaintext and hash slots, explicitly enables the legacy plaintext path for the current simulation-only service, and keeps `LIVE_TRADING_ENABLED=false`. The application already blocks plaintext authentication whenever live trading is enabled. Rob and Nick can migrate independently to `ROB_PASSWORD_HASH` and `FRIEND_PASSWORD_HASH`; after both hashes are verified, the plaintext secrets and compatibility flag can be removed in a separate focused change.
+The Blueprint retains the existing plaintext slots for one controlled migration boot while setting `ALLOW_TEST_PLAINTEXT_PASSWORDS=false` and keeping `LIVE_TRADING_ENABLED=false`. The application hashes both trusted inputs into verified database-backed `rob` and `friend` accounts, records durable completion, and never overwrites their credentials on restart. Operators verify both logins, Nick's password-reset lifecycle, and MFA enrollment before manually removing the plaintext environment values.
 
 The engineering contract requires the current emergency slots, legacy fallback and simulation-only boundary while continuing to reject private exchange-key names and any accidental `LIVE_TRADING_ENABLED=true` configuration.
 

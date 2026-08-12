@@ -2,7 +2,7 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { applyAccountProfile, authenticateDatabaseUserDetailed, databaseSession } from "./auth-db";
+import { applyAccountProfile, authenticateDatabaseUserDetailed, databaseIdentityExists, databaseSession, migratePrivilegedAccounts } from "./auth-db";
 import {
   authenticateLegacyUser,
   authIsConfigured,
@@ -36,10 +36,13 @@ export type AuthenticationResult =
   | Readonly<{ status: "authenticated"; user: AuthUser; mfaEnabled: boolean; credentialSource: "database" | "legacy" }>;
 
 export async function authenticateUserDetailed(identifier: string, password: string): Promise<AuthenticationResult> {
+  await migratePrivilegedAccounts();
   const database = await authenticateDatabaseUserDetailed(identifier, password);
   if (database.status === "email-unverified") return database;
   if (database.status === "authenticated") return { status: "authenticated", user: applyAccountProfile(database.user), mfaEnabled: database.mfaEnabled, credentialSource: "database" };
-  const legacy = await authenticateLegacyUser(identifier, password);
+  // A migrated database identity is authoritative: a wrong DB password must
+  // never fall through to a stale deployment plaintext/hash credential.
+  const legacy = databaseIdentityExists(identifier) ? null : await authenticateLegacyUser(identifier, password);
   return legacy
     ? { status: "authenticated", user: applyAccountProfile(legacy), mfaEnabled: false, credentialSource: "legacy" }
     : { status: "invalid" };

@@ -27,6 +27,7 @@ function migrate(db: DatabaseSync) {
     CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT, username_normalized TEXT UNIQUE, email TEXT, email_normalized TEXT UNIQUE, password_hash TEXT NOT NULL, display_name TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','admin','user')), created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS auth_attempts (bucket TEXT PRIMARY KEY, count INTEGER NOT NULL, reset_at INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS privileged_account_migrations (name TEXT PRIMARY KEY, completed_at TEXT NOT NULL);
     INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, datetime('now'));
     COMMIT;`);
 
@@ -206,6 +207,65 @@ export async function authenticateDatabaseUserDetailed(identifier: string, passw
   return { status: "authenticated", user: publicUser(row), mfaEnabled: mfa?.state === "active" };
 }
 
+export function databaseIdentityExists(identifier: string) {
+  const normalized = normaliseIdentifier(identifier);
+  if (!normalized) return false;
+  return Boolean(getAuthDatabase()?.prepare("SELECT 1 FROM users WHERE username_normalized=? OR email_normalized=?").get(normalized, normalized));
+}
+
+const PRIVILEGED_ACCOUNTS = [
+  { id: "rob", emailKey: "ROB_EMAIL", passwordKey: "ROB_PASSWORD", expectedEmail: "rob.noyce@gmail.com", displayName: "Rob", role: "owner" },
+  { id: "friend", emailKey: "FRIEND_EMAIL", passwordKey: "FRIEND_PASSWORD", expectedEmail: "nickspencer44@gmail.com", displayName: "Nick", role: "admin" },
+] as const;
+
+/** One-time conversion of the two trusted deployment identities into ordinary DB accounts. */
+export async function migratePrivilegedAccounts() {
+  const db = getAuthDatabase();
+  if (!db) throw new Error("AUTH_UNAVAILABLE");
+  if (db.prepare("SELECT 1 FROM privileged_account_migrations WHERE name=?").get("rob-friend-v1")) return false;
+  const migrationConfigured = PRIVILEGED_ACCOUNTS.some((account) => Boolean(process.env[account.passwordKey]));
+  const migrationStarted = Boolean(db.prepare("SELECT 1 FROM users WHERE id IN ('rob','friend') LIMIT 1").get());
+  if (!migrationConfigured && !migrationStarted) return false;
+
+  const pending: Array<(typeof PRIVILEGED_ACCOUNTS)[number] & { email: string; passwordHash: string }> = [];
+  for (const account of PRIVILEGED_ACCOUNTS) {
+    const email = normaliseIdentifier(process.env[account.emailKey] || "");
+    const trustedEmail = process.env.NODE_ENV === "production" ? account.expectedEmail : email;
+    const byId = db.prepare("SELECT id,email_normalized,role FROM users WHERE id=?").get(account.id) as { id: string; email_normalized: string | null; role: string } | undefined;
+    const byEmail = trustedEmail ? db.prepare("SELECT id,email_normalized,role FROM users WHERE email_normalized=?").get(trustedEmail) as { id: string; email_normalized: string | null; role: string } | undefined : undefined;
+    if (byId || byEmail) {
+      if (byId?.id !== account.id || byId.email_normalized !== trustedEmail || byId.role !== account.role || (byEmail && byEmail.id !== account.id)) throw new Error("PRIVILEGED_ACCOUNT_CONFLICT");
+      continue;
+    }
+    if (!email || email !== trustedEmail) throw new Error("PRIVILEGED_ACCOUNT_CONFIGURATION_INVALID");
+    const password = process.env[account.passwordKey] || "";
+    if (password.length < 12 || password.length > 128) throw new Error("PRIVILEGED_ACCOUNT_CONFIGURATION_INVALID");
+    pending.push({ ...account, email, passwordHash: await hashPassword(password) });
+  }
+
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    for (const account of pending) {
+      const conflict = db.prepare("SELECT id FROM users WHERE id=? OR email_normalized=?").get(account.id, account.email) as { id: string } | undefined;
+      if (conflict) throw new Error("PRIVILEGED_ACCOUNT_CONFLICT");
+      const now = new Date().toISOString();
+      db.prepare("INSERT INTO users(id,username,username_normalized,email,email_normalized,password_hash,display_name,role,created_at,email_verified_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
+        .run(account.id, account.id, account.id, account.email, account.email, account.passwordHash, account.displayName, account.role, now, now);
+    }
+    for (const account of PRIVILEGED_ACCOUNTS) {
+      const row = db.prepare("SELECT id,email_normalized,role FROM users WHERE id=?").get(account.id) as { id: string; email_normalized: string; role: string } | undefined;
+      const trustedEmail = process.env.NODE_ENV === "production" ? account.expectedEmail : normaliseIdentifier(process.env[account.emailKey] || "");
+      if (!row || row.email_normalized !== trustedEmail || row.role !== account.role) throw new Error("PRIVILEGED_ACCOUNT_CONFLICT");
+    }
+    db.prepare("INSERT INTO privileged_account_migrations(name,completed_at) VALUES(?,?)").run("rob-friend-v1", new Date().toISOString());
+    db.exec("COMMIT");
+    return true;
+  } catch (error) {
+    try { db.exec("ROLLBACK"); } catch { /* transaction already ended */ }
+    throw error;
+  }
+}
+
 export async function authenticateDatabaseUser(identifier: string, password: string) {
   const result = await authenticateDatabaseUserDetailed(identifier, password);
   return result.status === "authenticated" ? result.user : null;
@@ -259,7 +319,9 @@ function mfaKey() {
 
 export function assertMfaConfiguration() {
   const key = mfaKey();
-  if (process.env.SESSION_SECRET && timingSafeEqual(createHash("sha256").update(process.env.SESSION_SECRET).digest(), createHash("sha256").update(key).digest())) {
+  const sessionSecret = process.env.SESSION_SECRET || "";
+  const encodedMfaKey = process.env.MFA_ENCRYPTION_KEY || "";
+  if (sessionSecret && (sessionSecret === encodedMfaKey || timingSafeEqual(createHash("sha256").update(sessionSecret).digest(), createHash("sha256").update(key).digest()))) {
     throw new Error("MFA_ENCRYPTION_KEY must not reuse SESSION_SECRET");
   }
 }
@@ -315,12 +377,26 @@ export function beginMfaEnrollment(userId: string) {
   assertMfaConfiguration();
   const id = safeOwnerId(userId, "account"), db = getAuthDatabase();
   if (!db) throw new Error("AUTH_UNAVAILABLE");
-  const secret = randomBytes(20), encrypted = encryptMfaSecret(secret), now = Date.now();
-  db.prepare(`INSERT INTO mfa_credentials(user_id,state,secret_ciphertext,nonce,auth_tag,key_version,created_at,activated_at)
-    VALUES(?,'pending',?,?,?,?,?,NULL) ON CONFLICT(user_id) DO UPDATE SET state='pending',secret_ciphertext=excluded.secret_ciphertext,nonce=excluded.nonce,auth_tag=excluded.auth_tag,key_version=1,created_at=excluded.created_at,activated_at=NULL`)
-    .run(id, encrypted.ciphertext, encrypted.nonce, encrypted.tag, 1, now);
-  db.prepare("DELETE FROM mfa_recovery_codes WHERE user_id=?").run(id);
-  return base32(secret);
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const current = db.prepare("SELECT state FROM mfa_credentials WHERE user_id=?").get(id) as { state: string } | undefined;
+    if (current?.state === "active") throw new Error("MFA_ALREADY_ACTIVE");
+    const secret = randomBytes(20), encrypted = encryptMfaSecret(secret), now = Date.now();
+    db.prepare(`INSERT INTO mfa_credentials(user_id,state,secret_ciphertext,nonce,auth_tag,key_version,created_at,activated_at)
+      VALUES(?,'pending',?,?,?,?,?,NULL) ON CONFLICT(user_id) DO UPDATE SET secret_ciphertext=excluded.secret_ciphertext,nonce=excluded.nonce,auth_tag=excluded.auth_tag,key_version=1,created_at=excluded.created_at,activated_at=NULL WHERE mfa_credentials.state='pending'`)
+      .run(id, encrypted.ciphertext, encrypted.nonce, encrypted.tag, 1, now);
+    db.prepare("DELETE FROM mfa_recovery_codes WHERE user_id=? AND NOT EXISTS (SELECT 1 FROM mfa_credentials WHERE user_id=? AND state='active')").run(id, id);
+    db.exec("COMMIT");
+    return base32(secret);
+  } catch (error) {
+    try { db.exec("ROLLBACK"); } catch { /* transaction already ended */ }
+    throw error;
+  }
+}
+
+export function consumeMfaProofRateLimit(userId: string, ip: string) {
+  const id = safeOwnerId(userId, "account");
+  return consumeRateLimit([`mfa-proof:user:${id}`, `mfa-proof:ip:${ip}`], 8, 15 * 60_000);
 }
 
 function freshRecoveryCodes() { return Array.from({ length: 10 }, () => `${randomBytes(5).toString("hex").toUpperCase()}-${randomBytes(5).toString("hex").toUpperCase()}`); }

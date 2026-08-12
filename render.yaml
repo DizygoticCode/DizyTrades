@@ -94,7 +94,7 @@ services:
       - key: NODE_OPTIONS
         value: --max-old-space-size=300
       - key: ALLOW_TEST_PLAINTEXT_PASSWORDS
-        value: "true"
+        value: "false"
       - key: SESSION_SECRET
         generateValue: true
       - key: ROB_NAME
