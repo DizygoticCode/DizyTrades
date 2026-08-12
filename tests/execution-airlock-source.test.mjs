@@ -34,6 +34,7 @@ function filesBelow(path) {
 const moduleSpecifiers = (source) => [
   ...source.matchAll(/\b(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?["']([^"']+)["']/g),
   ...source.matchAll(/\b(?:import|require)\s*\(\s*["']([^"']+)["']\s*\)/g),
+  ...source.matchAll(/\bimport\s*\(\s*`([^`$]*)`\s*\)/g),
 ].map((match) => match[1]);
 
 function importsExecutionInternal(path, source) {
@@ -94,6 +95,7 @@ test("application code has one execution implementation import path and no bound
     'import "./app/lib/execution/internal/testing";',
     'export { createServerExecutionBoundary } from "./app/lib/execution/internal/composition";',
     'const boundary = await import("./app/lib/execution/internal/boundary-service");',
+    'const testing = await import(`./app/lib/execution/internal/testing`);',
     'const service = require("./app/lib/execution/internal/service");',
     'export * from "@/lib/execution/internal/audit";',
   ]) {

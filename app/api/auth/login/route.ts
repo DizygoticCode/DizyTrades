@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { consumeRateLimit } from "../../../lib/auth-db";
+import { consumeRateLimit, createMfaChallenge } from "../../../lib/auth-db";
 import { authenticateUserDetailed, issueSession, SESSION_COOKIE, SESSION_MAX_AGE_SECONDS } from "../../../lib/auth";
 import { normaliseIdentifier } from "../../../lib/auth-credentials";
 import { requestIp, validRequestOrigin } from "../../../lib/request-security";
@@ -26,6 +26,12 @@ export async function POST(request: Request) {
   }
   if (authentication.status !== "authenticated") return error();
   const user = authentication.user;
+  if (authentication.credentialSource === "database" && authentication.mfaEnabled) {
+    const challenge = createMfaChallenge(user.id);
+    if (!challenge) return NextResponse.json({ error: "Authentication service unavailable." }, { status: 503 });
+    await appendAudit(user.id, "auth.mfa-challenge-issued", { ip });
+    return NextResponse.json({ mfaRequired: true, challenge });
+  }
   const token = issueSession(user);
   if (!token) return NextResponse.json({ error: "Authentication service unavailable." }, { status: 503 });
   const response = NextResponse.json({ user });

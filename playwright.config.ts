@@ -48,6 +48,9 @@ export default defineConfig({
           ROB_NAME: "E2E Owner",
           ROB_EMAIL: "e2e-owner@dizytrades.local",
           ROB_PASSWORD: "DizyTrades-E2E-Owner-2026!",
+          FRIEND_NAME: "E2E Admin",
+          FRIEND_EMAIL: "e2e-admin@dizytrades.local",
+          FRIEND_PASSWORD: "DizyTrades-E2E-Admin-2026!",
           // Browser signup tests need the mail boundary configured so the real
           // route creates a pending-verification account. Port 1 is intentionally
           // closed: delivery fails fast and is recorded as undelivered without

@@ -69,6 +69,12 @@ A complete account-email smoke should prove the real runtime chain rather than o
 8. complete a password change;
 9. confirm existing database sessions are revoked and the new password can sign in.
 
+## Privileged account transition
+
+The first deployment after the privileged migration uses the existing trusted `ROB_EMAIL`/`ROB_PASSWORD` and `FRIEND_EMAIL`/`FRIEND_PASSWORD` values only to create the verified database-backed `rob` owner and `friend` admin identities. The migration is transactional, conflict-intolerant and durably recorded. Do not delete the plaintext variables before that first boot.
+
+After verifying both identities, exercise Nick's forgot-password flow, confirm his prior database sessions are revoked, confirm only the new password works, and confirm MFA enrollment is available. Then remove `ROB_PASSWORD` and `FRIEND_PASSWORD` manually in Render. Do not change the stable IDs or roles. Subsequent boots use the durable database credentials and do not reset them from environment input.
+
 Verification/reset bearer links are sensitive. Do not copy live token URLs into tickets, logs or public documentation. The tokens are single-use and expire, but they must still be handled as credentials while valid.
 
 ## What this does not enable

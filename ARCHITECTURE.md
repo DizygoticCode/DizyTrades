@@ -78,7 +78,7 @@ Password reset is available only to verified database accounts. Successful reset
 
 The account profile layer stores display name, bounded bio and optional PNG/JPEG/WebP avatar bytes in SQLite for database and legacy owner/admin identities. Profile mutation cannot change role or sign-in email.
 
-Legacy owner/admin identities remain environment-backed behind `LEGACY_AUTH_FALLBACK_ENABLED=true`. They preserve stable owner IDs for existing data and are deliberately outside the public self-service password-reset flow.
+Trusted legacy owner/admin environment credentials are one-time bootstrap inputs. Server initialization validates both identities as a unit and creates ordinary verified database rows with stable IDs `rob` and `friend`, roles `owner` and `admin`, and current versioned password hashes. A durable migration record prevents restart-time password replacement. Any ID/email/username/role collision aborts without elevation. Once present, these database identities are authoritative and suppress the legacy fallback, so password reset, MFA, opaque sessions and session revocation follow the normal database-account lifecycle. Operators remove the plaintext password variables manually only after production verification.
 
 Production verification/recovery mail is a server-only TLS SMTP boundary configured by Render environment variables. The intended runtime values are declared in `render.yaml`; `SMTP_APP_PASSWORD` remains secret-only. Existing Render services may require newly introduced variables to be added explicitly before restart/redeploy.
 
@@ -337,7 +337,7 @@ Restore requirements:
 - bounded audit records
 - owner-scoped backups
 
-Writes are atomic where file-backed and serialised where concurrent mutation could corrupt state. Persistent disk supports one service instance; horizontal scaling requires shared managed storage and shared authentication/rate-limiting state.
+Writes are atomic where file-backed and serialised where concurrent mutation could corrupt state. The supported production topology is one Render instance with persistent SQLite authentication/session/rate-limit state and vertical scaling first. Horizontal multi-instance operation is not currently planned and would require shared managed storage plus a separate shared authentication/rate-limit design before use.
 
 ## Deployment configuration boundary
 
@@ -409,10 +409,9 @@ Acknowledgement and reconciliation
 Immutable audit record
 ```
 
-Encrypted write-capable credentials, MFA, shared abuse controls, loss limits, symbol/notional/leverage limits, reduce-only enforcement, stale-price/account-state rejection, emergency shutdown, provider-recovery rehearsal and independent security review are mandatory before execution.
+Encrypted write-capable credentials, shared abuse controls for any horizontal deployment, loss limits, symbol/notional/leverage limits, reduce-only enforcement, stale-price/account-state rejection, emergency shutdown, provider-recovery rehearsal and independent security review are mandatory before execution. Database-account MFA and hardened opaque sessions are implemented; legacy signed owner/admin sessions remain ordinary-application compatibility only and cannot satisfy future guarded-execution MFA.
 
-Future stages still require encrypted credential custody; MFA and hardened
-sessions; shared abuse/rate limiting; full server-side risk validation; durable
+Future stages still require encrypted credential custody; shared abuse/rate limiting for any horizontal deployment; full server-side risk validation; durable
 idempotency; exchange acknowledgement and reconciliation; symbol, leverage,
 notional and daily-loss limits; enforceable reduce-only behaviour; authoritative
 stale-state rejection; operational global/per-user kill switches; an immutable

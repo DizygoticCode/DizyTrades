@@ -62,6 +62,10 @@ Credential shutdown and removal are documented in [docs/MEXC_OWNER_CONNECTION_SH
 
 Public accounts use versioned salted scrypt password hashes. Login sessions use random opaque tokens whose SHA-256 digests are retained server-side; raw tokens and passwords must never be logged.
 
+Database accounts support standards-compatible six-digit TOTP MFA with a one-step clock window. Enrollment requires password re-authentication, remains pending until a valid TOTP is supplied, and stores its server-generated secret under versioned AES-256-GCM authenticated encryption. Active credentials cannot be replaced by ordinary password-only enrollment. `MFA_ENCRYPTION_KEY` is a dedicated base64url 32-byte deployment secret and must not reuse `SESSION_SECRET`; production fails closed when it is absent, invalid or equivalent to the configured session secret. Recovery codes are revealed only upon activation/regeneration, stored only as individual strong hashes, and atomically consumed once. Every authenticated password/TOTP/recovery proof surface uses persisted per-account and per-IP throttling; proof values are never limiter keys.
+
+Password authentication for an MFA-enabled account creates only a five-minute, hashed-at-rest, bounded-attempt database challenge. It is not an application session. Successful TOTP or recovery proof atomically consumes that challenge and creates a newly random database session. Database sessions record creation, expiry, last-seen and revocation state; security-sensitive MFA disable or recovery regeneration revokes them.
+
 - `owner`: Rob's primary operations account.
 - `admin`: Nick's authorised test/admin account.
 - `user`: normal signed-in account with isolated user-owned data.
@@ -73,9 +77,13 @@ New public signup accounts require an email address and remain unable to receive
 
 Forgot-password and resend-verification requests use enumeration-safe responses and rate limits. Password reset is available only to verified database accounts; a successful reset replaces the password hash, consumes outstanding recovery material and revokes existing database sessions.
 
-Rob and Nick retain environment-backed legacy access behind `LEGACY_AUTH_FALLBACK_ENABLED=true`. Their stable IDs (`rob` and `friend`) preserve access to existing isolated data. Their credentials remain in the protected Render environment boundary and are not managed by the public self-service reset flow.
+On the first safe server boot, trusted `ROB_EMAIL`/`ROB_PASSWORD` and `FRIEND_EMAIL`/`FRIEND_PASSWORD` inputs are transactionally migrated to verified database accounts with stable IDs `rob` and `friend` and exact roles `owner` and `admin`. Passwords use the normal versioned scrypt format; plaintext is never stored. A durable completion record makes restart idempotent and prevents environment values from overwriting later password changes. Conflicting IDs, roles, emails or usernames fail closed without insertion or elevation. A migrated database identity shadows legacy fallback, including after a normal reset, and uses the same MFA, opaque-session and recovery lifecycle as any verified database account.
+
+The plaintext environment inputs remain staged only for the first production migration. After deployment verification of both identities and Nick's reset lifecycle, operators may manually remove `ROB_PASSWORD` and `FRIEND_PASSWORD`; completed restarts do not require them. This PR does not claim that removal has already happened.
 
 Viewer access uses a signed HTTP-only session cookie with a two-hour lifetime. Viewer profile reads return sanitised in-memory defaults, writes are rejected, and temporary UI state remains in browser storage.
+
+Legacy signed owner/admin and viewer sessions preserve ordinary application compatibility, but **do not satisfy any future guarded-execution MFA requirement**.
 
 All cookies are HTTP-only, Secure in production and SameSite=Lax. POST authentication mutations require a valid same-origin request. Compatibility GET logout requires a real user-initiated same-origin browser navigation and rejects cross-site embeds.
 
@@ -163,7 +171,7 @@ Use unique throwaway passwords, never commit or reuse them, and retain salted sc
 
 - The SQLite-outage fallback limiter is process-local and resets on restart. It is acceptable only for the current single-instance service.
 - Emergency owner/admin legacy sessions are not individually managed by the public database-account recovery flow.
-- Public accounts have email verification and self-service password reset but do not yet have MFA.
+- Current production is one Render instance with persistent SQLite authentication and rate-limit state, scaled vertically first. Horizontal multi-instance deployment is not planned for this slice and would require a separate shared-state design before use.
 - Local audit JSONL is operational evidence, not immutable externally anchored security logging.
 - Render host and persistent-disk security remain inside the provider trust boundary.
 - The application remains simulation-only; the read-only Account Companion does not approve or imply exchange write capability.

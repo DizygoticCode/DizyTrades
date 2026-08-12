@@ -1,0 +1,2 @@
+import { NextResponse } from "next/server"; import { requireApiUser } from "../../../../lib/auth"; import { getMfaStatus,getAccountProfile } from "../../../../lib/auth-db";
+export async function GET(){const user=await requireApiUser();if(!user)return NextResponse.json({error:"Unauthorised"},{status:401});if(getAccountProfile(user).credentialSource!=="database")return NextResponse.json({enabled:false,pending:false,eligible:false});return NextResponse.json({...getMfaStatus(user.id),eligible:true});}
