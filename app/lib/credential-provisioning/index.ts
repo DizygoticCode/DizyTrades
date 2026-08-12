@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
-import { getAuthDatabase, verifyAccountPassword, verifyFreshTotp } from "../auth-db";
+import { databaseSession, getAuthDatabase, verifyAccountPassword, verifyFreshTotp } from "../auth-db";
 import { inspectActiveCredential, revokeCredentials, storeCredentials, type CustodyMetadata } from "../credential-custody";
 
 export const PROVISIONING_TTL_MS = 5 * 60_000;
@@ -33,8 +33,13 @@ function audit(userId: string, event: string, purpose: ProvisioningPurpose | nul
 export function provisioningAvailability() {
   return { enabled: enabled(), liveTradingEnabled: process.env.LIVE_TRADING_ENABLED === "true" };
 }
+function assertOwnerSession(userId: string, sessionToken: string) {
+  const user = databaseSession(sessionToken);
+  if (userId !== "rob" || user?.id !== "rob" || user.role !== "owner") throw new Error("PROVISIONING_UNAVAILABLE");
+}
 export async function beginProvisioningAuthorization(input: { userId: string; sessionToken: string; purpose: ProvisioningPurpose; password: string; totp: string }, now = Date.now()) {
-  if (!enabled() || input.userId !== "rob" || !input.sessionToken) throw new Error("PROVISIONING_UNAVAILABLE");
+  if (!enabled()) throw new Error("PROVISIONING_UNAVAILABLE");
+  assertOwnerSession(input.userId, input.sessionToken);
   const passwordValid = await verifyAccountPassword(input.userId, input.password);
   const mfaValid = passwordValid && verifyFreshTotp(input.userId, input.totp, now);
   if (!mfaValid) { audit(input.userId, "reauth-failed", input.purpose, now); throw new Error("REAUTH_FAILED"); }
@@ -49,6 +54,7 @@ export async function beginProvisioningAuthorization(input: { userId: string; se
 }
 function consume(token: string, userId: string, sessionToken: string, purpose: ProvisioningPurpose, now = Date.now()) {
   if (!enabled() || !/^[A-Za-z0-9_-]{43}$/.test(token)) return false;
+  assertOwnerSession(userId, sessionToken);
   const db = tables(); db.exec("BEGIN IMMEDIATE");
   try {
     const result = db.prepare(`UPDATE credential_provisioning_authorizations SET consumed_at=?
@@ -59,15 +65,15 @@ function consume(token: string, userId: string, sessionToken: string, purpose: P
     return result.changes === 1;
   } catch (error) { db.exec("ROLLBACK"); throw error; }
 }
-export function provisionCredential(input: { token: string; userId: string; sessionToken: string; accountRef: string; apiKey: string; apiSecret: string }) {
+export function provisionCredential(input: { token: string; userId: string; sessionToken: string; accountRef: string; apiKey: string; apiSecret: string }, now = Date.now()) {
   if (!ACCOUNT_REF.test(input.accountRef) || !input.apiKey || !input.apiSecret || input.apiKey.length > 512 || input.apiSecret.length > 512) throw new Error("INVALID_REQUEST");
-  if (!consume(input.token, input.userId, input.sessionToken, "provision")) throw new Error("AUTHORIZATION_INVALID");
+  if (!consume(input.token, input.userId, input.sessionToken, "provision", now)) throw new Error("AUTHORIZATION_INVALID");
   if (inspectActiveCredential(input.userId, input.accountRef)) throw new Error("ALREADY_CONFIGURED");
   const metadata = storeCredentials({ userId: input.userId, accountRef: input.accountRef, credentials: { apiKey: input.apiKey, apiSecret: input.apiSecret } });
   audit(input.userId, "custody-created", "provision"); return metadata;
 }
-export function revokeCredential(input: { token: string; userId: string; sessionToken: string; accountRef: string }) {
-  if (!ACCOUNT_REF.test(input.accountRef) || !consume(input.token, input.userId, input.sessionToken, "revoke")) throw new Error("AUTHORIZATION_INVALID");
+export function revokeCredential(input: { token: string; userId: string; sessionToken: string; accountRef: string }, now = Date.now()) {
+  if (!ACCOUNT_REF.test(input.accountRef) || !consume(input.token, input.userId, input.sessionToken, "revoke", now)) throw new Error("AUTHORIZATION_INVALID");
   const active = inspectActiveCredential(input.userId, input.accountRef); if (!active) throw new Error("NOT_CONFIGURED");
   revokeCredentials({ userId: input.userId, accountRef: input.accountRef, recordId: active.recordId }); audit(input.userId, "custody-revoked", "revoke");
 }

@@ -414,5 +414,5 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 
 - [x] Add disabled, encrypted, server-only future credential custody with key versioning and atomic rewrap.
 - [x] Add a disabled-by-default, owner-only fresh-password + fresh-TOTP provisioning and revocation ceremony with metadata-only status.
-- [ ] Design a separately reviewed, strongly authenticated credential provisioning ceremony.
+- [x] Complete the separately reviewed, strongly authenticated credential provisioning ceremony design.
 - [ ] Review and design execution mechanics/provider wiring. Custody completion does not complete controlled activation or live execution.

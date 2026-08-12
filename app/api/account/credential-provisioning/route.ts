@@ -20,6 +20,18 @@ async function boundedJson(request: Request) {
   const text = await request.text(); if (Buffer.byteLength(text) > 2_048) throw new Error("INVALID_REQUEST");
   return JSON.parse(text) as Record<string, unknown>;
 }
+async function boundedBody(request: Request) {
+  const type = request.headers.get("content-type") || "";
+  if (type.startsWith("application/x-www-form-urlencoded")) {
+    const length = Number(request.headers.get("content-length") || 0); if (length > 2_048) throw new Error("INVALID_REQUEST");
+    const text = await request.text(); if (Buffer.byteLength(text) > 2_048) throw new Error("INVALID_REQUEST");
+    return Object.fromEntries(new URLSearchParams(text));
+  }
+  return boundedJson(request);
+}
+function nativeResult(request: Request, outcome: string) {
+  return NextResponse.redirect(new URL(`/account/profile?custody=${outcome}`, request.url), 303);
+}
 function clearAuthorization(result: NextResponse) { result.cookies.set(COOKIE, "", { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/api/account/credential-provisioning", maxAge: 0 }); return result; }
 
 export async function GET(request: Request) {
@@ -36,7 +48,8 @@ export async function POST(request: Request) {
   const ip = requestIp(request);
   if (consumeRateLimit([`credential-provisioning:user:${context.user.id}`, `credential-provisioning:ip:${ip}`], 8, 15 * 60_000)) return response({ error: "Too many attempts." }, 429);
   let body: Record<string, unknown>;
-  try { body = await boundedJson(request); } catch { return response({ error: "Invalid request." }, 400); }
+  const native = (request.headers.get("content-type") || "").startsWith("application/x-www-form-urlencoded");
+  try { body = await boundedBody(request); } catch { return response({ error: "Invalid request." }, 400); }
   const action = body.action;
   try {
     if (action === "authorize") {
@@ -50,17 +63,17 @@ export async function POST(request: Request) {
     const token = (await cookies()).get(COOKIE)?.value || "";
     if (action === "provision") {
       const credential = provisionCredential({ token, userId: context.user.id, sessionToken: context.sessionToken, accountRef: String(body.accountRef || ""), apiKey: String(body.apiKey || ""), apiSecret: String(body.apiSecret || "") });
-      return clearAuthorization(response({ credential }));
+      return clearAuthorization(native ? nativeResult(request, "provisioned") : response({ credential }));
     }
     if (action === "revoke") {
       revokeCredential({ token, userId: context.user.id, sessionToken: context.sessionToken, accountRef: String(body.accountRef || "") });
-      return clearAuthorization(response({ revoked: true }));
+      return clearAuthorization(native ? nativeResult(request, "revoked") : response({ revoked: true }));
     }
     throw new Error("INVALID_REQUEST");
   } catch (error) {
     const kind = String(error);
     if (kind.includes("PROVISIONING_UNAVAILABLE")) return clearAuthorization(response({ error: "Credential provisioning is disabled." }, 503));
     if (kind.includes("ALREADY_CONFIGURED")) return clearAuthorization(response({ error: "Credentials are already configured; revoke them before provisioning again." }, 409));
-    return clearAuthorization(response({ error: "The credential ceremony could not be completed." }, 403));
+    return clearAuthorization(native ? nativeResult(request, "failed") : response({ error: "The credential ceremony could not be completed." }, 403));
   }
 }
