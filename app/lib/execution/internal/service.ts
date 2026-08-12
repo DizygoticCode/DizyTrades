@@ -1,21 +1,14 @@
 import "server-only";
 
-import { createExecutionAuditEvent, type ExecutionAuditEvent, type ExecutionAuditKind } from "./audit";
+import { createExecutionAuditEvent } from "./audit";
 import { NonExecutingExecutionAdapter, type ExecutionAdapter } from "./adapter";
 import { executionCapabilityGate } from "./gate";
-import { defaultExecutionKillSwitches, executionKillSwitchReason, type ExecutionKillSwitches } from "./kill-switch";
-import type { ExecutionResult } from "./types";
-import { validateExecutionIntent, type ExecutionIntentInput, type ExecutionPrerequisites } from "./validation";
+import type { ExecutionAuditEvent, ExecutionAuditKind, ExecutionBoundaryResponse, ExecutionPrerequisites, ExecutionResult } from "../types";
+import { validateExecutionIntent, type ExecutionIntentInput } from "./validation";
 import { createExecutionPreview } from "./preview";
-
-export type ExecutionServiceResponse = Readonly<{
-  result: ExecutionResult;
-  auditEvents: readonly ExecutionAuditEvent[];
-}>;
 
 type ServiceOptions = Readonly<{
   environment?: Readonly<Record<string, string | undefined>>;
-  killSwitches?: ExecutionKillSwitches;
   now?: () => Date;
 }>;
 
@@ -26,7 +19,8 @@ export class ExecutionAirlockService {
 
   constructor(private readonly options: ServiceOptions = {}) {}
 
-  process(input: ExecutionIntentInput, prerequisites: ExecutionPrerequisites): ExecutionServiceResponse {
+  /** @internal Only ExecutionBoundary may call this implementation. */
+  process(input: ExecutionIntentInput, prerequisites: ExecutionPrerequisites, boundaryKillReason: ExecutionResult["reason"]): ExecutionBoundaryResponse {
     const events: ExecutionAuditEvent[] = [];
     const occurredAt = (this.options.now ?? (() => new Date()))().toISOString();
     let identity = {
@@ -67,9 +61,7 @@ export class ExecutionAirlockService {
       return Object.freeze({ result: Object.freeze({ ...duplicate, duplicate: true, reason: "DUPLICATE_INTENT" }), auditEvents: Object.freeze(events) });
     }
     const gate = executionCapabilityGate(this.options.environment);
-    const switches = this.options.killSwitches ?? defaultExecutionKillSwitches();
-    const killReason = executionKillSwitchReason(switches, validation.intent);
-    const reason = gate.reason === "adapter-unavailable" ? "ADAPTER_UNAVAILABLE" : killReason;
+    const reason = gate.reason === "adapter-unavailable" ? "ADAPTER_UNAVAILABLE" : boundaryKillReason;
     audit(reason === "ADAPTER_UNAVAILABLE" ? "adapter-unavailable" : "kill-switch-active", reason);
     const result = this.adapter.prepare(validation.intent, createExecutionPreview(validation.intent, prerequisites), reason);
     audit("execution-blocked", reason);

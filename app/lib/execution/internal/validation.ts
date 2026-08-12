@@ -3,29 +3,18 @@ import "server-only";
 import {
   isMexcStepAligned,
   quantizeMexcStep,
-  type MexcContractMetadata,
-} from "../mexc-contract-metadata";
+} from "../../mexc-contract-metadata";
 import {
   EXECUTION_CONTRACT_VERSION,
   type ExecutionIntent,
   type ExecutionRejection,
   type ExecutionRejectionCode,
+  type ExecutionPrerequisites,
   type ExecutionValidationResult,
-} from "./types";
+} from "../types";
 import { serverExecutionPolicy } from "./policy";
 
 export type ExecutionIntentInput = Readonly<Record<string, unknown>>;
-export type ExecutionPrerequisites = Readonly<{
-  contracts: ReadonlyMap<string, MexcContractMetadata> | null;
-  referencePrices: ReadonlyMap<string, Readonly<{ price: number; observedAt: string }>> | null;
-  accountState: Readonly<{
-    userId: string;
-    accountId: string;
-    observedAt: string;
-    positions: readonly Readonly<{ symbol: string; side: "long" | "short"; quantity: number }>[];
-  }> | null;
-}>;
-
 const identityPattern = /^[a-z0-9_-]{1,120}$/i;
 const keyPattern = /^[a-zA-Z0-9_-]{8,120}$/;
 const symbolPattern = /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;

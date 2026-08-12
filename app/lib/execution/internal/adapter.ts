@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { ExecutionIntent, ExecutionResult } from "./types";
+import type { ExecutionIntent, ExecutionResult } from "../types";
 import type { ExecutionPreview } from "./preview";
 
 export interface ExecutionAdapter {

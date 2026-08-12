@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { ExecutionBlockCode } from "./types";
+import type { ExecutionBlockCode } from "../types";
 
 export type ExecutionKillSwitches = Readonly<{
   globalDisabled: boolean;

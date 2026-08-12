@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createExecutionAuditEvent } from "../app/lib/execution/audit.ts";
-import { executionCapabilityGate } from "../app/lib/execution/gate.ts";
-import { executionKillSwitchReason } from "../app/lib/execution/kill-switch.ts";
-import { ExecutionAirlockService } from "../app/lib/execution/service.ts";
-import { validateExecutionIntent } from "../app/lib/execution/validation.ts";
+import { createExecutionAuditEvent } from "../app/lib/execution/internal/audit.ts";
+import { executionCapabilityGate } from "../app/lib/execution/internal/gate.ts";
+import { executionKillSwitchReason } from "../app/lib/execution/internal/kill-switch.ts";
+import { executionBoundary } from "../app/lib/execution/boundary.ts";
+import { createTestExecutionBoundary } from "../app/lib/execution/internal/testing.ts";
+import { validateExecutionIntent } from "../app/lib/execution/internal/validation.ts";
 
 const contract = Object.freeze({
   symbol: "BTC_USDT", displayName: "BTC USDT", contractSize: 0.0001,
@@ -27,6 +28,26 @@ const valid = Object.freeze({
   price: 65000, leverage: 10, reduceOnly: false, source: "manual",
   createdAt: "2026-08-12T12:00:00.000Z",
 });
+
+const enabledSwitchState = Object.freeze({ globalDisabled: false, disabledUserIds: new Set(), disabledAccountIds: new Set(), providerStateFresh: true, maintenance: false, emergencyStop: false });
+function makeService(options = {}) {
+  const boundary = createTestExecutionBoundary({
+    environment: options.environment,
+    now: options.now,
+    readKillSwitches: options.readKillSwitches ?? (() => ({ ...enabledSwitchState, globalDisabled: true })),
+    authenticateInternalCaller: ({ callerId, assertionId }) => {
+      const [userId, accountId] = assertionId.split(":");
+      return callerId === "dizytrades-server" && userId && accountId ? { callerId, userId, accountId } : null;
+    },
+  });
+  return { process: (intent, suppliedPrerequisites) => boundary.preview({
+    callerAssertion: { callerId: "dizytrades-server", assertionId: `${intent.userId}:${intent.accountId}` },
+    userId: intent.userId,
+    accountId: intent.accountId,
+    intent,
+    prerequisites: suppliedPrerequisites,
+  }) };
+}
 
 test("execution capability defaults and malformed configuration fail closed", () => {
   assert.deepEqual(executionCapabilityGate({}), { configured: false, enabled: false, reason: "absent" });
@@ -59,7 +80,7 @@ test("quantity obeys contract volume bounds and step alignment", () => {
 });
 
 test("tolerance-aligned quantities are quantized before preview estimates", () => {
-  const service = new ExecutionAirlockService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z") });
+  const service = makeService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z") });
   const response = service.process({ ...valid, quantity: 0.00100000000001 }, prerequisites);
   assert.equal(response.result.preview.quantity, 0.001);
   assert.equal(response.result.preview.normalizedContractVolume, 10);
@@ -87,7 +108,7 @@ test("airlock always blocks, detects duplicate keys deterministically and perfor
   let networkRequests = 0;
   globalThis.fetch = () => { networkRequests += 1; throw new Error("network forbidden"); };
   try {
-    const service = new ExecutionAirlockService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z") });
+    const service = makeService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z") });
     const first = service.process(valid, prerequisites);
     const duplicate = service.process(valid, prerequisites);
     assert.deepEqual(first.result, {
@@ -107,15 +128,90 @@ test("airlock always blocks, detects duplicate keys deterministically and perfor
 });
 
 test("literal true still ends at adapter-unavailable without execution", () => {
-  const service = new ExecutionAirlockService({ environment: { LIVE_TRADING_ENABLED: "true" }, now: () => new Date("2026-08-12T12:01:00Z") });
+  const service = makeService({ environment: { LIVE_TRADING_ENABLED: "true" }, now: () => new Date("2026-08-12T12:01:00Z") });
   const response = service.process(valid, prerequisites);
   assert.equal(response.result.reason, "ADAPTER_UNAVAILABLE");
   assert.equal(response.result.executed, false);
   assert.equal(response.result.state, "blocked");
 });
 
+test("isolated boundary authenticates its internal caller and binds user and account", () => {
+  const base = {
+    readKillSwitches: () => enabledSwitchState,
+    environment: { LIVE_TRADING_ENABLED: "false" },
+    now: () => new Date("2026-08-12T12:01:00Z"),
+  };
+  const request = { callerAssertion: { callerId: "dizytrades-server", assertionId: "assertion-1" }, userId: valid.userId, accountId: valid.accountId, intent: valid, prerequisites };
+  const unauthenticated = createTestExecutionBoundary({ ...base, authenticateInternalCaller: () => null }).preview(request);
+  assert.equal(unauthenticated.result.reason, "CALLER_UNAUTHENTICATED");
+  assert.equal(unauthenticated.result.executed, false);
+  const foreign = createTestExecutionBoundary({ ...base, authenticateInternalCaller: () => ({ callerId: "dizytrades-server", userId: "user-2", accountId: valid.accountId }) }).preview(request);
+  assert.equal(foreign.result.reason, "CALLER_IDENTITY_MISMATCH");
+  assert.equal(foreign.result.preview, null);
+  const wrongCaller = createTestExecutionBoundary({ ...base, authenticateInternalCaller: () => ({ callerId: "another-service", userId: valid.userId, accountId: valid.accountId }) }).preview(request);
+  assert.equal(wrongCaller.result.reason, "CALLER_UNAUTHENTICATED");
+});
+
+test("kill switches are boundary-owned and cannot be overridden by intent fields", () => {
+  for (const [switches, reason] of [
+    [{ ...enabledSwitchState, globalDisabled: true }, "GLOBAL_EXECUTION_DISABLED"],
+    [{ ...enabledSwitchState, disabledUserIds: new Set([valid.userId]) }, "USER_EXECUTION_DISABLED"],
+    [{ ...enabledSwitchState, disabledAccountIds: new Set([valid.accountId]) }, "ACCOUNT_EXECUTION_DISABLED"],
+  ]) {
+    const service = makeService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z"), readKillSwitches: () => switches });
+    const response = service.process({ ...valid, killSwitches: enabledSwitchState, globalDisabled: false }, prerequisites);
+    assert.equal(response.result.reason, reason);
+    assert.equal(response.result.executed, false);
+  }
+});
+
+test("boundary dependency failures are isolated and fail without a preview", () => {
+  const boundary = createTestExecutionBoundary({
+    authenticateInternalCaller: () => ({ callerId: "dizytrades-server", userId: valid.userId, accountId: valid.accountId }),
+    readKillSwitches: () => { throw new Error("provider unavailable"); },
+  });
+  const response = boundary.preview({ callerAssertion: { callerId: "dizytrades-server", assertionId: "assertion-1" }, userId: valid.userId, accountId: valid.accountId, intent: valid, prerequisites });
+  assert.equal(response.result.reason, "BOUNDARY_DEPENDENCY_FAILURE");
+  assert.equal(response.result.executed, false);
+  assert.equal(response.result.preview, null);
+});
+
+test("malformed authentication and kill-switch dependency output fails closed", () => {
+  const request = { callerAssertion: { callerId: "dizytrades-server", assertionId: "assertion-1" }, userId: valid.userId, accountId: valid.accountId, intent: valid, prerequisites };
+  const authenticated = () => ({ callerId: "dizytrades-server", userId: valid.userId, accountId: valid.accountId });
+  for (const authenticateInternalCaller of [
+    () => undefined,
+    () => ({ callerId: "dizytrades-server", userId: valid.userId }),
+    () => { throw new Error("authentication unavailable"); },
+  ]) {
+    const response = createTestExecutionBoundary({ authenticateInternalCaller, readKillSwitches: () => enabledSwitchState }).preview(request);
+    assert.equal(response.result.reason, "BOUNDARY_DEPENDENCY_FAILURE");
+    assert.equal(response.result.executed, false);
+    assert.equal(response.result.preview, null);
+  }
+  for (const malformed of [
+    null,
+    {},
+    { ...enabledSwitchState, disabledUserIds: null },
+    { ...enabledSwitchState, disabledAccountIds: [valid.accountId] },
+    { ...enabledSwitchState, maintenance: "false" },
+    { ...enabledSwitchState, disabledUserIds: new Set([null]) },
+  ]) {
+    const response = createTestExecutionBoundary({ authenticateInternalCaller: authenticated, readKillSwitches: () => malformed }).preview(request);
+    assert.equal(response.result.reason, "BOUNDARY_DEPENDENCY_FAILURE");
+    assert.equal(response.result.executed, false);
+    assert.equal(response.result.preview, null);
+  }
+});
+
+test("application boundary is a server-owned singleton with no construction API", async () => {
+  const importedAgain = await import("../app/lib/execution/boundary.ts");
+  assert.equal(importedAgain.executionBoundary, executionBoundary);
+  assert.deepEqual(Object.keys(importedAgain), ["executionBoundary"]);
+});
+
 test("idempotency keys are isolated by authenticated user and account identity", () => {
-  const service = new ExecutionAirlockService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z") });
+  const service = makeService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z") });
   const first = service.process(valid, prerequisites);
   const otherUser = service.process(
     { ...valid, intentId: "intent-0002", userId: "user-2" },
@@ -143,7 +239,7 @@ test("execution audit events hash identities, omit secrets and reject secret-sha
 });
 
 test("rejected input is not copied into audit events", () => {
-  const service = new ExecutionAirlockService();
+  const service = makeService();
   const response = service.process({ ...valid, symbol: "TOKEN", intentId: "secret" }, prerequisites);
   assert.equal(response.result.state, "rejected");
   const audit = JSON.stringify(response.auditEvents);
@@ -169,7 +265,7 @@ test("limit notional policy and preview use the higher validated limit price", (
   assert.equal(result.ok, false);
   assert.equal(result.rejections.some(({ code }) => code === "POLICY_NOTIONAL_EXCEEDED"), true);
 
-  const service = new ExecutionAirlockService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => now });
+  const service = makeService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => now });
   const accepted = service.process({ ...valid, price: 70000 }, prerequisites);
   assert.equal(accepted.result.preview.estimatedNotional, 70);
   assert.equal(accepted.result.preview.estimatedMargin, 7);

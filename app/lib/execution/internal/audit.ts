@@ -2,28 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import type { ExecutionBlockCode, ExecutionRejectionCode } from "./types";
-
-export type ExecutionAuditKind =
-  | "intent-received"
-  | "validation-passed"
-  | "validation-rejected"
-  | "execution-blocked"
-  | "duplicate-intent-detected"
-  | "kill-switch-active"
-  | "adapter-unavailable";
-
-export type ExecutionAuditEvent = Readonly<{
-  schemaVersion: "execution-audit/1.0.0";
-  eventId: string;
-  occurredAt: string;
-  kind: ExecutionAuditKind;
-  intentId: string;
-  idempotencyDigest: string;
-  actorDigest: string;
-  symbol?: string;
-  reason?: ExecutionBlockCode | ExecutionRejectionCode;
-}>;
+import type { ExecutionAuditEvent, ExecutionAuditKind, ExecutionBlockCode, ExecutionRejectionCode } from "../types";
 
 const safeValue = /^[a-zA-Z0-9_:-]{1,120}$/;
 const forbiddenField = /api.?key|secret|signature|authorization|credential|cookie|session|token|password/i;

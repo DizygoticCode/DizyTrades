@@ -325,6 +325,15 @@ account and position state. It remains non-routable and non-executing. The
 requirements below remain unchecked because this slice is not operational
 execution infrastructure and has not received independent security approval.
 
+A third readiness slice isolates the in-process airlock behind one narrow typed
+boundary. It authenticates and binds internal callers, owns kill-switch
+enforcement, preserves user/account/key idempotency scope and prevents
+application, client, route and paper-simulation imports from bypassing the
+boundary. The item remains unchecked: the boundary is not a separately deployed
+service, idempotency and switch state are not durable/shared, audit events are
+not immutable storage, and no independent operational or security approval has
+occurred. It adds no exchange write capability.
+
 Live execution remains disabled until every relevant requirement below is implemented, exercised and independently reviewed:
 
 - [ ] isolated execution service or equivalently isolated execution boundary

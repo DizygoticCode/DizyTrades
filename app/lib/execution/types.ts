@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { MexcContractMetadata } from "../mexc-contract-metadata";
+
 export const EXECUTION_CONTRACT_VERSION = "execution-airlock/1.0.0" as const;
 
 export type ExecutionState =
@@ -33,6 +35,9 @@ export type ExecutionIntent = Readonly<{
 }>;
 
 export type ExecutionRejectionCode =
+  | "CALLER_UNAUTHENTICATED"
+  | "CALLER_IDENTITY_MISMATCH"
+  | "BOUNDARY_DEPENDENCY_FAILURE"
   | "INVALID_IDENTITY"
   | "INVALID_IDEMPOTENCY_KEY"
   | "INVALID_SYMBOL"
@@ -60,6 +65,32 @@ export type ExecutionRejection = Readonly<{
   code: ExecutionRejectionCode;
   field: string;
   message: string;
+}>;
+
+/** Narrow, server-to-server request accepted by the isolated boundary. */
+export type ExecutionBoundaryRequest = Readonly<{
+  callerAssertion: Readonly<{ callerId: string; assertionId: string }>;
+  userId: string;
+  accountId: string;
+  intent: Readonly<Record<string, unknown>>;
+  prerequisites: ExecutionPrerequisites;
+}>;
+
+export type ExecutionPrerequisites = Readonly<{
+  contracts: ReadonlyMap<string, MexcContractMetadata> | null;
+  referencePrices: ReadonlyMap<string, Readonly<{ price: number; observedAt: string }>> | null;
+  accountState: Readonly<{
+    userId: string;
+    accountId: string;
+    observedAt: string;
+    positions: readonly Readonly<{ symbol: string; side: "long" | "short"; quantity: number }>[];
+  }> | null;
+}>;
+
+export type AuthenticatedExecutionCaller = Readonly<{
+  callerId: string;
+  userId: string;
+  accountId: string;
 }>;
 
 export type ExecutionValidationResult =
@@ -97,4 +128,26 @@ export type ExecutionResult = Readonly<{
     leverage: number;
     reduceOnly: boolean;
   }> | null;
+}>;
+
+export type ExecutionAuditKind =
+  | "intent-received" | "validation-passed" | "validation-rejected"
+  | "execution-blocked" | "duplicate-intent-detected" | "kill-switch-active"
+  | "adapter-unavailable";
+
+export type ExecutionAuditEvent = Readonly<{
+  schemaVersion: "execution-audit/1.0.0";
+  eventId: string;
+  occurredAt: string;
+  kind: ExecutionAuditKind;
+  intentId: string;
+  idempotencyDigest: string;
+  actorDigest: string;
+  symbol?: string;
+  reason?: ExecutionBlockCode | ExecutionRejectionCode;
+}>;
+
+export type ExecutionBoundaryResponse = Readonly<{
+  result: ExecutionResult;
+  auditEvents: readonly ExecutionAuditEvent[];
 }>;
