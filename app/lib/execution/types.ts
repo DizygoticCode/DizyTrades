@@ -119,7 +119,9 @@ export type ExecutionBlockCode =
   | "ADAPTER_UNAVAILABLE"
   | "PROVIDER_EXCEPTION"
   | "PROVIDER_MALFORMED_RESULT"
-  | "SYNTHETIC_PROVIDER_OUTCOME";
+  | "SYNTHETIC_PROVIDER_OUTCOME"
+  | "EXECUTION_STATE_UNAVAILABLE"
+  | "EXECUTION_STATE_INVALID";
 
 export type ExecutionResult = Readonly<{
   intentId: string;
@@ -149,7 +151,8 @@ export type ExecutionAuditKind =
   | "intent-received" | "validation-passed" | "validation-rejected"
   | "execution-blocked" | "duplicate-intent-detected" | "kill-switch-active"
   | "adapter-unavailable"
-  | "provider-evaluated" | "provider-failed";
+  | "provider-evaluated" | "provider-failed"
+  | "execution-state-failed";
 
 export type ExecutionAuditEvent = Readonly<{
   schemaVersion: "execution-audit/1.0.0";

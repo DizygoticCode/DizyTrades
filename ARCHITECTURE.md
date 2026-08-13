@@ -334,10 +334,11 @@ Restore requirements:
 - Replay memories
 - Historical DizyFlow memories
 - Historical DizyBrain reviews
+- bounded guarded-execution state/idempotency records
 - bounded audit records
 - owner-scoped backups
 
-Writes are atomic where file-backed and serialised where concurrent mutation could corrupt state. The supported production topology is one Render instance with persistent SQLite authentication/session/rate-limit state and vertical scaling first. Horizontal multi-instance operation is not currently planned and would require shared managed storage plus a separate shared authentication/rate-limit design before use.
+Writes are atomic where file-backed and serialised where concurrent mutation could corrupt state. The supported production topology is one Render instance with persistent SQLite authentication/session/rate-limit and guarded-execution idempotency state, with vertical scaling first. Horizontal multi-instance operation is not currently planned and would require shared managed storage plus a separate shared authentication/rate-limit and execution-state design before use.
 
 ## Deployment configuration boundary
 
@@ -351,7 +352,7 @@ Production behaviour, not the YAML file alone, is the final evidence boundary.
 
 The current repository contains no enabled live-order path. `LIVE_TRADING_ENABLED=false` remains required.
 
-The server-owned `ExecutionBoundary` now also contains a narrow provider-mechanics
+The server-owned `ExecutionBoundary` also contains a narrow provider-mechanics
 contract. Its single production implementation is `NonExecutingProvider`: it has
 no network, signer, credential or custody dependency and returns only typed,
 deterministic `would-accept`, `would-reject`, `would-timeout` or `would-unknown`
@@ -362,12 +363,12 @@ acknowledgement or reconciliation, and application code cannot inject a provider
 
 The first guarded-execution architecture slice adds a **server-only execution
 airlock**. A validated, immutable futures intent passes through structural risk
-validation, local idempotency detection, typed kill switches and an execution
-service boundary to the repository's sole adapter: a non-executing adapter that
-can only return `blocked`. There is no execution API route, exchange payload,
-network transport or production exchange write adapter. Setting the generic
-live flag to any value cannot connect this airlock to MEXC; even the literal
-`true` value fails closed as `adapter-unavailable`.
+validation, duplicate detection, typed kill switches and an execution service
+boundary to the repository's sole adapter: a non-executing adapter that can only
+return `blocked`. There is no execution API route, exchange payload, network
+transport or production exchange write adapter. Setting the generic live flag
+to any value cannot connect this airlock to MEXC; even the literal `true` value
+fails closed as `adapter-unavailable`.
 
 The second slice adds a deterministic server-owned, default-deny preview policy.
 Fresh authoritative reference prices, fresh supplied account/position state,
@@ -378,28 +379,40 @@ margin and policy version, but still ends at the same blocking adapter with
 `executed: false`.
 
 The third readiness slice puts that airlock behind a server-owned singleton,
-`executionBoundary`, the sole
-application-facing server-side entry point. Its narrow request carries an
-internal caller assertion, an explicit user/account binding, an intent and the
-authoritative prerequisites. A server-owned verifier must authenticate and bind
-the caller to that exact user/account before validation. The boundary, rather
-than its caller, reads global, per-user and per-account kill-switch state and
-passes only the resulting block reason into the internal airlock. Authentication
-or dependency failure is isolated as a rejected, preview-free, `executed: false`
-response. Its construction and dependency-injection seam are internal, so an
-application caller cannot replace those dependencies or reset process-local
-idempotency by constructing another airlock. Source contracts forbid routes,
+`executionBoundary`, the sole application-facing server-side entry point. Its
+narrow request carries an internal caller assertion, an explicit user/account
+binding, an intent and the authoritative prerequisites. A server-owned verifier
+must authenticate and bind the caller to that exact user/account before
+validation. The boundary, rather than its caller, reads global, per-user and
+per-account kill-switch state and passes only the resulting block reason into
+the internal airlock. Authentication or dependency failure is isolated as a
+rejected, preview-free, `executed: false` response. Its construction and
+dependency-injection seam are internal, and source contracts forbid routes,
 client modules, paper routes and other application modules from importing the
 implementation modules directly.
 
-This isolation is process-local readiness architecture, not an operationally
-independent or durable execution service. Idempotency remains in memory, audit
-events are not durably stored, and the only adapter has no transport. Therefore
-the guarded-execution roadmap gate remains open.
+The fourth readiness slice replaces process-local execution idempotency authority
+with a dedicated server-only SQLite store at `DATA_DIR/execution-state.sqlite`.
+Production composition owns the store. A unique `(userId, accountId,
+idempotencyKey)` processing claim is committed transactionally before synthetic
+provider mechanics can run. Bounded terminal `rejected`, `blocked` and synthetic
+`prepared` results are schema-validated, secret-free and always `executed:false`.
+A reconstructed service using the same database retains duplicate history;
+provider exceptions and malformed synthetic outcomes stay duplicate-protected,
+and an unfinished processing reservation after a crash blocks provider re-entry.
+Malformed records, unsupported schema versions and database open/read/write
+failures fail closed with no permissive in-memory fallback.
+
+This is durable readiness state for the current supported **single Render
+instance**. It is not a horizontally shared multi-instance execution service,
+not exchange order submission and not acknowledgement/reconciliation. Kill-switch
+state is not yet durable/shared, execution audit events are not an immutable
+execution audit store, and the only adapter/provider remains non-executing with
+no exchange transport. Therefore the guarded-execution roadmap gate remains open.
 
 DizyAccount remains an independent owner-only, GET-only observation and shadow
-reconciliation layer. DizyPaper and pending orders remain simulation-only. This
-slice defines architecture and preliminary structural checks, not live risk
+reconciliation layer. DizyPaper and pending orders remain simulation-only. These
+slices define architecture and preliminary structural checks, not live risk
 approval or guarded-execution completion.
 
 Future connectivity must preserve the already-completed read-only observation layer and introduce write capability only through a separate guarded execution architecture:
@@ -420,12 +433,15 @@ Immutable audit record
 
 Encrypted write-capable credentials, shared abuse controls for any horizontal deployment, loss limits, symbol/notional/leverage limits, reduce-only enforcement, stale-price/account-state rejection, emergency shutdown, provider-recovery rehearsal and independent security review are mandatory before execution. Database-account MFA and hardened opaque sessions are implemented; legacy signed owner/admin sessions remain ordinary-application compatibility only and cannot satisfy future guarded-execution MFA.
 
-Future stages still require encrypted credential custody; shared abuse/rate limiting for any horizontal deployment; full server-side risk validation; durable
-idempotency; exchange acknowledgement and reconciliation; symbol, leverage,
-notional and daily-loss limits; enforceable reduce-only behaviour; authoritative
-stale-state rejection; operational global/per-user kill switches; an immutable
-execution audit trail; provider rollback rehearsal; restricted test-account
-rollout; and independent security approval.
+Future stages still require shared abuse/rate limiting for any horizontal
+deployment; a separately approved execution authentication/activation path; real
+idempotent order submission; exchange acknowledgement and deterministic
+reconciliation; durable operational symbol, leverage, notional and daily-loss
+limits; enforceable reduce-only behaviour; authoritative stale-state rejection;
+operational global/per-user kill switches; an immutable execution audit trail;
+provider rollback/restart rehearsal; restricted test-account rollout; and
+independent security approval. Existing encrypted credential custody remains
+disabled and disconnected until a separately reviewed future wiring decision.
 
 ## Pull-request rule
 

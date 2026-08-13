@@ -24,6 +24,18 @@ There is no execution route or production exchange adapter. This is an
 architecture-only prerequisite and does not approve live execution; DizyAccount
 remains read-only and DizyPaper remains simulation-only.
 
+Durable execution-state/idempotency bookkeeping is isolated in the server-only
+execution compartment. Production composition owns a dedicated
+`DATA_DIR/execution-state.sqlite` store using a versioned schema, SQLite WAL,
+strong synchronous mode and the existing single-instance persistent-disk posture.
+A unique `(userId, accountId, idempotencyKey)` processing claim is committed
+before synthetic provider mechanics can run. Bounded rejected, blocked and
+synthetic prepared results persist only validated non-secret fields and always
+retain `executed:false`. Store open, schema, read, write or validation failures
+fail closed; production has no permissive process-local idempotency fallback.
+An unfinished processing claim after a crash remains duplicate-protected rather
+than allowing provider re-entry after restart.
+
 The deterministic preview layer accepts prerequisite market/account snapshots
 only as evidence, never as policy. Risk limits are compiled into the server-only
 boundary; missing, invalid, stale or policy-violating evidence is rejected. A
@@ -37,11 +49,12 @@ user/account binding to match the request, and obtains kill-switch state through
 its own dependency.
 Caller-supplied intent fields cannot override identity, policy or global,
 per-user or per-account shutdown state. Construction and dependency injection
-remain internal/test-only, preventing application callers from resetting the
-in-memory idempotency store. Malformed output, exceptions, and other verifier or
-shutdown-provider failures fail closed before a preview. There is still no
-public execution route, write
-transport, signing implementation or write-key custody.
+remain internal/test-only, preventing application callers from replacing the
+production-owned durable execution-state store. Malformed stored state, store
+failures, malformed provider output, exceptions, and other verifier or
+shutdown-provider failures fail closed before any execution capability can be
+reached. There is still no public execution route, write transport, signing
+implementation or write-key custody.
 
 Never commit passwords, session secrets, API keys, Gmail App Passwords, `.env` files or exported account backups.
 
@@ -156,7 +169,7 @@ The application-level recovery path is exercised destructively in isolated tempo
 
 Per-user settings, workspaces, Manual Paper, Journal and retained historical evidence are written beneath `DATA_DIR` using strict one-to-one owner identifiers and atomic file replacement where supported. Unsupported owner-ID characters are rejected rather than removed, preventing two identities from collapsing to the same filename.
 
-The authentication SQLite file is explicitly restricted to owner read/write permissions (`0600`). Database-account identities, opaque session hashes, account-verification/reset token hashes and personal profile/avatar records live in that server-side authentication store. Per-user JSON and audit writes retain their existing private creation mode.
+The authentication SQLite file is explicitly restricted to owner read/write permissions (`0600`). Database-account identities, opaque session hashes, account-verification/reset token hashes and personal profile/avatar records live in that server-side authentication store. The separate guarded-execution state database is also server-only and restricts its main database and SQLite sidecar files to owner read/write permissions where supported; it contains bounded execution-state/idempotency metadata only, never credentials or authorization/session material. Per-user JSON and audit writes retain their existing private creation mode.
 
 Chart workspaces contain display configuration only. Viewer workspace reads are empty and viewer writes are forbidden. Workspace versions prevent confirmed stale-tab overwrites with HTTP 409. Display indicators cannot enter strategy, risk, paper-trading or execution paths.
 
@@ -178,7 +191,7 @@ Use unique throwaway passwords, never commit or reuse them, and retain salted sc
 
 - The SQLite-outage fallback limiter is process-local and resets on restart. It is acceptable only for the current single-instance service.
 - Emergency owner/admin legacy sessions are not individually managed by the public database-account recovery flow.
-- Current production is one Render instance with persistent SQLite authentication and rate-limit state, scaled vertically first. Horizontal multi-instance deployment is not planned for this slice and would require a separate shared-state design before use.
+- Current production is one Render instance with persistent SQLite authentication, rate-limit and guarded-execution idempotency state, scaled vertically first. Guarded-execution idempotency is durable across restart on this supported topology but is not a horizontally shared multi-instance solution. Horizontal multi-instance deployment is not planned for this slice and would require a separate shared-state design before use.
 - Local audit JSONL is operational evidence, not immutable externally anchored security logging.
 - Render host and persistent-disk security remain inside the provider trust boundary.
 - The application remains simulation-only; the read-only Account Companion does not approve or imply exchange write capability.

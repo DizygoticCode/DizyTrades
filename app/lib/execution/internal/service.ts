@@ -3,12 +3,26 @@ import "server-only";
 import { createExecutionAuditEvent } from "./audit";
 import { NonExecutingExecutionAdapter, type ExecutionAdapter } from "./adapter";
 import { executionCapabilityGate } from "./gate";
-import type { ExecutionAuditEvent, ExecutionAuditKind, ExecutionBoundaryResponse, ExecutionPrerequisites, ExecutionResult, SyntheticProviderScenario } from "../types";
+import type {
+  ExecutionAuditEvent,
+  ExecutionAuditKind,
+  ExecutionBoundaryResponse,
+  ExecutionPrerequisites,
+  ExecutionResult,
+  SyntheticProviderScenario,
+} from "../types";
 import { validateExecutionIntent, type ExecutionIntentInput } from "./validation";
 import { createExecutionPreview } from "./preview";
 import { evaluateSyntheticProvider, isSyntheticProviderResult } from "./provider";
+import {
+  executionStateFailureCode,
+  executionStateIdentityFromInput,
+  type ExecutionIdempotencyScope,
+  type ExecutionStateStore,
+} from "./state-store";
 
 type ServiceOptions = Readonly<{
+  stateStore: ExecutionStateStore;
   environment?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
   syntheticProviderScenario?: SyntheticProviderScenario;
@@ -16,11 +30,10 @@ type ServiceOptions = Readonly<{
 }>;
 
 export class ExecutionAirlockService {
-  private readonly processed = new Map<string, ExecutionResult>();
   private sequence = 0;
   private readonly adapter: ExecutionAdapter = new NonExecutingExecutionAdapter();
 
-  constructor(private readonly options: ServiceOptions = {}) {}
+  constructor(private readonly options: ServiceOptions) {}
 
   /** @internal Only ExecutionBoundary may call this implementation. */
   process(input: ExecutionIntentInput, prerequisites: ExecutionPrerequisites, boundaryKillReason: ExecutionResult["reason"] | null): ExecutionBoundaryResponse {
@@ -36,16 +49,100 @@ export class ExecutionAirlockService {
       eventId: `airlock-${++this.sequence}`,
       occurredAt, kind, ...identity, ...(reason ? { reason } : {}),
     }));
+    const response = (result: ExecutionResult): ExecutionBoundaryResponse =>
+      Object.freeze({ result, auditEvents: Object.freeze(events) });
+    const stateFailure = (reason: "EXECUTION_STATE_UNAVAILABLE" | "EXECUTION_STATE_INVALID", preview: ExecutionResult["preview"] = null): ExecutionBoundaryResponse => {
+      audit("execution-state-failed", reason);
+      return response(Object.freeze({
+        intentId: identity.intentId,
+        idempotencyKey: identity.idempotencyKey,
+        state: "blocked",
+        executed: false,
+        duplicate: false,
+        reason,
+        preview,
+      }));
+    };
+    const persist = (scope: ExecutionIdempotencyScope, result: ExecutionResult): ExecutionBoundaryResponse => {
+      try {
+        this.options.stateStore.complete(scope, result, occurredAt);
+        return response(result);
+      } catch (error) {
+        return stateFailure(executionStateFailureCode(error), result.preview);
+      }
+    };
+    const duplicateResult = (
+      stored: ExecutionResult | null,
+      intentId: string,
+      idempotencyKey: string,
+    ): ExecutionBoundaryResponse => {
+      audit("duplicate-intent-detected", "DUPLICATE_INTENT");
+      if (!stored) {
+        return response(Object.freeze({
+          intentId,
+          idempotencyKey,
+          state: "blocked",
+          executed: false,
+          duplicate: true,
+          reason: "DUPLICATE_INTENT",
+          preview: null,
+        }));
+      }
+      return response(Object.freeze({ ...stored, duplicate: true, reason: "DUPLICATE_INTENT" }));
+    };
+
     audit("intent-received");
     const validation = validateExecutionIntent(input, prerequisites, new Date(occurredAt));
     if (!validation.ok) {
       const reason = validation.rejections[0].code;
+      const persistenceIdentity = executionStateIdentityFromInput(input);
+      if (!persistenceIdentity) {
+        audit("validation-rejected", reason);
+        return response(Object.freeze({
+          intentId: identity.intentId,
+          idempotencyKey: identity.idempotencyKey,
+          state: "rejected",
+          executed: false,
+          duplicate: false,
+          reason,
+          preview: null,
+        }));
+      }
+
+      identity = {
+        intentId: persistenceIdentity.identity.intentId,
+        idempotencyKey: persistenceIdentity.scope.idempotencyKey,
+        userId: persistenceIdentity.scope.userId,
+        symbol: persistenceIdentity.identity.symbol,
+      };
       audit("validation-rejected", reason);
-      return Object.freeze({
-        result: Object.freeze({ intentId: identity.intentId, idempotencyKey: identity.idempotencyKey, state: "rejected", executed: false, duplicate: false, reason, preview: null }),
-        auditEvents: Object.freeze(events),
-      });
+      try {
+        const claim = this.options.stateStore.claim(
+          persistenceIdentity.scope,
+          persistenceIdentity.identity,
+          occurredAt,
+        );
+        if (claim.kind === "duplicate") {
+          return duplicateResult(
+            claim.result,
+            persistenceIdentity.identity.intentId,
+            persistenceIdentity.scope.idempotencyKey,
+          );
+        }
+      } catch (error) {
+        return stateFailure(executionStateFailureCode(error));
+      }
+      return persist(persistenceIdentity.scope, Object.freeze({
+        intentId: persistenceIdentity.identity.intentId,
+        idempotencyKey: persistenceIdentity.scope.idempotencyKey,
+        state: "rejected",
+        executed: false,
+        duplicate: false,
+        reason,
+        preview: null,
+      }));
     }
+
     identity = {
       intentId: validation.intent.intentId,
       idempotencyKey: validation.intent.idempotencyKey,
@@ -53,19 +150,34 @@ export class ExecutionAirlockService {
       symbol: validation.intent.symbol,
     };
     audit("validation-passed");
-    const idempotencyScope = JSON.stringify([
-      validation.intent.userId,
-      validation.intent.accountId,
-      validation.intent.idempotencyKey,
-    ]);
-    const duplicate = this.processed.get(idempotencyScope);
-    if (duplicate) {
-      audit("duplicate-intent-detected", "DUPLICATE_INTENT");
-      return Object.freeze({ result: Object.freeze({ ...duplicate, duplicate: true, reason: "DUPLICATE_INTENT" }), auditEvents: Object.freeze(events) });
+
+    const idempotencyScope = Object.freeze({
+      userId: validation.intent.userId,
+      accountId: validation.intent.accountId,
+      idempotencyKey: validation.intent.idempotencyKey,
+    });
+    try {
+      const claim = this.options.stateStore.claim(idempotencyScope, {
+        intentId: validation.intent.intentId,
+        symbol: validation.intent.symbol,
+      }, occurredAt);
+      if (claim.kind === "duplicate") {
+        return duplicateResult(
+          claim.result,
+          validation.intent.intentId,
+          validation.intent.idempotencyKey,
+        );
+      }
+    } catch (error) {
+      return stateFailure(executionStateFailureCode(error));
     }
+
     const gate = executionCapabilityGate(this.options.environment);
-    const reason = gate.reason === "adapter-unavailable" ? "ADAPTER_UNAVAILABLE" : (boundaryKillReason ?? "GLOBAL_EXECUTION_DISABLED");
+    const reason = gate.reason === "adapter-unavailable"
+      ? "ADAPTER_UNAVAILABLE"
+      : (boundaryKillReason ?? "GLOBAL_EXECUTION_DISABLED");
     const preview = createExecutionPreview(validation.intent, prerequisites);
+
     if (this.options.syntheticProviderScenario && !boundaryKillReason && gate.reason === "disabled") {
       try {
         if (this.options.syntheticProviderFault === "exception") throw new Error("Synthetic provider fault");
@@ -74,25 +186,44 @@ export class ExecutionAirlockService {
           : evaluateSyntheticProvider(this.options.syntheticProviderScenario, { intent: validation.intent, preview });
         if (!isSyntheticProviderResult(providerResult)) {
           audit("provider-failed", "PROVIDER_MALFORMED_RESULT");
-          const result = Object.freeze({ intentId: validation.intent.intentId, idempotencyKey: validation.intent.idempotencyKey, state: "blocked" as const, executed: false as const, duplicate: false, reason: "PROVIDER_MALFORMED_RESULT" as const, preview });
-          this.processed.set(idempotencyScope, result);
-          return Object.freeze({ result, auditEvents: Object.freeze(events) });
+          return persist(idempotencyScope, Object.freeze({
+            intentId: validation.intent.intentId,
+            idempotencyKey: validation.intent.idempotencyKey,
+            state: "blocked",
+            executed: false,
+            duplicate: false,
+            reason: "PROVIDER_MALFORMED_RESULT",
+            preview,
+          }));
         }
         audit("provider-evaluated", "SYNTHETIC_PROVIDER_OUTCOME");
-        const result = Object.freeze({ intentId: validation.intent.intentId, idempotencyKey: validation.intent.idempotencyKey, state: "prepared" as const, executed: false as const, duplicate: false, reason: "SYNTHETIC_PROVIDER_OUTCOME" as const, preview, providerResult });
-        this.processed.set(idempotencyScope, result);
-        return Object.freeze({ result, auditEvents: Object.freeze(events) });
+        return persist(idempotencyScope, Object.freeze({
+          intentId: validation.intent.intentId,
+          idempotencyKey: validation.intent.idempotencyKey,
+          state: "prepared",
+          executed: false,
+          duplicate: false,
+          reason: "SYNTHETIC_PROVIDER_OUTCOME",
+          preview,
+          providerResult,
+        }));
       } catch {
         audit("provider-failed", "PROVIDER_EXCEPTION");
-        const result = Object.freeze({ intentId: validation.intent.intentId, idempotencyKey: validation.intent.idempotencyKey, state: "blocked" as const, executed: false as const, duplicate: false, reason: "PROVIDER_EXCEPTION" as const, preview });
-        this.processed.set(idempotencyScope, result);
-        return Object.freeze({ result, auditEvents: Object.freeze(events) });
+        return persist(idempotencyScope, Object.freeze({
+          intentId: validation.intent.intentId,
+          idempotencyKey: validation.intent.idempotencyKey,
+          state: "blocked",
+          executed: false,
+          duplicate: false,
+          reason: "PROVIDER_EXCEPTION",
+          preview,
+        }));
       }
     }
+
     audit(reason === "ADAPTER_UNAVAILABLE" ? "adapter-unavailable" : "kill-switch-active", reason);
     const result = this.adapter.prepare(validation.intent, preview, reason);
     audit("execution-blocked", reason);
-    this.processed.set(idempotencyScope, result);
-    return Object.freeze({ result, auditEvents: Object.freeze(events) });
+    return persist(idempotencyScope, result);
   }
 }
