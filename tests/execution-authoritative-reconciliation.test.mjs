@@ -43,4 +43,25 @@ test("open backing-file deletion and atomic replacement fail closed",()=>{for(co
 
 test("unsupported or corrupt reconciliation schema fails closed",()=>{const dir=directory(),path=join(dir,"r.sqlite");try{let store=new SqliteExecutionReconciliationStore(path);store.read(id);store.close();const db=new DatabaseSync(path);db.exec("PRAGMA user_version=99");db.close();store=new SqliteExecutionReconciliationStore(path);assert.throws(()=>store.read(id),e=>e.code==="EXECUTION_RECONCILIATION_INVALID");}finally{rmSync(dir,{recursive:true,force:true});}});
 
+test("semantically corrupt schema-v1 reconciliation rows fail closed",()=>{
+  const corruptions=[
+    ["status='clean', reason='OBSERVATION_INVALID'","inconsistent status and reason"],
+    ["reason='NOT_A_REASON'","unknown reason"],
+    ["updated_at='not-a-timestamp'","invalid timestamp"],
+    [`expected_json='[{"symbol":"BTC_USDT","side":"long","contractVolume":1},{"symbol":"BTC_USDT","side":"short","contractVolume":2}]'`,"duplicate expected symbol"],
+  ];
+  for(const [mutation,label] of corruptions){
+    const dir=directory(),path=join(dir,"r.sqlite");
+    try{
+      let store=new SqliteExecutionReconciliationStore(path);
+      store.setExpected(id,[position()],0); store.close();
+      const db=new DatabaseSync(path);
+      db.exec(`UPDATE reconciliation_state SET ${mutation}`); db.close();
+      store=new SqliteExecutionReconciliationStore(path);
+      assert.throws(()=>store.read(id),error=>error.code==="EXECUTION_RECONCILIATION_INVALID",label);
+      store.close();
+    }finally{rmSync(dir,{recursive:true,force:true});}
+  }
+});
+
 test("quarantine is sticky without a public clearing primitive",()=>{const store=new SqliteExecutionReconciliationStore(":memory:");reconcileAuthoritativeMexcReadback(store,id,observation([position()]),new Date(at));const result=reconcileAuthoritativeMexcReadback(store,id,observation(),new Date(at));assert.equal(result.status,"quarantined");assert.equal(result.reason,"UNEXPECTED_PROVIDER_POSITION");});

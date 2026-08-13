@@ -14,6 +14,11 @@ export type ReconciliationState = Readonly<{ revision: number; status: "unknown"
 const VERSION = 1;
 const TOKEN = /^[A-Za-z0-9_-]{1,120}$/;
 const SYMBOL = /^[A-Z0-9]{1,20}_USDT$/;
+const RECONCILIATION_REASONS = new Set<ReconciliationState["reason"]>([
+  "NOT_RECONCILED", "CLEAN", "EXPECTED_POSITION_MISSING", "UNEXPECTED_PROVIDER_POSITION",
+  "POSITION_SIDE_MISMATCH", "POSITION_QUANTITY_MISMATCH", "OBSERVATION_INVALID",
+  "OBSERVATION_STALE", "IDENTITY_MISMATCH", "POSITION_AMBIGUOUS",
+]);
 type FileIdentity = Readonly<{ dev: number; ino: number }>;
 
 export class ExecutionReconciliationStoreError extends Error {
@@ -55,15 +60,26 @@ export class SqliteExecutionReconciliationStore implements ExecutionReconciliati
       this.database=db; this.harden(); if(this.path!==":memory:") this.identity=this.current(); return db;
     } catch(e) { try{db?.close();}catch{} this.database=null; this.identity=null; if(e instanceof ExecutionReconciliationStoreError) throw e; return fail("EXECUTION_RECONCILIATION_UNAVAILABLE"); }
   }
-  private parse(row: Record<string,unknown> | undefined): ReconciliationState {
+  private parse(row: Record<string,unknown> | undefined, identity:ExecutionAccountIdentity): ReconciliationState {
     if(!row) return Object.freeze({revision:0,status:"unknown",reason:"NOT_RECONCILED",expected:Object.freeze([])});
-    if(row.schema_version!==VERSION || !Number.isSafeInteger(row.revision) || !["unknown","clean","quarantined"].includes(String(row.status))) fail("EXECUTION_RECONCILIATION_INVALID");
+    const status=String(row.status);
+    const reason=String(row.reason) as ReconciliationState["reason"];
+    const updatedAt=String(row.updated_at);
+    const validStatusReason=(status==="unknown"&&reason==="NOT_RECONCILED")
+      ||(status==="clean"&&reason==="CLEAN")
+      ||(status==="quarantined"&&reason!=="CLEAN"&&reason!=="NOT_RECONCILED");
+    if(row.schema_version!==VERSION || row.user_id!==identity.userId || row.account_id!==identity.accountId
+      || !validIdentity({userId:String(row.user_id),accountId:String(row.account_id)})
+      || !Number.isSafeInteger(row.revision) || (row.revision as number)<0
+      || !["unknown","clean","quarantined"].includes(status) || !RECONCILIATION_REASONS.has(reason)
+      || !validStatusReason || !Number.isFinite(Date.parse(updatedAt)) || new Date(updatedAt).toISOString()!==updatedAt) fail("EXECUTION_RECONCILIATION_INVALID");
     let expected: unknown; try{expected=JSON.parse(String(row.expected_json));}catch{return fail("EXECUTION_RECONCILIATION_INVALID");}
-    if(!Array.isArray(expected)||expected.length>200||!expected.every(validPosition)) fail("EXECUTION_RECONCILIATION_INVALID");
+    if(!Array.isArray(expected)||expected.length>200||!expected.every(validPosition)
+      ||new Set(expected.map(position=>position.symbol)).size!==expected.length) fail("EXECUTION_RECONCILIATION_INVALID");
     const positions = expected as ExpectedExecutionPosition[];
-    return Object.freeze({revision:row.revision as number,status:row.status as ReconciliationState["status"],reason:row.reason as ReconciliationState["reason"],expected:Object.freeze(positions.map(x=>Object.freeze({...x})))});
+    return Object.freeze({revision:row.revision as number,status:status as ReconciliationState["status"],reason,expected:Object.freeze(positions.map(x=>Object.freeze({...x})))});
   }
-  read(id:ExecutionAccountIdentity) { if(!validIdentity(id)) return fail("EXECUTION_RECONCILIATION_INVALID"); const db=this.db(); try { const result=this.parse(db.prepare("SELECT * FROM reconciliation_state WHERE user_id=? AND account_id=?").get(id.userId,id.accountId) as Record<string,unknown>|undefined); this.assertBacking(); return result; } catch(e){if(e instanceof ExecutionReconciliationStoreError)throw e;return fail("EXECUTION_RECONCILIATION_UNAVAILABLE");} }
+  read(id:ExecutionAccountIdentity) { if(!validIdentity(id)) return fail("EXECUTION_RECONCILIATION_INVALID"); const db=this.db(); try { const result=this.parse(db.prepare("SELECT * FROM reconciliation_state WHERE user_id=? AND account_id=?").get(id.userId,id.accountId) as Record<string,unknown>|undefined,id); this.assertBacking(); return result; } catch(e){if(e instanceof ExecutionReconciliationStoreError)throw e;return fail("EXECUTION_RECONCILIATION_UNAVAILABLE");} }
   setExpected(id:ExecutionAccountIdentity, expected:readonly ExpectedExecutionPosition[], revision:number) {
     if(!validIdentity(id)||expected.length>200||!expected.every(validPosition)||new Set(expected.map(p=>p.symbol)).size!==expected.length) return fail("EXECUTION_RECONCILIATION_INVALID");
     return this.write(id,"unknown","NOT_RECONCILED",expected,revision);
