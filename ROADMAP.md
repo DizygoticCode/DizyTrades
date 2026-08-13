@@ -344,6 +344,15 @@ state / restart-safe idempotency readiness slice only**. It does not submit an
 order, does not provide horizontally shared idempotency and does not complete
 exchange acknowledgement, reconciliation or immutable execution audit.
 
+A fifth persistence slice adds **durable append-only tamper-evident
+single-instance execution audit persistence** in a separate SQLite file on the
+existing disk. Strict canonical event validation, durable sequencing and a
+SHA-256 chain detect modification across restart; audit open, verification and
+append failures stop mechanics before synthetic provider evaluation. This is
+application-append-only evidence on one persistent disk, not externally anchored
+WORM or truly immutable storage, so the broader immutable-audit requirement
+remains unchecked.
+
 Live execution remains disabled until every relevant requirement below is implemented, exercised and independently reviewed:
 
 - [ ] isolated execution service or equivalently isolated execution boundary
@@ -426,4 +435,5 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 - [x] Complete the separately reviewed, strongly authenticated credential provisioning ceremony design.
 - [x] Review and design non-executing provider mechanics behind `ExecutionBoundary`. The deterministic synthetic contract is complete; it is not wired to custody or provisioning and does not complete controlled activation or live execution.
 - [x] Add durable single-instance execution-state persistence and restart-safe user/account/idempotency-key protection for the non-executing airlock. This is not real idempotent order submission and adds no exchange write capability.
+- [x] Add durable append-only tamper-evident single-instance execution audit persistence. This does not claim external WORM/immutable storage and adds no exchange transport or credential wiring.
 - [x] Add a deterministic synthetic lifecycle/reconciliation contract with bounded restart-safe evidence and `executed:false`. This is not exchange acknowledgement or readback reconciliation.

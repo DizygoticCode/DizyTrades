@@ -36,6 +36,21 @@ fail closed; production has no permissive process-local idempotency fallback.
 An unfinished processing claim after a crash remains duplicate-protected rather
 than allowing provider re-entry after restart.
 
+Production composition also owns a separate
+`DATA_DIR/execution-audit.sqlite` store. Its versioned WAL schema, FULL
+synchronous writes, restrictive file modes, monotonically increasing durable
+sequence and canonical SHA-256 record chain preserve bounded, sanitized audit
+events across restart. Every read and append verifies the complete chain;
+malformed fields, gaps, broken links, unsupported versions and hash mismatches
+fail closed. An audit failure never falls back to memory and prevents synthetic
+provider or reconciliation mechanics. If it follows an idempotency reservation,
+that durable claim continues to prevent provider re-entry on retry.
+
+This audit database is application-append-only and tamper-evident for the
+supported single-instance persistent-disk topology. It is not externally
+anchored WORM storage, does not make the disk truly immutable, and does not
+complete the broader independent immutable-audit security gate.
+
 The deterministic preview layer accepts prerequisite market/account snapshots
 only as evidence, never as policy. Risk limits are compiled into the server-only
 boundary; missing, invalid, stale or policy-violating evidence is rejected. A
@@ -50,7 +65,7 @@ its own dependency.
 Caller-supplied intent fields cannot override identity, policy or global,
 per-user or per-account shutdown state. Construction and dependency injection
 remain internal/test-only, preventing application callers from replacing the
-production-owned durable execution-state store. Malformed stored state, store
+production-owned durable execution-state and audit stores. Malformed stored state, store
 failures, malformed provider output, exceptions, and other verifier or
 shutdown-provider failures fail closed before any execution capability can be
 reached. There is still no public execution route, write transport, signing
