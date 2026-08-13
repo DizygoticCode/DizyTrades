@@ -35,6 +35,7 @@ function makeService(options = {}) {
     environment: options.environment,
     now: options.now,
     syntheticProviderScenario: options.syntheticProviderScenario,
+    syntheticObservation: options.syntheticObservation,
     syntheticProviderFault: options.syntheticProviderFault,
     readKillSwitches: options.readKillSwitches ?? (() => ({ ...enabledSwitchState, globalDisabled: true })),
     authenticateInternalCaller: ({ callerId, assertionId }) => {
@@ -159,6 +160,27 @@ test("synthetic provider lifecycle outcomes are deterministic and never execute"
     });
     assert.doesNotMatch(JSON.stringify(response), /orderId|fill|tradeId|apiKey|secret/i);
   }
+});
+
+test("boundary attaches only an explicitly injected deterministic synthetic reconciliation", () => {
+  const response = makeService({
+    environment: { LIVE_TRADING_ENABLED: "false" },
+    now: () => new Date("2026-08-12T12:01:00Z"),
+    readKillSwitches: () => enabledSwitchState,
+    syntheticProviderScenario: "would-timeout",
+    syntheticObservation: "would-observe-accepted",
+  }).process(valid, prerequisites);
+  assert.deepEqual(response.result.providerResult.reconciliation, {
+    contractVersion: "synthetic-reconciliation/1.0.0",
+    provenance: "deterministic-synthetic-fixture",
+    initialProviderOutcome: "would-timeout",
+    observedOutcome: "would-observe-accepted",
+    resolution: "recovered-accepted",
+    certainty: "terminal",
+    executed: false,
+  });
+  assert.equal(response.result.executed, false);
+  assert.doesNotMatch(JSON.stringify(response), /orderId|fillId|tradeId|acknowledgement/i);
 });
 
 test("synthetic provider evaluation requires the explicit disabled gate posture", () => {

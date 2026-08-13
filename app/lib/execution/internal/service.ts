@@ -10,10 +10,12 @@ import type {
   ExecutionPrerequisites,
   ExecutionResult,
   SyntheticProviderScenario,
+  SyntheticObservation,
 } from "../types";
 import { validateExecutionIntent, type ExecutionIntentInput } from "./validation";
 import { createExecutionPreview } from "./preview";
 import { evaluateSyntheticProvider, isSyntheticProviderResult } from "./provider";
+import { reconcileSyntheticProviderResult } from "./reconciliation";
 import {
   executionStateFailureCode,
   executionStateIdentityFromInput,
@@ -26,6 +28,7 @@ type ServiceOptions = Readonly<{
   environment?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
   syntheticProviderScenario?: SyntheticProviderScenario;
+  syntheticObservation?: SyntheticObservation;
   syntheticProviderFault?: "exception" | "malformed-result";
 }>;
 
@@ -181,7 +184,7 @@ export class ExecutionAirlockService {
     if (this.options.syntheticProviderScenario && !boundaryKillReason && gate.reason === "disabled") {
       try {
         if (this.options.syntheticProviderFault === "exception") throw new Error("Synthetic provider fault");
-        const providerResult: unknown = this.options.syntheticProviderFault === "malformed-result"
+        let providerResult: unknown = this.options.syntheticProviderFault === "malformed-result"
           ? Object.freeze({ executed: true })
           : evaluateSyntheticProvider(this.options.syntheticProviderScenario, { intent: validation.intent, preview });
         if (!isSyntheticProviderResult(providerResult)) {
@@ -195,6 +198,11 @@ export class ExecutionAirlockService {
             reason: "PROVIDER_MALFORMED_RESULT",
             preview,
           }));
+        }
+        if (this.options.syntheticObservation !== undefined) {
+          const reconciliation = reconcileSyntheticProviderResult(providerResult, this.options.syntheticObservation);
+          providerResult = Object.freeze({ ...providerResult, reconciliation });
+          if (!isSyntheticProviderResult(providerResult)) throw new TypeError("Malformed synthetic reconciliation result");
         }
         audit("provider-evaluated", "SYNTHETIC_PROVIDER_OUTCOME");
         return persist(idempotencyScope, Object.freeze({

@@ -50,6 +50,7 @@ function boundaryFor(store, options = {}) {
     now: () => new Date("2026-08-12T12:01:00Z"),
     readKillSwitches: options.readKillSwitches ?? (() => enabledSwitchState),
     syntheticProviderScenario: options.syntheticProviderScenario,
+    syntheticObservation: options.syntheticObservation,
     syntheticProviderFault: options.syntheticProviderFault,
     authenticateInternalCaller: ({ callerId, assertionId }) => {
       const [userId, accountId] = assertionId.split(":");
@@ -161,6 +162,48 @@ test("synthetic provider results persist across restart without becoming executi
     assert.equal(duplicate.auditEvents.some(({ kind }) => kind === "provider-evaluated"), false);
     secondStore.close();
   }
+}));
+
+test("bounded reconciliation evidence survives restart exactly and remains non-executing", () => withDatabasePath((path) => {
+  const options = {
+    syntheticProviderScenario: "would-unknown",
+    syntheticObservation: "would-observe-rejected",
+  };
+  const firstStore = new SqliteExecutionStateStore(path);
+  const first = process(boundaryFor(firstStore, options));
+  const evidence = first.result.providerResult.reconciliation;
+  assert.equal(Buffer.byteLength(JSON.stringify(first.result.providerResult), "utf8") < 1024, true);
+  firstStore.close();
+
+  const secondStore = new SqliteExecutionStateStore(path);
+  const duplicate = process(boundaryFor(secondStore, options));
+  assert.deepEqual(duplicate.result.providerResult.reconciliation, evidence);
+  assert.equal(duplicate.result.providerResult.reconciliation.executed, false);
+  assert.equal(duplicate.result.executed, false);
+  assert.equal(duplicate.auditEvents.some(({ kind }) => kind === "provider-evaluated"), false);
+  secondStore.close();
+}));
+
+test("inherited-name reconciliation outcome fails closed before provider re-entry", () => withDatabasePath((path) => {
+  const options = { syntheticProviderScenario: "would-timeout", syntheticObservation: "would-observe-missing" };
+  const firstStore = new SqliteExecutionStateStore(path);
+  process(boundaryFor(firstStore, options));
+  firstStore.close();
+
+  const db = new DatabaseSync(path);
+  const row = db.prepare("SELECT provider_json FROM execution_state").get();
+  const provider = JSON.parse(row.provider_json);
+  provider.reconciliation.initialProviderOutcome = "constructor";
+  db.prepare("UPDATE execution_state SET provider_json=?").run(JSON.stringify(provider));
+  db.close();
+
+  const secondStore = new SqliteExecutionStateStore(path);
+  const response = process(boundaryFor(secondStore, options));
+  assert.equal(response.result.reason, "EXECUTION_STATE_INVALID");
+  assert.equal(response.result.executed, false);
+  assert.equal(response.result.providerResult, undefined);
+  assert.equal(response.auditEvents.some(({ kind }) => kind === "provider-evaluated"), false);
+  secondStore.close();
 }));
 
 test("provider failures remain duplicate-protected after restart", () => withDatabasePath((path) => {

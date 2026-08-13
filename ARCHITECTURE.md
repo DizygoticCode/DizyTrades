@@ -403,6 +403,16 @@ and an unfinished processing reservation after a crash blocks provider re-entry.
 Malformed records, unsupported schema versions and database open/read/write
 failures fail closed with no permissive in-memory fallback.
 
+The fifth readiness slice adds a pure, server-only synthetic reconciliation
+classifier. Test composition may separately supply one of three explicitly
+synthetic observations; production composition supplies none. The classifier
+distinguishes matched, conflicting, unresolved and recovered fixture outcomes,
+always with synthetic provenance and `executed:false`. Its strictly validated,
+bounded evidence may be nested in the existing synthetic provider result and
+therefore survives reconstruction through the existing `provider_json` record.
+It adds no provider readback, acknowledgement, identifiers, retry, signing,
+credential wiring or network transport.
+
 This is durable readiness state for the current supported **single Render
 instance**. It is not a horizontally shared multi-instance execution service,
 not exchange order submission and not acknowledgement/reconciliation. Kill-switch

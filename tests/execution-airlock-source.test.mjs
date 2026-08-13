@@ -75,6 +75,13 @@ test("provider mechanics have no write transport, signing, custody or provisioni
   }
 });
 
+test("synthetic reconciliation is server-only, transport-free and absent from production composition", () => {
+  const reconciliation = text("app/lib/execution/internal/reconciliation.ts");
+  assert.match(reconciliation, /^import "server-only";/);
+  assert.doesNotMatch(reconciliation, /\bfetch\s*\(|axios|https?:\/\/|createHmac|sign(?:er|ature)|credential|custody|provisioning|Mexc/i);
+  assert.doesNotMatch(text("app/lib/execution/internal/composition.ts"), /syntheticObservation|would-observe/);
+});
+
 test("no route, client or paper module imports execution/provider internals", () => {
   for (const path of filesBelow("app").filter((path) => /\.[cm]?[jt]sx?$/.test(path))) {
     const source = text(path);

@@ -4,6 +4,29 @@ import type { MexcContractMetadata } from "../mexc-contract-metadata";
 
 export const EXECUTION_CONTRACT_VERSION = "execution-airlock/1.0.0" as const;
 export const SYNTHETIC_PROVIDER_CONTRACT_VERSION = "synthetic-provider/1.0.0" as const;
+export const SYNTHETIC_RECONCILIATION_CONTRACT_VERSION = "synthetic-reconciliation/1.0.0" as const;
+
+export type SyntheticObservation =
+  | "would-observe-accepted"
+  | "would-observe-rejected"
+  | "would-observe-missing";
+export type SyntheticReconciliationResolution =
+  | "matched-accepted"
+  | "matched-rejected"
+  | "conflict"
+  | "unresolved-timeout"
+  | "unresolved-unknown"
+  | "recovered-accepted"
+  | "recovered-rejected";
+export type SyntheticReconciliationResult = Readonly<{
+  contractVersion: typeof SYNTHETIC_RECONCILIATION_CONTRACT_VERSION;
+  provenance: "deterministic-synthetic-fixture";
+  initialProviderOutcome: SyntheticProviderScenario;
+  observedOutcome: SyntheticObservation;
+  resolution: SyntheticReconciliationResolution;
+  certainty: "terminal" | "unresolved" | "conflict";
+  executed: false;
+}>;
 
 export type SyntheticProviderScenario = "would-accept" | "would-reject" | "would-timeout" | "would-unknown";
 export type SyntheticProviderResult = Readonly<{
@@ -13,6 +36,7 @@ export type SyntheticProviderResult = Readonly<{
   outcome: SyntheticProviderScenario;
   executed: false;
   reasonClass: "none" | "policy" | "timeout" | "indeterminate";
+  reconciliation?: SyntheticReconciliationResult;
 }>;
 
 export type ExecutionState =

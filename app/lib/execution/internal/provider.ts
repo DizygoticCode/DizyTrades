@@ -7,6 +7,7 @@ import {
   type SyntheticProviderScenario,
 } from "../types";
 import type { ExecutionPreview } from "./preview";
+import { isSyntheticReconciliationResult } from "./reconciliation";
 
 type ProviderRequest = Readonly<{
   intent: ExecutionIntent;
@@ -57,13 +58,19 @@ export function evaluateSyntheticProvider(
 }
 
 export function isSyntheticProviderResult(value: unknown): value is SyntheticProviderResult {
-  if (!value || typeof value !== "object") return false;
-  const result = value as Partial<SyntheticProviderResult>;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const result = value as Partial<SyntheticProviderResult> & Record<string, unknown>;
+  const keys = Object.keys(result);
+  if (!keys.every((key) => ["contractVersion", "providerKind", "provenance", "outcome", "executed", "reasonClass", "reconciliation"].includes(key))
+    || keys.length !== (result.reconciliation === undefined ? 6 : 7)) return false;
   return result.contractVersion === SYNTHETIC_PROVIDER_CONTRACT_VERSION
     && result.providerKind === "non-executing"
     && result.provenance === "deterministic-synthetic-fixture"
     && result.executed === false
     && typeof result.outcome === "string"
     && result.outcome in reasonByScenario
-    && result.reasonClass === reasonByScenario[result.outcome as SyntheticProviderScenario];
+    && result.reasonClass === reasonByScenario[result.outcome as SyntheticProviderScenario]
+    && (result.reconciliation === undefined
+      || (isSyntheticReconciliationResult(result.reconciliation)
+        && result.reconciliation.initialProviderOutcome === result.outcome));
 }
