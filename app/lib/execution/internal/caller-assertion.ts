@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
@@ -27,6 +27,7 @@ type FingerprintResolver = (fingerprint: string, now?: number) => Readonly<{ use
 
 export class ExecutionCallerAssertionStore {
   private database: DatabaseSync | null = null;
+  private fileIdentity: Readonly<{ device: bigint; inode: bigint }> | null = null;
   constructor(
     private readonly path = executionCallerDatabasePath(),
     private readonly clock: () => number = Date.now,
@@ -35,7 +36,7 @@ export class ExecutionCallerAssertionStore {
   ) {}
 
   private db() {
-    if (this.database) return this.database;
+    if (this.database) { this.assertFileIdentity(); return this.database; }
     let db: DatabaseSync | null = null;
     try {
       if (this.path !== ":memory:") mkdirSync(dirname(this.path), { recursive: true, mode: 0o700 });
@@ -52,11 +53,31 @@ export class ExecutionCallerAssertionStore {
         );
         CREATE INDEX caller_assertions_expiry_idx ON caller_assertions(expires_at);
         PRAGMA user_version=${DATABASE_VERSION}; COMMIT;`);
-      this.database = db;
       this.harden();
+      this.fileIdentity = this.readFileIdentity();
+      this.database = db;
+      this.assertFileIdentity();
       return db;
     } catch {
       try { db?.close(); } catch { /* fail closed */ }
+      throw new ExecutionCallerAssertionError();
+    }
+  }
+
+  private readFileIdentity() {
+    if (this.path === ":memory:") return null;
+    const file = statSync(this.path, { bigint: true });
+    if (!file.isFile()) throw new Error("invalid storage");
+    return Object.freeze({ device: file.dev, inode: file.ino });
+  }
+
+  /** A cached SQLite descriptor must never outlive the pathname that authorized it. */
+  private assertFileIdentity() {
+    if (this.path === ":memory:") return;
+    try {
+      const current = this.readFileIdentity();
+      if (!this.fileIdentity || !current || current.device !== this.fileIdentity.device || current.inode !== this.fileIdentity.inode) throw new Error("storage replaced");
+    } catch {
       throw new ExecutionCallerAssertionError();
     }
   }
@@ -81,7 +102,7 @@ export class ExecutionCallerAssertionStore {
       const count = (db.prepare("SELECT count(*) AS count FROM caller_assertions").get() as { count: number }).count;
       if (count >= MAX_ROWS) { db.exec("ROLLBACK"); return null; }
       db.prepare("INSERT INTO caller_assertions VALUES(?,?,?,?,?,?,?,NULL)").run(digest(assertionId), EXECUTION_INTERNAL_CALLER_ID, session.userId, input.accountId, session.sessionFingerprint, now, expiresAt);
-      db.exec("COMMIT"); this.harden();
+      this.assertFileIdentity(); db.exec("COMMIT"); this.assertFileIdentity(); this.harden(); this.assertFileIdentity();
       return Object.freeze({ callerId: EXECUTION_INTERNAL_CALLER_ID, assertionId, userId: session.userId, accountId: input.accountId, expiresAt });
     } catch { try { db.exec("ROLLBACK"); } catch { /* fail closed */ } throw new ExecutionCallerAssertionError(); }
   }
@@ -100,13 +121,13 @@ export class ExecutionCallerAssertionStore {
       const result = db.prepare("UPDATE caller_assertions SET consumed_at=? WHERE assertion_hash=? AND consumed_at IS NULL").run(now, assertionHash);
       if (result.changes !== 1) { db.exec("COMMIT"); return null; }
       const active = this.resolveFingerprint(row.session_fingerprint, now);
-      db.exec("COMMIT");
+      this.assertFileIdentity(); db.exec("COMMIT"); this.assertFileIdentity();
       if (!active || active.userId !== row.user_id) return null;
       return Object.freeze({ callerId: row.caller_id, userId: row.user_id, accountId: row.account_id });
     } catch { try { db.exec("ROLLBACK"); } catch { /* fail closed */ } throw new ExecutionCallerAssertionError(); }
   }
 
-  close() { this.database?.close(); this.database = null; }
+  close() { this.database?.close(); this.database = null; this.fileIdentity = null; }
 }
 
 let productionStore: ExecutionCallerAssertionStore | null = null;
