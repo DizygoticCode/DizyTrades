@@ -10,7 +10,7 @@ export async function POST(request: Request) {
  const challenge=typeof body.challenge==="string"?body.challenge:"",proof=typeof body.proof==="string"?body.proof:"",ip=requestIp(request);
  if(consumeRateLimit([`mfa:challenge:ip:${ip}`],8,15*60_000)) return NextResponse.json({error:"Too many MFA attempts."},{status:429});
  const completed=completeMfaChallenge(challenge,proof); if(!completed)return NextResponse.json({error:"Invalid or expired MFA verification."},{status:401});
- const token=createDatabaseSession(completed.user,SESSION_MAX_AGE_SECONDS); if(!token)return NextResponse.json({error:"Authentication service unavailable."},{status:503});
+ const token=createDatabaseSession(completed.user,SESSION_MAX_AGE_SECONDS,completed.recoveryUsed?"recovery":"totp"); if(!token)return NextResponse.json({error:"Authentication service unavailable."},{status:503});
  const response=NextResponse.json({user:completed.user}); response.cookies.set(SESSION_COOKIE,token,{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",path:"/",maxAge:SESSION_MAX_AGE_SECONDS});
  await appendAudit(completed.user.id,completed.recoveryUsed?"auth.mfa-recovery-used":"auth.mfa-login",{ip}); return response;
 }
