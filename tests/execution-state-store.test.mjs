@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 import { createTestExecutionBoundary } from "../app/lib/execution/internal/testing.ts";
+import { SqliteExecutionRiskStore } from "../app/lib/execution/internal/risk-store.ts";
 import {
   ExecutionStateStoreError,
   SqliteExecutionStateStore,
@@ -40,12 +41,23 @@ function prerequisitesFor(userId = valid.userId, accountId = valid.accountId) {
     contracts: new Map([[contract.symbol, contract]]),
     referencePrices: new Map([[contract.symbol, Object.freeze({ price: 65000, observedAt })]]),
     accountState: Object.freeze({ userId, accountId, observedAt, positions: Object.freeze([]) }),
+    riskSnapshot: Object.freeze({
+      userId, accountId, observedAt, equity: 10_000, availableMargin: 5_000, dayStartEquity: 10_000,
+    }),
   });
 }
 
 function boundaryFor(store, options = {}) {
+  const riskStore = new SqliteExecutionRiskStore(":memory:");
+  riskStore.replace(0, {
+    userId: valid.userId, accountId: valid.accountId, enabled: true,
+    reviewAt: "2027-01-01T00:00:00.000Z", allowedSymbols: ["BTC_USDT", "ETH_USDT"],
+    maximumLeverage: 20, maximumOrderNotional: 50_000, maximumGrossNotional: 100_000,
+    maximumDailyDrawdownUsdt: 1_000, maximumOrderMarginFractionOfAvailable: 0.5,
+  });
   return createTestExecutionBoundary({
     executionStateStore: store,
+    executionRiskStore: riskStore,
     environment: options.environment ?? { LIVE_TRADING_ENABLED: "false" },
     now: () => new Date("2026-08-12T12:01:00Z"),
     readKillSwitches: options.readKillSwitches ?? (() => enabledSwitchState),
@@ -126,6 +138,14 @@ test("reusing a durable scope and key for a different symbol fails closed after 
       accountId: ethIntent.accountId,
       observedAt,
       positions: Object.freeze([]),
+    }),
+    riskSnapshot: Object.freeze({
+      userId: ethIntent.userId,
+      accountId: ethIntent.accountId,
+      observedAt,
+      equity: 10_000,
+      availableMargin: 5_000,
+      dayStartEquity: 10_000,
     }),
   });
   const secondStore = new SqliteExecutionStateStore(path);

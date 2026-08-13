@@ -120,6 +120,14 @@ export type ExecutionPrerequisites = Readonly<{
     observedAt: string;
     positions: readonly Readonly<{ symbol: string; side: "long" | "short"; quantity: number }>[];
   }> | null;
+  riskSnapshot?: Readonly<{
+    userId: string;
+    accountId: string;
+    observedAt: string;
+    equity: number;
+    availableMargin: number;
+    dayStartEquity: number;
+  }> | null;
 }>;
 
 export type AuthenticatedExecutionCaller = Readonly<{
@@ -150,13 +158,32 @@ export type ExecutionBlockCode =
   | "EXECUTION_AUDIT_UNAVAILABLE"
   | "EXECUTION_AUDIT_INVALID";
 
+export type ExecutionRiskCode =
+  | "ACCOUNT_NOT_AUTHORIZED"
+  | "ACCOUNT_AUTHORIZATION_DISABLED"
+  | "ACCOUNT_AUTHORIZATION_EXPIRED"
+  | "ACCOUNT_SYMBOL_NOT_AUTHORIZED"
+  | "ACCOUNT_LEVERAGE_LIMIT_EXCEEDED"
+  | "ACCOUNT_ORDER_NOTIONAL_LIMIT_EXCEEDED"
+  | "ACCOUNT_GROSS_EXPOSURE_LIMIT_EXCEEDED"
+  | "RISK_SNAPSHOT_MISSING"
+  | "RISK_SNAPSHOT_INVALID"
+  | "RISK_SNAPSHOT_STALE"
+  | "RISK_SNAPSHOT_IDENTITY_MISMATCH"
+  | "ACCOUNT_DAILY_DRAWDOWN_LIMIT_EXCEEDED"
+  | "ACCOUNT_ORDER_MARGIN_LIMIT_EXCEEDED"
+  | "POSITION_REFERENCE_PRICE_MISSING"
+  | "POSITION_REFERENCE_PRICE_STALE"
+  | "EXECUTION_RISK_UNAVAILABLE"
+  | "EXECUTION_RISK_INVALID";
+
 export type ExecutionResult = Readonly<{
   intentId: string;
   idempotencyKey: string;
   state: "blocked" | "rejected" | "prepared";
   executed: false;
   duplicate: boolean;
-  reason: ExecutionBlockCode | ExecutionRejectionCode;
+  reason: ExecutionBlockCode | ExecutionRejectionCode | ExecutionRiskCode;
   preview: Readonly<{
     symbol: string;
     side: "long" | "short";
@@ -190,7 +217,7 @@ export type ExecutionAuditEvent = Readonly<{
   idempotencyDigest: string;
   actorDigest: string;
   symbol?: string;
-  reason?: ExecutionBlockCode | ExecutionRejectionCode;
+  reason?: ExecutionBlockCode | ExecutionRejectionCode | ExecutionRiskCode;
 }>;
 
 export type ExecutionBoundaryResponse = Readonly<{

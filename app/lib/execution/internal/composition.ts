@@ -5,6 +5,7 @@ import { InternalExecutionBoundary } from "./boundary-service";
 import { createProductionExecutionStateStore } from "./state-store";
 import { createProductionExecutionAuditStore } from "./audit-store";
 import { verifyProductionExecutionCaller } from "./caller-assertion";
+import { createProductionExecutionRiskStore } from "./risk-store";
 
 /**
  * Production composition root. The assertion verifier remains unreachable from
@@ -17,6 +18,7 @@ export const createServerExecutionBoundary = (): InternalExecutionBoundary => {
     readKillSwitches: () => controls.switches(),
     executionStateStore: createProductionExecutionStateStore(),
     executionAuditStore: createProductionExecutionAuditStore(),
+    executionRiskStore: createProductionExecutionRiskStore(),
     environment: process.env,
   });
 };

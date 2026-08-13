@@ -265,3 +265,14 @@ The owner-only credential provisioning ceremony is a separate, server-only hando
 The existing Account Companion remains an independent GET-only/read-only facility with `writeCapability:false`; its credentials are never migrated to future-execution custody. `LIVE_TRADING_ENABLED=false` remains mandatory.
 
 Rotation decrypts and re-encrypts within one SQLite transaction; historical key versions must remain available during rewrap, and plaintext is never persisted. A later externally managed KMS can implement the same versioned record contract. Provisioning and any execution-provider wiring require separate security review. The MEXC Account Companion remains a separate GET-only, allow-listed, read-only subsystem.
+# Guarded-execution risk authority
+
+Account authorization is default-deny and durable, scoped to canonical
+`(userId, accountId)` pairs, revisioned with compare-and-swap updates, and bounded
+by an expiry/review time. The store is server-only, uses hardened SQLite WAL files,
+and fails closed when corrupt, unsupported, deleted, or atomically replaced.
+Authorization never comes from environment variables or request fields. Fresh,
+identity-bound equity/margin evidence and prices for every open position are
+required before account drawdown, order-margin, and gross-exposure limits pass.
+No public route can execute or mutate this authority and no private exchange
+transport, signing, or credential decryption is introduced by this readiness slice.

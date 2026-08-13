@@ -449,3 +449,9 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 - [x] Add durable append-only tamper-evident single-instance execution audit persistence. This does not claim external WORM/immutable storage and adds no exchange transport or credential wiring.
 - [x] Add a deterministic synthetic lifecycle/reconciliation contract with bounded restart-safe evidence and `executed:false`. This is not exchange acknowledgement or readback reconciliation.
 - [x] Add short-lived, single-use server-only internal caller assertions backed by TOTP-assured database sessions. No public mint/execution route exists; account ownership, risk authorization and activation remain future gates, production stays disarmed/global-disabled, the adapter stays non-executing and real MEXC launch codes remain confiscated.
+- [x] Install a durable, default-deny server-side account authorization and risk
+  officer ahead of synthetic provider evaluation, while retaining the
+  non-executing adapter and `executed:false` result contract.
+- [ ] Add separately reviewed authoritative provider account/risk readback.
+- [ ] Complete credential-to-account ownership and activation ceremony.
+- [ ] Approve any restricted test-account rollout or exchange write capability.

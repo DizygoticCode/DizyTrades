@@ -23,10 +23,13 @@ import {
   type ExecutionIdempotencyScope,
   type ExecutionStateStore,
 } from "./state-store";
+import type { ExecutionRiskStore } from "./risk-store";
+import { evaluateExecutionRisk } from "./risk";
 
 type ServiceOptions = Readonly<{
   stateStore: ExecutionStateStore;
   auditStore: ExecutionAuditStore;
+  riskStore: ExecutionRiskStore;
   environment?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
   syntheticProviderScenario?: SyntheticProviderScenario;
@@ -198,6 +201,16 @@ export class ExecutionAirlockService {
       ? "ADAPTER_UNAVAILABLE"
       : (boundaryKillReason ?? "GLOBAL_EXECUTION_DISABLED");
     const preview = createExecutionPreview(validation.intent, prerequisites);
+
+    // Stronger global brakes win without consulting account authorization. Risk
+    // is nevertheless mandatory before any provider fixture can be evaluated.
+    if (!boundaryKillReason && gate.reason === "disabled") {
+      const risk = evaluateExecutionRisk(this.options.riskStore, validation.intent, prerequisites, preview, new Date(occurredAt));
+      if (!risk.ok) {
+        audit("execution-blocked", risk.reason);
+        return persist(idempotencyScope, Object.freeze({ intentId: validation.intent.intentId, idempotencyKey: validation.intent.idempotencyKey, state:"blocked", executed:false, duplicate:false, reason:risk.reason, preview }));
+      }
+    }
 
     if (this.options.syntheticProviderScenario && !boundaryKillReason && gate.reason === "disabled") {
       try {
