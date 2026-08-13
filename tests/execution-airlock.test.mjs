@@ -42,6 +42,7 @@ function makeService(options = {}) {
     syntheticProviderScenario: options.syntheticProviderScenario,
     syntheticObservation: options.syntheticObservation,
     syntheticProviderFault: options.syntheticProviderFault,
+    executionReconciliationStore: options.executionReconciliationStore,
     readKillSwitches: options.readKillSwitches ?? (() => ({ ...enabledSwitchState, globalDisabled: true })),
     authenticateInternalCaller: ({ callerId, assertionId }) => {
       const [userId, accountId] = assertionId.split(":");
@@ -62,6 +63,20 @@ test("execution capability defaults and malformed configuration fail closed", ()
   assert.deepEqual(executionCapabilityGate({ LIVE_TRADING_ENABLED: "false" }), { configured: true, enabled: false, reason: "disabled" });
   assert.deepEqual(executionCapabilityGate({ LIVE_TRADING_ENABLED: "TRUE" }), { configured: true, enabled: false, reason: "malformed" });
   assert.deepEqual(executionCapabilityGate({ LIVE_TRADING_ENABLED: "true" }), { configured: true, enabled: false, reason: "adapter-unavailable" });
+});
+
+test("reconciliation freshness fails closed while kill switches retain precedence", () => {
+  let staleReads=0;
+  const fresh = { read: () => ({ revision:1, status:"clean", reason:"CLEAN", expected:[], observedAt:"2026-08-12T12:00:59.000Z" }) };
+  const stale = { read: () => { staleReads++; return { revision:1, status:"clean", reason:"CLEAN", expected:[], observedAt:"2020-01-01T00:00:00.000Z" }; } };
+  const freshResponse = makeService({ environment:{LIVE_TRADING_ENABLED:"false"}, now:()=>new Date("2026-08-12T12:01:00.000Z"), readKillSwitches:()=>enabledSwitchState, executionReconciliationStore:fresh, syntheticProviderScenario:"would-accept" }).process(valid,prerequisites);
+  assert.equal(freshResponse.result.reason,"SYNTHETIC_PROVIDER_OUTCOME");
+  const staleResponse = makeService({ environment:{LIVE_TRADING_ENABLED:"false"}, now:()=>new Date("2026-08-12T12:01:00.000Z"), readKillSwitches:()=>enabledSwitchState, executionReconciliationStore:stale, syntheticProviderScenario:"would-accept" }).process({...valid,intentId:"intent-stale",idempotencyKey:"idempotency-stale"},prerequisites);
+  assert.equal(staleReads,1);
+  assert.equal(staleResponse.result.reason,"EXECUTION_RECONCILIATION_UNKNOWN");
+  const globalResponse = makeService({ environment:{LIVE_TRADING_ENABLED:"false"}, now:()=>new Date("2026-08-12T12:01:00.000Z"), executionReconciliationStore:stale }).process({...valid,intentId:"intent-global",idempotencyKey:"idempotency-global"},prerequisites);
+  assert.equal(globalResponse.result.reason,"GLOBAL_EXECUTION_DISABLED");
+  assert.equal(globalResponse.auditEvents.at(-1).reason,"GLOBAL_EXECUTION_DISABLED");
 });
 
 test("valid intent is structurally validated into an immutable domain object", () => {

@@ -9,12 +9,14 @@ export type AuthoritativeReconciliationResult = Readonly<{ status:"clean"|"quara
 export function reconcileAuthoritativeMexcReadback(store:ExecutionReconciliationStore, identity:ExecutionAccountIdentity, observation:unknown, now=new Date()):AuthoritativeReconciliationResult {
   const state=store.read(identity);
   let reason: ReconciliationReason = "OBSERVATION_INVALID";
+  let observedAt: string | undefined;
   if(observation && typeof observation==="object") {
     const readback=observation as Partial<MexcProviderAccountRiskReadback>;
     if(readback.userId!==identity.userId||readback.accountId!==identity.accountId) reason="IDENTITY_MISMATCH";
     else if(readback.version!==MEXC_PROVIDER_READBACK_VERSION||readback.provider!=="mexc"||readback.settlementCurrency!=="USDT"||!Array.isArray(readback.positions)) reason="OBSERVATION_INVALID";
     else if(!Number.isFinite(Date.parse(String(readback.observedAt)))||now.getTime()-Date.parse(String(readback.observedAt))<0||now.getTime()-Date.parse(String(readback.observedAt))>MEXC_PROVIDER_READBACK_MAX_AGE_MS) reason="OBSERVATION_STALE";
     else {
+      observedAt=new Date(String(readback.observedAt)).toISOString();
       const observed=readback.positions;
       const valid=observed.every(p=>p&&/^[A-Z0-9]{1,20}_USDT$/.test(p.symbol)&&(p.side==="long"||p.side==="short")&&Number.isFinite(p.contractVolume)&&p.contractVolume>0);
       const duplicate=new Set(observed.map(p=>`${p.symbol}:${p.side}`)).size!==observed.length;
@@ -38,7 +40,6 @@ export function reconcileAuthoritativeMexcReadback(store:ExecutionReconciliation
       }
     }
   }
-  const recorded=store.record(identity,reason,state.revision);
+  const recorded=store.record(identity,reason,state.revision,observedAt);
   return Object.freeze({status:recorded.status==="clean"?"clean":"quarantined",reason:recorded.reason as ReconciliationReason,revision:recorded.revision,executed:false});
 }
-

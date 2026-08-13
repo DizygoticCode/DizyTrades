@@ -6,6 +6,7 @@ import type { ExecutionStateStore } from "./state-store";
 import type { ExecutionAuditStore } from "./audit-store";
 import type { ExecutionRiskStore } from "./risk-store";
 import { ExecutionReconciliationStoreError, type ExecutionReconciliationStore } from "./reconciliation-store";
+import { MEXC_PROVIDER_READBACK_MAX_AGE_MS } from "../../mexc-provider-readback";
 import type {
   AuthenticatedExecutionCaller,
   ExecutionBoundaryRequest,
@@ -123,10 +124,14 @@ export class InternalExecutionBoundary {
     if (this.dependencies.executionReconciliationStore) {
       try {
         const reconciliation = this.dependencies.executionReconciliationStore.read(caller);
-        if (reconciliation.status !== "clean") killReason = reconciliation.status === "quarantined"
+        const observedAt = reconciliation.observedAt === null ? NaN : Date.parse(reconciliation.observedAt);
+        const age = (this.dependencies.now?.() ?? new Date()).getTime() - observedAt;
+        const staleClean = reconciliation.status === "clean"
+          && (!Number.isFinite(age) || age < 0 || age > MEXC_PROVIDER_READBACK_MAX_AGE_MS);
+        if (reconciliation.status !== "clean" || staleClean) killReason ??= reconciliation.status === "quarantined"
           ? "EXECUTION_ACCOUNT_QUARANTINED" : "EXECUTION_RECONCILIATION_UNKNOWN";
       } catch (error) {
-        killReason = error instanceof ExecutionReconciliationStoreError
+        killReason ??= error instanceof ExecutionReconciliationStoreError
           ? error.code : "EXECUTION_RECONCILIATION_UNAVAILABLE";
       }
     }

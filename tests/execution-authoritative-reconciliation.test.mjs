@@ -7,6 +7,7 @@ import test from "node:test";
 
 import { reconcileAuthoritativeMexcReadback } from "../app/lib/execution/internal/authoritative-reconciliation.ts";
 import { ExecutionReconciliationStoreError, SqliteExecutionReconciliationStore } from "../app/lib/execution/internal/reconciliation-store.ts";
+import { createProductionReconciliationOrchestrator } from "../app/lib/execution/internal/production-reconciliation.ts";
 
 const id={userId:"user-1",accountId:"account-1"};
 const at="2026-08-13T12:00:00.000Z";
@@ -65,3 +66,7 @@ test("semantically corrupt schema-v1 reconciliation rows fail closed",()=>{
 });
 
 test("quarantine is sticky without a public clearing primitive",()=>{const store=new SqliteExecutionReconciliationStore(":memory:");reconcileAuthoritativeMexcReadback(store,id,observation([position()]),new Date(at));const result=reconcileAuthoritativeMexcReadback(store,id,observation(),new Date(at));assert.equal(result.status,"quarantined");assert.equal(result.reason,"UNEXPECTED_PROVIDER_POSITION");});
+
+test("expected-state mutation cannot clear quarantine",()=>{const store=new SqliteExecutionReconciliationStore(":memory:");reconcileAuthoritativeMexcReadback(store,id,observation([position()]),new Date(at));const quarantined=store.read(id);const changed=store.setExpected(id,[position()],quarantined.revision);assert.equal(changed.status,"quarantined");assert.equal(changed.reason,"UNEXPECTED_PROVIDER_POSITION");assert.deepEqual(changed.expected,[position()]);assert.equal(reconcileAuthoritativeMexcReadback(store,id,observation([position()]),new Date(at)).status,"quarantined");});
+
+test("production orchestration uses trusted empty expectation and quarantines Radar divergence",async()=>{const store=new SqliteExecutionReconciliationStore(":memory:");let calls=0;const orchestrate=createProductionReconciliationOrchestrator(store,async(identity)=>{calls++;assert.deepEqual(identity,id);return observation([position()]);},()=>new Date(at));await orchestrate(id);assert.equal(calls,1);const state=store.read(id);assert.equal(state.status,"quarantined");assert.equal(state.reason,"UNEXPECTED_PROVIDER_POSITION");assert.deepEqual(state.expected,[]);});
