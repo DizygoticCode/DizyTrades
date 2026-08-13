@@ -452,6 +452,8 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 - [x] Install a durable, default-deny server-side account authorization and risk
   officer ahead of synthetic provider evaluation, while retaining the
   non-executing adapter and `executed:false` result contract.
-- [ ] Add separately reviewed authoritative provider account/risk readback.
+- [x] Add bounded authoritative MEXC account/position readback through the existing
+  owner read-only credential seam. The missing authoritative day-start equity is
+  represented explicitly, so this slice does not yet satisfy daily-drawdown risk.
 - [ ] Complete credential-to-account ownership and activation ceremony.
 - [ ] Approve any restricted test-account rollout or exchange write capability.
