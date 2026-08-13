@@ -93,6 +93,55 @@ test("durable idempotency survives service and SQLite store reconstruction", () 
   secondStore.close();
 }));
 
+test("reusing a durable scope and key for a different intent ID fails closed before provider evaluation", () => withDatabasePath((path) => {
+  const store = new SqliteExecutionStateStore(path);
+  const boundary = boundaryFor(store, { syntheticProviderScenario: "would-accept" });
+  const first = process(boundary);
+  assert.equal(first.result.state, "prepared");
+
+  const mismatched = process(boundary, { ...valid, intentId: "intent-0002" });
+  assert.equal(mismatched.result.state, "blocked");
+  assert.equal(mismatched.result.executed, false);
+  assert.equal(mismatched.result.duplicate, false);
+  assert.equal(mismatched.result.reason, "EXECUTION_STATE_INVALID");
+  assert.equal(mismatched.result.providerResult, undefined);
+  assert.equal(mismatched.auditEvents.some(({ kind }) => kind === "provider-evaluated"), false);
+  store.close();
+}));
+
+test("reusing a durable scope and key for a different symbol fails closed after reconstruction", () => withDatabasePath((path) => {
+  const firstStore = new SqliteExecutionStateStore(path);
+  const first = process(boundaryFor(firstStore, { syntheticProviderScenario: "would-accept" }));
+  assert.equal(first.result.state, "prepared");
+  firstStore.close();
+
+  const ethContract = Object.freeze({ ...contract, symbol: "ETH_USDT", displayName: "ETH USDT" });
+  const ethIntent = { ...valid, symbol: ethContract.symbol };
+  const ethPrerequisites = Object.freeze({
+    contracts: new Map([[ethContract.symbol, ethContract]]),
+    referencePrices: new Map([[ethContract.symbol, Object.freeze({ price: 65000, observedAt })]]),
+    accountState: Object.freeze({
+      userId: ethIntent.userId,
+      accountId: ethIntent.accountId,
+      observedAt,
+      positions: Object.freeze([]),
+    }),
+  });
+  const secondStore = new SqliteExecutionStateStore(path);
+  const mismatched = process(
+    boundaryFor(secondStore, { syntheticProviderScenario: "would-accept" }),
+    ethIntent,
+    ethPrerequisites,
+  );
+  assert.equal(mismatched.result.state, "blocked");
+  assert.equal(mismatched.result.executed, false);
+  assert.equal(mismatched.result.duplicate, false);
+  assert.equal(mismatched.result.reason, "EXECUTION_STATE_INVALID");
+  assert.equal(mismatched.result.providerResult, undefined);
+  assert.equal(mismatched.auditEvents.some(({ kind }) => kind === "provider-evaluated"), false);
+  secondStore.close();
+}));
+
 test("synthetic provider results persist across restart without becoming execution claims", () => withDatabasePath((path) => {
   for (const scenario of ["would-accept", "would-reject", "would-timeout", "would-unknown"]) {
     const intent = { ...valid, intentId: `intent-${scenario}`, idempotencyKey: `idem-${scenario}-0001` };

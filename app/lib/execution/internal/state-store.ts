@@ -362,6 +362,7 @@ export class SqliteExecutionStateStore implements ExecutionStateStore {
         "SELECT * FROM execution_state WHERE user_id=? AND account_id=? AND idempotency_key=?",
       ).get(scope.userId, scope.accountId, scope.idempotencyKey) as StoredStateRow | undefined;
       if (existing) {
+        if (existing.intent_id !== identity.intentId || existing.symbol !== identity.symbol) invalid();
         const result = rowResult(existing);
         db.exec("COMMIT");
         this.hardenFiles();
