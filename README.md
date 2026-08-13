@@ -180,6 +180,13 @@ The repository currently contains:
 
 `LIVE_TRADING_ENABLED=false` remains a required deployment boundary. The read-only MEXC connection proves only the Account Companion observation boundary. Any future write-capable execution path requires separate credential custody, risk validation, idempotency, reconciliation, account limits, kill switches, recovery rehearsal and independent security approval.
 
+Guarded execution's bounded duplicate history is stored server-side at
+`DATA_DIR/execution-state.sqlite` on the existing persistent disk. Restarting the
+single supported Render instance preserves the unique user/account/key scope.
+Back up that file with the disk, but do not treat persistence as a completed
+snapshot rollback rehearsal. It contains no credentials or exchange responses;
+every stored result is synthetic/non-executing and `executed:false`.
+
 The guarded execution boundary includes non-executing provider-mechanics
 scaffolding only. It deterministically models synthetic provider lifecycle
 outcomes, always reports `executed:false`, and is disconnected from MEXC write

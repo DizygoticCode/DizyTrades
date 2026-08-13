@@ -335,6 +335,14 @@ service, idempotency and switch state are not durable/shared, audit events are
 not immutable storage, and no independent operational or security approval has
 occurred. It adds no exchange write capability.
 
+A fourth slice makes the bounded execution-state and user/account/key duplicate
+boundary durable on the existing single-instance SQLite disk. Restart-safe
+idempotency state is complete for non-executing airlock results only. It does not
+submit an order, provide immutable audit storage, persist kill switches, prove
+snapshot recovery or satisfy the idempotent order-submission milestone.
+
+- [x] durable bounded execution state and restart-safe non-executing idempotency
+
 Live execution remains disabled until every relevant requirement below is implemented, exercised and independently reviewed:
 
 - [ ] isolated execution service or equivalently isolated execution boundary

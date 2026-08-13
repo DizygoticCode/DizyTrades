@@ -119,6 +119,7 @@ export type ExecutionBlockCode =
   | "ADAPTER_UNAVAILABLE"
   | "PROVIDER_EXCEPTION"
   | "PROVIDER_MALFORMED_RESULT"
+  | "EXECUTION_STATE_UNAVAILABLE"
   | "SYNTHETIC_PROVIDER_OUTCOME";
 
 export type ExecutionResult = Readonly<{

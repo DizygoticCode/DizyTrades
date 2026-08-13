@@ -23,6 +23,8 @@ export type ExecutionBoundaryDependencies = Readonly<{
   /** Test-only deterministic lifecycle fixture; production composition never sets it. */
   syntheticProviderScenario?: SyntheticProviderScenario;
   syntheticProviderFault?: "exception" | "malformed-result";
+  /** Test-only path; production composition always owns the DATA_DIR path. */
+  executionStatePath?: string;
 }>;
 
 const rejected = (reason: ExecutionRejectionCode): ExecutionBoundaryResponse => Object.freeze({
@@ -72,6 +74,7 @@ export class InternalExecutionBoundary {
       now: dependencies.now,
       syntheticProviderScenario: dependencies.syntheticProviderScenario,
       syntheticProviderFault: dependencies.syntheticProviderFault,
+      executionStatePath: dependencies.executionStatePath ?? (dependencies.syntheticProviderScenario || dependencies.syntheticProviderFault || dependencies.now ? ":memory:" : undefined),
     });
   }
 

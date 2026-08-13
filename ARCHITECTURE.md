@@ -392,10 +392,21 @@ idempotency by constructing another airlock. Source contracts forbid routes,
 client modules, paper routes and other application modules from importing the
 implementation modules directly.
 
-This isolation is process-local readiness architecture, not an operationally
-independent or durable execution service. Idempotency remains in memory, audit
-events are not durably stored, and the only adapter has no transport. Therefore
-the guarded-execution roadmap gate remains open.
+The next readiness slice replaces process-local idempotency authority with the
+server-only `DATA_DIR/execution-state.sqlite` store. A versioned SQLite schema,
+`FULL` synchronous mode, WAL, restrictive file permissions and a unique
+`(userId, accountId, idempotencyKey)` key preserve bounded terminal results over
+service reconstruction. A claim is created before provider mechanics; an
+unfinished claim, malformed record or any open/migration/read/write failure
+fails closed as `EXECUTION_STATE_UNAVAILABLE`. Stored results are bounded,
+secret-free and always `executed:false`; synthetic `prepared` state is not an
+exchange acknowledgement. This supports the single Render instance and existing
+persistent disk only, not horizontal execution or shared infrastructure.
+
+The audit events are still not immutable durable audit storage, kill-switch
+state is not durable/shared, and the only adapter has no transport. Durable
+duplicate detection therefore does not complete idempotent order submission,
+acknowledgement, reconciliation, recovery rehearsal or live execution.
 
 DizyAccount remains an independent owner-only, GET-only observation and shadow
 reconciliation layer. DizyPaper and pending orders remain simulation-only. This

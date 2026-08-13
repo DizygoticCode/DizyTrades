@@ -75,6 +75,17 @@ test("provider mechanics have no write transport, signing, custody or provisioni
   }
 });
 
+test("execution idempotency authority is durable and production-owned", () => {
+  const service = text("app/lib/execution/internal/service.ts");
+  const store = text("app/lib/execution/internal/state-store.ts");
+  assert.doesNotMatch(service, /new Map<.*ExecutionResult/);
+  assert.match(service, /stateStore\.claim/);
+  assert.match(store, /PRIMARY KEY\(user_id, account_id, idempotency_key\)/);
+  assert.match(store, /PRAGMA synchronous=FULL/);
+  assert.match(text("app/lib/execution/internal/composition.ts"), /new InternalExecutionBoundary/);
+  assert.doesNotMatch(store, /credential-(?:custody|provisioning)|mexc-private|fetch\s*\(/i);
+});
+
 test("no route, client or paper module imports execution/provider internals", () => {
   for (const path of filesBelow("app").filter((path) => /\.[cm]?[jt]sx?$/.test(path))) {
     const source = text(path);

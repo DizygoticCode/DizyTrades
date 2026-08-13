@@ -37,9 +37,13 @@ user/account binding to match the request, and obtains kill-switch state through
 its own dependency.
 Caller-supplied intent fields cannot override identity, policy or global,
 per-user or per-account shutdown state. Construction and dependency injection
-remain internal/test-only, preventing application callers from resetting the
-in-memory idempotency store. Malformed output, exceptions, and other verifier or
-shutdown-provider failures fail closed before a preview. There is still no
+remain internal/test-only. Production owns a separate
+`DATA_DIR/execution-state.sqlite` store whose unique user/account/key scope
+survives reconstruction. It persists only bounded, validated, secret-free,
+non-executing results. Malformed durable state, unfinished claims and database
+failures fail closed without an in-memory fallback. Malformed output, exceptions,
+and other verifier or shutdown-provider failures fail closed before a preview.
+There is still no
 public execution route, write
 transport, signing implementation or write-key custody.
 
