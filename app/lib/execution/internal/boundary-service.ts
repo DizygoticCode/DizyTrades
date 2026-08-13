@@ -62,12 +62,12 @@ const isKillSwitchState = (value: unknown): value is ExecutionKillSwitches => {
   return typeof candidate.globalDisabled === "boolean"
     && typeof candidate.armed === "boolean"
     && candidate.disabledUserIds instanceof Set
-    && candidate.disabledAccountIds instanceof Set
+    && candidate.disabledAccountKeys instanceof Set
     && typeof candidate.providerStateFresh === "boolean"
     && typeof candidate.maintenance === "boolean"
     && typeof candidate.emergencyStop === "boolean"
     && [...candidate.disabledUserIds].every(isNonEmptyString)
-    && [...candidate.disabledAccountIds].every(isNonEmptyString);
+    && [...candidate.disabledAccountKeys].every(isNonEmptyString);
 };
 
 /** @internal Constructed only by the composition root or the test-only seam. */

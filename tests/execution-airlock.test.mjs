@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { createExecutionAuditEvent } from "../app/lib/execution/internal/audit.ts";
 import { executionCapabilityGate } from "../app/lib/execution/internal/gate.ts";
-import { executionKillSwitchReason } from "../app/lib/execution/internal/kill-switch.ts";
+import { executionAccountKey, executionKillSwitchReason } from "../app/lib/execution/internal/kill-switch.ts";
 import { executionBoundary } from "../app/lib/execution/boundary.ts";
 import { createTestExecutionBoundary } from "../app/lib/execution/internal/testing.ts";
 import { validateExecutionIntent } from "../app/lib/execution/internal/validation.ts";
@@ -29,7 +29,7 @@ const valid = Object.freeze({
   createdAt: "2026-08-12T12:00:00.000Z",
 });
 
-const enabledSwitchState = Object.freeze({ armed: true, globalDisabled: false, disabledUserIds: new Set(), disabledAccountIds: new Set(), providerStateFresh: true, maintenance: false, emergencyStop: false });
+const enabledSwitchState = Object.freeze({ armed: true, globalDisabled: false, disabledUserIds: new Set(), disabledAccountKeys: new Set(), providerStateFresh: true, maintenance: false, emergencyStop: false });
 function makeService(options = {}) {
   const boundary = createTestExecutionBoundary({
     environment: options.environment,
@@ -97,10 +97,10 @@ test("limit price obeys the contract price step", () => {
 });
 
 test("kill-switch contract represents global, user, account, stale, maintenance and emergency blocks", () => {
-  const base = { armed: true, globalDisabled: false, disabledUserIds: new Set(), disabledAccountIds: new Set(), providerStateFresh: true, maintenance: false, emergencyStop: false };
+  const base = { armed: true, globalDisabled: false, disabledUserIds: new Set(), disabledAccountKeys: new Set(), providerStateFresh: true, maintenance: false, emergencyStop: false };
   assert.equal(executionKillSwitchReason({ ...base, globalDisabled: true }, valid), "GLOBAL_EXECUTION_DISABLED");
   assert.equal(executionKillSwitchReason({ ...base, disabledUserIds: new Set([valid.userId]) }, valid), "USER_EXECUTION_DISABLED");
-  assert.equal(executionKillSwitchReason({ ...base, disabledAccountIds: new Set([valid.accountId]) }, valid), "ACCOUNT_EXECUTION_DISABLED");
+  assert.equal(executionKillSwitchReason({ ...base, disabledAccountKeys: new Set([executionAccountKey(valid)]) }, valid), "ACCOUNT_EXECUTION_DISABLED");
   assert.equal(executionKillSwitchReason({ ...base, providerStateFresh: false }, valid), "PROVIDER_STATE_STALE");
   assert.equal(executionKillSwitchReason({ ...base, maintenance: true }, valid), "MAINTENANCE_STOP");
   assert.equal(executionKillSwitchReason({ ...base, emergencyStop: true }, valid), "EMERGENCY_STOP");
@@ -255,7 +255,7 @@ test("kill switches are boundary-owned and cannot be overridden by intent fields
   for (const [switches, reason] of [
     [{ ...enabledSwitchState, globalDisabled: true }, "GLOBAL_EXECUTION_DISABLED"],
     [{ ...enabledSwitchState, disabledUserIds: new Set([valid.userId]) }, "USER_EXECUTION_DISABLED"],
-    [{ ...enabledSwitchState, disabledAccountIds: new Set([valid.accountId]) }, "ACCOUNT_EXECUTION_DISABLED"],
+    [{ ...enabledSwitchState, disabledAccountKeys: new Set([executionAccountKey(valid)]) }, "ACCOUNT_EXECUTION_DISABLED"],
   ]) {
     const service = makeService({ environment: { LIVE_TRADING_ENABLED: "false" }, now: () => new Date("2026-08-12T12:01:00Z"), readKillSwitches: () => switches });
     const response = service.process({ ...valid, killSwitches: enabledSwitchState, globalDisabled: false }, prerequisites);
@@ -292,7 +292,7 @@ test("malformed authentication and kill-switch dependency output fails closed", 
     null,
     {},
     { ...enabledSwitchState, disabledUserIds: null },
-    { ...enabledSwitchState, disabledAccountIds: [valid.accountId] },
+    { ...enabledSwitchState, disabledAccountKeys: [valid.accountId] },
     { ...enabledSwitchState, maintenance: "false" },
     { ...enabledSwitchState, disabledUserIds: new Set([null]) },
   ]) {

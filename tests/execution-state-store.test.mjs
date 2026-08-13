@@ -22,7 +22,7 @@ const observedAt = "2026-08-12T12:00:45.000Z";
 const enabledSwitchState = Object.freeze({
   armed: true, globalDisabled: false,
   disabledUserIds: new Set(),
-  disabledAccountIds: new Set(),
+  disabledAccountKeys: new Set(),
   providerStateFresh: true,
   maintenance: false,
   emergencyStop: false,

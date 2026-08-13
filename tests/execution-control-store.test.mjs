@@ -1,18 +1,18 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdtempSync, renameSync, rmSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 import { executionCapabilityGate } from "../app/lib/execution/internal/gate.ts";
-import { executionKillSwitchReason } from "../app/lib/execution/internal/kill-switch.ts";
+import { executionAccountKey, executionKillSwitchReason } from "../app/lib/execution/internal/kill-switch.ts";
 import { ExecutionControlStoreError, SqliteExecutionControlStore } from "../app/lib/execution/internal/control-store.ts";
 
 const at = new Date("2026-08-13T12:00:00.000Z");
 const identity = { userId: "user-1", accountId: "account-1" };
 const directory = () => mkdtempSync(join(tmpdir(), "dizy-execution-controls-"));
-const enabled = (overrides = {}) => ({ armed: true, globalDisabled: false, disabledUserIds: [], disabledAccountIds: [], maintenance: false, emergencyStop: false, providerObservedAt: at.toISOString(), providerValidForMs: 60_000, ...overrides });
+const enabled = (overrides = {}) => ({ armed: true, globalDisabled: false, disabledUserIds: [], disabledAccountKeys: [], maintenance: false, emergencyStop: false, providerObservedAt: at.toISOString(), providerValidForMs: 60_000, ...overrides });
 
 test("missing control storage is initialized restart-safe and fail-closed", () => {
   const root = directory();
@@ -37,14 +37,52 @@ test("durable controls persist updates and calculate provider freshness fail-clo
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+test("an open store fails closed when its backing file is deleted and restart initializes disarmed", () => {
+  const root = directory();
+  try {
+    const path = join(root, "controls.sqlite");
+    const store = new SqliteExecutionControlStore(path, () => at);
+    store.replace(store.read().revision, enabled());
+    unlinkSync(path);
+    assert.throws(() => store.switches(at), (error) => error instanceof ExecutionControlStoreError && error.code === "EXECUTION_CONTROL_UNAVAILABLE");
+    const restarted = new SqliteExecutionControlStore(path, () => at).read();
+    assert.equal(restarted.armed, false);
+    assert.equal(restarted.globalDisabled, true);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("an open store fails closed when its backing file is atomically replaced", () => {
+  const root = directory();
+  try {
+    const path = join(root, "controls.sqlite");
+    const replacement = join(root, "replacement.sqlite");
+    const store = new SqliteExecutionControlStore(path, () => at);
+    store.replace(store.read().revision, enabled());
+    copyFileSync(path, replacement);
+    renameSync(replacement, path);
+    assert.throws(() => store.switches(at), (error) => error instanceof ExecutionControlStoreError && error.code === "EXECUTION_CONTROL_UNAVAILABLE");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("account disables are isolated by canonical user and account identity", () => {
+  const sharedAccount = "shared-account";
+  const first = { userId: "user-1", accountId: sharedAccount };
+  const second = { userId: "user-2", accountId: sharedAccount };
+  const switches = { armed: true, globalDisabled: false, disabledUserIds: new Set(),
+    disabledAccountKeys: new Set([executionAccountKey(first)]), maintenance: false,
+    emergencyStop: false, providerStateFresh: true };
+  assert.equal(executionKillSwitchReason(switches, first), "ACCOUNT_EXECUTION_DISABLED");
+  assert.equal(executionKillSwitchReason(switches, second), null);
+});
+
 test("emergency, maintenance, global, user, account, disarmed and stale precedence is deterministic", () => {
-  const base = { armed: true, globalDisabled: false, disabledUserIds: new Set(), disabledAccountIds: new Set(), maintenance: false, emergencyStop: false, providerStateFresh: true };
+  const base = { armed: true, globalDisabled: false, disabledUserIds: new Set(), disabledAccountKeys: new Set(), maintenance: false, emergencyStop: false, providerStateFresh: true };
   const reason = (changes) => executionKillSwitchReason({ ...base, ...changes }, identity);
   assert.equal(reason({ emergencyStop: true, maintenance: true, globalDisabled: true }), "EMERGENCY_STOP");
   assert.equal(reason({ maintenance: true, globalDisabled: true }), "MAINTENANCE_STOP");
-  assert.equal(reason({ globalDisabled: true, disabledUserIds: new Set([identity.userId]), disabledAccountIds: new Set([identity.accountId]) }), "GLOBAL_EXECUTION_DISABLED");
-  assert.equal(reason({ disabledUserIds: new Set([identity.userId]), disabledAccountIds: new Set([identity.accountId]) }), "USER_EXECUTION_DISABLED");
-  assert.equal(reason({ disabledAccountIds: new Set([identity.accountId]) }), "ACCOUNT_EXECUTION_DISABLED");
+  assert.equal(reason({ globalDisabled: true, disabledUserIds: new Set([identity.userId]), disabledAccountKeys: new Set([executionAccountKey(identity)]) }), "GLOBAL_EXECUTION_DISABLED");
+  assert.equal(reason({ disabledUserIds: new Set([identity.userId]), disabledAccountKeys: new Set([executionAccountKey(identity)]) }), "USER_EXECUTION_DISABLED");
+  assert.equal(reason({ disabledAccountKeys: new Set([executionAccountKey(identity)]) }), "ACCOUNT_EXECUTION_DISABLED");
   assert.equal(reason({ armed: false }), "EXECUTION_DISARMED");
   assert.equal(reason({ providerStateFresh: false }), "PROVIDER_STATE_STALE");
 });
