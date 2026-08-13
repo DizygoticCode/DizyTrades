@@ -184,7 +184,7 @@ test("bounded reconciliation evidence survives restart exactly and remains non-e
   secondStore.close();
 }));
 
-test("corrupt persisted reconciliation evidence fails closed before provider re-entry", () => withDatabasePath((path) => {
+test("inherited-name reconciliation outcome fails closed before provider re-entry", () => withDatabasePath((path) => {
   const options = { syntheticProviderScenario: "would-timeout", syntheticObservation: "would-observe-missing" };
   const firstStore = new SqliteExecutionStateStore(path);
   process(boundaryFor(firstStore, options));
@@ -193,7 +193,7 @@ test("corrupt persisted reconciliation evidence fails closed before provider re-
   const db = new DatabaseSync(path);
   const row = db.prepare("SELECT provider_json FROM execution_state").get();
   const provider = JSON.parse(row.provider_json);
-  provider.reconciliation.executed = true;
+  provider.reconciliation.initialProviderOutcome = "constructor";
   db.prepare("UPDATE execution_state SET provider_json=?").run(JSON.stringify(provider));
   db.close();
 

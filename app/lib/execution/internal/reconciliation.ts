@@ -72,7 +72,7 @@ export function isSyntheticReconciliationResult(value: unknown): value is Synthe
     || result.provenance !== "deterministic-synthetic-fixture"
     || result.executed !== false || !isSyntheticObservation(result.observedOutcome)
     || typeof result.initialProviderOutcome !== "string"
-    || !(result.initialProviderOutcome in classifications)) return false;
+    || !Object.prototype.hasOwnProperty.call(classifications, result.initialProviderOutcome)) return false;
   const expected = classifications[result.initialProviderOutcome as SyntheticProviderScenario][result.observedOutcome];
   return result.resolution === expected[0] && result.certainty === expected[1];
 }

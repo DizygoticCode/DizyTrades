@@ -53,5 +53,6 @@ test("observation and result validators reject malformed, extra and executing sh
     { ...valid, contractVersion: "synthetic-reconciliation/2.0.0" },
     { ...valid, resolution: "recovered-accepted" },
     { ...valid, initialProviderOutcome: "would-timeout" },
+    { ...valid, initialProviderOutcome: "constructor" },
   ]) assert.equal(isSyntheticReconciliationResult(malformed), false);
 });
