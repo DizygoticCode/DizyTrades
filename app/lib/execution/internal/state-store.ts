@@ -87,6 +87,32 @@ export interface ExecutionStateStore {
   ): void;
 }
 
+export type ExecutionStatePersistenceIdentity = Readonly<{
+  scope: ExecutionIdempotencyScope;
+  identity: ExecutionStateIdentity;
+}>;
+
+/**
+ * Extract only the bounded identity needed to durably reserve a rejected intent.
+ * Invalid identity/key/symbol shapes are deliberately not persisted because no
+ * trustworthy durable scope can be formed for them.
+ */
+export function executionStateIdentityFromInput(
+  input: Readonly<Record<string, unknown>>,
+): ExecutionStatePersistenceIdentity | null {
+  const userId = typeof input.userId === "string" ? input.userId : "";
+  const accountId = typeof input.accountId === "string" ? input.accountId : "";
+  const idempotencyKey = typeof input.idempotencyKey === "string" ? input.idempotencyKey : "";
+  const intentId = typeof input.intentId === "string" ? input.intentId : "";
+  const symbol = typeof input.symbol === "string" ? input.symbol : "";
+  if (!TOKEN.test(userId) || !TOKEN.test(accountId) || !IDEMPOTENCY_KEY.test(idempotencyKey)
+    || !TOKEN.test(intentId) || !SYMBOL.test(symbol)) return null;
+  return Object.freeze({
+    scope: Object.freeze({ userId, accountId, idempotencyKey }),
+    identity: Object.freeze({ intentId, symbol }),
+  });
+}
+
 type StoredStateRow = Readonly<{
   schema_version: number;
   user_id: string;

@@ -16,6 +16,7 @@ import { createExecutionPreview } from "./preview";
 import { evaluateSyntheticProvider, isSyntheticProviderResult } from "./provider";
 import {
   executionStateFailureCode,
+  executionStateIdentityFromInput,
   type ExecutionIdempotencyScope,
   type ExecutionStateStore,
 } from "./state-store";
@@ -70,15 +71,70 @@ export class ExecutionAirlockService {
         return stateFailure(executionStateFailureCode(error), result.preview);
       }
     };
+    const duplicateResult = (
+      stored: ExecutionResult | null,
+      intentId: string,
+      idempotencyKey: string,
+    ): ExecutionBoundaryResponse => {
+      audit("duplicate-intent-detected", "DUPLICATE_INTENT");
+      if (!stored) {
+        return response(Object.freeze({
+          intentId,
+          idempotencyKey,
+          state: "blocked",
+          executed: false,
+          duplicate: true,
+          reason: "DUPLICATE_INTENT",
+          preview: null,
+        }));
+      }
+      return response(Object.freeze({ ...stored, duplicate: true, reason: "DUPLICATE_INTENT" }));
+    };
 
     audit("intent-received");
     const validation = validateExecutionIntent(input, prerequisites, new Date(occurredAt));
     if (!validation.ok) {
       const reason = validation.rejections[0].code;
+      const persistenceIdentity = executionStateIdentityFromInput(input);
+      if (!persistenceIdentity) {
+        audit("validation-rejected", reason);
+        return response(Object.freeze({
+          intentId: identity.intentId,
+          idempotencyKey: identity.idempotencyKey,
+          state: "rejected",
+          executed: false,
+          duplicate: false,
+          reason,
+          preview: null,
+        }));
+      }
+
+      identity = {
+        intentId: persistenceIdentity.identity.intentId,
+        idempotencyKey: persistenceIdentity.scope.idempotencyKey,
+        userId: persistenceIdentity.scope.userId,
+        symbol: persistenceIdentity.identity.symbol,
+      };
       audit("validation-rejected", reason);
-      return response(Object.freeze({
-        intentId: identity.intentId,
-        idempotencyKey: identity.idempotencyKey,
+      try {
+        const claim = this.options.stateStore.claim(
+          persistenceIdentity.scope,
+          persistenceIdentity.identity,
+          occurredAt,
+        );
+        if (claim.kind === "duplicate") {
+          return duplicateResult(
+            claim.result,
+            persistenceIdentity.identity.intentId,
+            persistenceIdentity.scope.idempotencyKey,
+          );
+        }
+      } catch (error) {
+        return stateFailure(executionStateFailureCode(error));
+      }
+      return persist(persistenceIdentity.scope, Object.freeze({
+        intentId: persistenceIdentity.identity.intentId,
+        idempotencyKey: persistenceIdentity.scope.idempotencyKey,
         state: "rejected",
         executed: false,
         duplicate: false,
@@ -106,19 +162,11 @@ export class ExecutionAirlockService {
         symbol: validation.intent.symbol,
       }, occurredAt);
       if (claim.kind === "duplicate") {
-        audit("duplicate-intent-detected", "DUPLICATE_INTENT");
-        if (!claim.result) {
-          return response(Object.freeze({
-            intentId: validation.intent.intentId,
-            idempotencyKey: validation.intent.idempotencyKey,
-            state: "blocked",
-            executed: false,
-            duplicate: true,
-            reason: "DUPLICATE_INTENT",
-            preview: null,
-          }));
-        }
-        return response(Object.freeze({ ...claim.result, duplicate: true, reason: "DUPLICATE_INTENT" }));
+        return duplicateResult(
+          claim.result,
+          validation.intent.intentId,
+          validation.intent.idempotencyKey,
+        );
       }
     } catch (error) {
       return stateFailure(executionStateFailureCode(error));
