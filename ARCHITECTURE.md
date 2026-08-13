@@ -479,6 +479,20 @@ disabled and disconnected until a separately reviewed future wiring decision.
 ## Pull-request rule
 
 A feature PR should normally touch only the layers it needs. Changes crossing transport, strategy, simulation, replay, storage and interface boundaries must explain why, add contract tests and document what deliberately remains unchanged.
+
+## Authoritative provider readback
+
+The guarded-execution internals can obtain bounded MEXC USDT assets and open
+positions through a server-only readback component. Its production transport
+exports only named read operations, fixes the HTTP method to `GET`, and selects
+paths from three constants. It reuses the owner Account Companion's exact
+`account-read+trade-read;no-write/v1` environment seam; it does not copy or
+persist credentials and has no public route or execution-adapter dependency.
+
+MEXC does not supply an authoritative start-of-day equity baseline in these
+reads. Translation therefore returns no risk snapshot rather than copying current
+equity. A later reviewed reconciliation slice must establish that baseline before
+the Risk Officer can accept this evidence.
 # Credential-custody compartment
 
 `app/lib/credential-custody` is a server-only, networkless compartment backed by `DATA_DIR/credential-custody.sqlite`. It owns versioned AES-256-GCM envelopes, ownership-bound AAD, metadata inspection, callback-scoped open, atomic rewrap, revocation, and secret-free lifecycle audit records. It has no import relationship in either direction with the execution airlock and no relationship with the separate MEXC read-only Account Companion.

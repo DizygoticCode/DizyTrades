@@ -276,3 +276,19 @@ identity-bound equity/margin evidence and prices for every open position are
 required before account drawdown, order-margin, and gross-exposure limits pass.
 No public route can execute or mutate this authority and no private exchange
 transport, signing, or credential decryption is introduced by this readiness slice.
+
+# MEXC authoritative readback firewall
+
+Private MEXC signing for guarded-execution evidence exists solely inside a
+server-only, structurally GET-only readback component. The transport exposes
+`readAssets`, `readOpenPositions`, and `readRiskLimits`; their paths are fixed and
+there is no generic authenticated method/path function. Credentials continue to
+come transiently from the existing owner read-only environment seam and are not
+logged, returned, audited, duplicated, migrated, or persisted.
+
+Malformed, partial, ambiguous, oversized, stale, authentication-rejected and
+provider-failed evidence is unavailable, not empty-success evidence. In
+particular, no day-start equity is inferred. The component cannot authorize an
+account, arm controls, issue caller assertions, reach an adapter, or provide a
+public route. It confers zero exchange write capability; production remains
+globally disabled and the sole adapter remains non-executing.
