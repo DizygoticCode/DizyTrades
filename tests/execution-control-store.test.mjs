@@ -64,6 +64,28 @@ test("an open store fails closed when its backing file is atomically replaced", 
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+test("a control update is not acknowledged when its backing file is replaced during the update", () => {
+  const root = directory();
+  try {
+    const path = join(root, "controls.sqlite");
+    const replacement = join(root, "replacement.sqlite");
+    const store = new SqliteExecutionControlStore(path, () => at);
+    const armed = store.replace(store.read().revision, enabled());
+    copyFileSync(path, replacement);
+    const harden = store.harden.bind(store);
+    store.harden = () => { renameSync(replacement, path); harden(); };
+
+    assert.throws(
+      () => store.replace(armed.revision, enabled({ globalDisabled: true })),
+      (error) => error instanceof ExecutionControlStoreError && error.code === "EXECUTION_CONTROL_UNAVAILABLE",
+    );
+    assert.throws(
+      () => store.read(),
+      (error) => error instanceof ExecutionControlStoreError && error.code === "EXECUTION_CONTROL_UNAVAILABLE",
+    );
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test("account disables are isolated by canonical user and account identity", () => {
   const sharedAccount = "shared-account";
   const first = { userId: "user-1", accountId: sharedAccount };

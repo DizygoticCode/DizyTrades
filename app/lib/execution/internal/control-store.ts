@@ -143,7 +143,14 @@ export class SqliteExecutionControlStore implements ExecutionControlStore {
     try {
       const result = this.db().prepare("UPDATE execution_control SET revision=?,document=? WHERE singleton=1 AND revision=?").run(candidate.revision, JSON.stringify(candidate), expectedRevision);
       if (result.changes !== 1) throw new ExecutionControlStoreError("EXECUTION_CONTROL_CONFLICT");
-      this.harden(); return candidate;
+      // A pathname can be atomically replaced while SQLite continues writing to
+      // the unlinked file behind its cached descriptor. Never acknowledge such
+      // an update: verify the generation both immediately after the write and
+      // after hardening the path.
+      this.assertBackingFile();
+      this.harden();
+      this.assertBackingFile();
+      return candidate;
     } catch (error) { if (error instanceof ExecutionControlStoreError) throw error; return unavailable(); }
   }
   switches(now = this.clock()): ExecutionKillSwitches {
