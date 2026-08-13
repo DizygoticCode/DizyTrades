@@ -18,27 +18,46 @@ export type ServerExecutionBoundary = Readonly<{ preview(request: ExecutionBound
 
 export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
   const controls = createProductionExecutionControlStore();
+  const executionStateStore = createProductionExecutionStateStore();
+  const executionAuditStore = createProductionExecutionAuditStore();
+  const executionRiskStore = createProductionExecutionRiskStore();
   const reconciliationStore = createProductionExecutionReconciliationStore();
-  const boundary = new InternalExecutionBoundary({
-    authenticateInternalCaller: verifyProductionExecutionCaller,
-    readKillSwitches: () => controls.switches(),
-    executionStateStore: createProductionExecutionStateStore(),
-    executionAuditStore: createProductionExecutionAuditStore(),
-    executionRiskStore: createProductionExecutionRiskStore(),
-    executionReconciliationStore: reconciliationStore,
-    environment: process.env,
-  });
   const reconcile = createProductionReconciliationOrchestrator(reconciliationStore);
+
   return Object.freeze({
     async preview(request: ExecutionBoundaryRequest) {
-      // The assertion is verified here before its exact trusted pair is allowed to
-      // select Radar or reconciliation state; the boundary verifies it again.
-      const caller = verifyProductionExecutionCaller(request.callerAssertion);
-      if (caller && caller.userId === request.userId && caller.accountId === request.accountId) {
+      // Snapshot the identity-bearing fields before any asynchronous Radar work.
+      // The production caller assertion is single-use, so consume it exactly once
+      // here and pass that already-authenticated caller into a per-request boundary
+      // verifier rather than consuming the same assertion a second time.
+      const stableRequest = Object.freeze({
+        ...request,
+        callerAssertion: Object.freeze({ ...request.callerAssertion }),
+        userId: request.userId,
+        accountId: request.accountId,
+      });
+      const caller = verifyProductionExecutionCaller(stableRequest.callerAssertion);
+
+      if (caller && caller.userId === stableRequest.userId && caller.accountId === stableRequest.accountId) {
         try { await reconcile(Object.freeze({ userId: caller.userId, accountId: caller.accountId })); }
         catch { /* The boundary's durable read converts orchestration failure to a bounded block. */ }
       }
-      return boundary.preview(request);
+
+      const boundary = new InternalExecutionBoundary({
+        authenticateInternalCaller: (assertion) => caller
+          && assertion.callerId === stableRequest.callerAssertion.callerId
+          && assertion.assertionId === stableRequest.callerAssertion.assertionId
+          ? caller
+          : null,
+        readKillSwitches: () => controls.switches(),
+        executionStateStore,
+        executionAuditStore,
+        executionRiskStore,
+        executionReconciliationStore: reconciliationStore,
+        environment: process.env,
+      });
+
+      return boundary.preview(stableRequest);
     },
   });
 };
