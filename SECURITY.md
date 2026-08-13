@@ -292,3 +292,12 @@ particular, no day-start equity is inferred. The component cannot authorize an
 account, arm controls, issue caller assertions, reach an adapter, or provide a
 public route. It confers zero exchange write capability; production remains
 globally disabled and the sole adapter remains non-executing.
+# Execution reconciliation quarantine
+
+Authoritative reconciliation accepts only identity-bound MEXC Radar readback and
+never adopts manual/out-of-band positions. Its dedicated SQLite database uses WAL,
+full synchronization, restrictive permissions, schema and payload bounds, CAS
+revisions, and device/inode checks around open-handle operations. Deletion,
+replacement, corruption, stale observations, ambiguity, and unavailable state all
+fail closed. There is no public clear/mutation route and **no exchange-write
+capability, credential migration, or write signing path**.

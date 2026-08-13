@@ -5,6 +5,7 @@ import { ExecutionAirlockService } from "./service";
 import type { ExecutionStateStore } from "./state-store";
 import type { ExecutionAuditStore } from "./audit-store";
 import type { ExecutionRiskStore } from "./risk-store";
+import { ExecutionReconciliationStoreError, type ExecutionReconciliationStore } from "./reconciliation-store";
 import type {
   AuthenticatedExecutionCaller,
   ExecutionBoundaryRequest,
@@ -25,6 +26,7 @@ export type ExecutionBoundaryDependencies = Readonly<{
   executionStateStore: ExecutionStateStore;
   executionAuditStore: ExecutionAuditStore;
   executionRiskStore: ExecutionRiskStore;
+  executionReconciliationStore?: ExecutionReconciliationStore;
   environment?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
   /** Test-only deterministic lifecycle fixture; production composition never sets it. */
@@ -114,6 +116,19 @@ export class InternalExecutionBoundary {
       killReason = executionKillSwitchReason(switches, caller);
     } catch {
       return rejected("BOUNDARY_DEPENDENCY_FAILURE");
+    }
+
+    // Durable reconciliation is a stronger account-local brake and is checked
+    // before the airlock can reach any provider evaluation seam.
+    if (this.dependencies.executionReconciliationStore) {
+      try {
+        const reconciliation = this.dependencies.executionReconciliationStore.read(caller);
+        if (reconciliation.status !== "clean") killReason = reconciliation.status === "quarantined"
+          ? "EXECUTION_ACCOUNT_QUARANTINED" : "EXECUTION_RECONCILIATION_UNKNOWN";
+      } catch (error) {
+        killReason = error instanceof ExecutionReconciliationStoreError
+          ? error.code : "EXECUTION_RECONCILIATION_UNAVAILABLE";
+      }
     }
 
     return this.airlock.process(

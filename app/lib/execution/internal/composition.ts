@@ -6,6 +6,7 @@ import { createProductionExecutionStateStore } from "./state-store";
 import { createProductionExecutionAuditStore } from "./audit-store";
 import { verifyProductionExecutionCaller } from "./caller-assertion";
 import { createProductionExecutionRiskStore } from "./risk-store";
+import { createProductionExecutionReconciliationStore } from "./reconciliation-store";
 
 /**
  * Production composition root. The assertion verifier remains unreachable from
@@ -19,6 +20,7 @@ export const createServerExecutionBoundary = (): InternalExecutionBoundary => {
     executionStateStore: createProductionExecutionStateStore(),
     executionAuditStore: createProductionExecutionAuditStore(),
     executionRiskStore: createProductionExecutionRiskStore(),
+    executionReconciliationStore: createProductionExecutionReconciliationStore(),
     environment: process.env,
   });
 };
