@@ -6,12 +6,14 @@ import {
 } from "./boundary-service";
 import { createInMemoryExecutionStateStoreForTests } from "./state-store";
 import { createInMemoryExecutionAuditStoreForTests } from "./audit-store";
+import { SqliteExecutionRiskStore } from "./risk-store";
 
 export type TestExecutionBoundaryDependencies =
-  Omit<ExecutionBoundaryDependencies, "executionStateStore" | "executionAuditStore">
+  Omit<ExecutionBoundaryDependencies, "executionStateStore" | "executionAuditStore" | "executionRiskStore">
   & Readonly<{
     executionStateStore?: ExecutionBoundaryDependencies["executionStateStore"];
     executionAuditStore?: ExecutionBoundaryDependencies["executionAuditStore"];
+    executionRiskStore?: ExecutionBoundaryDependencies["executionRiskStore"];
   }>;
 
 /**
@@ -24,4 +26,5 @@ export const createTestExecutionBoundary = (
   ...dependencies,
   executionStateStore: dependencies.executionStateStore ?? createInMemoryExecutionStateStoreForTests(),
   executionAuditStore: dependencies.executionAuditStore ?? createInMemoryExecutionAuditStoreForTests(),
+  executionRiskStore: dependencies.executionRiskStore ?? new SqliteExecutionRiskStore(":memory:"),
 });

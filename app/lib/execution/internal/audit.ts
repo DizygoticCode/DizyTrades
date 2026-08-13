@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import type { ExecutionAuditEvent, ExecutionAuditKind, ExecutionBlockCode, ExecutionRejectionCode } from "../types";
+import type { ExecutionAuditEvent, ExecutionAuditKind, ExecutionBlockCode, ExecutionRejectionCode, ExecutionRiskCode } from "../types";
 
 const safeValue = /^[a-zA-Z0-9_:-]{1,120}$/;
 const forbiddenField = /api.?key|secret|signature|authorization|credential|cookie|session|token|password/i;
@@ -18,7 +18,7 @@ export function createExecutionAuditEvent(input: Readonly<{
   idempotencyKey: string;
   userId: string;
   symbol?: string;
-  reason?: ExecutionBlockCode | ExecutionRejectionCode;
+  reason?: ExecutionBlockCode | ExecutionRejectionCode | ExecutionRiskCode;
 }>): ExecutionAuditEvent {
   for (const field of Object.keys(input)) {
     if (forbiddenField.test(field) && field !== "idempotencyKey") throw new TypeError("Sensitive execution audit field is forbidden.");

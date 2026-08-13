@@ -9,6 +9,7 @@ export type ExecutionPolicy = Readonly<{
   maximumOrderNotional: number;
   maximumReferencePriceAgeMs: number;
   maximumAccountStateAgeMs: number;
+  maximumRiskSnapshotAgeMs: number;
 }>;
 
 /** Server-owned, deliberately narrow preview policy. No caller values are read. */
@@ -20,5 +21,6 @@ export function serverExecutionPolicy(): ExecutionPolicy {
     maximumOrderNotional: 50_000,
     maximumReferencePriceAgeMs: 30_000,
     maximumAccountStateAgeMs: 30_000,
+    maximumRiskSnapshotAgeMs: 30_000,
   });
 }

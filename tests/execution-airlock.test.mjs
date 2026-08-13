@@ -7,6 +7,7 @@ import { executionAccountKey, executionKillSwitchReason } from "../app/lib/execu
 import { executionBoundary } from "../app/lib/execution/boundary.ts";
 import { createTestExecutionBoundary } from "../app/lib/execution/internal/testing.ts";
 import { validateExecutionIntent } from "../app/lib/execution/internal/validation.ts";
+import { SqliteExecutionRiskStore } from "../app/lib/execution/internal/risk-store.ts";
 
 const contract = Object.freeze({
   symbol: "BTC_USDT", displayName: "BTC USDT", contractSize: 0.0001,
@@ -20,6 +21,7 @@ const prerequisites = Object.freeze({
   contracts: new Map([[contract.symbol, contract]]),
   referencePrices: new Map([[contract.symbol, Object.freeze({ price: 65000, observedAt })]]),
   accountState: Object.freeze({ userId: "user-1", accountId: "account-1", observedAt, positions: Object.freeze([]) }),
+  riskSnapshot: Object.freeze({ userId:"user-1", accountId:"account-1", observedAt, equity:10_000, availableMargin:5_000, dayStartEquity:10_000 }),
 });
 const valid = Object.freeze({
   intentId: "intent-0001", idempotencyKey: "idempotency-0001",
@@ -31,7 +33,10 @@ const valid = Object.freeze({
 
 const enabledSwitchState = Object.freeze({ armed: true, globalDisabled: false, disabledUserIds: new Set(), disabledAccountKeys: new Set(), providerStateFresh: true, maintenance: false, emergencyStop: false });
 function makeService(options = {}) {
+  const riskStore = options.executionRiskStore ?? new SqliteExecutionRiskStore(":memory:");
+  if (!options.executionRiskStore) riskStore.replace(0, { userId:"user-1", accountId:"account-1", enabled:true, reviewAt:"2027-01-01T00:00:00Z", allowedSymbols:["BTC_USDT"], maximumLeverage:20, maximumOrderNotional:50_000, maximumGrossNotional:100_000, maximumDailyDrawdownUsdt:1_000, maximumOrderMarginFractionOfAvailable:0.5 });
   const boundary = createTestExecutionBoundary({
+    executionRiskStore: riskStore,
     environment: options.environment,
     now: options.now,
     syntheticProviderScenario: options.syntheticProviderScenario,

@@ -486,3 +486,13 @@ A feature PR should normally touch only the layers it needs. Changes crossing tr
 `app/lib/credential-provisioning` is the narrow owner-only enrollment boundary above custody. A database-backed owner session, fresh password, and fresh TOTP mint a five-minute digest-only authorization for exactly one provision or revoke action. Submitted values pass directly to custody and cannot be read back; status is metadata-only. Both features remain disabled by default, perform no exchange request or credential verification, and have no dependency from execution. The separate Account Companion stays GET-only/read-only.
 
 The custody open/decrypt operation is deliberately not exposed through a production route or UI. The disabled-by-default provisioning UI exposes only metadata and a browser-native direct-to-server enrollment submission; client JavaScript never handles credential values. `CREDENTIAL_CUSTODY_ENABLED` defaults to false. `CREDENTIAL_CUSTODY_KEYRING` is a bounded JSON object mapping numeric versions to dedicated base64/hex 32-byte keys; `CREDENTIAL_CUSTODY_ACTIVE_KEY_VERSION` selects the write/rewrap version. Missing historical versions fail closed.
+# Default-deny execution risk officer
+
+The server-only execution composition includes a separate `execution-risk.sqlite`
+authority keyed by the exact user/account pair. Its empty state authorizes nobody;
+its bounded, expiring policies only tighten global preview ceilings. After ordinary
+intent validation and previewing, fresh account risk evidence and conservatively
+valued gross exposure must pass before the synthetic provider fixture is reached.
+Global kill switches retain precedence. This is a risk officer, not an execution
+capability: there is no route, exchange write adapter, credential wiring, or policy
+mutation endpoint, and all results remain `executed:false`.
