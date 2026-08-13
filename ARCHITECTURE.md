@@ -413,6 +413,15 @@ therefore survives reconstruction through the existing `provider_json` record.
 It adds no provider readback, acknowledgement, identifiers, retry, signing,
 credential wiring or network transport.
 
+The next readiness slice adds a separate production-owned
+`DATA_DIR/execution-audit.sqlite` store behind an execution-internal
+append/read-verify-only contract. Strictly bounded sanitized events receive a
+durable monotonic sequence and SHA-256 link to the preceding record. The full
+chain is verified on open, read and append, so restart continues ordering and
+tampering or storage failure blocks mechanics. This supports only the current
+single-instance persistent-disk topology and does not claim external WORM
+immutability.
+
 This is durable readiness state for the current supported **single Render
 instance**. It is not a horizontally shared multi-instance execution service,
 not exchange order submission and not acknowledgement/reconciliation. Kill-switch

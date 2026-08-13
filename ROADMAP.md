@@ -426,4 +426,6 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 - [x] Complete the separately reviewed, strongly authenticated credential provisioning ceremony design.
 - [x] Review and design non-executing provider mechanics behind `ExecutionBoundary`. The deterministic synthetic contract is complete; it is not wired to custody or provisioning and does not complete controlled activation or live execution.
 - [x] Add durable single-instance execution-state persistence and restart-safe user/account/idempotency-key protection for the non-executing airlock. This is not real idempotent order submission and adds no exchange write capability.
+- [x] Add durable append-only tamper-evident single-instance execution audit persistence with bounded validation and restart-safe sequencing.
+- [ ] Move execution audit evidence to independently immutable/WORM storage; the current dedicated SQLite chain is application-append-only and tamper-evident, not externally immutable.
 - [x] Add a deterministic synthetic lifecycle/reconciliation contract with bounded restart-safe evidence and `executed:false`. This is not exchange acknowledgement or readback reconciliation.

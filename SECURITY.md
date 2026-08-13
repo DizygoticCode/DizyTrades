@@ -54,6 +54,14 @@ production-owned durable execution-state store. Malformed stored state, store
 failures, malformed provider output, exceptions, and other verifier or
 shutdown-provider failures fail closed before any execution capability can be
 reached. There is still no public execution route, write transport, signing
+
+Production composition also owns a separate `DATA_DIR/execution-audit.sqlite`
+store. It persists only strictly validated, bounded, secret-free audit events
+through an append/read-verify contract. Monotonic durable sequences and a
+SHA-256 previous-record chain are verified across restart; invalid or
+unavailable audit storage fails closed before synthetic provider mechanics.
+These are single-instance, application-append-only tamper-evident semantics,
+not external WORM storage or a claim of cryptographic immutability.
 implementation or write-key custody.
 
 Never commit passwords, session secrets, API keys, Gmail App Passwords, `.env` files or exported account backups.

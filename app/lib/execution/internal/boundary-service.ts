@@ -3,6 +3,7 @@ import "server-only";
 import { executionKillSwitchReason, type ExecutionKillSwitches } from "./kill-switch";
 import { ExecutionAirlockService } from "./service";
 import type { ExecutionStateStore } from "./state-store";
+import type { ExecutionAuditStore } from "./audit-store";
 import type {
   AuthenticatedExecutionCaller,
   ExecutionBoundaryRequest,
@@ -21,6 +22,7 @@ export type ExecutionBoundaryDependencies = Readonly<{
   authenticateInternalCaller: ExecutionCallerVerifier;
   readKillSwitches: () => ExecutionKillSwitches;
   executionStateStore: ExecutionStateStore;
+  executionAuditStore: ExecutionAuditStore;
   environment?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
   /** Test-only deterministic lifecycle fixture; production composition never sets it. */
@@ -74,6 +76,7 @@ export class InternalExecutionBoundary {
   constructor(private readonly dependencies: ExecutionBoundaryDependencies) {
     this.airlock = new ExecutionAirlockService({
       stateStore: dependencies.executionStateStore,
+      auditStore: dependencies.executionAuditStore,
       environment: dependencies.environment,
       now: dependencies.now,
       syntheticProviderScenario: dependencies.syntheticProviderScenario,

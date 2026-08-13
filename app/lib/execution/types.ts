@@ -145,7 +145,9 @@ export type ExecutionBlockCode =
   | "PROVIDER_MALFORMED_RESULT"
   | "SYNTHETIC_PROVIDER_OUTCOME"
   | "EXECUTION_STATE_UNAVAILABLE"
-  | "EXECUTION_STATE_INVALID";
+  | "EXECUTION_STATE_INVALID"
+  | "EXECUTION_AUDIT_UNAVAILABLE"
+  | "EXECUTION_AUDIT_INVALID";
 
 export type ExecutionResult = Readonly<{
   intentId: string;

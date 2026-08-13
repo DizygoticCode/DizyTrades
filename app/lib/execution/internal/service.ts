@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createExecutionAuditEvent } from "./audit";
+import { executionAuditFailureCode, type ExecutionAuditStore } from "./audit-store";
 import { NonExecutingExecutionAdapter, type ExecutionAdapter } from "./adapter";
 import { executionCapabilityGate } from "./gate";
 import type {
@@ -25,6 +26,7 @@ import {
 
 type ServiceOptions = Readonly<{
   stateStore: ExecutionStateStore;
+  auditStore: ExecutionAuditStore;
   environment?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
   syntheticProviderScenario?: SyntheticProviderScenario;
@@ -40,6 +42,22 @@ export class ExecutionAirlockService {
 
   /** @internal Only ExecutionBoundary may call this implementation. */
   process(input: ExecutionIntentInput, prerequisites: ExecutionPrerequisites, boundaryKillReason: ExecutionResult["reason"] | null): ExecutionBoundaryResponse {
+    try {
+      return this.processInternal(input, prerequisites, boundaryKillReason);
+    } catch (error) {
+      return Object.freeze({
+        result: Object.freeze({
+          intentId: typeof input.intentId === "string" ? input.intentId : "unvalidated-intent",
+          idempotencyKey: typeof input.idempotencyKey === "string" ? input.idempotencyKey : "unvalidated-key",
+          state: "blocked", executed: false, duplicate: false,
+          reason: executionAuditFailureCode(error), preview: null,
+        }),
+        auditEvents: Object.freeze([]),
+      });
+    }
+  }
+
+  private processInternal(input: ExecutionIntentInput, prerequisites: ExecutionPrerequisites, boundaryKillReason: ExecutionResult["reason"] | null): ExecutionBoundaryResponse {
     const events: ExecutionAuditEvent[] = [];
     const occurredAt = (this.options.now ?? (() => new Date()))().toISOString();
     let identity = {
@@ -48,10 +66,14 @@ export class ExecutionAirlockService {
       userId: "unvalidated-user",
       symbol: undefined as string | undefined,
     };
-    const audit = (kind: ExecutionAuditKind, reason?: ExecutionResult["reason"]) => events.push(createExecutionAuditEvent({
-      eventId: `airlock-${++this.sequence}`,
-      occurredAt, kind, ...identity, ...(reason ? { reason } : {}),
-    }));
+    const auditFailure = (reason: "EXECUTION_AUDIT_UNAVAILABLE" | "EXECUTION_AUDIT_INVALID"): ExecutionBoundaryResponse =>
+      Object.freeze({ result: Object.freeze({ intentId: identity.intentId, idempotencyKey: identity.idempotencyKey, state: "blocked", executed: false, duplicate: false, reason, preview: null }), auditEvents: Object.freeze(events) });
+    try { this.options.auditStore.readVerified(); } catch (error) { return auditFailure(executionAuditFailureCode(error)); }
+    const audit = (kind: ExecutionAuditKind, reason?: ExecutionResult["reason"]) => {
+      const event = createExecutionAuditEvent({ eventId: `airlock-${++this.sequence}`, occurredAt, kind, ...identity, ...(reason ? { reason } : {}) });
+      this.options.auditStore.append(event, occurredAt);
+      events.push(event);
+    };
     const response = (result: ExecutionResult): ExecutionBoundaryResponse =>
       Object.freeze({ result, auditEvents: Object.freeze(events) });
     const stateFailure = (reason: "EXECUTION_STATE_UNAVAILABLE" | "EXECUTION_STATE_INVALID", preview: ExecutionResult["preview"] = null): ExecutionBoundaryResponse => {
@@ -94,7 +116,7 @@ export class ExecutionAirlockService {
       return response(Object.freeze({ ...stored, duplicate: true, reason: "DUPLICATE_INTENT" }));
     };
 
-    audit("intent-received");
+    try { audit("intent-received"); } catch (error) { return auditFailure(executionAuditFailureCode(error)); }
     const validation = validateExecutionIntent(input, prerequisites, new Date(occurredAt));
     if (!validation.ok) {
       const reason = validation.rejections[0].code;

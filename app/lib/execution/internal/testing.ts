@@ -5,10 +5,14 @@ import {
   type ExecutionBoundaryDependencies,
 } from "./boundary-service";
 import { createInMemoryExecutionStateStoreForTests } from "./state-store";
+import { createInMemoryExecutionAuditStoreForTests } from "./audit-store";
 
 export type TestExecutionBoundaryDependencies =
-  Omit<ExecutionBoundaryDependencies, "executionStateStore">
-  & Readonly<{ executionStateStore?: ExecutionBoundaryDependencies["executionStateStore"] }>;
+  Omit<ExecutionBoundaryDependencies, "executionStateStore" | "executionAuditStore">
+  & Readonly<{
+    executionStateStore?: ExecutionBoundaryDependencies["executionStateStore"];
+    executionAuditStore?: ExecutionBoundaryDependencies["executionAuditStore"];
+  }>;
 
 /**
  * Test-only dependency-injection seam; production application imports are forbidden.
@@ -19,4 +23,5 @@ export const createTestExecutionBoundary = (
 ): InternalExecutionBoundary => new InternalExecutionBoundary({
   ...dependencies,
   executionStateStore: dependencies.executionStateStore ?? createInMemoryExecutionStateStoreForTests(),
+  executionAuditStore: dependencies.executionAuditStore ?? createInMemoryExecutionAuditStoreForTests(),
 });
