@@ -416,8 +416,13 @@ credential wiring or network transport.
 This is durable readiness state for the current supported **single Render
 instance**. It is not a horizontally shared multi-instance execution service,
 not exchange order submission and not acknowledgement/reconciliation. Kill-switch
-state is not yet durable/shared, execution audit events are not an immutable
-execution audit store, and the only adapter/provider remains non-executing with
+state is not yet durable/shared. Execution audit events are now stored in a
+separate production-owned `DATA_DIR/execution-audit.sqlite` database with strict
+canonical validation, restart-safe sequence ordering and a SHA-256 hash chain.
+The API is append/read-verify only and audit availability and validity are
+fail-closed prerequisites before synthetic mechanics. This is tamper-evident,
+application-append-only single-instance persistence—not externally anchored WORM
+or truly immutable storage—and the only adapter/provider remains non-executing with
 no exchange transport. Therefore the guarded-execution roadmap gate remains open.
 
 DizyAccount remains an independent owner-only, GET-only observation and shadow

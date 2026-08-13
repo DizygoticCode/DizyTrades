@@ -3,6 +3,7 @@ import "server-only";
 import { defaultExecutionKillSwitches } from "./kill-switch";
 import { InternalExecutionBoundary } from "./boundary-service";
 import { createProductionExecutionStateStore } from "./state-store";
+import { createProductionExecutionAuditStore } from "./audit-store";
 
 /**
  * Production composition root. Authentication deliberately denies every call
@@ -13,5 +14,6 @@ export const createServerExecutionBoundary = (): InternalExecutionBoundary =>
     authenticateInternalCaller: () => null,
     readKillSwitches: defaultExecutionKillSwitches,
     executionStateStore: createProductionExecutionStateStore(),
+    executionAuditStore: createProductionExecutionAuditStore(),
     environment: process.env,
   });
