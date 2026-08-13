@@ -155,7 +155,7 @@ The six focused implementation slices are complete:
 - [x] source-quality contract, stable identities and Replay-safe snapshots
 - [x] spread and visible-ladder state
 - [x] public aggressive flow and visible-depth pressure
-- [x] displayed-liquidity migration, turnover and persistence
+- [x] displayed-liquidity turnover, persistence and migration
 - [x] shock resilience, replenishment and experimental candidate events
 - [x] deterministic Replay/statistical laboratory and bounded public presentation
 
@@ -313,27 +313,36 @@ No dependency bundle is merged merely because Dependabot opened it.
 
 The completed DizyAccount read-only companion is a prerequisite and observation layer. It is **not** an execution approval.
 
-An initial non-executing airlock now defines server-only intent, structural
-validation, local duplicate detection, kill-switch and audit-event contracts.
-Its sole adapter always blocks and has no exchange transport. This architecture
-slice does **not** complete any live-execution requirement below: each item must
-still be made operational, durable where required, exercised and independently
-approved before an exchange write path is considered.
+An initial non-executing airlock defines server-only intent, structural validation,
+duplicate detection, kill-switch and audit-event contracts. Its sole adapter
+always blocks and has no exchange transport. This architecture slice does **not**
+complete any live-execution requirement below: each item must still be made
+operational, durable where required, exercised and independently approved before
+an exchange write path is considered.
 
-A second readiness slice now exercises an in-memory, server-only deterministic
-risk preview against a versioned default-deny policy and fresh supplied price,
+A second readiness slice exercises an in-memory, server-only deterministic risk
+preview against a versioned default-deny policy and fresh supplied price,
 account and position state. It remains non-routable and non-executing. The
 requirements below remain unchecked because this slice is not operational
 execution infrastructure and has not received independent security approval.
 
 A third readiness slice isolates the in-process airlock behind one narrow typed
 boundary. It authenticates and binds internal callers, owns kill-switch
-enforcement, preserves user/account/key idempotency scope and prevents
-application, client, route and paper-simulation imports from bypassing the
-boundary. The item remains unchecked: the boundary is not a separately deployed
-service, idempotency and switch state are not durable/shared, audit events are
-not immutable storage, and no independent operational or security approval has
-occurred. It adds no exchange write capability.
+enforcement and prevents application, client, route and paper-simulation imports
+from bypassing the boundary. The boundary remains an in-process isolation rather
+than a separately deployed service; kill-switch state is not durable/shared,
+audit events are not immutable storage, and no independent operational or
+security approval has occurred. It adds no exchange write capability.
+
+A fourth readiness slice adds a dedicated server-only SQLite execution-state
+store on the existing `DATA_DIR` persistent disk. It transactionally reserves
+the existing user/account/idempotency-key scope before synthetic provider
+mechanics, persists only bounded rejected/blocked/synthetic-prepared results with
+`executed:false`, survives service reconstruction and fails closed on malformed
+or unavailable storage. This completes the **single-instance durable execution
+state / restart-safe idempotency readiness slice only**. It does not submit an
+order, does not provide horizontally shared idempotency and does not complete
+exchange acknowledgement, reconciliation or immutable execution audit.
 
 Live execution remains disabled until every relevant requirement below is implemented, exercised and independently reviewed:
 
@@ -416,3 +425,4 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 - [x] Add a disabled-by-default, owner-only fresh-password + fresh-TOTP provisioning and revocation ceremony with metadata-only status.
 - [x] Complete the separately reviewed, strongly authenticated credential provisioning ceremony design.
 - [x] Review and design non-executing provider mechanics behind `ExecutionBoundary`. The deterministic synthetic contract is complete; it is not wired to custody or provisioning and does not complete controlled activation or live execution.
+- [x] Add durable single-instance execution-state persistence and restart-safe user/account/idempotency-key protection for the non-executing airlock. This is not real idempotent order submission and adds no exchange write capability.
