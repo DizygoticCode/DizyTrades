@@ -48,8 +48,8 @@ export class ExecutionAirlockService {
     } catch (error) {
       const reason = executionAuditFailureCode(error);
       return Object.freeze({ result: Object.freeze({
-        intentId: typeof input.intentId === "string" ? input.intentId : "unvalidated-intent",
-        idempotencyKey: typeof input.idempotencyKey === "string" ? input.idempotencyKey : "unvalidated-key",
+        intentId: "unvalidated-intent",
+        idempotencyKey: "unvalidated-key",
         state: "blocked", executed: false, duplicate: false, reason, preview: null,
       }), auditEvents: Object.freeze([]) });
     }
