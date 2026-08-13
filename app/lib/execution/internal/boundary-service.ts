@@ -60,6 +60,7 @@ const isKillSwitchState = (value: unknown): value is ExecutionKillSwitches => {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ExecutionKillSwitches>;
   return typeof candidate.globalDisabled === "boolean"
+    && typeof candidate.armed === "boolean"
     && candidate.disabledUserIds instanceof Set
     && candidate.disabledAccountIds instanceof Set
     && typeof candidate.providerStateFresh === "boolean"

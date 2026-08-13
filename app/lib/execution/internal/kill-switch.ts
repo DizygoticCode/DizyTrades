@@ -3,6 +3,7 @@ import "server-only";
 import type { ExecutionBlockCode } from "../types";
 
 export type ExecutionKillSwitches = Readonly<{
+  armed: boolean;
   globalDisabled: boolean;
   disabledUserIds: ReadonlySet<string>;
   disabledAccountIds: ReadonlySet<string>;
@@ -20,12 +21,14 @@ export function executionKillSwitchReason(
   if (switches.globalDisabled) return "GLOBAL_EXECUTION_DISABLED";
   if (switches.disabledUserIds.has(identity.userId)) return "USER_EXECUTION_DISABLED";
   if (switches.disabledAccountIds.has(identity.accountId)) return "ACCOUNT_EXECUTION_DISABLED";
+  if (!switches.armed) return "EXECUTION_DISARMED";
   if (!switches.providerStateFresh) return "PROVIDER_STATE_STALE";
   return null;
 }
 
 export function defaultExecutionKillSwitches(): ExecutionKillSwitches {
   return Object.freeze({
+    armed: false,
     globalDisabled: true as const,
     disabledUserIds: new Set<string>(),
     disabledAccountIds: new Set<string>(),

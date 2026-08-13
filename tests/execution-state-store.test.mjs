@@ -20,7 +20,7 @@ const contract = Object.freeze({
 });
 const observedAt = "2026-08-12T12:00:45.000Z";
 const enabledSwitchState = Object.freeze({
-  globalDisabled: false,
+  armed: true, globalDisabled: false,
   disabledUserIds: new Set(),
   disabledAccountIds: new Set(),
   providerStateFresh: true,

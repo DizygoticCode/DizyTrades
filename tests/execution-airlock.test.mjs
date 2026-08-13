@@ -29,7 +29,7 @@ const valid = Object.freeze({
   createdAt: "2026-08-12T12:00:00.000Z",
 });
 
-const enabledSwitchState = Object.freeze({ globalDisabled: false, disabledUserIds: new Set(), disabledAccountIds: new Set(), providerStateFresh: true, maintenance: false, emergencyStop: false });
+const enabledSwitchState = Object.freeze({ armed: true, globalDisabled: false, disabledUserIds: new Set(), disabledAccountIds: new Set(), providerStateFresh: true, maintenance: false, emergencyStop: false });
 function makeService(options = {}) {
   const boundary = createTestExecutionBoundary({
     environment: options.environment,
@@ -97,7 +97,7 @@ test("limit price obeys the contract price step", () => {
 });
 
 test("kill-switch contract represents global, user, account, stale, maintenance and emergency blocks", () => {
-  const base = { globalDisabled: false, disabledUserIds: new Set(), disabledAccountIds: new Set(), providerStateFresh: true, maintenance: false, emergencyStop: false };
+  const base = { armed: true, globalDisabled: false, disabledUserIds: new Set(), disabledAccountIds: new Set(), providerStateFresh: true, maintenance: false, emergencyStop: false };
   assert.equal(executionKillSwitchReason({ ...base, globalDisabled: true }, valid), "GLOBAL_EXECUTION_DISABLED");
   assert.equal(executionKillSwitchReason({ ...base, disabledUserIds: new Set([valid.userId]) }, valid), "USER_EXECUTION_DISABLED");
   assert.equal(executionKillSwitchReason({ ...base, disabledAccountIds: new Set([valid.accountId]) }, valid), "ACCOUNT_EXECUTION_DISABLED");

@@ -353,6 +353,17 @@ application-append-only evidence on one persistent disk, not externally anchored
 WORM or truly immutable storage, so the broader immutable-audit requirement
 remains unchecked.
 
+A sixth readiness slice replaces the static production shutdown state with a
+separate production-owned `DATA_DIR/execution-control.sqlite` store. Its
+versioned, bounded document starts disarmed and globally disabled, uses durable
+atomic compare-and-swap updates, and independently enforces emergency,
+maintenance, global, user, account, explicit arming and provider-freshness
+brakes. Missing state is initialized fail-closed; corrupt, malformed,
+unsupported or unavailable storage never falls back to environment state. This
+completes the durable single-instance kill-switch/control prerequisite only. It
+does not add an operator route, exchange adapter, authentication capability or
+order transport.
+
 Live execution remains disabled until every relevant requirement below is implemented, exercised and independently reviewed:
 
 - [ ] isolated execution service or equivalently isolated execution boundary
@@ -365,7 +376,7 @@ Live execution remains disabled until every relevant requirement below is implem
 - [ ] symbol, leverage, notional and daily-loss limits
 - [ ] reduce-only enforcement
 - [ ] stale-price and stale-account-state rejection
-- [ ] global and per-user kill switches
+- [x] durable global, per-user and per-account kill switches (single-instance control store; no execution enablement)
 - [ ] immutable execution audit trail
 - [ ] controlled provider persistent-disk snapshot rollback and service-restart rehearsal
 - [ ] restricted test-account rollout

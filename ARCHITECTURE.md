@@ -415,8 +415,16 @@ credential wiring or network transport.
 
 This is durable readiness state for the current supported **single Render
 instance**. It is not a horizontally shared multi-instance execution service,
-not exchange order submission and not acknowledgement/reconciliation. Kill-switch
-state is not yet durable/shared. Execution audit events are now stored in a
+not exchange order submission and not acknowledgement/reconciliation. Execution
+controls are stored separately at `DATA_DIR/execution-control.sqlite`. The
+strict versioned singleton is initialized `armed:false` and
+`globalDisabled:true`; atomic revision compare-and-swap updates survive restart.
+Emergency stop precedes maintenance, global disable precedes user/account
+disable, and explicit disarming and stale provider state independently fail
+closed. A missing store can only create that safe initial state, while malformed,
+corrupt, unsupported or unavailable state rejects the boundary dependency. No
+environment variable is an arming authority. This is durable for the supported
+single instance, not a horizontally shared control plane. Execution audit events are now stored in a
 separate production-owned `DATA_DIR/execution-audit.sqlite` database with strict
 canonical validation, restart-safe sequence ordering and a SHA-256 hash chain.
 The API is append/read-verify only and audit availability and validity are

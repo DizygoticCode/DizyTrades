@@ -6,6 +6,19 @@ DizyTrades is an active research, education and simulation platform. It is not a
 
 - `LIVE_TRADING_ENABLED` must remain `false`.
 
+Production execution controls live only in the server-owned
+`DATA_DIR/execution-control.sqlite`, separate from execution state and audit
+evidence. A new store is atomically initialized disarmed and globally disabled.
+The bounded versioned record carries emergency stop, maintenance, global,
+per-user and per-account disables, explicit arming, and provider observation
+freshness. Emergency and maintenance dominate all permissive state; global
+disable dominates user/account state; each narrower disable remains enforceable.
+Malformed, corrupt, unsupported, unreadable or unavailable storage fails closed,
+and atomic revision compare-and-swap prevents a stale concurrent writer from
+overwriting a newer brake decision. No environment variable—including
+`LIVE_TRADING_ENABLED=true`—can arm execution, and the production internal-caller
+verifier still rejects every caller.
+
 Execution provider mechanics remain inside the server-only `ExecutionBoundary`.
 The only production provider is deterministic and non-executing: every result is
 synthetic, explicitly provenance-marked and `executed:false`. It has no HTTP,
