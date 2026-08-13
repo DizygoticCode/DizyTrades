@@ -134,6 +134,7 @@ export type ExecutionValidationResult =
 
 export type ExecutionBlockCode =
   | "GLOBAL_EXECUTION_DISABLED"
+  | "EXECUTION_DISARMED"
   | "USER_EXECUTION_DISABLED"
   | "ACCOUNT_EXECUTION_DISABLED"
   | "PROVIDER_STATE_STALE"

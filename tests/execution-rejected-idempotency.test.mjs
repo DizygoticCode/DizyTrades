@@ -33,9 +33,9 @@ const prerequisites = Object.freeze({
   }),
 });
 const enabledSwitchState = Object.freeze({
-  globalDisabled: false,
+  armed: true, globalDisabled: false,
   disabledUserIds: new Set(),
-  disabledAccountIds: new Set(),
+  disabledAccountKeys: new Set(),
   providerStateFresh: true,
   maintenance: false,
   emergencyStop: false,
