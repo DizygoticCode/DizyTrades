@@ -20,20 +20,16 @@ const SYMBOL = /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
 const MAX_PREVIEW_JSON_BYTES = 4096;
 const MAX_PROVIDER_JSON_BYTES = 1024;
 
-const blockCodes = new Set<ExecutionBlockCode>([
+const persistableBlockedCodes = new Set<ExecutionBlockCode>([
   "GLOBAL_EXECUTION_DISABLED",
   "USER_EXECUTION_DISABLED",
   "ACCOUNT_EXECUTION_DISABLED",
   "PROVIDER_STATE_STALE",
   "MAINTENANCE_STOP",
   "EMERGENCY_STOP",
-  "DUPLICATE_INTENT",
   "ADAPTER_UNAVAILABLE",
   "PROVIDER_EXCEPTION",
   "PROVIDER_MALFORMED_RESULT",
-  "SYNTHETIC_PROVIDER_OUTCOME",
-  "EXECUTION_STATE_UNAVAILABLE",
-  "EXECUTION_STATE_INVALID",
 ]);
 const rejectionCodes = new Set<ExecutionRejectionCode>([
   "CALLER_UNAUTHENTICATED",
@@ -164,12 +160,10 @@ function strictSyntheticProvider(value: unknown): value is SyntheticProviderResu
   ]) && isSyntheticProviderResult(value);
 }
 
-function isReason(value: unknown): value is ExecutionResult["reason"] {
-  return typeof value === "string"
-    && (blockCodes.has(value as ExecutionBlockCode) || rejectionCodes.has(value as ExecutionRejectionCode));
-}
-
-function normalizeStoredResult(value: unknown, row: Pick<StoredStateRow, "intent_id" | "idempotency_key" | "symbol">): ExecutionResult {
+function normalizeStoredResult(
+  value: unknown,
+  row: Pick<StoredStateRow, "intent_id" | "idempotency_key" | "symbol">,
+): ExecutionResult {
   if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
   const result = value as Record<string, unknown>;
   if (!hasOnlyKeys(result, [
@@ -177,18 +171,29 @@ function normalizeStoredResult(value: unknown, row: Pick<StoredStateRow, "intent
   ])) invalid();
   if (result.intentId !== row.intent_id || result.idempotencyKey !== row.idempotency_key) invalid();
   if (result.state !== "blocked" && result.state !== "rejected" && result.state !== "prepared") invalid();
-  if (result.executed !== false || result.duplicate !== false || !isReason(result.reason)) invalid();
+  if (result.executed !== false || result.duplicate !== false || typeof result.reason !== "string") invalid();
+
   const previewValue = result.preview;
   if (previewValue === undefined) invalid();
   if (previewValue !== null) {
     if (!isPreview(previewValue)) invalid();
     if (previewValue.symbol !== row.symbol) invalid();
   }
+
   const providerValue = result.providerResult;
   if (providerValue !== undefined && !strictSyntheticProvider(providerValue)) invalid();
-  if (result.state === "prepared") {
-    if (result.reason !== "SYNTHETIC_PROVIDER_OUTCOME" || !providerValue || !previewValue) invalid();
-  } else if (providerValue !== undefined) invalid();
+
+  if (result.state === "rejected") {
+    if (!rejectionCodes.has(result.reason as ExecutionRejectionCode)
+      || previewValue !== null
+      || providerValue !== undefined) invalid();
+  } else if (result.state === "blocked") {
+    if (!persistableBlockedCodes.has(result.reason as ExecutionBlockCode)
+      || previewValue === null
+      || providerValue !== undefined) invalid();
+  } else if (result.reason !== "SYNTHETIC_PROVIDER_OUTCOME" || !previewValue || !providerValue) {
+    invalid();
+  }
 
   const preview = previewValue === null
     ? null
@@ -297,7 +302,11 @@ export class SqliteExecutionStateStore implements ExecutionStateStore {
             CHECK (
               (record_state='processing' AND result_state IS NULL AND result_reason IS NULL AND preview_json IS NULL AND provider_json IS NULL)
               OR
-              (record_state='complete' AND result_state IS NOT NULL AND result_reason IS NOT NULL)
+              (record_state='complete' AND result_reason IS NOT NULL AND (
+                (result_state='rejected' AND preview_json IS NULL AND provider_json IS NULL)
+                OR (result_state='blocked' AND preview_json IS NOT NULL AND provider_json IS NULL)
+                OR (result_state='prepared' AND preview_json IS NOT NULL AND provider_json IS NOT NULL)
+              ))
             )
           );`);
           db.exec(`PRAGMA user_version=${SCHEMA_VERSION};`);
@@ -350,28 +359,23 @@ export class SqliteExecutionStateStore implements ExecutionStateStore {
   complete(scope: ExecutionIdempotencyScope, result: ExecutionResult, occurredAt: string): void {
     validateScope(scope);
     validateOccurredAt(occurredAt);
-    const normalized = normalizeStoredResult(result, {
-      intent_id: result.intentId,
-      idempotency_key: result.idempotencyKey,
-      symbol: result.preview?.symbol ?? "UNKNOWN_UNKNOWN",
-    });
-    if (normalized.idempotencyKey !== scope.idempotencyKey || normalized.duplicate) invalid();
-    if (!normalized.preview) invalid();
-
-    const previewJson = JSON.stringify(normalized.preview);
-    const providerJson = normalized.providerResult ? JSON.stringify(normalized.providerResult) : null;
-    if (Buffer.byteLength(previewJson, "utf8") > MAX_PREVIEW_JSON_BYTES
-      || (providerJson && Buffer.byteLength(providerJson, "utf8") > MAX_PROVIDER_JSON_BYTES)) invalid();
-
     const db = this.db();
     try {
       db.exec("BEGIN IMMEDIATE");
       const existing = db.prepare(
         "SELECT * FROM execution_state WHERE user_id=? AND account_id=? AND idempotency_key=?",
       ).get(scope.userId, scope.accountId, scope.idempotencyKey) as StoredStateRow | undefined;
-      if (!existing || existing.record_state !== "processing"
-        || existing.intent_id !== normalized.intentId
-        || existing.symbol !== normalized.preview.symbol) invalid();
+      if (!existing || existing.record_state !== "processing") invalid();
+      rowResult(existing);
+
+      const normalized = normalizeStoredResult(result, existing);
+      if (normalized.idempotencyKey !== scope.idempotencyKey || normalized.duplicate) invalid();
+
+      const previewJson = normalized.preview ? JSON.stringify(normalized.preview) : null;
+      const providerJson = normalized.providerResult ? JSON.stringify(normalized.providerResult) : null;
+      if ((previewJson && Buffer.byteLength(previewJson, "utf8") > MAX_PREVIEW_JSON_BYTES)
+        || (providerJson && Buffer.byteLength(providerJson, "utf8") > MAX_PROVIDER_JSON_BYTES)) invalid();
+
       const updated = db.prepare(`UPDATE execution_state
         SET record_state='complete',result_state=?,result_reason=?,preview_json=?,provider_json=?,updated_at=?
         WHERE user_id=? AND account_id=? AND idempotency_key=? AND record_state='processing'`)
