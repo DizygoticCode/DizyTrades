@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
@@ -58,8 +60,8 @@ test("valid evidence preserves trusted identity, normalizes positions, and never
   assert.equal(readback.equity, 1250.5); assert.equal(readback.availableMargin, 900);
   assert.deepEqual(readback.positions[0], {symbol:"BTC_USDT",side:"long",contractVolume:2,openType:"cross",leverage:3,averageOpenPrice:30000,providerPositionId:"7",providerUpdatedAt:"2023-11-14T22:13:19.000Z"});
   assert.equal("dayStartEquity" in readback, false);
-  const translated = translateMexcReadback(readback);
-  assert.deepEqual(translated.accountState.positions, [{symbol:"BTC_USDT",side:"long",quantity:2}]);
+  const translated = translateMexcReadback(readback, [{symbol:"BTC_USDT",contractSize:0.0001}]);
+  assert.deepEqual(translated.accountState.positions, [{symbol:"BTC_USDT",side:"long",quantity:0.0002}]);
   assert.equal(translated.riskSnapshot, null);
   assert.equal(translated.riskSnapshotUnavailableReason, "authoritative-day-start-equity-unavailable");
 });
@@ -77,6 +79,29 @@ test("credentials and exact no-write attestation fail closed before network I/O"
   }
 });
 
+test("sealed or integrity-invalid owner control blocks before credentials and network I/O", async () => {
+  for (const contents of ["not-json", JSON.stringify({schemaVersion:"mexc-owner-connection-control/1.0.0",state:"sealed",generation:1,updatedAtMs:1,reason:"owner-emergency-shutdown",digest:"0".repeat(64)})]) {
+    const rootDir = await mkdtemp(join(tmpdir(), "mexc-readback-control-"));
+    try {
+      await writeFile(join(rootDir, "mexc-owner-connection-control.json"), contents);
+      let calls = 0;
+      await assert.rejects(() => readAuthoritativeMexcAccountRisk({userId:"u",accountId:"a",environment:{...environment, OWNER_MEXC_READONLY_API_SECRET:""}}, {controlRootDir:rootDir,fetch:async()=>{calls++;return success([])}}), (error)=>error.code === "PROVIDER_DISABLED_OR_UNCONFIGURED");
+      assert.equal(calls, 0);
+    } finally { await rm(rootDir, {recursive:true,force:true}); }
+  }
+});
+
+test("combined evidence is stamped with the oldest receipt time", async () => {
+  const times = [1_000, 1_001, 2_000, 8_000, 8_001];
+  const readback = await readAuthoritativeMexcAccountRisk({userId:"u",accountId:"a",environment}, {
+    now:()=>times.shift(),
+    fetch:async(url)=>String(url).endsWith("/assets")
+      ? new Promise(resolve=>setTimeout(()=>resolve(success([{currency:"USDT",equity:10,availableBalance:5}])), 5))
+      : success([]),
+  });
+  assert.equal(readback.observedAt, new Date(2_000).toISOString());
+});
+
 test("missing, duplicate, non-finite, negative, and impossible USDT evidence rejects", async () => {
   const bad = [[], [{currency:"USDT",equity:1,availableBalance:0},{currency:"USDT",equity:1,availableBalance:0}], [{currency:"USDT",equity:"NaN",availableBalance:0}], [{currency:"USDT",equity:-1,availableBalance:0}], [{currency:"USDT",equity:1,availableBalance:3}]];
   for (const assets of bad) await assert.rejects(() => readAuthoritativeMexcAccountRisk({userId:"u",accountId:"a",environment}, {now:()=>1_700_000_000_000,fetch:async(url)=>String(url).endsWith("/assets")?success(assets):success([])}), (error)=>error.code === "ASSET_DATA_INVALID");
@@ -91,4 +116,26 @@ test("malformed, unsupported, ambiguous, and oversized position evidence rejects
 test("provider failures, malformed JSON, rate limiting, and oversized bodies never become empty success", async () => {
   const responses = [new Response("not-json"), new Response(JSON.stringify({success:false,code:510,data:[]})), new Response(JSON.stringify({success:true,code:0,data:[]})+"x".repeat(1_000_001))];
   for (const response of responses) await assert.rejects(() => readAuthoritativeMexcAccountRisk({userId:"u",accountId:"a",environment}, {now:()=>1_700_000_000_000,fetch:async()=>response}), MexcProviderReadbackError);
+});
+
+test("response limits reject Content-Length early and cancel an oversized stream at the cap", async () => {
+  let pulls = 0;
+  const oversizedStream = new ReadableStream({
+    pull(controller) { pulls++; controller.enqueue(new Uint8Array(600_000)); },
+    cancel() {},
+  });
+  const transport = createMexcProviderReadTransport(credentials, {now:()=>1,fetch:async()=>new Response(oversizedStream)});
+  await assert.rejects(() => transport.readAssets(), (error)=>error.code === "RESPONSE_MALFORMED_OR_OVERSIZED");
+  assert.ok(pulls >= 2 && pulls <= 3);
+
+  let declaredPulls = 0;
+  const declared = createMexcProviderReadTransport(credentials, {now:()=>1,fetch:async()=>new Response(new ReadableStream({pull(){declaredPulls++}}), {headers:{"content-length":"1000001"}})});
+  await assert.rejects(() => declared.readAssets(), (error)=>error.code === "RESPONSE_MALFORMED_OR_OVERSIZED");
+  assert.ok(declaredPulls <= 1);
+});
+
+test("translation fails closed without exact positive contract metadata", () => {
+  const readback = {version:"mexc-provider-readback/1.0.0",provider:"mexc",userId:"u",accountId:"a",observedAt:new Date(0).toISOString(),settlementCurrency:"USDT",equity:1,availableMargin:1,positions:[{symbol:"BTC_USDT",side:"long",contractVolume:10}]};
+  assert.throws(() => translateMexcReadback(readback, []), MexcProviderReadbackError);
+  assert.throws(() => translateMexcReadback(readback, [{symbol:"BTC_USDT",contractSize:0}]), MexcProviderReadbackError);
 });

@@ -9,6 +9,8 @@ import {
   signMexcPrivateReadRequest,
 } from "./mexc-private-readonly";
 import { requireMexcReadOnlyCredentials } from "./mexc-readonly-credential-activation";
+import { readOwnerMexcConnectionControl } from "./mexc-owner-connection-control";
+import type { MexcContractMetadata } from "./mexc-contract-metadata";
 
 export const MEXC_PROVIDER_READBACK_VERSION = "mexc-provider-readback/1.0.0" as const;
 export const MEXC_PROVIDER_READBACK_MAX_POSITIONS = 200;
@@ -42,7 +44,7 @@ export type MexcProviderAccountRiskReadback = Readonly<{
   // dayStartEquity is intentionally absent: these reads provide no authoritative baseline.
 }>;
 
-type Dependencies = Readonly<{ fetch?: typeof fetch; now?: () => number }>;
+type Dependencies = Readonly<{ fetch?: typeof fetch; now?: () => number; controlRootDir?: string }>;
 type Environment = Readonly<Record<string, string | undefined>>;
 const paths = Object.freeze({
   assets: "/api/v1/private/account/assets",
@@ -80,9 +82,30 @@ async function privateGet(path: (typeof paths)[keyof typeof paths], credentials:
     const response = await (dependencies.fetch ?? fetch)(new URL(path, MEXC_FUTURES_PRIVATE_BASE_URL), {
       method: "GET", headers, cache: "no-store", redirect: "error", signal: controller.signal,
     });
-    const text = await response.text();
-    if (Buffer.byteLength(text) > MEXC_PRIVATE_RESPONSE_MAX_BYTES)
-      throw new MexcProviderReadbackError("RESPONSE_MALFORMED_OR_OVERSIZED", "MEXC response exceeded the size bound.");
+    const declaredLength = response.headers.get("content-length");
+    if (declaredLength !== null) {
+      const length = Number(declaredLength);
+      if (!Number.isSafeInteger(length) || length < 0 || length > MEXC_PRIVATE_RESPONSE_MAX_BYTES)
+        throw new MexcProviderReadbackError("RESPONSE_MALFORMED_OR_OVERSIZED", "MEXC response exceeded the size bound.");
+    }
+    if (!response.body) throw new MexcProviderReadbackError("RESPONSE_MALFORMED_OR_OVERSIZED", "MEXC response body was missing.");
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let bytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MEXC_PRIVATE_RESPONSE_MAX_BYTES) {
+        await reader.cancel();
+        throw new MexcProviderReadbackError("RESPONSE_MALFORMED_OR_OVERSIZED", "MEXC response exceeded the size bound.");
+      }
+      chunks.push(value);
+    }
+    const payload = new Uint8Array(bytes);
+    let offset = 0;
+    for (const chunk of chunks) { payload.set(chunk, offset); offset += chunk.byteLength; }
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(payload);
     let body: unknown;
     try { body = JSON.parse(text); } catch { throw new MexcProviderReadbackError("RESPONSE_MALFORMED_OR_OVERSIZED", "MEXC response was not valid JSON."); }
     if (!body || typeof body !== "object") throw new MexcProviderReadbackError("RESPONSE_MALFORMED_OR_OVERSIZED", "MEXC response shape was invalid.");
@@ -152,8 +175,12 @@ function normalizePositions(data: unknown): readonly MexcProviderPosition[] {
 
 export async function readAuthoritativeMexcAccountRisk(input: Readonly<{userId:string;accountId:string;environment?:Environment}>, dependencies: Dependencies = {}): Promise<MexcProviderAccountRiskReadback> {
   if (!input.userId.trim() || !input.accountId.trim() || input.userId.length > 128 || input.accountId.length > 128) throw new MexcProviderReadbackError("IDENTITY_MISMATCH", "Trusted account identity was invalid.");
+  const environment = input.environment ?? process.env;
+  const connectionControl = await readOwnerMexcConnectionControl(environment, dependencies.controlRootDir ? { rootDir: dependencies.controlRootDir } : {});
+  if (connectionControl.localPrivateReadsBlocked)
+    throw new MexcProviderReadbackError("PROVIDER_DISABLED_OR_UNCONFIGURED", "MEXC owner private reads are sealed.");
   let credentials;
-  try { credentials = requireMexcReadOnlyCredentials(input.environment ?? process.env); }
+  try { credentials = requireMexcReadOnlyCredentials(environment); }
   catch (error) {
     const kind = error && typeof error === "object" && "kind" in error ? String(error.kind) : "";
     throw new MexcProviderReadbackError(kind.includes("attestation") ? "CREDENTIAL_ATTESTATION_INVALID" : "PROVIDER_DISABLED_OR_UNCONFIGURED", "MEXC owner read-only configuration is unavailable.");
@@ -161,7 +188,7 @@ export async function readAuthoritativeMexcAccountRisk(input: Readonly<{userId:s
   const transport = createMexcProviderReadTransport(credentials, dependencies);
   try {
     const [assets, positions] = await Promise.all([transport.readAssets(), transport.readOpenPositions()]);
-    const observedAtMs = Math.max(assets.observedAtMs, positions.observedAtMs);
+    const observedAtMs = Math.min(assets.observedAtMs, positions.observedAtMs);
     const now = (dependencies.now ?? Date.now)();
     if (now - observedAtMs < 0 || now - observedAtMs > MEXC_PROVIDER_READBACK_MAX_AGE_MS) throw new MexcProviderReadbackError("READBACK_STALE_OR_UNAVAILABLE", "MEXC readback was stale.");
     const account = normalizeAssets(assets.data);
@@ -169,9 +196,18 @@ export async function readAuthoritativeMexcAccountRisk(input: Readonly<{userId:s
   } catch (error) { throw new MexcProviderReadbackError(codeFor(error), "Authoritative MEXC account readback is unavailable."); }
 }
 
-export function translateMexcReadback(readback: MexcProviderAccountRiskReadback) {
+export function translateMexcReadback(readback: MexcProviderAccountRiskReadback, contracts: readonly Pick<MexcContractMetadata, "symbol" | "contractSize">[]) {
+  const bySymbol = new Map(contracts.map((contract) => [contract.symbol, contract.contractSize]));
+  if (bySymbol.size !== contracts.length) throw new MexcProviderReadbackError("POSITION_DATA_INVALID", "Contract metadata was ambiguous.");
+  const positions = readback.positions.map((position) => {
+    const contractSize = bySymbol.get(position.symbol);
+    if (!Number.isFinite(contractSize) || contractSize! <= 0) throw new MexcProviderReadbackError("POSITION_DATA_INVALID", "Authoritative contract metadata was unavailable.");
+    const quantity = Number((position.contractVolume * contractSize!).toPrecision(15));
+    if (!Number.isFinite(quantity)) throw new MexcProviderReadbackError("POSITION_DATA_INVALID", "Position base quantity was invalid.");
+    return Object.freeze({symbol:position.symbol,side:position.side,quantity});
+  });
   return Object.freeze({
-    accountState: Object.freeze({ userId: readback.userId, accountId: readback.accountId, observedAt: readback.observedAt, positions: Object.freeze(readback.positions.map((p) => Object.freeze({symbol:p.symbol,side:p.side,quantity:p.contractVolume}))) }),
+    accountState: Object.freeze({ userId: readback.userId, accountId: readback.accountId, observedAt: readback.observedAt, positions: Object.freeze(positions) }),
     riskSnapshot: null,
     riskSnapshotUnavailableReason: "authoritative-day-start-equity-unavailable" as const,
   });
