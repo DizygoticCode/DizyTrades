@@ -182,7 +182,7 @@ function strictSyntheticProvider(value: unknown): value is SyntheticProviderResu
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const provider = value as Record<string, unknown>;
   return hasOnlyKeys(provider, [
-    "contractVersion", "providerKind", "provenance", "outcome", "executed", "reasonClass",
+    "contractVersion", "providerKind", "provenance", "outcome", "executed", "reasonClass", "reconciliation",
   ]) && isSyntheticProviderResult(value);
 }
 
@@ -224,9 +224,15 @@ function normalizeStoredResult(
   const preview = previewValue === null
     ? null
     : Object.freeze({ ...(previewValue as NonNullable<ExecutionResult["preview"]>) });
-  const providerResult = providerValue === undefined
+  const storedProvider = providerValue as SyntheticProviderResult | undefined;
+  const providerResult: SyntheticProviderResult | undefined = storedProvider === undefined
     ? undefined
-    : Object.freeze({ ...(providerValue as SyntheticProviderResult) });
+    : Object.freeze({
+      ...storedProvider,
+      ...(storedProvider.reconciliation
+        ? { reconciliation: Object.freeze({ ...storedProvider.reconciliation }) }
+        : {}),
+    });
   return Object.freeze({
     intentId: result.intentId as string,
     idempotencyKey: result.idempotencyKey as string,

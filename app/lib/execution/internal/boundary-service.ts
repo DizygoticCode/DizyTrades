@@ -10,6 +10,7 @@ import type {
   ExecutionRejectionCode,
   ExecutionResult,
   SyntheticProviderScenario,
+  SyntheticObservation,
 } from "../types";
 
 export type ExecutionCallerVerifier = (
@@ -24,6 +25,8 @@ export type ExecutionBoundaryDependencies = Readonly<{
   now?: () => Date;
   /** Test-only deterministic lifecycle fixture; production composition never sets it. */
   syntheticProviderScenario?: SyntheticProviderScenario;
+  /** Test-only separately supplied observation; production composition never sets it. */
+  syntheticObservation?: SyntheticObservation;
   syntheticProviderFault?: "exception" | "malformed-result";
 }>;
 
@@ -74,6 +77,7 @@ export class InternalExecutionBoundary {
       environment: dependencies.environment,
       now: dependencies.now,
       syntheticProviderScenario: dependencies.syntheticProviderScenario,
+      syntheticObservation: dependencies.syntheticObservation,
       syntheticProviderFault: dependencies.syntheticProviderFault,
     });
   }

@@ -207,6 +207,7 @@ Before live execution is considered, DizyTrades requires at minimum:
 - server-side order preview and risk validation;
 - idempotent order submission;
 - exchange acknowledgement and deterministic reconciliation;
+- deterministic synthetic lifecycle/reconciliation is implemented only as a bounded non-executing fixture contract; it is not exchange acknowledgement or provider readback;
 - symbol, leverage, notional and daily-loss limits;
 - reduce-only enforcement;
 - stale-price and stale-account-state rejection;
