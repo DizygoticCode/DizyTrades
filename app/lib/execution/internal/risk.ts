@@ -28,7 +28,10 @@ export function evaluateExecutionRisk(store: ExecutionRiskStore, intent: Executi
   if(preview.estimatedMargin>snapshot.availableMargin*authorization.maximumOrderMarginFractionOfAvailable)return deny("ACCOUNT_ORDER_MARGIN_LIMIT_EXCEEDED");
   let gross=0;
   for(const position of prerequisites.accountState?.positions??[]) { const reference=prerequisites.referencePrices?.get(position.symbol); if(!reference||!Number.isFinite(reference.price)||reference.price<=0||!Number.isFinite(Date.parse(reference.observedAt)))return deny("POSITION_REFERENCE_PRICE_MISSING"); const referenceAge=now.getTime()-Date.parse(reference.observedAt);if(referenceAge<0||referenceAge>policy.maximumReferencePriceAgeMs)return deny("POSITION_REFERENCE_PRICE_STALE"); gross+=Math.abs(position.quantity*reference.price);if(!Number.isFinite(gross))return deny("ACCOUNT_GROSS_EXPOSURE_LIMIT_EXCEEDED"); }
-  if(intent.reduceOnly) gross=Math.max(0,gross-preview.estimatedNotional); else gross+=preview.estimatedNotional;
+  // Existing positions are marked at reference prices, so reductions must use
+  // that same valuation basis. A conservative limit-order estimate may be
+  // higher and must not discount exposure in unrelated positions.
+  if(intent.reduceOnly) gross=Math.max(0,gross-preview.quantity*preview.referencePrice); else gross+=preview.estimatedNotional;
   if(gross>authorization.maximumGrossNotional)return deny("ACCOUNT_GROSS_EXPOSURE_LIMIT_EXCEEDED");
   return Object.freeze({ok:true,projectedGrossNotional:gross});
 }

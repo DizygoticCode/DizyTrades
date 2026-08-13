@@ -8,6 +8,7 @@ import type {
   ExecutionBlockCode,
   ExecutionRejectionCode,
   ExecutionResult,
+  ExecutionRiskCode,
   SyntheticProviderResult,
 } from "../types";
 import { isSyntheticProviderResult } from "./provider";
@@ -20,7 +21,7 @@ const SYMBOL = /^[A-Z0-9]{1,20}_[A-Z0-9]{1,20}$/;
 const MAX_PREVIEW_JSON_BYTES = 4096;
 const MAX_PROVIDER_JSON_BYTES = 1024;
 
-const persistableBlockedCodes = new Set<ExecutionBlockCode>([
+const persistableBlockedCodes = new Set<ExecutionBlockCode | ExecutionRiskCode>([
   "GLOBAL_EXECUTION_DISABLED",
   "USER_EXECUTION_DISABLED",
   "ACCOUNT_EXECUTION_DISABLED",
@@ -30,6 +31,23 @@ const persistableBlockedCodes = new Set<ExecutionBlockCode>([
   "ADAPTER_UNAVAILABLE",
   "PROVIDER_EXCEPTION",
   "PROVIDER_MALFORMED_RESULT",
+  "ACCOUNT_NOT_AUTHORIZED",
+  "ACCOUNT_AUTHORIZATION_DISABLED",
+  "ACCOUNT_AUTHORIZATION_EXPIRED",
+  "ACCOUNT_SYMBOL_NOT_AUTHORIZED",
+  "ACCOUNT_LEVERAGE_LIMIT_EXCEEDED",
+  "ACCOUNT_ORDER_NOTIONAL_LIMIT_EXCEEDED",
+  "ACCOUNT_GROSS_EXPOSURE_LIMIT_EXCEEDED",
+  "RISK_SNAPSHOT_MISSING",
+  "RISK_SNAPSHOT_INVALID",
+  "RISK_SNAPSHOT_STALE",
+  "RISK_SNAPSHOT_IDENTITY_MISMATCH",
+  "ACCOUNT_DAILY_DRAWDOWN_LIMIT_EXCEEDED",
+  "ACCOUNT_ORDER_MARGIN_LIMIT_EXCEEDED",
+  "POSITION_REFERENCE_PRICE_MISSING",
+  "POSITION_REFERENCE_PRICE_STALE",
+  "EXECUTION_RISK_UNAVAILABLE",
+  "EXECUTION_RISK_INVALID",
 ]);
 const rejectionCodes = new Set<ExecutionRejectionCode>([
   "CALLER_UNAUTHENTICATED",
@@ -214,7 +232,7 @@ function normalizeStoredResult(
       || previewValue !== null
       || providerValue !== undefined) invalid();
   } else if (result.state === "blocked") {
-    if (!persistableBlockedCodes.has(result.reason as ExecutionBlockCode)
+    if (!persistableBlockedCodes.has(result.reason as ExecutionBlockCode | ExecutionRiskCode)
       || previewValue === null
       || providerValue !== undefined) invalid();
   } else if (result.reason !== "SYNTHETIC_PROVIDER_OUTCOME" || !previewValue || !providerValue) {

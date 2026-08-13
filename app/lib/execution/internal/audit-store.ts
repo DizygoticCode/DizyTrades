@@ -5,7 +5,7 @@ import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import type { ExecutionAuditEvent, ExecutionAuditKind, ExecutionBlockCode, ExecutionRejectionCode } from "../types";
+import type { ExecutionAuditEvent, ExecutionAuditKind, ExecutionBlockCode, ExecutionRejectionCode, ExecutionRiskCode } from "../types";
 
 const SCHEMA_VERSION = 1;
 const GENESIS_HASH = "0".repeat(64);
@@ -18,7 +18,7 @@ const kinds = new Set<ExecutionAuditKind>([
   "duplicate-intent-detected", "kill-switch-active", "adapter-unavailable",
   "provider-evaluated", "provider-failed", "execution-state-failed",
 ]);
-const reasons = new Set<ExecutionBlockCode | ExecutionRejectionCode>([
+const reasons = new Set<ExecutionBlockCode | ExecutionRejectionCode | ExecutionRiskCode>([
   "CALLER_UNAUTHENTICATED", "CALLER_IDENTITY_MISMATCH", "BOUNDARY_DEPENDENCY_FAILURE",
   "INVALID_IDENTITY", "INVALID_IDEMPOTENCY_KEY", "INVALID_SYMBOL", "UNKNOWN_SYMBOL",
   "INVALID_SIDE", "INVALID_ORDER_TYPE", "INVALID_QUANTITY", "INVALID_PRICE", "INVALID_LEVERAGE",
@@ -32,6 +32,13 @@ const reasons = new Set<ExecutionBlockCode | ExecutionRejectionCode>([
   "ADAPTER_UNAVAILABLE", "PROVIDER_EXCEPTION", "PROVIDER_MALFORMED_RESULT",
   "SYNTHETIC_PROVIDER_OUTCOME", "EXECUTION_STATE_UNAVAILABLE", "EXECUTION_STATE_INVALID",
   "EXECUTION_AUDIT_UNAVAILABLE", "EXECUTION_AUDIT_INVALID",
+  "ACCOUNT_NOT_AUTHORIZED", "ACCOUNT_AUTHORIZATION_DISABLED", "ACCOUNT_AUTHORIZATION_EXPIRED",
+  "ACCOUNT_SYMBOL_NOT_AUTHORIZED", "ACCOUNT_LEVERAGE_LIMIT_EXCEEDED",
+  "ACCOUNT_ORDER_NOTIONAL_LIMIT_EXCEEDED", "ACCOUNT_GROSS_EXPOSURE_LIMIT_EXCEEDED",
+  "RISK_SNAPSHOT_MISSING", "RISK_SNAPSHOT_INVALID", "RISK_SNAPSHOT_STALE",
+  "RISK_SNAPSHOT_IDENTITY_MISMATCH", "ACCOUNT_DAILY_DRAWDOWN_LIMIT_EXCEEDED",
+  "ACCOUNT_ORDER_MARGIN_LIMIT_EXCEEDED", "POSITION_REFERENCE_PRICE_MISSING",
+  "POSITION_REFERENCE_PRICE_STALE", "EXECUTION_RISK_UNAVAILABLE", "EXECUTION_RISK_INVALID",
 ]);
 
 export type DurableExecutionAuditRecord = Readonly<{

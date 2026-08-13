@@ -143,6 +143,24 @@ test("literal true still ends at adapter-unavailable without execution", () => {
   assert.equal(response.result.state, "blocked");
 });
 
+test("risk denials are audited and durably replayed as duplicate intents", () => {
+  const riskStore = new SqliteExecutionRiskStore(":memory:");
+  const service = makeService({
+    executionRiskStore: riskStore,
+    environment: { LIVE_TRADING_ENABLED: "false" },
+    now: () => new Date("2026-08-12T12:01:00Z"),
+    readKillSwitches: () => enabledSwitchState,
+  });
+  const first = service.process(valid, prerequisites);
+  const duplicate = service.process(valid, prerequisites);
+  assert.equal(first.result.reason, "ACCOUNT_NOT_AUTHORIZED");
+  assert.equal(first.result.state, "blocked");
+  assert.equal(first.auditEvents.at(-1).reason, "ACCOUNT_NOT_AUTHORIZED");
+  assert.equal(duplicate.result.reason, "DUPLICATE_INTENT");
+  assert.equal(duplicate.result.duplicate, true);
+  assert.equal(duplicate.result.preview.symbol, valid.symbol);
+});
+
 test("synthetic provider lifecycle outcomes are deterministic and never execute", () => {
   const expectedReason = { "would-accept": "none", "would-reject": "policy", "would-timeout": "timeout", "would-unknown": "indeterminate" };
   for (const scenario of Object.keys(expectedReason)) {
