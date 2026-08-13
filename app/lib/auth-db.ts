@@ -141,6 +141,14 @@ function migrate(db: DatabaseSync) {
       INSERT INTO schema_migrations(version, applied_at) VALUES (6, datetime('now'));
       COMMIT;`);
   }
+  const versionSeven = db.prepare("SELECT 1 FROM schema_migrations WHERE version=7").get();
+  if (!versionSeven) {
+    db.exec(`BEGIN IMMEDIATE;
+      ALTER TABLE sessions ADD COLUMN assurance TEXT NOT NULL DEFAULT 'password'
+        CHECK(assurance IN ('password','totp','recovery'));
+      INSERT INTO schema_migrations(version, applied_at) VALUES (7, datetime('now'));
+      COMMIT;`);
+  }
 }
 
 export function getAuthDatabase() {
@@ -338,9 +346,11 @@ export async function authenticateDatabaseUser(identifier: string, password: str
   return result.status === "authenticated" ? result.user : null;
 }
 
-export function createDatabaseSession(user: AuthUser, maxAgeSeconds: number) {
+export type DatabaseSessionAssurance = "password" | "totp" | "recovery";
+
+export function createDatabaseSession(user: AuthUser, maxAgeSeconds: number, assurance: DatabaseSessionAssurance = "password") {
   const db = getAuthDatabase();
-  if (!db || !Number.isSafeInteger(maxAgeSeconds) || maxAgeSeconds < 60 || maxAgeSeconds > 60 * 60 * 24 * 30) return null;
+  if (!db || !["password", "totp", "recovery"].includes(assurance) || !Number.isSafeInteger(maxAgeSeconds) || maxAgeSeconds < 60 || maxAgeSeconds > 60 * 60 * 24 * 30) return null;
   const ownerId = safeOwnerId(user.id, "account");
   const account = db.prepare("SELECT email,email_verified_at FROM users WHERE id=?").get(ownerId) as { email: string | null; email_verified_at: string | null } | undefined;
   if (!account) return null;
@@ -350,13 +360,50 @@ export function createDatabaseSession(user: AuthUser, maxAgeSeconds: number) {
   db.exec("BEGIN IMMEDIATE");
   try {
     db.prepare("DELETE FROM sessions WHERE user_id=? OR expires_at<=?").run(ownerId, now);
-    db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at,created_at,last_seen_at,revoked_at) VALUES(?,?,?,?,?,NULL)").run(digest(token), ownerId, now + maxAgeSeconds * 1000, now, now);
+    db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at,created_at,last_seen_at,revoked_at,assurance) VALUES(?,?,?,?,?,NULL,?)").run(digest(token), ownerId, now + maxAgeSeconds * 1000, now, now, assurance);
     db.exec("COMMIT");
     return token;
   } catch (error) {
     db.exec("ROLLBACK");
     throw error;
   }
+}
+
+export type ExecutionGradeSession = Readonly<{ userId: string; sessionFingerprint: string; expiresAt: number }>;
+
+/** Execution authentication accepts only an opaque, live TOTP-established DB session. */
+export function executionGradeDatabaseSession(token: string, now = Date.now()): ExecutionGradeSession | null {
+  if (!isOpaqueSessionToken(token) || !Number.isSafeInteger(now) || now < 0) return null;
+  const db = getAuthDatabase();
+  if (!db) return null;
+  try {
+    const tokenHash = digest(token);
+    const row = db.prepare(`SELECT s.user_id,s.expires_at,s.assurance,u.email,u.email_verified_at,m.state AS mfa_state
+      FROM sessions s JOIN users u ON u.id=s.user_id
+      LEFT JOIN mfa_credentials m ON m.user_id=s.user_id
+      WHERE s.token_hash=? AND s.expires_at>? AND s.revoked_at IS NULL`).get(tokenHash, now) as
+      { user_id: string; expires_at: number; assurance: string; email: string | null; email_verified_at: string | null; mfa_state: string | null } | undefined;
+    if (!row || row.assurance !== "totp" || !row.email || !row.email_verified_at || row.mfa_state !== "active"
+      || !Number.isSafeInteger(row.expires_at) || row.expires_at <= now) return null;
+    return Object.freeze({ userId: safeOwnerId(row.user_id, "account"), sessionFingerprint: tokenHash, expiresAt: row.expires_at });
+  } catch {
+    return null;
+  }
+}
+
+/** Revalidation seam for a digest already held by a server-only assertion store. */
+export function executionGradeDatabaseSessionFingerprint(sessionFingerprint: string, now = Date.now()): ExecutionGradeSession | null {
+  if (!/^[a-f0-9]{64}$/.test(sessionFingerprint) || !Number.isSafeInteger(now) || now < 0) return null;
+  const db = getAuthDatabase();
+  if (!db) return null;
+  try {
+    const row = db.prepare(`SELECT s.user_id,s.expires_at,s.assurance,u.email,u.email_verified_at,m.state AS mfa_state
+      FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN mfa_credentials m ON m.user_id=s.user_id
+      WHERE s.token_hash=? AND s.expires_at>? AND s.revoked_at IS NULL`).get(sessionFingerprint, now) as
+      { user_id: string; expires_at: number; assurance: string; email: string | null; email_verified_at: string | null; mfa_state: string | null } | undefined;
+    if (!row || row.assurance !== "totp" || !row.email || !row.email_verified_at || row.mfa_state !== "active") return null;
+    return Object.freeze({ userId: safeOwnerId(row.user_id, "account"), sessionFingerprint, expiresAt: row.expires_at });
+  } catch { return null; }
 }
 
 export function databaseSession(token: string) {

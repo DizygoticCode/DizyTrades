@@ -440,6 +440,16 @@ approval or guarded-execution completion.
 
 Future connectivity must preserve the already-completed read-only observation layer and introduce write capability only through a separate guarded execution architecture:
 
+The next readiness slice installs a server-only authenticated internal caller
+assertion authority. Only verified-email, active database sessions established by
+TOTP MFA qualify; password-only, recovery-code, viewer and legacy signed sessions
+do not. Assertions are short-lived, digest-only, identity-bound and atomically
+single-use in `DATA_DIR/execution-caller.sqlite`, with originating-session
+revocation rechecked on consume. No public execution or assertion-mint route
+exists, and account ownership/risk authorization and activation remain future
+gates. Production remains disarmed and globally disabled, and the only adapter is
+non-executing with every result `executed:false`.
+
 ```text
 User intent
    ↓

@@ -226,6 +226,16 @@ Use unique throwaway passwords, never commit or reuse them, and retain salted sc
 
 ## Requirements before exchange write permission
 
+The internal execution boundary now has a durable, server-only caller assertion
+verifier. Its issuer accepts only an active verified-email database session whose
+login was completed with TOTP (never recovery-only assurance), binds one fixed
+internal caller/user/account/session fingerprint for 30 seconds, stores only the
+assertion digest, and consumes it atomically once. Session revocation and MFA
+disable fail the final verification. There is no public mint or execution route;
+this does not prove exchange-account ownership or risk authorization. Production
+remains disarmed/global-disabled, the adapter remains non-executing, and real MEXC
+launch codes remain confiscated.
+
 Before live execution is considered, DizyTrades requires at minimum:
 
 - isolated execution service or equivalently isolated execution boundary;

@@ -4,15 +4,16 @@ import { createProductionExecutionControlStore } from "./control-store";
 import { InternalExecutionBoundary } from "./boundary-service";
 import { createProductionExecutionStateStore } from "./state-store";
 import { createProductionExecutionAuditStore } from "./audit-store";
+import { verifyProductionExecutionCaller } from "./caller-assertion";
 
 /**
- * Production composition root. Authentication deliberately denies every call
- * until a separately reviewed server-internal assertion provider is wired.
+ * Production composition root. The assertion verifier remains unreachable from
+ * public routes; controls and the non-executing adapter stay authoritative.
  */
 export const createServerExecutionBoundary = (): InternalExecutionBoundary => {
   const controls = createProductionExecutionControlStore();
   return new InternalExecutionBoundary({
-    authenticateInternalCaller: () => null,
+    authenticateInternalCaller: verifyProductionExecutionCaller,
     readKillSwitches: () => controls.switches(),
     executionStateStore: createProductionExecutionStateStore(),
     executionAuditStore: createProductionExecutionAuditStore(),
