@@ -446,9 +446,24 @@ TOTP MFA qualify; password-only, recovery-code, viewer and legacy signed session
 do not. Assertions are short-lived, digest-only, identity-bound and atomically
 single-use in `DATA_DIR/execution-caller.sqlite`, with originating-session
 revocation rechecked on consume. No public execution or assertion-mint route
-exists, and account ownership/risk authorization and activation remain future
-gates. Production remains disarmed and globally disabled, and the only adapter is
-non-executing with every result `executed:false`.
+exists. The subsequent ownership slice adds
+`DATA_DIR/execution-ownership.sqlite`, where proof, activation and revocation are
+exact-user/account, revisioned transitions. A successful Radar read is
+insufficient by itself: before any read, a server-only operator attestation must
+independently bind stable owner `rob`, the exact execution account ID and an
+explicit read-only credential generation. Proof additionally requires fresh
+GET-only Radar evidence; activation is a distinct fresh authenticated-caller
+compare-and-swap, and revocation is sticky. Missing, mismatched, stale, corrupt
+or replaced binding/state fails closed. The store and events contain bounded
+identity/digest metadata only, never credentials.
+
+Ownership is checked before reconciliation and provider evaluation, while kill
+switches retain precedence and suppress Radar work. There is no public binding
+or ceremony mutation route, Account Companion credentials are not migrated or
+decrypted, production remains disarmed and globally disabled, and the only
+adapter is non-executing with every result `executed:false`. Ownership completion
+therefore removes only that readiness gate; write-capable custody wiring, live
+provider submission and independent rollout approval remain absent.
 
 ```text
 User intent
@@ -467,7 +482,7 @@ Immutable audit record
 Encrypted write-capable credentials, shared abuse controls for any horizontal deployment, loss limits, symbol/notional/leverage limits, reduce-only enforcement, stale-price/account-state rejection, emergency shutdown, provider-recovery rehearsal and independent security review are mandatory before execution. Database-account MFA and hardened opaque sessions are implemented; legacy signed owner/admin sessions remain ordinary-application compatibility only and cannot satisfy future guarded-execution MFA.
 
 Future stages still require shared abuse/rate limiting for any horizontal
-deployment; a separately approved execution authentication/activation path; real
+deployment; separately approved execution rollout and write-provider wiring; real
 idempotent order submission; exchange acknowledgement and deterministic
 reconciliation; durable operational symbol, leverage, notional and daily-loss
 limits; enforceable reduce-only behaviour; authoritative stale-state rejection;

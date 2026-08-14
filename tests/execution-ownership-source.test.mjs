@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 const text = (path) => readFileSync(path, "utf8");
+const sourceFiles = (directory) => readdirSync(directory, { recursive: true, withFileTypes: true })
+  .filter((entry) => entry.isFile() && /\.(?:ts|tsx|js|mjs)$/.test(entry.name))
+  .map((entry) => `${entry.parentPath}/${entry.name}`);
 
 test("production ownership gate is ahead of reconciliation and preserves kill-switch precedence", () => {
   const composition = text("app/lib/execution/internal/composition.ts");
@@ -40,6 +43,24 @@ test("MEXC Radar remains fixed-path GET-only and no executable adapter is introd
   assert.doesNotMatch(readback, /method:\s*"(POST|PUT|PATCH|DELETE)"/);
   assert.doesNotMatch(text("app/lib/execution/internal/adapter.ts"), /executed:\s*true/);
   assert.doesNotMatch(text("app/lib/execution/types.ts"), /executed:\s*true/);
+});
+
+test("execution sources have no write transport, public ceremony route, or executed:true", () => {
+  const executionSources = sourceFiles("app/lib/execution");
+  for (const path of executionSources) {
+    const source = text(path);
+    assert.doesNotMatch(source, /executed\s*:\s*true/, path);
+    assert.doesNotMatch(source, /method\s*:\s*["'`](?:POST|PUT|PATCH|DELETE)["'`]/, path);
+  }
+
+  for (const path of sourceFiles("app")) {
+    if (!/\/route\.(?:ts|tsx|js|mjs)$/.test(path)) continue;
+    assert.doesNotMatch(
+      text(path),
+      /execution\/internal\/(?:ownership-binding|ownership-ceremony|ownership-store)/,
+      path,
+    );
+  }
 });
 
 test("ownership persistence contains only bounded identity, binding digest, state and timestamps", () => {

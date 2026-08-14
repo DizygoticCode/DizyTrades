@@ -448,14 +448,19 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 - [x] Add durable single-instance execution-state persistence and restart-safe user/account/idempotency-key protection for the non-executing airlock. This is not real idempotent order submission and adds no exchange write capability.
 - [x] Add durable append-only tamper-evident single-instance execution audit persistence. This does not claim external WORM/immutable storage and adds no exchange transport or credential wiring.
 - [x] Add a deterministic synthetic lifecycle/reconciliation contract with bounded restart-safe evidence and `executed:false`. This is not exchange acknowledgement or readback reconciliation.
-- [x] Add short-lived, single-use server-only internal caller assertions backed by TOTP-assured database sessions. No public mint/execution route exists; account ownership, risk authorization and activation remain future gates, production stays disarmed/global-disabled, the adapter stays non-executing and real MEXC launch codes remain confiscated.
+- [x] Add short-lived, single-use server-only internal caller assertions backed by TOTP-assured database sessions. No public mint/execution route exists; the separately completed exact-account ownership ceremony does not complete risk approval or restricted rollout, production stays disarmed/global-disabled, the adapter stays non-executing and real MEXC launch codes remain confiscated.
 - [x] Install a durable, default-deny server-side account authorization and risk
   officer ahead of synthetic provider evaluation, while retaining the
   non-executing adapter and `executed:false` result contract.
 - [x] Add bounded authoritative MEXC account/position readback through the existing
   owner read-only credential seam. The missing authoritative day-start equity is
   represented explicitly, so this slice does not yet satisfy daily-drawdown risk.
-- [ ] Complete credential-to-account ownership and activation ceremony.
+- [x] Complete the server-only credential-to-account ownership and activation
+  ceremony. Proof requires a fresh GET-only Radar readback plus an independent,
+  exact owner/account and credential-generation operator attestation; activation
+  is a separate authenticated CAS transition and revocation is sticky. This adds
+  no credential migration, public mutation route, exchange write, or execution
+  capability, and production remains disarmed and globally disabled.
 - [ ] Approve any restricted test-account rollout or exchange write capability.
 # Guarded execution safety
 
