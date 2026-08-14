@@ -13,8 +13,13 @@ import { createProductionOwnershipProofOrchestrator } from "./ownership-ceremony
 import { createProductionExecutionReconciliationStore } from "./reconciliation-store";
 import { createProductionReconciliationOrchestrator } from "./production-reconciliation";
 import { createProductionExecutionRolloutStore } from "./rollout-store";
+import {
+  authoritativeRiskSnapshotFromDayStart,
+  captureAuthoritativeDayStartEquity,
+} from "./day-start-equity-authority";
+import { createProductionExecutionDayStartEquityStore } from "./day-start-equity-store";
 import { MEXC_PROVIDER_READBACK_MAX_AGE_MS } from "../../mexc-provider-readback";
-import type { ExecutionBoundaryRequest, ExecutionBoundaryResponse } from "../types";
+import type { ExecutionBoundaryRequest, ExecutionBoundaryResponse, ExecutionPrerequisites } from "../types";
 
 /** Production composition remains server-only and non-executing. */
 export type ServerExecutionBoundary = Readonly<{
@@ -31,6 +36,7 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
   const reconciliationStore = createProductionExecutionReconciliationStore();
   const reconcile = createProductionReconciliationOrchestrator(reconciliationStore);
   const rolloutStore = createProductionExecutionRolloutStore();
+  const dayStartEquityStore = createProductionExecutionDayStartEquityStore();
 
   return Object.freeze({
     async preview(request: ExecutionBoundaryRequest) {
@@ -42,6 +48,7 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
         accountId: requestSnapshot.accountId,
       });
       const caller = verifyProductionExecutionCaller(stableRequest.callerAssertion);
+      let authoritativeRiskSnapshot: NonNullable<ExecutionPrerequisites["riskSnapshot"]> | null = null;
 
       if (caller && caller.userId === stableRequest.userId && caller.accountId === stableRequest.accountId) {
         // Never perform even GET-only provider work while a stronger operational
@@ -68,11 +75,39 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
               && proofAge >= 0
               && proofAge <= MEXC_PROVIDER_READBACK_MAX_AGE_MS
             ) {
-              await reconcile(Object.freeze({ userId: caller.userId, accountId: caller.accountId }));
+              const observation = await reconcile(Object.freeze({ userId: caller.userId, accountId: caller.accountId }));
+              if (observation) {
+                const reconciliation = reconciliationStore.read(caller);
+                const identity = Object.freeze({ userId: caller.userId, accountId: caller.accountId });
+                try {
+                  captureAuthoritativeDayStartEquity(dayStartEquityStore, Object.freeze({
+                    identity,
+                    binding,
+                    ownership,
+                    reconciliation,
+                    readback: observation,
+                  }));
+                } catch { /* missing/missed/invalid baseline remains fail-closed */ }
+                authoritativeRiskSnapshot = authoritativeRiskSnapshotFromDayStart(
+                  dayStartEquityStore,
+                  Object.freeze({ identity, binding, reconciliation, readback: observation }),
+                );
+              }
             }
-          } catch { /* fail closed in the boundary */ }
+          } catch { /* fail closed in the boundary and risk officer */ }
         }
       }
+
+      // Production never accepts caller-supplied daily-equity authority. The risk
+      // snapshot is either reconstructed from the exact current GET-only readback
+      // plus an immutable UTC-day baseline, or explicitly null.
+      const authoritativeRequest = Object.freeze({
+        ...stableRequest,
+        prerequisites: Object.freeze({
+          ...stableRequest.prerequisites,
+          riskSnapshot: authoritativeRiskSnapshot,
+        }),
+      });
 
       const boundary = new InternalExecutionBoundary({
         authenticateInternalCaller: (assertion) => caller
@@ -91,7 +126,7 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
         environment: process.env,
       });
 
-      return boundary.preview(stableRequest);
+      return boundary.preview(authoritativeRequest);
     },
   });
 };
