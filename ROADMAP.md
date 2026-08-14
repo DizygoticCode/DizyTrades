@@ -467,14 +467,16 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
   transitions; disarm/revoke are sticky; bounded reduce-only policy, current
   ownership, risk authorization and reconciliation are rechecked. This is only
   pre-submission approval: the adapter remains non-executing, every outcome is
-  `executed:false`, and actual exchange-write capability remains unapproved.
-- [ ] Approve any exchange write capability (restricted rollout pre-submission
-  approval is complete, but provider submission remains unapproved and absent).
+  `executed:false`, and production exchange submission remains unapproved.
+- [ ] Approve production exchange-write activation. A disabled, unrouted writer
+  seam exists in source, but provider submission remains unapproved and no
+  production composition can call it.
 # Guarded execution safety
 
 - [x] Durable exact-account Radar reconciliation and sticky divergence quarantine
   ahead of provider evaluation (GET-only evidence, `executed:false`).
-- [ ] Exchange-write capability remains explicitly out of scope and absent.
+- [ ] Production exchange-write activation remains explicitly unapproved and
+  absent; the #315 writer seam is disabled and unrouted.
 # Guarded execution provider milestone (#315)
 
 - [x] Add a server-only modern `api.mexc.com` reduce-only create-order seam.
@@ -488,6 +490,8 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
   dedicated write-key provisioning, and a separate activation ceremony.
 
 This milestone does not enable unrestricted live trading and cannot open or
-increase exposure. Its only order mapping closes/reduces a proven existing
-one-way position with explicit `positionMode:2`, authoritative `positionId`,
-documented close-side mapping, and `reduceOnly:true`.
+increase exposure. It is limit-only in one-way mode (`positionMode:2`) with an
+authoritative `positionId` and `reduceOnly:true`. DizyTrades `side` is order
+direction: `long`/buy may only reduce a proven short and maps to MEXC side `2`
+(`close short`); `short`/sell may only reduce a proven long and maps to side `4`
+(`close long`). The seam remains production-disabled and unrouted.
