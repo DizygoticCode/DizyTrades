@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { composeMexcPreWriteAuthority,type MexcPreWriteEvidence } from "./mexc-write-authority";
 
 export const MEXC_EXECUTION_BASE_URL = "https://api.mexc.com" as const;
 export const MEXC_ORDER_CREATE_PATH = "/api/v1/private/order/create" as const;
@@ -11,17 +12,17 @@ export const MEXC_EXECUTION_TIMEOUT_MS = 8_000;
 
 export type MexcExecutionCredentials = Readonly<{ accessKey: string; secretKey: string; generation: string }>;
 export type MexcExecutionIntent = Readonly<{
-  userId:string; accountId:string; idempotencyKey:string; symbol:string;
+  userId:string; accountId:string; intentId:string; idempotencyKey:string; symbol:string;
   positionSide:"long"|"short"; positionMode:"one-way"; positionId:string;
-  marginMode:"isolated"|"cross"; positionVolume:number; volume:number; price:number;
+  marginMode:"isolated"|"cross"; positionVolume:number; volume:number; price:number; referencePrice:number; estimatedNotional:number;
   leverage:number; reduceOnly:true; bindingGeneration:string; rolloutRevision:number;
-  riskRevision:number; reconciliationRevision:number;
+  riskRevision:number; reconciliationRevision:number; writeCredentialGeneration:string;
 }>;
 export type MexcTransportRequest = Readonly<{url:string;method:"GET"|"POST";headers:Readonly<Record<string,string>>;body?:string;timeoutMs:number}>;
 export type MexcTransportResponse = Readonly<{status:number;body:string}>;
 export type MexcExecutionTransport = (request:MexcTransportRequest)=>Promise<MexcTransportResponse>;
 export type MexcLifecycleState = "reserved"|"submitting"|"submitted"|"indeterminate"|"reconciled"|"quarantined";
-export type MexcIntentEvidence = Readonly<{intentDigest:string;symbol:string;side:number;volume:number;positionId:string;positionMode:2;openType:1|2;bindingGeneration:string;rolloutRevision:number;riskRevision:number;reconciliationRevision:number}>;
+export type MexcIntentEvidence = Readonly<{intentDigest:string;symbol:string;side:number;volume:number;positionId:string;positionMode:2;openType:1|2;bindingGeneration:string;writeCredentialGeneration:string;rolloutRevision:number;riskRevision:number;reconciliationRevision:number}>;
 export type MexcLifecycleEvidence = Readonly<MexcIntentEvidence&{identityDigest:string;externalOid:string;state:MexcLifecycleState;attempt:number;orderId:string|null;errorClass:string|null;updatedAt:string}>;
 export interface MexcExecutionLifecycleStore {
   read(identityDigest:string):MexcLifecycleEvidence|null;
@@ -50,26 +51,27 @@ export function createMexcExecutionFetchTransport(fetchImplementation:typeof fet
 const TOKEN=/^[A-Za-z0-9_-]{1,120}$/,SYMBOL=/^[A-Z0-9]{1,20}_USDT$/,ORDER_ID=/^[A-Za-z0-9_-]{1,64}$/,POSITION_ID=/^[1-9][0-9]{0,30}$/;
 const CREDENTIAL=/^[\x21-\x7e]+$/;
 const sha=(value:string)=>createHash("sha256").update(value).digest("hex");
-export const mexcExecutionIdentityDigest=(intent:MexcExecutionIntent)=>sha(JSON.stringify([intent.userId,intent.accountId,intent.idempotencyKey,intent.bindingGeneration]));
+export const mexcExecutionIdentityDigest=(intent:MexcExecutionIntent)=>sha(JSON.stringify([intent.userId,intent.accountId,intent.idempotencyKey]));
 export const mexcExternalOid=(intent:MexcExecutionIntent)=>`dizy_${mexcExecutionIdentityDigest(intent).slice(0,27)}`;
 const side=(intent:MexcExecutionIntent)=>intent.positionSide==="long"?4:2;
 const openType=(intent:MexcExecutionIntent):1|2=>intent.marginMode==="isolated"?1:2;
 function canonicalBody(intent:MexcExecutionIntent,externalOid:string){return JSON.stringify({symbol:intent.symbol,price:intent.price,vol:intent.volume,side:side(intent),type:1,openType:openType(intent),leverage:intent.leverage,externalOid,positionId:intent.positionId,positionMode:2,reduceOnly:true});}
-function intentEvidence(intent:MexcExecutionIntent,externalOid:string):MexcIntentEvidence {const body=canonicalBody(intent,externalOid);return Object.freeze({intentDigest:sha(body),symbol:intent.symbol,side:side(intent),volume:intent.volume,positionId:intent.positionId,positionMode:2,openType:openType(intent),bindingGeneration:intent.bindingGeneration,rolloutRevision:intent.rolloutRevision,riskRevision:intent.riskRevision,reconciliationRevision:intent.reconciliationRevision});}
+function intentEvidence(intent:MexcExecutionIntent,externalOid:string):MexcIntentEvidence {const body=canonicalBody(intent,externalOid);return Object.freeze({intentDigest:sha(body),symbol:intent.symbol,side:side(intent),volume:intent.volume,positionId:intent.positionId,positionMode:2,openType:openType(intent),bindingGeneration:intent.bindingGeneration,writeCredentialGeneration:intent.writeCredentialGeneration,rolloutRevision:intent.rolloutRevision,riskRevision:intent.riskRevision,reconciliationRevision:intent.reconciliationRevision});}
+function sameEvidence(actual:MexcLifecycleEvidence,expected:MexcIntentEvidence,externalOid:string){return actual.externalOid===externalOid&&actual.intentDigest===expected.intentDigest&&actual.symbol===expected.symbol&&actual.side===expected.side&&actual.volume===expected.volume&&actual.positionId===expected.positionId&&actual.positionMode===expected.positionMode&&actual.openType===expected.openType&&actual.bindingGeneration===expected.bindingGeneration&&actual.writeCredentialGeneration===expected.writeCredentialGeneration&&actual.rolloutRevision===expected.rolloutRevision&&actual.riskRevision===expected.riskRevision&&actual.reconciliationRevision===expected.reconciliationRevision;}
 
 export function readMexcExecutionCredentials(environment:Readonly<Record<string,string|undefined>>):MexcExecutionCredentials {
   const accessKey=environment.MEXC_EXECUTION_ACCESS_KEY,secretKey=environment.MEXC_EXECUTION_SECRET_KEY,generation=environment.MEXC_EXECUTION_CREDENTIAL_GENERATION;
-  const exposed=Object.entries(environment).some(([key,value])=>/^(NEXT_PUBLIC_|PUBLIC_).*MEXC.*(SECRET|PRIVATE)/.test(key)&&Boolean(value));
+  const exposed=Object.entries(environment).some(([key,value])=>/^(NEXT_PUBLIC_|PUBLIC_).*MEXC.*EXECUTION.*(KEY|SECRET|PRIVATE|CREDENTIAL|GENERATION)/.test(key)&&Boolean(value));
   if(!accessKey||!secretKey||!generation||accessKey.length<16||secretKey.length<16||accessKey.length>256||secretKey.length>512||!CREDENTIAL.test(accessKey)||!CREDENTIAL.test(secretKey)||!TOKEN.test(generation)||exposed||accessKey===environment.OWNER_MEXC_READONLY_API_KEY||secretKey===environment.OWNER_MEXC_READONLY_API_SECRET)throw new MexcExecutionError("configuration");
   return Object.freeze({accessKey,secretKey,generation});
 }
 export function mexcWriterEnabled(environment:Readonly<Record<string,string|undefined>>){return environment.MEXC_WRITE_PROVIDER_ENABLED==="true"&&environment.LIVE_TRADING_ENABLED==="true";}
-const AUTHORITY_KEYS=["callerAssured","ownerBound","ownershipFresh","reconciliationClean","riskEnabled","rolloutArmed","killSwitchesClear","networkAllowlisted"] as const;
+const AUTHORITY_KEYS=["callerAssured","ownerBound","ownershipFresh","reconciliationClean","riskEnabled","rolloutArmed","killSwitchesClear","airlockPrepared","networkAllowlisted"] as const;
 export type MexcWriteAuthority = Readonly<Record<(typeof AUTHORITY_KEYS)[number],boolean>>;
 export function assertMexcWriteAuthority(environment:Readonly<Record<string,string|undefined>>,authority:MexcWriteAuthority){
   if(!mexcWriterEnabled(environment)||!authority||typeof authority!=="object"||Object.keys(authority).length!==AUTHORITY_KEYS.length||!AUTHORITY_KEYS.every(key=>Object.hasOwn(authority,key)&&authority[key]===true))throw new MexcExecutionError("disabled");
 }
-function validate(intent:MexcExecutionIntent,credentials:MexcExecutionCredentials){if(!TOKEN.test(intent.userId)||!TOKEN.test(intent.accountId)||!TOKEN.test(intent.idempotencyKey)||!SYMBOL.test(intent.symbol)||intent.positionMode!=="one-way"||!POSITION_ID.test(intent.positionId)||!['long','short'].includes(intent.positionSide)||!['isolated','cross'].includes(intent.marginMode)||intent.reduceOnly!==true||credentials.generation!==intent.bindingGeneration||![intent.volume,intent.positionVolume,intent.price,intent.leverage].every(Number.isFinite)||intent.volume<=0||intent.volume>intent.positionVolume||intent.price<=0||intent.leverage<=0||![intent.rolloutRevision,intent.riskRevision,intent.reconciliationRevision].every(x=>Number.isSafeInteger(x)&&x>=0))throw new MexcExecutionError("validation");}
+function validate(intent:MexcExecutionIntent,credentials:MexcExecutionCredentials){if(!TOKEN.test(intent.userId)||!TOKEN.test(intent.accountId)||!TOKEN.test(intent.intentId)||!TOKEN.test(intent.idempotencyKey)||!SYMBOL.test(intent.symbol)||intent.positionMode!=="one-way"||!POSITION_ID.test(intent.positionId)||!['long','short'].includes(intent.positionSide)||!['isolated','cross'].includes(intent.marginMode)||intent.reduceOnly!==true||!TOKEN.test(intent.bindingGeneration)||!TOKEN.test(intent.writeCredentialGeneration)||credentials.generation!==intent.writeCredentialGeneration||![intent.volume,intent.positionVolume,intent.price,intent.referencePrice,intent.estimatedNotional,intent.leverage].every(Number.isFinite)||intent.volume<=0||intent.volume>intent.positionVolume||intent.price<=0||intent.referencePrice<=0||intent.estimatedNotional<=0||intent.leverage<=0||![intent.rolloutRevision,intent.riskRevision,intent.reconciliationRevision].every(x=>Number.isSafeInteger(x)&&x>=0))throw new MexcExecutionError("validation");}
 function headers(credentials:MexcExecutionCredentials,time:string,target:string){return Object.freeze({"Content-Type":"application/json",ApiKey:credentials.accessKey,"Request-Time":time,"Recv-Window":String(MEXC_EXECUTION_RECV_WINDOW_SECONDS),Signature:createHmac("sha256",credentials.secretKey).update(credentials.accessKey+time+target).digest("hex")});}
 function parseResponse(response:MexcTransportResponse):unknown {if(response.status<200||response.status>=300||Buffer.byteLength(response.body)>64_000)return null;try{const x=JSON.parse(response.body);return (x?.success===true||x?.code===0)?x?.data:null;}catch{return null;}}
 function createOrderId(response:MexcTransportResponse):string|null {const data=parseResponse(response),id=typeof data==="object"&&data?Reflect.get(data,"orderId"):data;return typeof id==="string"&&ORDER_ID.test(id)?id:null;}
@@ -79,14 +81,14 @@ function safeClass(error:unknown){return error instanceof Error&&error.name==="A
 export class ModernMexcReduceOnlyWriter {
   private chain:Promise<unknown>=Promise.resolve();private lastStarted=0;
   constructor(private readonly transport:MexcExecutionTransport,private readonly store:MexcExecutionLifecycleStore,private readonly now=()=>Date.now(),private readonly minimumIntervalMs=250){}
-  execute(intent:MexcExecutionIntent,credentials:MexcExecutionCredentials){const run=this.chain.then(()=>this.executeSerial(intent,credentials));this.chain=run.catch(()=>undefined);return run;}
-  private async executeSerial(intent:MexcExecutionIntent,credentials:MexcExecutionCredentials):Promise<MexcLifecycleEvidence>{
-    validate(intent,credentials);if(this.store.isAccountQuarantined(intent.userId,intent.accountId))throw new MexcExecutionError("quarantined");
+  execute(intent:MexcExecutionIntent,credentials:MexcExecutionCredentials,environment:Readonly<Record<string,string|undefined>>,preWriteEvidence:MexcPreWriteEvidence){const run=this.chain.then(()=>this.executeSerial(intent,credentials,environment,preWriteEvidence));this.chain=run.catch(()=>undefined);return run;}
+  private async executeSerial(intent:MexcExecutionIntent,credentials:MexcExecutionCredentials,environment:Readonly<Record<string,string|undefined>>,preWriteEvidence:MexcPreWriteEvidence):Promise<MexcLifecycleEvidence>{
+    validate(intent,credentials);assertMexcWriteAuthority(environment,composeMexcPreWriteAuthority(intent,preWriteEvidence,this.now()));if(this.store.isAccountQuarantined(intent.userId,intent.accountId))throw new MexcExecutionError("quarantined");
     const digest=mexcExecutionIdentityDigest(intent),externalOid=mexcExternalOid(intent),expected=intentEvidence(intent,externalOid);let evidence=this.store.read(digest);
-    if(evidence&&(evidence.externalOid!==externalOid||evidence.intentDigest!==expected.intentDigest)){this.quarantine(intent,"intent-divergence");throw new MexcExecutionError("quarantined");}
+    if(evidence&&!sameEvidence(evidence,expected,externalOid)){this.quarantine(intent,"authority-divergence");throw new MexcExecutionError("quarantined");}
     if(evidence?.state==="reconciled")return evidence;
     if(!evidence)evidence=this.store.reserve(digest,externalOid,expected,new Date(this.now()).toISOString());
-    if(evidence.intentDigest!==expected.intentDigest){this.quarantine(intent,"intent-divergence");throw new MexcExecutionError("quarantined");}
+    if(!sameEvidence(evidence,expected,externalOid)){this.quarantine(intent,"authority-divergence");throw new MexcExecutionError("quarantined");}
     // Every recovered reservation may have been delivered before its state commit.
     if(evidence.state!=="reserved"||evidence.attempt>0)return this.reconcile(intent,credentials,evidence);
     const claimed=this.store.claim(digest,new Date(this.now()).toISOString());
