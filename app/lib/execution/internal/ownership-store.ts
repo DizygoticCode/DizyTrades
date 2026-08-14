@@ -4,8 +4,12 @@ import { chmodSync, existsSync, mkdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-export type ExecutionOwnershipIdentity = Readonly<{ userId: string; accountId: string }>;
-export type ExecutionOwnershipStatus = "unknown" | "proved" | "active" | "revoked";
+export type ExecutionOwnershipIdentity = Readonly<{
+  userId: string;
+  accountId: string;
+}>;
+export type ExecutionOwnershipStatus =
+  "unknown" | "proved" | "active" | "revoked";
 export type ExecutionOwnershipState = Readonly<{
   revision: number;
   status: ExecutionOwnershipStatus;
@@ -27,7 +31,10 @@ const TOKEN = /^[A-Za-z0-9_-]{1,120}$/;
 type FileIdentity = Readonly<{ dev: number; ino: number }>;
 
 export class ExecutionOwnershipStoreError extends Error {
-  constructor(readonly code: "EXECUTION_OWNERSHIP_UNAVAILABLE" | "EXECUTION_OWNERSHIP_INVALID") {
+  constructor(
+    readonly code:
+      "EXECUTION_OWNERSHIP_UNAVAILABLE" | "EXECUTION_OWNERSHIP_INVALID",
+  ) {
     super("EXECUTION_OWNERSHIP_STORE_FAILURE");
     this.name = "ExecutionOwnershipStoreError";
   }
@@ -39,16 +46,30 @@ const fail = (code: ExecutionOwnershipStoreError["code"]): never => {
 const validIdentity = (identity: ExecutionOwnershipIdentity) =>
   TOKEN.test(identity.userId) && TOKEN.test(identity.accountId);
 const canonicalTimestamp = (value: unknown) =>
-  typeof value === "string"
-  && Number.isFinite(Date.parse(value))
-  && new Date(value).toISOString() === value;
+  typeof value === "string" &&
+  Number.isFinite(Date.parse(value)) &&
+  new Date(value).toISOString() === value;
 
 export interface ExecutionOwnershipStore {
   read(identity: ExecutionOwnershipIdentity): ExecutionOwnershipState;
-  recordProof(identity: ExecutionOwnershipIdentity, observedAt: string, expectedRevision: number): ExecutionOwnershipState;
-  activate(identity: ExecutionOwnershipIdentity, occurredAt: string, expectedRevision: number): ExecutionOwnershipState;
-  revoke(identity: ExecutionOwnershipIdentity, occurredAt: string, expectedRevision: number): ExecutionOwnershipState;
-  events(identity: ExecutionOwnershipIdentity): readonly ExecutionOwnershipEvent[];
+  recordProof(
+    identity: ExecutionOwnershipIdentity,
+    observedAt: string,
+    expectedRevision: number,
+  ): ExecutionOwnershipState;
+  activate(
+    identity: ExecutionOwnershipIdentity,
+    occurredAt: string,
+    expectedRevision: number,
+  ): ExecutionOwnershipState;
+  revoke(
+    identity: ExecutionOwnershipIdentity,
+    occurredAt: string,
+    expectedRevision: number,
+  ): ExecutionOwnershipState;
+  events(
+    identity: ExecutionOwnershipIdentity,
+  ): readonly ExecutionOwnershipEvent[];
 }
 
 export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
@@ -74,7 +95,11 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
   private assertBacking() {
     if (this.path === ":memory:") return;
     const current = this.current();
-    if (!this.identity || current.dev !== this.identity.dev || current.ino !== this.identity.ino) {
+    if (
+      !this.identity ||
+      current.dev !== this.identity.dev ||
+      current.ino !== this.identity.ino
+    ) {
       this.close();
       fail("EXECUTION_OWNERSHIP_UNAVAILABLE");
     }
@@ -82,7 +107,11 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
 
   private harden() {
     if (this.path === ":memory:") return;
-    for (const candidate of [this.path, `${this.path}-wal`, `${this.path}-shm`]) {
+    for (const candidate of [
+      this.path,
+      `${this.path}-wal`,
+      `${this.path}-shm`,
+    ]) {
       if (existsSync(candidate)) chmodSync(candidate, 0o600);
     }
   }
@@ -95,11 +124,17 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
 
     let database: DatabaseSync | null = null;
     try {
-      if (this.path !== ":memory:") mkdirSync(dirname(this.path), { recursive: true, mode: 0o700 });
+      if (this.path !== ":memory:")
+        mkdirSync(dirname(this.path), { recursive: true, mode: 0o700 });
       database = new DatabaseSync(this.path);
-      database.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;");
-      const row = database.prepare("PRAGMA user_version").get() as { user_version: number };
-      if (row.user_version !== 0 && row.user_version !== VERSION) fail("EXECUTION_OWNERSHIP_INVALID");
+      database.exec(
+        "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;",
+      );
+      const row = database.prepare("PRAGMA user_version").get() as {
+        user_version: number;
+      };
+      if (row.user_version !== 0 && row.user_version !== VERSION)
+        fail("EXECUTION_OWNERSHIP_INVALID");
       if (row.user_version === 0) {
         database.exec(`BEGIN IMMEDIATE;
           CREATE TABLE execution_ownership(
@@ -130,7 +165,9 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
       if (this.path !== ":memory:") this.identity = this.current();
       return database;
     } catch (error) {
-      try { database?.close(); } catch {}
+      try {
+        database?.close();
+      } catch {}
       this.database = null;
       this.identity = null;
       if (error instanceof ExecutionOwnershipStoreError) throw error;
@@ -138,7 +175,10 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
     }
   }
 
-  private parse(row: Record<string, unknown> | undefined, identity: ExecutionOwnershipIdentity): ExecutionOwnershipState {
+  private parse(
+    row: Record<string, unknown> | undefined,
+    identity: ExecutionOwnershipIdentity,
+  ): ExecutionOwnershipState {
     if (!row) {
       return Object.freeze({
         revision: 0,
@@ -150,30 +190,44 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
     }
 
     const status = String(row.status) as ExecutionOwnershipStatus;
-    const proofObservedAt = row.proof_observed_at === null ? null : String(row.proof_observed_at);
-    const activatedAt = row.activated_at === null ? null : String(row.activated_at);
+    const proofObservedAt =
+      row.proof_observed_at === null ? null : String(row.proof_observed_at);
+    const activatedAt =
+      row.activated_at === null ? null : String(row.activated_at);
     const revokedAt = row.revoked_at === null ? null : String(row.revoked_at);
     const updatedAt = String(row.updated_at);
 
     const semanticState =
-      (status === "unknown" && proofObservedAt === null && activatedAt === null && revokedAt === null)
-      || (status === "proved" && proofObservedAt !== null && activatedAt === null && revokedAt === null)
-      || (status === "active" && proofObservedAt !== null && activatedAt !== null && revokedAt === null)
-      || (status === "revoked" && revokedAt !== null);
+      (status === "unknown" &&
+        proofObservedAt === null &&
+        activatedAt === null &&
+        revokedAt === null) ||
+      (status === "proved" &&
+        proofObservedAt !== null &&
+        activatedAt === null &&
+        revokedAt === null) ||
+      (status === "active" &&
+        proofObservedAt !== null &&
+        activatedAt !== null &&
+        revokedAt === null) ||
+      (status === "revoked" && revokedAt !== null);
 
     if (
-      row.schema_version !== VERSION
-      || row.user_id !== identity.userId
-      || row.account_id !== identity.accountId
-      || !validIdentity({ userId: String(row.user_id), accountId: String(row.account_id) })
-      || !Number.isSafeInteger(row.revision)
-      || (row.revision as number) < 0
-      || !["unknown", "proved", "active", "revoked"].includes(status)
-      || !semanticState
-      || !canonicalTimestamp(updatedAt)
-      || (proofObservedAt !== null && !canonicalTimestamp(proofObservedAt))
-      || (activatedAt !== null && !canonicalTimestamp(activatedAt))
-      || (revokedAt !== null && !canonicalTimestamp(revokedAt))
+      row.schema_version !== VERSION ||
+      row.user_id !== identity.userId ||
+      row.account_id !== identity.accountId ||
+      !validIdentity({
+        userId: String(row.user_id),
+        accountId: String(row.account_id),
+      }) ||
+      !Number.isSafeInteger(row.revision) ||
+      (row.revision as number) < 0 ||
+      !["unknown", "proved", "active", "revoked"].includes(status) ||
+      !semanticState ||
+      !canonicalTimestamp(updatedAt) ||
+      (proofObservedAt !== null && !canonicalTimestamp(proofObservedAt)) ||
+      (activatedAt !== null && !canonicalTimestamp(activatedAt)) ||
+      (revokedAt !== null && !canonicalTimestamp(revokedAt))
     ) {
       fail("EXECUTION_OWNERSHIP_INVALID");
     }
@@ -192,8 +246,12 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
     const database = this.db();
     try {
       const state = this.parse(
-        database.prepare("SELECT * FROM execution_ownership WHERE user_id=? AND account_id=?")
-          .get(identity.userId, identity.accountId) as Record<string, unknown> | undefined,
+        database
+          .prepare(
+            "SELECT * FROM execution_ownership WHERE user_id=? AND account_id=?",
+          )
+          .get(identity.userId, identity.accountId) as
+          Record<string, unknown> | undefined,
         identity,
       );
       this.assertBacking();
@@ -204,10 +262,16 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
     }
   }
 
-  recordProof(identity: ExecutionOwnershipIdentity, observedAt: string, expectedRevision: number) {
-    if (!validIdentity(identity) || !canonicalTimestamp(observedAt)) return fail("EXECUTION_OWNERSHIP_INVALID");
+  recordProof(
+    identity: ExecutionOwnershipIdentity,
+    observedAt: string,
+    expectedRevision: number,
+  ) {
+    if (!validIdentity(identity) || !canonicalTimestamp(observedAt))
+      return fail("EXECUTION_OWNERSHIP_INVALID");
     const current = this.read(identity);
-    if (current.revision !== expectedRevision) return fail("EXECUTION_OWNERSHIP_INVALID");
+    if (current.revision !== expectedRevision)
+      return fail("EXECUTION_OWNERSHIP_INVALID");
     if (current.status === "revoked") return current;
     return this.write(
       identity,
@@ -221,14 +285,20 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
     );
   }
 
-  activate(identity: ExecutionOwnershipIdentity, occurredAt: string, expectedRevision: number) {
-    if (!validIdentity(identity) || !canonicalTimestamp(occurredAt)) return fail("EXECUTION_OWNERSHIP_INVALID");
+  activate(
+    identity: ExecutionOwnershipIdentity,
+    occurredAt: string,
+    expectedRevision: number,
+  ) {
+    if (!validIdentity(identity) || !canonicalTimestamp(occurredAt))
+      return fail("EXECUTION_OWNERSHIP_INVALID");
     const current = this.read(identity);
     if (
-      current.revision !== expectedRevision
-      || current.status !== "proved"
-      || current.proofObservedAt === null
-    ) return fail("EXECUTION_OWNERSHIP_INVALID");
+      current.revision !== expectedRevision ||
+      current.status !== "proved" ||
+      current.proofObservedAt === null
+    )
+      return fail("EXECUTION_OWNERSHIP_INVALID");
     return this.write(
       identity,
       "active",
@@ -241,10 +311,16 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
     );
   }
 
-  revoke(identity: ExecutionOwnershipIdentity, occurredAt: string, expectedRevision: number) {
-    if (!validIdentity(identity) || !canonicalTimestamp(occurredAt)) return fail("EXECUTION_OWNERSHIP_INVALID");
+  revoke(
+    identity: ExecutionOwnershipIdentity,
+    occurredAt: string,
+    expectedRevision: number,
+  ) {
+    if (!validIdentity(identity) || !canonicalTimestamp(occurredAt))
+      return fail("EXECUTION_OWNERSHIP_INVALID");
     const current = this.read(identity);
-    if (current.revision !== expectedRevision) return fail("EXECUTION_OWNERSHIP_INVALID");
+    if (current.revision !== expectedRevision)
+      return fail("EXECUTION_OWNERSHIP_INVALID");
     if (current.status === "revoked") return current;
     return this.write(
       identity,
@@ -262,18 +338,23 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
     if (!validIdentity(identity)) return fail("EXECUTION_OWNERSHIP_INVALID");
     const database = this.db();
     try {
-      const rows = database.prepare(
-        "SELECT sequence,user_id,account_id,revision,kind,occurred_at FROM execution_ownership_events WHERE user_id=? AND account_id=? ORDER BY sequence",
-      ).all(identity.userId, identity.accountId) as Record<string, unknown>[];
+      const rows = database
+        .prepare(
+          "SELECT sequence,user_id,account_id,revision,kind,occurred_at FROM execution_ownership_events WHERE user_id=? AND account_id=? ORDER BY sequence",
+        )
+        .all(identity.userId, identity.accountId) as Record<string, unknown>[];
       const events = rows.map((row) => {
         if (
-          !Number.isSafeInteger(row.sequence)
-          || !Number.isSafeInteger(row.revision)
-          || row.user_id !== identity.userId
-          || row.account_id !== identity.accountId
-          || !["proof-recorded", "activated", "revoked"].includes(String(row.kind))
-          || !canonicalTimestamp(row.occurred_at)
-        ) fail("EXECUTION_OWNERSHIP_INVALID");
+          !Number.isSafeInteger(row.sequence) ||
+          !Number.isSafeInteger(row.revision) ||
+          row.user_id !== identity.userId ||
+          row.account_id !== identity.accountId ||
+          !["proof-recorded", "activated", "revoked"].includes(
+            String(row.kind),
+          ) ||
+          !canonicalTimestamp(row.occurred_at)
+        )
+          fail("EXECUTION_OWNERSHIP_INVALID");
         return Object.freeze({
           sequence: row.sequence as number,
           userId: identity.userId,
@@ -304,36 +385,61 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
     const database = this.db();
     try {
       database.exec("BEGIN IMMEDIATE");
-      const current = database.prepare(
-        "SELECT revision FROM execution_ownership WHERE user_id=? AND account_id=?",
-      ).get(identity.userId, identity.accountId) as { revision: number } | undefined;
-      if ((current?.revision ?? 0) !== revision) fail("EXECUTION_OWNERSHIP_INVALID");
+      const current = database
+        .prepare(
+          "SELECT revision FROM execution_ownership WHERE user_id=? AND account_id=?",
+        )
+        .get(identity.userId, identity.accountId) as
+        { revision: number } | undefined;
+      if ((current?.revision ?? 0) !== revision)
+        fail("EXECUTION_OWNERSHIP_INVALID");
       const nextRevision = revision + 1;
       const updatedAt = new Date().toISOString();
-      database.prepare(`INSERT INTO execution_ownership VALUES(1,?,?,?,?,?,?,?,?)
+      database
+        .prepare(
+          `INSERT INTO execution_ownership VALUES(1,?,?,?,?,?,?,?,?)
         ON CONFLICT(user_id,account_id) DO UPDATE SET
           revision=excluded.revision,status=excluded.status,proof_observed_at=excluded.proof_observed_at,
-          activated_at=excluded.activated_at,revoked_at=excluded.revoked_at,updated_at=excluded.updated_at`)
+          activated_at=excluded.activated_at,revoked_at=excluded.revoked_at,updated_at=excluded.updated_at`,
+        )
         .run(
-          identity.userId, identity.accountId, nextRevision, status, proofObservedAt,
-          activatedAt, revokedAt, updatedAt,
+          identity.userId,
+          identity.accountId,
+          nextRevision,
+          status,
+          proofObservedAt,
+          activatedAt,
+          revokedAt,
+          updatedAt,
         );
-      database.prepare(
-        "INSERT INTO execution_ownership_events(user_id,account_id,revision,kind,occurred_at) VALUES(?,?,?,?,?)",
-      ).run(identity.userId, identity.accountId, nextRevision, kind, occurredAt);
+      database
+        .prepare(
+          "INSERT INTO execution_ownership_events(user_id,account_id,revision,kind,occurred_at) VALUES(?,?,?,?,?)",
+        )
+        .run(
+          identity.userId,
+          identity.accountId,
+          nextRevision,
+          kind,
+          occurredAt,
+        );
       database.exec("COMMIT");
       this.harden();
       this.assertBacking();
       return this.read(identity);
     } catch (error) {
-      try { database.exec("ROLLBACK"); } catch {}
+      try {
+        database.exec("ROLLBACK");
+      } catch {}
       if (error instanceof ExecutionOwnershipStoreError) throw error;
       return fail("EXECUTION_OWNERSHIP_UNAVAILABLE");
     }
   }
 
   close() {
-    try { this.database?.close(); } finally {
+    try {
+      this.database?.close();
+    } finally {
       this.database = null;
       this.identity = null;
     }
@@ -344,4 +450,5 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
   }
 }
 
-export const createProductionExecutionOwnershipStore = () => new SqliteExecutionOwnershipStore();
+export const createProductionExecutionOwnershipStore = () =>
+  new SqliteExecutionOwnershipStore();

@@ -11,9 +11,17 @@ import { createProductionOwnershipProofOrchestrator } from "./ownership-ceremony
 import { createProductionExecutionReconciliationStore } from "./reconciliation-store";
 import { createProductionReconciliationOrchestrator } from "./production-reconciliation";
 import { MEXC_PROVIDER_READBACK_MAX_AGE_MS } from "../../mexc-provider-readback";
-import type { ExecutionBoundaryRequest, ExecutionBoundaryResponse } from "../types";
+import { executionKillSwitchReason } from "./kill-switch";
+import type {
+  ExecutionBoundaryRequest,
+  ExecutionBoundaryResponse,
+} from "../types";
 
-export type ServerExecutionBoundary = Readonly<{ preview(request: ExecutionBoundaryRequest): Promise<ExecutionBoundaryResponse> }>;
+export type ServerExecutionBoundary = Readonly<{
+  preview(
+    request: ExecutionBoundaryRequest,
+  ): Promise<ExecutionBoundaryResponse>;
+}>;
 
 export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
   const controls = createProductionExecutionControlStore();
@@ -21,9 +29,11 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
   const executionAuditStore = createProductionExecutionAuditStore();
   const executionRiskStore = createProductionExecutionRiskStore();
   const ownershipStore = createProductionExecutionOwnershipStore();
-  const proveOwnership = createProductionOwnershipProofOrchestrator(ownershipStore);
+  const proveOwnership =
+    createProductionOwnershipProofOrchestrator(ownershipStore);
   const reconciliationStore = createProductionExecutionReconciliationStore();
-  const reconcile = createProductionReconciliationOrchestrator(reconciliationStore);
+  const reconcile =
+    createProductionReconciliationOrchestrator(reconciliationStore);
 
   return Object.freeze({
     async preview(request: ExecutionBoundaryRequest) {
@@ -34,27 +44,57 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
         userId: requestSnapshot.userId,
         accountId: requestSnapshot.accountId,
       });
-      const caller = verifyProductionExecutionCaller(stableRequest.callerAssertion);
+      const caller = verifyProductionExecutionCaller(
+        stableRequest.callerAssertion,
+      );
+      let readbackPermitted = false;
+      if (caller) {
+        try {
+          readbackPermitted =
+            executionKillSwitchReason(controls.switches(), caller) === null;
+        } catch {
+          // The boundary converts control-store failure into a bounded rejection.
+        }
+      }
 
-      if (caller && caller.userId === stableRequest.userId && caller.accountId === stableRequest.accountId) {
-        try { await proveOwnership(caller); } catch {}
+      if (
+        caller &&
+        caller.userId === stableRequest.userId &&
+        caller.accountId === stableRequest.accountId &&
+        readbackPermitted
+      ) {
+        try {
+          await proveOwnership(caller);
+        } catch {}
         try {
           const ownership = ownershipStore.read(caller);
-          const proofAge = ownership.proofObservedAt === null
-            ? Number.POSITIVE_INFINITY
-            : Date.now() - Date.parse(ownership.proofObservedAt);
-          if (ownership.status === "active" && Number.isFinite(proofAge) && proofAge >= 0 && proofAge <= MEXC_PROVIDER_READBACK_MAX_AGE_MS) {
-            await reconcile(Object.freeze({ userId: caller.userId, accountId: caller.accountId }));
+          const proofAge =
+            ownership.proofObservedAt === null
+              ? Number.POSITIVE_INFINITY
+              : Date.now() - Date.parse(ownership.proofObservedAt);
+          if (
+            ownership.status === "active" &&
+            Number.isFinite(proofAge) &&
+            proofAge >= 0 &&
+            proofAge <= MEXC_PROVIDER_READBACK_MAX_AGE_MS
+          ) {
+            await reconcile(
+              Object.freeze({
+                userId: caller.userId,
+                accountId: caller.accountId,
+              }),
+            );
           }
         } catch {}
       }
 
       const boundary = new InternalExecutionBoundary({
-        authenticateInternalCaller: (assertion) => caller
-          && assertion.callerId === stableRequest.callerAssertion.callerId
-          && assertion.assertionId === stableRequest.callerAssertion.assertionId
-          ? caller
-          : null,
+        authenticateInternalCaller: (assertion) =>
+          caller &&
+          assertion.callerId === stableRequest.callerAssertion.callerId &&
+          assertion.assertionId === stableRequest.callerAssertion.assertionId
+            ? caller
+            : null,
         readKillSwitches: () => controls.switches(),
         executionStateStore,
         executionAuditStore,

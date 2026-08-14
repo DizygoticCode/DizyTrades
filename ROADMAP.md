@@ -455,7 +455,11 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 - [x] Add bounded authoritative MEXC account/position readback through the existing
   owner read-only credential seam. The missing authoritative day-start equity is
   represented explicitly, so this slice does not yet satisfy daily-drawdown risk.
-- [ ] Complete credential-to-account ownership and activation ceremony.
+- [x] Complete a durable exact-account ownership and deliberate activation
+  ceremony using fresh GET-only Radar proof. Proof never activates an account,
+  revocation is sticky, and unknown, inactive, stale, corrupt or unavailable
+  state blocks before reconciliation/provider evaluation. This ceremony neither
+  migrates credentials nor adds an exchange-write capability or public route.
 - [ ] Approve any restricted test-account rollout or exchange write capability.
 # Guarded execution safety
 

@@ -518,3 +518,21 @@ Radar GET-only readback may be compared with bounded execution-owned expected
 contract volumes. Unknown state and unexplained divergence fail closed before
 provider evaluation; quarantine is durable and sticky. This adds **no exchange-write
 capability**: every execution result remains `executed:false`.
+
+# Execution account ownership and activation
+
+The server-only ownership authority persists exact `(userId, accountId)` state in
+`DATA_DIR/execution-ownership.sqlite`. Fresh identity-bound MEXC Radar GET-only
+readback can move `unknown` to `proved`; it never performs activation. A deliberate
+activation call and sticky revocation call each require the existing single-use
+authenticated caller assertion plus an exact revision, keeping proof, activation
+and revocation as distinct compare-and-swap transitions. Durable events contain
+only bounded identity/state/timestamp metadata and no credentials or assertions.
+
+Production ordering is kill switches, fresh ownership proof, active/fresh
+ownership enforcement, authoritative reconciliation, then the synthetic
+non-executing provider seam. Active kill switches suppress both ownership and
+reconciliation readback. Missing, inactive, stale, revoked, corrupt, unavailable
+or backing-replaced ownership state fails closed. The ceremony has no public route,
+does not import credential custody, adds no MEXC write method or signing, and cannot
+produce `executed:true`.

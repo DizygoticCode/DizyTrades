@@ -236,6 +236,21 @@ this does not prove exchange-account ownership or risk authorization. Production
 remains disarmed/global-disabled, the adapter remains non-executing, and real MEXC
 launch codes remain confiscated.
 
+The ownership ceremony is a separate server-only authority at
+`DATA_DIR/execution-ownership.sqlite`, scoped to the exact database user and
+execution account. A fresh, identity-matching MEXC Radar GET-only observation
+records proof but cannot activate it. Activation and sticky revocation are
+separate deliberate transitions that consume a fresh single-use internal caller
+assertion and an exact expected revision. The store uses transactional
+compare-and-swap updates and retains only bounded identity, state, timestamps and
+secret-free event metadata. Unknown, merely proved, revoked, stale, corrupt,
+unavailable or replaced backing state fails closed. Global, user and account kill
+switches retain precedence; production also suppresses proof/reconciliation
+readback whenever one is already active. Ownership is checked before authoritative
+reconciliation and every provider seam. No public mutation route, browser secret,
+credential migration, write request, signing path or execution capability is
+introduced.
+
 Before live execution is considered, DizyTrades requires at minimum:
 
 - isolated execution service or equivalently isolated execution boundary;

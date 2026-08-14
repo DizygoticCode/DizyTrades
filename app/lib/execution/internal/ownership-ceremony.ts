@@ -15,7 +15,9 @@ import {
   type ExecutionOwnershipStore,
 } from "./ownership-store";
 
-const identityOf = (caller: AuthenticatedExecutionCaller): ExecutionOwnershipIdentity =>
+const identityOf = (
+  caller: AuthenticatedExecutionCaller,
+): ExecutionOwnershipIdentity =>
   Object.freeze({ userId: caller.userId, accountId: caller.accountId });
 
 const freshObservedAt = (observedAt: unknown, now: Date) => {
@@ -23,10 +25,11 @@ const freshObservedAt = (observedAt: unknown, now: Date) => {
   const observedMs = Date.parse(observedAt);
   const age = now.getTime() - observedMs;
   if (
-    !Number.isFinite(observedMs)
-    || age < 0
-    || age > MEXC_PROVIDER_READBACK_MAX_AGE_MS
-  ) return null;
+    !Number.isFinite(observedMs) ||
+    age < 0 ||
+    age > MEXC_PROVIDER_READBACK_MAX_AGE_MS
+  )
+    return null;
   return new Date(observedAt).toISOString();
 };
 
@@ -36,18 +39,20 @@ export function proveExecutionAccountOwnership(
   observation: unknown,
   now = new Date(),
 ): ExecutionOwnershipState {
-  if (!observation || typeof observation !== "object") return store.read(identityOf(caller));
+  if (!observation || typeof observation !== "object")
+    return store.read(identityOf(caller));
   const readback = observation as Partial<MexcProviderAccountRiskReadback>;
   const observedAt = freshObservedAt(readback.observedAt, now);
   if (
-    readback.version !== MEXC_PROVIDER_READBACK_VERSION
-    || readback.provider !== "mexc"
-    || readback.settlementCurrency !== "USDT"
-    || readback.userId !== caller.userId
-    || readback.accountId !== caller.accountId
-    || observedAt === null
-    || !Array.isArray(readback.positions)
-  ) return store.read(identityOf(caller));
+    readback.version !== MEXC_PROVIDER_READBACK_VERSION ||
+    readback.provider !== "mexc" ||
+    readback.settlementCurrency !== "USDT" ||
+    readback.userId !== caller.userId ||
+    readback.accountId !== caller.accountId ||
+    observedAt === null ||
+    !Array.isArray(readback.positions)
+  )
+    return store.read(identityOf(caller));
 
   const identity = identityOf(caller);
   const current = store.read(identity);
@@ -62,11 +67,20 @@ export function activateExecutionAccountOwnership(
 ): ExecutionOwnershipState {
   const identity = identityOf(caller);
   const current = store.read(identity);
-  if (current.revision !== expectedRevision || current.status !== "proved" || current.proofObservedAt === null) {
+  if (
+    current.revision !== expectedRevision ||
+    current.status !== "proved" ||
+    current.proofObservedAt === null
+  ) {
     return current;
   }
   const age = now.getTime() - Date.parse(current.proofObservedAt);
-  if (!Number.isFinite(age) || age < 0 || age > MEXC_PROVIDER_READBACK_MAX_AGE_MS) return current;
+  if (
+    !Number.isFinite(age) ||
+    age < 0 ||
+    age > MEXC_PROVIDER_READBACK_MAX_AGE_MS
+  )
+    return current;
   return store.activate(identity, now.toISOString(), expectedRevision);
 }
 
@@ -88,7 +102,12 @@ type ProductionCeremonyRequest = Readonly<{
 
 function verifiedCeremonyCaller(request: ProductionCeremonyRequest) {
   const caller = verifyProductionExecutionCaller(request.callerAssertion);
-  if (!caller || caller.userId !== request.userId || caller.accountId !== request.accountId) return null;
+  if (
+    !caller ||
+    caller.userId !== request.userId ||
+    caller.accountId !== request.accountId
+  )
+    return null;
   return caller;
 }
 
@@ -103,7 +122,12 @@ export function activateProductionExecutionAccountOwnership(
 ): ExecutionOwnershipState | null {
   const caller = verifiedCeremonyCaller(request);
   if (!caller) return null;
-  return activateExecutionAccountOwnership(store, caller, request.expectedRevision, now);
+  return activateExecutionAccountOwnership(
+    store,
+    caller,
+    request.expectedRevision,
+    now,
+  );
 }
 
 /** Server-only explicit sticky revocation; also requires a fresh authenticated assertion. */
@@ -114,16 +138,24 @@ export function revokeProductionExecutionAccountOwnership(
 ): ExecutionOwnershipState | null {
   const caller = verifiedCeremonyCaller(request);
   if (!caller) return null;
-  return revokeExecutionAccountOwnership(store, caller, request.expectedRevision, now);
+  return revokeExecutionAccountOwnership(
+    store,
+    caller,
+    request.expectedRevision,
+    now,
+  );
 }
 
-export type ProductionOwnershipProofOrchestrator =
-  (caller: AuthenticatedExecutionCaller) => Promise<ExecutionOwnershipState>;
+export type ProductionOwnershipProofOrchestrator = (
+  caller: AuthenticatedExecutionCaller,
+) => Promise<ExecutionOwnershipState>;
 
 export function createProductionOwnershipProofOrchestrator(
   store: ExecutionOwnershipStore,
-  readback: (identity: ExecutionOwnershipIdentity) => Promise<MexcProviderAccountRiskReadback>
-    = (identity) => readAuthoritativeMexcAccountRisk(identity),
+  readback: (
+    identity: ExecutionOwnershipIdentity,
+  ) => Promise<MexcProviderAccountRiskReadback> = (identity) =>
+    readAuthoritativeMexcAccountRisk(identity),
   now: () => Date = () => new Date(),
 ): ProductionOwnershipProofOrchestrator {
   return async (caller) => {
