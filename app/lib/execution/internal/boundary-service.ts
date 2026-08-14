@@ -1,7 +1,7 @@
 import "server-only";
 
 import { executionKillSwitchReason, type ExecutionKillSwitches } from "./kill-switch";
-import { ExecutionAirlockService } from "./service";
+import { ExecutionAirlockService, type PreSubmissionPolicy } from "./service";
 import type { ExecutionStateStore } from "./state-store";
 import type { ExecutionAuditStore } from "./audit-store";
 import type { ExecutionRiskStore } from "./risk-store";
@@ -19,6 +19,23 @@ import type {
   SyntheticProviderScenario,
   SyntheticObservation,
 } from "../types";
+import type { RestrictedRolloutPolicy } from "./rollout-store";
+
+export const restrictedRolloutPreSubmissionPolicy = (policy: RestrictedRolloutPolicy): PreSubmissionPolicy =>
+  (intent, prerequisites, preview) => {
+    if (!policy.allowedSymbols.includes(intent.symbol)
+      || intent.leverage > policy.maximumLeverage
+      || intent.reduceOnly !== policy.reduceOnly
+      || !Number.isFinite(preview.estimatedNotional)
+      || preview.estimatedNotional > policy.maximumOrderNotional) return "EXECUTION_ROLLOUT_POLICY_DENIED";
+    const snapshot = prerequisites.riskSnapshot;
+    if (!snapshot || snapshot.userId !== intent.userId || snapshot.accountId !== intent.accountId
+      || !Number.isFinite(snapshot.equity) || snapshot.equity <= 0
+      || !Number.isFinite(snapshot.dayStartEquity) || snapshot.dayStartEquity <= 0) return "EXECUTION_ROLLOUT_POLICY_DENIED";
+    const dailyLoss = Math.max(0, snapshot.dayStartEquity - snapshot.equity);
+    return Number.isFinite(dailyLoss) && dailyLoss <= policy.maximumDailyLoss
+      ? null : "EXECUTION_ROLLOUT_POLICY_DENIED";
+  };
 
 export type ExecutionCallerVerifier = (
   assertion: ExecutionBoundaryRequest["callerAssertion"],
@@ -90,6 +107,7 @@ export class InternalExecutionBoundary {
   }
 
   preview(request: ExecutionBoundaryRequest): ExecutionBoundaryResponse {
+    let rolloutPolicy: RestrictedRolloutPolicy | null = null;
     let caller: AuthenticatedExecutionCaller | null;
     try {
       const authenticated = this.dependencies.authenticateInternalCaller(request.callerAssertion);
@@ -165,12 +183,11 @@ export class InternalExecutionBoundary {
         else if (rollout.status !== "armed") killReason ??= "EXECUTION_ROLLOUT_NOT_ARMED";
         else if (!Number.isFinite(age) || age < 0 || age > EXECUTION_ROLLOUT_MAX_AGE_MS) killReason ??= "EXECUTION_ROLLOUT_STALE";
         else if (!ownershipBinding || rollout.bindingDigest !== ownershipBinding.bindingDigest) killReason ??= "EXECUTION_ROLLOUT_MISMATCH";
-        else if (!rollout.policy || !rollout.policy.allowedSymbols.includes(String(request.intent.symbol))
-          || Number(request.intent.leverage) > rollout.policy.maximumLeverage
-          || request.intent.reduceOnly !== rollout.policy.reduceOnly) killReason ??= "EXECUTION_ROLLOUT_POLICY_DENIED";
+        else if (!rollout.policy) killReason ??= "EXECUTION_ROLLOUT_POLICY_DENIED";
         else {
           const risk = this.dependencies.executionRiskStore.read(caller.userId, caller.accountId);
           if (!risk || !risk.enabled || risk.revision !== rollout.riskRevision) killReason ??= "EXECUTION_ROLLOUT_MISMATCH";
+          else rolloutPolicy = rollout.policy;
         }
       } catch (error) {
         killReason ??= error instanceof ExecutionRolloutStoreError ? error.code : "EXECUTION_ROLLOUT_UNAVAILABLE";
@@ -181,6 +198,7 @@ export class InternalExecutionBoundary {
       { ...request.intent, userId: caller.userId, accountId: caller.accountId },
       request.prerequisites,
       killReason,
+      rolloutPolicy ? restrictedRolloutPreSubmissionPolicy(rolloutPolicy) : undefined,
     );
   }
 }

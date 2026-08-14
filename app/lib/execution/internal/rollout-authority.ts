@@ -15,7 +15,7 @@ import { createProductionExecutionRolloutStore, EXECUTION_ROLLOUT_MAX_AGE_MS, ty
 type Identity=Readonly<{userId:string;accountId:string}>;
 type Dependencies=Readonly<{ownership:ExecutionOwnershipStore;reconciliation:ExecutionReconciliationStore;risk:ExecutionRiskStore;rollout:ExecutionRolloutStore;binding:ExecutionOwnershipBinding|null}>;
 const fresh=(value:string|null,now:Date,max=MEXC_PROVIDER_READBACK_MAX_AGE_MS)=>{const age=value===null?NaN:now.getTime()-Date.parse(value);return Number.isFinite(age)&&age>=0&&age<=max};
-const policyWithinRisk=(rollout:RestrictedRolloutPolicy,risk:ExecutionRiskPolicy)=>rollout.allowedSymbols.every(s=>risk.allowedSymbols.includes(s))&&rollout.maximumLeverage<=risk.maximumLeverage&&rollout.maximumOrderNotional<=risk.maximumOrderNotional&&(risk.maximumDailyDrawdownUsdt===undefined||rollout.maximumDailyLoss<=risk.maximumDailyDrawdownUsdt);
+export const policyWithinRisk=(rollout:RestrictedRolloutPolicy,risk:ExecutionRiskPolicy)=>rollout.allowedSymbols.every(s=>risk.allowedSymbols.includes(s))&&rollout.maximumLeverage<=risk.maximumLeverage&&rollout.maximumOrderNotional<=risk.maximumOrderNotional&&risk.maximumDailyDrawdownUsdt!==undefined&&rollout.maximumDailyLoss<=risk.maximumDailyDrawdownUsdt;
 
 /** All authoritative prerequisites are re-read at each deliberate CAS transition. */
 function prerequisites(id:Identity,dependencies:Dependencies,now:Date,policy?:RestrictedRolloutPolicy){
