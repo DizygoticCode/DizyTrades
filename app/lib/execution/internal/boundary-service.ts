@@ -5,6 +5,7 @@ import { ExecutionAirlockService } from "./service";
 import type { ExecutionStateStore } from "./state-store";
 import type { ExecutionAuditStore } from "./audit-store";
 import type { ExecutionRiskStore } from "./risk-store";
+import { ExecutionOwnershipStoreError, type ExecutionOwnershipStore } from "./ownership-store";
 import { ExecutionReconciliationStoreError, type ExecutionReconciliationStore } from "./reconciliation-store";
 import { MEXC_PROVIDER_READBACK_MAX_AGE_MS } from "../../mexc-provider-readback";
 import type {
@@ -27,6 +28,7 @@ export type ExecutionBoundaryDependencies = Readonly<{
   executionStateStore: ExecutionStateStore;
   executionAuditStore: ExecutionAuditStore;
   executionRiskStore: ExecutionRiskStore;
+  executionOwnershipStore?: ExecutionOwnershipStore;
   executionReconciliationStore?: ExecutionReconciliationStore;
   environment?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
@@ -103,12 +105,8 @@ export class InternalExecutionBoundary {
       return rejected("BOUNDARY_DEPENDENCY_FAILURE");
     }
 
-    if (caller.callerId !== request.callerAssertion.callerId) {
-      return rejected("CALLER_UNAUTHENTICATED");
-    }
-    if (caller.userId !== request.userId || caller.accountId !== request.accountId) {
-      return rejected("CALLER_IDENTITY_MISMATCH");
-    }
+    if (caller.callerId !== request.callerAssertion.callerId) return rejected("CALLER_UNAUTHENTICATED");
+    if (caller.userId !== request.userId || caller.accountId !== request.accountId) return rejected("CALLER_IDENTITY_MISMATCH");
 
     let killReason: ExecutionResult["reason"] | null;
     try {
@@ -119,8 +117,26 @@ export class InternalExecutionBoundary {
       return rejected("BOUNDARY_DEPENDENCY_FAILURE");
     }
 
-    // Durable reconciliation is a stronger account-local brake and is checked
-    // before the airlock can reach any provider evaluation seam.
+    if (this.dependencies.executionOwnershipStore) {
+      try {
+        const ownership = this.dependencies.executionOwnershipStore.read(caller);
+        const proofMs = ownership.proofObservedAt === null ? NaN : Date.parse(ownership.proofObservedAt);
+        const proofAge = (this.dependencies.now?.() ?? new Date()).getTime() - proofMs;
+        const staleProof = !Number.isFinite(proofAge) || proofAge < 0 || proofAge > MEXC_PROVIDER_READBACK_MAX_AGE_MS;
+        if (ownership.status !== "active") {
+          killReason ??= ownership.status === "revoked"
+            ? "EXECUTION_OWNERSHIP_REVOKED"
+            : ownership.status === "proved"
+              ? "EXECUTION_OWNERSHIP_INACTIVE"
+              : "EXECUTION_OWNERSHIP_UNKNOWN";
+        } else if (staleProof) {
+          killReason ??= "EXECUTION_OWNERSHIP_PROOF_STALE";
+        }
+      } catch (error) {
+        killReason ??= error instanceof ExecutionOwnershipStoreError ? error.code : "EXECUTION_OWNERSHIP_UNAVAILABLE";
+      }
+    }
+
     if (this.dependencies.executionReconciliationStore) {
       try {
         const reconciliation = this.dependencies.executionReconciliationStore.read(caller);
@@ -131,8 +147,7 @@ export class InternalExecutionBoundary {
         if (reconciliation.status !== "clean" || staleClean) killReason ??= reconciliation.status === "quarantined"
           ? "EXECUTION_ACCOUNT_QUARANTINED" : "EXECUTION_RECONCILIATION_UNKNOWN";
       } catch (error) {
-        killReason ??= error instanceof ExecutionReconciliationStoreError
-          ? error.code : "EXECUTION_RECONCILIATION_UNAVAILABLE";
+        killReason ??= error instanceof ExecutionReconciliationStoreError ? error.code : "EXECUTION_RECONCILIATION_UNAVAILABLE";
       }
     }
 
