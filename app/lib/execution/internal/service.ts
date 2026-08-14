@@ -216,7 +216,7 @@ export class ExecutionAirlockService {
       try {
         if (this.options.syntheticProviderFault === "exception") throw new Error("Synthetic provider fault");
         let providerResult: unknown = this.options.syntheticProviderFault === "malformed-result"
-          ? Object.freeze({ executed: true })
+          ? Object.freeze({ providerKind: "malformed-test-fixture" })
           : evaluateSyntheticProvider(this.options.syntheticProviderScenario, { intent: validation.intent, preview });
         if (!isSyntheticProviderResult(providerResult)) {
           audit("provider-failed", "PROVIDER_MALFORMED_RESULT");

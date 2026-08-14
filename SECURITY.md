@@ -231,10 +231,25 @@ verifier. Its issuer accepts only an active verified-email database session whos
 login was completed with TOTP (never recovery-only assurance), binds one fixed
 internal caller/user/account/session fingerprint for 30 seconds, stores only the
 assertion digest, and consumes it atomically once. Session revocation and MFA
-disable fail the final verification. There is no public mint or execution route;
-this does not prove exchange-account ownership or risk authorization. Production
-remains disarmed/global-disabled, the adapter remains non-executing, and real MEXC
-launch codes remain confiscated.
+disable fail the final verification. There is no public mint or execution route.
+
+Credential-to-account ownership is a separate fail-closed, server-only ceremony.
+Radar success never proves caller-supplied identity: an operator must
+independently attest stable owner `rob`, one exact execution account ID and the
+read-only credential generation through non-public server configuration before
+Radar is consulted. A fresh GET-only readback can record proof but cannot
+activate it. Activation requires a separate fresh single-use authenticated
+caller assertion and exact revision; revocation is explicit and sticky. Binding
+changes, arbitrary account IDs, stale evidence, corruption, backing-file
+replacement and store failures cannot create ownership. Durable state and audit
+events retain only bounded identity, binding digests, status, revisions and
+timestamps—never keys, secrets, assertions or session material. There is no
+public binding/proof/activation/revocation route and no custody dependency.
+
+This ceremony does not authorize exchange writes or complete risk approval.
+Production remains disarmed/global-disabled, kill switches precede ownership and
+provider reads, the adapter remains non-executing, and real MEXC launch codes
+remain confiscated.
 
 Before live execution is considered, DizyTrades requires at minimum:
 

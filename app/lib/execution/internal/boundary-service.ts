@@ -5,6 +5,8 @@ import { ExecutionAirlockService } from "./service";
 import type { ExecutionStateStore } from "./state-store";
 import type { ExecutionAuditStore } from "./audit-store";
 import type { ExecutionRiskStore } from "./risk-store";
+import { ownershipBindingMatches, type ExecutionOwnershipBinding } from "./ownership-binding";
+import { ExecutionOwnershipStoreError, type ExecutionOwnershipStore } from "./ownership-store";
 import { ExecutionReconciliationStoreError, type ExecutionReconciliationStore } from "./reconciliation-store";
 import { MEXC_PROVIDER_READBACK_MAX_AGE_MS } from "../../mexc-provider-readback";
 import type {
@@ -27,12 +29,12 @@ export type ExecutionBoundaryDependencies = Readonly<{
   executionStateStore: ExecutionStateStore;
   executionAuditStore: ExecutionAuditStore;
   executionRiskStore: ExecutionRiskStore;
+  executionOwnershipStore?: ExecutionOwnershipStore;
+  readOwnershipBinding?: () => ExecutionOwnershipBinding | null;
   executionReconciliationStore?: ExecutionReconciliationStore;
   environment?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
-  /** Test-only deterministic lifecycle fixture; production composition never sets it. */
   syntheticProviderScenario?: SyntheticProviderScenario;
-  /** Test-only separately supplied observation; production composition never sets it. */
   syntheticObservation?: SyntheticObservation;
   syntheticProviderFault?: "exception" | "malformed-result";
 }>;
@@ -49,18 +51,12 @@ const rejected = (reason: ExecutionRejectionCode): ExecutionBoundaryResponse => 
   }),
   auditEvents: Object.freeze([]),
 });
-
-const isNonEmptyString = (value: unknown): value is string =>
-  typeof value === "string" && value.length > 0;
-
+const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.length > 0;
 const isAuthenticatedCaller = (value: unknown): value is AuthenticatedExecutionCaller => {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<AuthenticatedExecutionCaller>;
-  return isNonEmptyString(candidate.callerId)
-    && isNonEmptyString(candidate.userId)
-    && isNonEmptyString(candidate.accountId);
+  return isNonEmptyString(candidate.callerId) && isNonEmptyString(candidate.userId) && isNonEmptyString(candidate.accountId);
 };
-
 const isKillSwitchState = (value: unknown): value is ExecutionKillSwitches => {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ExecutionKillSwitches>;
@@ -78,7 +74,6 @@ const isKillSwitchState = (value: unknown): value is ExecutionKillSwitches => {
 /** @internal Constructed only by the composition root or the test-only seam. */
 export class InternalExecutionBoundary {
   private readonly airlock: ExecutionAirlockService;
-
   constructor(private readonly dependencies: ExecutionBoundaryDependencies) {
     this.airlock = new ExecutionAirlockService({
       stateStore: dependencies.executionStateStore,
@@ -99,28 +94,49 @@ export class InternalExecutionBoundary {
       if (authenticated === null) return rejected("CALLER_UNAUTHENTICATED");
       if (!isAuthenticatedCaller(authenticated)) return rejected("BOUNDARY_DEPENDENCY_FAILURE");
       caller = authenticated;
-    } catch {
-      return rejected("BOUNDARY_DEPENDENCY_FAILURE");
-    }
+    } catch { return rejected("BOUNDARY_DEPENDENCY_FAILURE"); }
 
-    if (caller.callerId !== request.callerAssertion.callerId) {
-      return rejected("CALLER_UNAUTHENTICATED");
-    }
-    if (caller.userId !== request.userId || caller.accountId !== request.accountId) {
-      return rejected("CALLER_IDENTITY_MISMATCH");
-    }
+    if (caller.callerId !== request.callerAssertion.callerId) return rejected("CALLER_UNAUTHENTICATED");
+    if (caller.userId !== request.userId || caller.accountId !== request.accountId) return rejected("CALLER_IDENTITY_MISMATCH");
 
     let killReason: ExecutionResult["reason"] | null;
     try {
       const switches: unknown = this.dependencies.readKillSwitches();
       if (!isKillSwitchState(switches)) return rejected("BOUNDARY_DEPENDENCY_FAILURE");
       killReason = executionKillSwitchReason(switches, caller);
-    } catch {
-      return rejected("BOUNDARY_DEPENDENCY_FAILURE");
+    } catch { return rejected("BOUNDARY_DEPENDENCY_FAILURE"); }
+
+    let ownershipBinding: ExecutionOwnershipBinding | null = null;
+    if (this.dependencies.executionOwnershipStore) {
+      try {
+        ownershipBinding = this.dependencies.readOwnershipBinding?.() ?? null;
+        if (!ownershipBinding) killReason ??= "EXECUTION_OWNERSHIP_UNKNOWN";
+        else if (!ownershipBindingMatches(ownershipBinding, caller)) killReason ??= "EXECUTION_OWNERSHIP_INVALID";
+      } catch {
+        killReason ??= "EXECUTION_OWNERSHIP_INVALID";
+      }
+
+      try {
+        const ownership = this.dependencies.executionOwnershipStore.read(caller);
+        const proofMs = ownership.proofObservedAt === null ? NaN : Date.parse(ownership.proofObservedAt);
+        const proofAge = (this.dependencies.now?.() ?? new Date()).getTime() - proofMs;
+        const staleProof = !Number.isFinite(proofAge) || proofAge < 0 || proofAge > MEXC_PROVIDER_READBACK_MAX_AGE_MS;
+        if (ownershipBinding && ownership.status !== "unknown" && ownership.bindingDigest !== ownershipBinding.bindingDigest) {
+          killReason ??= "EXECUTION_OWNERSHIP_INVALID";
+        } else if (ownership.status !== "active") {
+          killReason ??= ownership.status === "revoked"
+            ? "EXECUTION_OWNERSHIP_REVOKED"
+            : ownership.status === "proved"
+              ? "EXECUTION_OWNERSHIP_INACTIVE"
+              : "EXECUTION_OWNERSHIP_UNKNOWN";
+        } else if (staleProof) {
+          killReason ??= "EXECUTION_OWNERSHIP_PROOF_STALE";
+        }
+      } catch (error) {
+        killReason ??= error instanceof ExecutionOwnershipStoreError ? error.code : "EXECUTION_OWNERSHIP_UNAVAILABLE";
+      }
     }
 
-    // Durable reconciliation is a stronger account-local brake and is checked
-    // before the airlock can reach any provider evaluation seam.
     if (this.dependencies.executionReconciliationStore) {
       try {
         const reconciliation = this.dependencies.executionReconciliationStore.read(caller);
@@ -131,8 +147,7 @@ export class InternalExecutionBoundary {
         if (reconciliation.status !== "clean" || staleClean) killReason ??= reconciliation.status === "quarantined"
           ? "EXECUTION_ACCOUNT_QUARANTINED" : "EXECUTION_RECONCILIATION_UNKNOWN";
       } catch (error) {
-        killReason ??= error instanceof ExecutionReconciliationStoreError
-          ? error.code : "EXECUTION_RECONCILIATION_UNAVAILABLE";
+        killReason ??= error instanceof ExecutionReconciliationStoreError ? error.code : "EXECUTION_RECONCILIATION_UNAVAILABLE";
       }
     }
 
