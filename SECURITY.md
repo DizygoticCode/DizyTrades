@@ -301,3 +301,14 @@ revisions, and device/inode checks around open-handle operations. Deletion,
 replacement, corruption, stale observations, ambiguity, and unavailable state all
 fail closed. There is no public clear/mutation route and **no exchange-write
 capability, credential migration, or write signing path**.
+# Guarded-execution ownership
+
+The execution boundary requires durable, fresh, active ownership state for the
+exact authenticated user/account pair. Proof is created server-side only from a
+fresh authoritative Radar GET-only readback; proof and activation are distinct
+CAS transitions. Revocation is explicit and sticky. Missing, stale, malformed,
+identity-mismatched, deleted or replaced storage blocks rather than degrading.
+Only bounded non-secret state is persisted. The ceremony does not copy or expose
+Account Companion credentials and confers **zero exchange-write authority**; it
+adds no browser/public mutation endpoint, write signer, live adapter or MEXC
+mutation request.

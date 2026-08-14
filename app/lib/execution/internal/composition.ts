@@ -8,6 +8,8 @@ import { verifyProductionExecutionCaller } from "./caller-assertion";
 import { createProductionExecutionRiskStore } from "./risk-store";
 import { createProductionExecutionReconciliationStore } from "./reconciliation-store";
 import { createProductionReconciliationOrchestrator } from "./production-reconciliation";
+import { createProductionExecutionOwnershipStore } from "./ownership-store";
+import { MEXC_PROVIDER_READBACK_MAX_AGE_MS } from "../../mexc-provider-readback";
 import type { ExecutionBoundaryRequest, ExecutionBoundaryResponse } from "../types";
 
 /**
@@ -22,6 +24,7 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
   const executionAuditStore = createProductionExecutionAuditStore();
   const executionRiskStore = createProductionExecutionRiskStore();
   const reconciliationStore = createProductionExecutionReconciliationStore();
+  const ownershipStore = createProductionExecutionOwnershipStore();
   const reconcile = createProductionReconciliationOrchestrator(reconciliationStore);
 
   return Object.freeze({
@@ -40,7 +43,12 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
       const caller = verifyProductionExecutionCaller(stableRequest.callerAssertion);
 
       if (caller && caller.userId === stableRequest.userId && caller.accountId === stableRequest.accountId) {
-        try { await reconcile(Object.freeze({ userId: caller.userId, accountId: caller.accountId })); }
+        try {
+          const ownership = ownershipStore.read(caller);
+          const proofAge = ownership.proofObservedAt === null ? NaN : Date.now() - Date.parse(ownership.proofObservedAt);
+          if (ownership.status === "active" && Number.isFinite(proofAge) && proofAge >= 0 && proofAge <= MEXC_PROVIDER_READBACK_MAX_AGE_MS)
+            await reconcile(Object.freeze({ userId: caller.userId, accountId: caller.accountId }));
+        }
         catch { /* The boundary's durable read converts orchestration failure to a bounded block. */ }
       }
 
@@ -55,6 +63,7 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
         executionAuditStore,
         executionRiskStore,
         executionReconciliationStore: reconciliationStore,
+        executionOwnershipStore: ownershipStore,
         environment: process.env,
       });
 

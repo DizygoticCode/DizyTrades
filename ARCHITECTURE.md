@@ -350,6 +350,18 @@ Production behaviour, not the YAML file alone, is the final evidence boundary.
 
 ## Live-execution boundary
 
+### Exact-account ownership ceremony (non-executing)
+
+`DATA_DIR/execution-ownership.sqlite` is an execution-owned, server-only SQLite
+store keyed by exact `(userId, accountId)`. Authenticated identity and fresh
+authoritative MEXC Radar GET-only readback can record a bounded proof; a separate
+revision-checked transition is required to activate it. Explicit revocation is
+sticky, and missing, stale, corrupt, replaced or deleted state fails closed before
+reconciliation or provider evaluation. The store contains timestamps and state
+only—never credentials, assertions or session material. This ceremony grants
+zero exchange-write authority and adds no public mutation route, signer, adapter
+or exchange mutation method.
+
 The current repository contains no enabled live-order path. `LIVE_TRADING_ENABLED=false` remains required.
 
 The server-owned `ExecutionBoundary` also contains a narrow provider-mechanics

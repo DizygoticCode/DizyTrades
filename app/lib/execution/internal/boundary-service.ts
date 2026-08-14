@@ -7,6 +7,7 @@ import type { ExecutionAuditStore } from "./audit-store";
 import type { ExecutionRiskStore } from "./risk-store";
 import { ExecutionReconciliationStoreError, type ExecutionReconciliationStore } from "./reconciliation-store";
 import { MEXC_PROVIDER_READBACK_MAX_AGE_MS } from "../../mexc-provider-readback";
+import { ExecutionOwnershipStoreError, type ExecutionOwnershipStore } from "./ownership-store";
 import type {
   AuthenticatedExecutionCaller,
   ExecutionBoundaryRequest,
@@ -28,6 +29,7 @@ export type ExecutionBoundaryDependencies = Readonly<{
   executionAuditStore: ExecutionAuditStore;
   executionRiskStore: ExecutionRiskStore;
   executionReconciliationStore?: ExecutionReconciliationStore;
+  executionOwnershipStore?: ExecutionOwnershipStore;
   environment?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
   /** Test-only deterministic lifecycle fixture; production composition never sets it. */
@@ -119,7 +121,20 @@ export class InternalExecutionBoundary {
       return rejected("BOUNDARY_DEPENDENCY_FAILURE");
     }
 
-    // Durable reconciliation is a stronger account-local brake and is checked
+    // Ownership is checked after the global/account kill switches but before
+    // reconciliation or any provider-evaluation seam.
+    if (this.dependencies.executionOwnershipStore) {
+      try {
+        const ownership = this.dependencies.executionOwnershipStore.read(caller);
+        const age = ownership.proofObservedAt === null ? NaN : (this.dependencies.now?.() ?? new Date()).getTime() - Date.parse(ownership.proofObservedAt);
+        if (ownership.status !== "active" || !Number.isFinite(age) || age < 0 || age > MEXC_PROVIDER_READBACK_MAX_AGE_MS)
+          killReason ??= ownership.status === "revoked" ? "EXECUTION_OWNERSHIP_REVOKED" : ownership.status === "active" ? "EXECUTION_OWNERSHIP_STALE" : "EXECUTION_OWNERSHIP_REQUIRED";
+      } catch (error) {
+        killReason ??= error instanceof ExecutionOwnershipStoreError ? error.code : "EXECUTION_OWNERSHIP_UNAVAILABLE";
+      }
+    }
+
+    // Durable reconciliation is a separate downstream account-local brake.
     // before the airlock can reach any provider evaluation seam.
     if (this.dependencies.executionReconciliationStore) {
       try {
