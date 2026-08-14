@@ -121,20 +121,19 @@ export class SqliteExecutionDayStartEquityStore implements ExecutionDayStartEqui
     }
   }
 
+  private poison(): never {
+    this.poisoned = true;
+    this.close();
+    return fail("EXECUTION_DAY_START_EQUITY_UNAVAILABLE");
+  }
+
   private current(): FileIdentity {
     try {
       const stat = statSync(this.path);
       return { dev: stat.dev, ino: stat.ino };
     } catch {
-      this.poisoned = true;
-      return fail("EXECUTION_DAY_START_EQUITY_UNAVAILABLE");
+      return this.poison();
     }
-  }
-
-  private poison(): never {
-    this.poisoned = true;
-    this.close();
-    return fail("EXECUTION_DAY_START_EQUITY_UNAVAILABLE");
   }
 
   private assertBacking() {
@@ -197,6 +196,7 @@ export class SqliteExecutionDayStartEquityStore implements ExecutionDayStartEqui
       ).get(identity.userId, identity.accountId, utcDay) as Record<string, unknown> | undefined;
       this.assertBacking();
       if (!row) return null;
+      if (row.schema_version !== DATABASE_VERSION) return fail("EXECUTION_DAY_START_EQUITY_INVALID");
       return validateBaseline({
         version: EXECUTION_DAY_START_EQUITY_VERSION,
         userId: row.user_id,
