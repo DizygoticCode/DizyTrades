@@ -18,6 +18,12 @@ const readyEnvironment = Object.freeze({
     MEXC_READONLY_PERMISSION_ATTESTATION,
 });
 
+const separateWriterEnvironment = Object.freeze({
+  MEXC_EXECUTION_ACCESS_KEY: "test-write-key-1234567890",
+  MEXC_EXECUTION_SECRET_KEY: "test-write-secret-12345678901234567890",
+  MEXC_EXECUTION_CREDENTIAL_GENERATION: "writer-generation-1",
+});
+
 function failureKind(action, kind) {
   assert.throws(action, (error) => {
     assert.ok(error instanceof MexcReadOnlyCredentialActivationError);
@@ -42,6 +48,9 @@ test("disabled owner activation is safe, deterministic and credential-free", () 
   assert.equal(first.writePermissionRequested, false);
   assert.equal(first.operatorReadOnlyAttested, false);
   assert.equal(first.providerPermissionIntrospectionPerformed, false);
+  assert.equal(first.liveTradingEnabled, false);
+  assert.equal(first.writerCredentialsConfigured, false);
+  assert.equal(first.writerCredentialSeparationProved, false);
   assert.equal(first.softwareBoundaryProved, true);
   assert.deepEqual(first.requestedPermissions, ["account-read", "trade-read"]);
   assert.deepEqual(second, first);
@@ -68,6 +77,8 @@ test("complete owner server-only configuration becomes ready without exposing cr
   assert.equal(report.operatorReadOnlyAttested, true);
   assert.equal(report.providerPermissionIntrospectionPerformed, false);
   assert.equal(report.liveTradingEnabled, false);
+  assert.equal(report.writerCredentialsConfigured, false);
+  assert.equal(report.writerCredentialSeparationProved, false);
   assert.equal(report.browserExposureForbidden, true);
   assert.deepEqual(credentials, {
     apiKey: readyEnvironment.OWNER_MEXC_READONLY_API_KEY,
@@ -87,7 +98,28 @@ test("complete owner server-only configuration becomes ready without exposing cr
   assert.doesNotMatch(serialised, /apiKey|apiSecret|signature|authorization/i);
 });
 
-test("owner activation fails closed on partial, dormant or malformed private configuration", () => {
+test("read-only Radar remains ready when live trading is true and writer credentials are complete and separate", () => {
+  const environment = {
+    ...readyEnvironment,
+    ...separateWriterEnvironment,
+    LIVE_TRADING_ENABLED: "true",
+    MEXC_WRITE_PROVIDER_ENABLED: "true",
+  };
+  const report = buildMexcReadOnlyCredentialActivationReport(environment);
+  const credentials = requireMexcReadOnlyCredentials(environment);
+
+  assert.equal(report.readyForPrivateReads, true);
+  assert.equal(report.writePermissionRequested, false);
+  assert.equal(report.liveTradingEnabled, true);
+  assert.equal(report.writerCredentialsConfigured, true);
+  assert.equal(report.writerCredentialSeparationProved, true);
+  assert.deepEqual(credentials, {
+    apiKey: readyEnvironment.OWNER_MEXC_READONLY_API_KEY,
+    apiSecret: readyEnvironment.OWNER_MEXC_READONLY_API_SECRET,
+  });
+});
+
+test("owner activation fails closed on partial, dormant or malformed read-only configuration", () => {
   failureKind(
     () => buildMexcReadOnlyCredentialActivationReport({
       LIVE_TRADING_ENABLED: "false",
@@ -122,14 +154,37 @@ test("owner activation fails closed on partial, dormant or malformed private con
   );
 });
 
-test("owner activation rejects live trading, missing attestation and browser-prefixed secrets", () => {
+test("writer credentials are optional while absent but partial or reused writer credentials fail closed", () => {
+  assert.equal(
+    buildMexcReadOnlyCredentialActivationReport(readyEnvironment).readyForPrivateReads,
+    true,
+  );
   failureKind(
     () => buildMexcReadOnlyCredentialActivationReport({
       ...readyEnvironment,
-      LIVE_TRADING_ENABLED: "true",
+      MEXC_EXECUTION_ACCESS_KEY: separateWriterEnvironment.MEXC_EXECUTION_ACCESS_KEY,
     }),
-    "live-trading-enabled",
+    "ambiguous-write-configuration",
   );
+  failureKind(
+    () => buildMexcReadOnlyCredentialActivationReport({
+      ...readyEnvironment,
+      ...separateWriterEnvironment,
+      MEXC_EXECUTION_ACCESS_KEY: readyEnvironment.OWNER_MEXC_READONLY_API_KEY,
+    }),
+    "credential-separation-failed",
+  );
+  failureKind(
+    () => buildMexcReadOnlyCredentialActivationReport({
+      ...readyEnvironment,
+      ...separateWriterEnvironment,
+      MEXC_EXECUTION_SECRET_KEY: readyEnvironment.OWNER_MEXC_READONLY_API_SECRET,
+    }),
+    "credential-separation-failed",
+  );
+});
+
+test("owner activation rejects missing read-only attestation and public-prefixed MEXC private configuration case-insensitively", () => {
   failureKind(
     () => buildMexcReadOnlyCredentialActivationReport({
       ...readyEnvironment,
@@ -138,13 +193,19 @@ test("owner activation rejects live trading, missing attestation and browser-pre
     }),
     "missing-read-only-attestation",
   );
-  failureKind(
-    () => buildMexcReadOnlyCredentialActivationReport({
-      ...readyEnvironment,
-      NEXT_PUBLIC_OWNER_MEXC_API_SECRET: "browser-secret-must-fail",
-    }),
-    "browser-exposed-credential",
-  );
+  for (const key of [
+    "NEXT_PUBLIC_OWNER_MEXC_API_SECRET",
+    "public_mexc_execution_access_key",
+    "Next_Public_Mexc_Execution_Credential_Generation",
+  ]) {
+    failureKind(
+      () => buildMexcReadOnlyCredentialActivationReport({
+        ...readyEnvironment,
+        [key]: "browser-private-configuration-must-fail",
+      }),
+      "browser-exposed-credential",
+    );
+  }
 });
 
 test("owner activation errors never echo credential values", () => {
