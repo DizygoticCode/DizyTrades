@@ -461,7 +461,15 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
   is a separate authenticated CAS transition and revocation is sticky. This adds
   no credential migration, public mutation route, exchange write, or execution
   capability, and production remains disarmed and globally disabled.
-- [ ] Approve any restricted test-account rollout or exchange write capability.
+
+- [x] Add a durable restricted-rollout approval and arming gate for the single
+  independently bound owner test account. Approval and arming are separate CAS
+  transitions; disarm/revoke are sticky; bounded reduce-only policy, current
+  ownership, risk authorization and reconciliation are rechecked. This is only
+  pre-submission approval: the adapter remains non-executing, every outcome is
+  `executed:false`, and actual exchange-write capability remains unapproved.
+- [ ] Approve any exchange write capability (restricted rollout pre-submission
+  approval is complete, but provider submission remains unapproved and absent).
 # Guarded execution safety
 
 - [x] Durable exact-account Radar reconciliation and sticky divergence quarantine

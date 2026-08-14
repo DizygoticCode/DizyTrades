@@ -8,6 +8,7 @@ import type { ExecutionRiskStore } from "./risk-store";
 import { ownershipBindingMatches, type ExecutionOwnershipBinding } from "./ownership-binding";
 import { ExecutionOwnershipStoreError, type ExecutionOwnershipStore } from "./ownership-store";
 import { ExecutionReconciliationStoreError, type ExecutionReconciliationStore } from "./reconciliation-store";
+import { EXECUTION_ROLLOUT_MAX_AGE_MS, ExecutionRolloutStoreError, type ExecutionRolloutStore } from "./rollout-store";
 import { MEXC_PROVIDER_READBACK_MAX_AGE_MS } from "../../mexc-provider-readback";
 import type {
   AuthenticatedExecutionCaller,
@@ -32,6 +33,7 @@ export type ExecutionBoundaryDependencies = Readonly<{
   executionOwnershipStore?: ExecutionOwnershipStore;
   readOwnershipBinding?: () => ExecutionOwnershipBinding | null;
   executionReconciliationStore?: ExecutionReconciliationStore;
+  executionRolloutStore?: ExecutionRolloutStore;
   environment?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
   syntheticProviderScenario?: SyntheticProviderScenario;
@@ -148,6 +150,30 @@ export class InternalExecutionBoundary {
           ? "EXECUTION_ACCOUNT_QUARANTINED" : "EXECUTION_RECONCILIATION_UNKNOWN";
       } catch (error) {
         killReason ??= error instanceof ExecutionReconciliationStoreError ? error.code : "EXECUTION_RECONCILIATION_UNAVAILABLE";
+      }
+    }
+
+    // Rollout is deliberately evaluated only after ownership and reconciliation.
+    // Existing kill reasons use ??= throughout, so operational brakes retain precedence.
+    if (this.dependencies.executionRolloutStore) {
+      try {
+        const rollout = this.dependencies.executionRolloutStore.read(caller);
+        const age = rollout.updatedAt === null ? NaN : (this.dependencies.now?.() ?? new Date()).getTime() - Date.parse(rollout.updatedAt);
+        if (rollout.status === "unknown") killReason ??= "EXECUTION_ROLLOUT_UNKNOWN";
+        else if (rollout.status === "disarmed") killReason ??= "EXECUTION_ROLLOUT_DISARMED";
+        else if (rollout.status === "revoked") killReason ??= "EXECUTION_ROLLOUT_REVOKED";
+        else if (rollout.status !== "armed") killReason ??= "EXECUTION_ROLLOUT_NOT_ARMED";
+        else if (!Number.isFinite(age) || age < 0 || age > EXECUTION_ROLLOUT_MAX_AGE_MS) killReason ??= "EXECUTION_ROLLOUT_STALE";
+        else if (!ownershipBinding || rollout.bindingDigest !== ownershipBinding.bindingDigest) killReason ??= "EXECUTION_ROLLOUT_MISMATCH";
+        else if (!rollout.policy || !rollout.policy.allowedSymbols.includes(String(request.intent.symbol))
+          || Number(request.intent.leverage) > rollout.policy.maximumLeverage
+          || request.intent.reduceOnly !== rollout.policy.reduceOnly) killReason ??= "EXECUTION_ROLLOUT_POLICY_DENIED";
+        else {
+          const risk = this.dependencies.executionRiskStore.read(caller.userId, caller.accountId);
+          if (!risk || !risk.enabled || risk.revision !== rollout.riskRevision) killReason ??= "EXECUTION_ROLLOUT_MISMATCH";
+        }
+      } catch (error) {
+        killReason ??= error instanceof ExecutionRolloutStoreError ? error.code : "EXECUTION_ROLLOUT_UNAVAILABLE";
       }
     }
 

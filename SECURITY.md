@@ -251,6 +251,19 @@ Production remains disarmed/global-disabled, kill switches precede ownership and
 provider reads, the adapter remains non-executing, and real MEXC launch codes
 remain confiscated.
 
+The restricted rollout authority is server-only and persists bounded, secret-free
+state and audit metadata in `DATA_DIR/execution-rollout.sqlite`. Missing, stale,
+corrupt or replaced storage denies by default. An exact active/fresh ownership
+binding, clean/fresh reconciliation and current enabled risk authorization are
+required both for approval and for the distinct CAS arming transition. Policy is
+limited to at most two symbols, 100 USDT order notional, 2x leverage, 50 USDT
+daily loss and mandatory reduce-only operation. Disarm and revoke are terminal;
+GET-only Radar refreshes cannot re-arm them. Operational kill switches retain
+precedence and suppress Radar reads. No rollout mutation is exposed by a public
+route; production ceremony helpers consume the existing short-lived single-use
+TOTP-assured caller assertion. This gate stops before provider submission and
+does not introduce a write credential, signer, transport, or executable adapter.
+
 Before live execution is considered, DizyTrades requires at minimum:
 
 - isolated execution service or equivalently isolated execution boundary;
