@@ -557,18 +557,29 @@ below is not wired into that composition or any route.
 
 The server contains a deliberately narrow MEXC Futures writer seam for `POST
 /api/v1/private/order/create`, followed immediately by authoritative
-GET-by-`externalOid` reconciliation. It accepts only a validated reduction of a
-known one-way-mode position (`positionMode:2`), maps long reductions to side 4
-and short reductions to side 2, binds the authoritative `positionId`, and sends
-`reduceOnly:true`. An atomic durable `submitting` claim precedes transport, so
-concurrent processes cannot both submit. Every recovered reservation/claim is
-reconciled by `externalOid` rather than blindly retried. Reconciliation verifies
-the complete canonical intent; disagreement creates sticky exact-account
-quarantine. Lifecycle rows bind the canonical intent digest and all authority
-revisions, and backing-file replacement permanently poisons the store instance.
+GET-by-`externalOid` reconciliation. It accepts only a validated **limit**
+reduction (`type:1`) of a known one-way-mode position (`positionMode:2`).
+DizyTrades `side` is order direction: `long`/buy may only reduce a proven short
+position and maps to MEXC side `2` (`close short`); `short`/sell may only reduce
+a proven long position and maps to side `4` (`close long`). The exact prepared
+airlock preview must match symbol, order direction, limit price, normalized
+contract volume, leverage, reference price, estimated notional and
+`reduceOnly:true`. Fresh reconciliation evidence must independently bind the
+opposing position ID, side, one-way mode, margin mode and available position
+volume.
 
-This is not a browser API and is not wired to a public route. The existing
-caller assertion, independently bound ownership, fresh reconciliation,
-risk/rollout revisions and kill switches remain upstream authorities. Both
-`MEXC_WRITE_PROVIDER_ENABLED` and `LIVE_TRADING_ENABLED` are required by the
-server-only activation check and both remain false in deployment configuration.
+An atomic durable `submitting` claim precedes transport, so concurrent processes
+cannot both submit. Every recovered reservation/claim is reconciled by
+`externalOid` rather than blindly retried. Reconciliation verifies the canonical
+provider identity; disagreement creates sticky exact-account quarantine.
+Lifecycle rows bind the canonical intent digest and all authority revisions, and
+backing-file replacement permanently poisons the store instance.
+
+This is not a browser API and is not wired to a public route or the production
+`ExecutionBoundary` provider. The writer itself requires both
+`MEXC_WRITE_PROVIDER_ENABLED=true` and `LIVE_TRADING_ENABLED=true` and derives
+last-pre-sign authority from the exact caller/ownership/reconciliation/risk/
+rollout/kill-switch/prepared-airlock/network evidence supplied by a future
+server-only composition. Both activation flags remain false in deployment
+configuration, so the seam is present in source but production submission remains
+disabled and unrouted.
