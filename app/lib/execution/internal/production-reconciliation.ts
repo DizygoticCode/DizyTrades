@@ -4,13 +4,20 @@ import { readAuthoritativeMexcAccountRisk, type MexcProviderAccountRiskReadback 
 import { reconcileAuthoritativeMexcReadback } from "./authoritative-reconciliation";
 import type { ExecutionAccountIdentity, ExecutionReconciliationStore } from "./reconciliation-store";
 
-export type ProductionReconciliationOrchestrator = (identity: ExecutionAccountIdentity) => Promise<void>;
+export type ProductionReconciliationOrchestrator = (
+  identity: ExecutionAccountIdentity,
+) => Promise<MexcProviderAccountRiskReadback | null>;
 
 /**
  * Server-only Radar -> execution-owned expectation -> reconciliation chain.
  * Because this airlock has no executing adapter and rejects every provider outcome
  * with executed:false, its durable owned-position expectation is conservatively empty.
  * Provider positions are observations only and are never adopted as expected truth.
+ *
+ * A successful observation is returned only after it has been passed through the
+ * authoritative reconciliation classifier. Callers may reuse that same bounded
+ * GET-only evidence for downstream server-owned risk construction; failures return
+ * null after persisting quarantine and must never trigger permissive fallback.
  */
 export function createProductionReconciliationOrchestrator(
   store: ExecutionReconciliationStore,
@@ -23,11 +30,13 @@ export function createProductionReconciliationOrchestrator(
     store.setExpected(identity, Object.freeze([]), current.revision);
     try {
       const observation = await readback(Object.freeze({ userId: identity.userId, accountId: identity.accountId }));
-      reconcileAuthoritativeMexcReadback(store, identity, observation, now());
+      const result = reconcileAuthoritativeMexcReadback(store, identity, observation, now());
+      return result.status === "clean" ? observation : null;
     } catch {
       // A Radar failure is persisted as an account-local quarantine; no credential
       // or provider error detail crosses this bounded execution seam.
       reconcileAuthoritativeMexcReadback(store, identity, Object.freeze({}), now());
+      return null;
     }
   };
 }
