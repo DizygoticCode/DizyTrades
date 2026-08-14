@@ -101,11 +101,21 @@ test("same exact capture is idempotent while conflicting same-day baseline is im
   assert.equal(store.read(id, "2026-08-15").equity, 10_000);
 });
 
-test("observations outside the UTC boundary window cannot become baselines", () => {
+test("store rejects observations outside the UTC boundary window", () => {
   for (const observedAt of ["2026-08-14T23:59:59.999Z", "2026-08-15T00:05:00.000Z", "2026-08-15T12:00:00.000Z"]) {
     const store = new SqliteExecutionDayStartEquityStore(":memory:");
     const at = new Date(new Date(observedAt).getTime() + 1_000);
-    assert.throws(() => capture(store, { readback: readback({ observedAt }) }, at), storeError("EXECUTION_DAY_START_EQUITY_WINDOW_MISSED"));
+    assert.throws(() => store.capture({
+      userId: id.userId,
+      accountId: id.accountId,
+      utcDay: "2026-08-15",
+      equity: 10_000,
+      providerVersion: MEXC_PROVIDER_READBACK_VERSION,
+      providerObservedAt: observedAt,
+      bindingDigest: digest,
+      credentialGeneration: "1",
+      reconciliationRevision: reconciliation.revision,
+    }, at), storeError("EXECUTION_DAY_START_EQUITY_WINDOW_MISSED"));
     assert.equal(store.read(id, "2026-08-15"), null);
   }
 });
