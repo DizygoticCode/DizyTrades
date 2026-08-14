@@ -550,5 +550,36 @@ provider. Rollout policy is deliberately narrower (two symbols maximum, 100 USDT
 order notional, 2x leverage, 50 USDT daily loss, reduce-only required) and cannot
 be wider than the risk officer policy. The production authority has no route and
 uses only the existing single-use TOTP-assured internal caller assertion. Radar
-remains the sole GET-only evidence seam. The strongest state is pre-submission
-approval; no exchange submission mechanism or write credential exists.
+remains the sole GET-only evidence seam used by production composition. The
+strongest production state is pre-submission approval; the disabled writer seam
+below is not wired into that composition or any route.
+# Modern MEXC reduce-only writer seam
+
+The server contains a deliberately narrow MEXC Futures writer seam for `POST
+/api/v1/private/order/create`, followed immediately by authoritative
+GET-by-`externalOid` reconciliation. It accepts only a validated **limit**
+reduction (`type:1`) of a known one-way-mode position (`positionMode:2`).
+DizyTrades `side` is order direction: `long`/buy may only reduce a proven short
+position and maps to MEXC side `2` (`close short`); `short`/sell may only reduce
+a proven long position and maps to side `4` (`close long`). The exact prepared
+airlock preview must match symbol, order direction, limit price, normalized
+contract volume, leverage, reference price, estimated notional and
+`reduceOnly:true`. Fresh reconciliation evidence must independently bind the
+opposing position ID, side, one-way mode, margin mode and available position
+volume.
+
+An atomic durable `submitting` claim precedes transport, so concurrent processes
+cannot both submit. Every recovered reservation/claim is reconciled by
+`externalOid` rather than blindly retried. Reconciliation verifies the canonical
+provider identity; disagreement creates sticky exact-account quarantine.
+Lifecycle rows bind the canonical intent digest and all authority revisions, and
+backing-file replacement permanently poisons the store instance.
+
+This is not a browser API and is not wired to a public route or the production
+`ExecutionBoundary` provider. The writer itself requires both
+`MEXC_WRITE_PROVIDER_ENABLED=true` and `LIVE_TRADING_ENABLED=true` and derives
+last-pre-sign authority from the exact caller/ownership/reconciliation/risk/
+rollout/kill-switch/prepared-airlock/network evidence supplied by a future
+server-only composition. Both activation flags remain false in deployment
+configuration, so the seam is present in source but production submission remains
+disabled and unrouted.

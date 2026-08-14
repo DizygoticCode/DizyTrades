@@ -467,11 +467,31 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
   transitions; disarm/revoke are sticky; bounded reduce-only policy, current
   ownership, risk authorization and reconciliation are rechecked. This is only
   pre-submission approval: the adapter remains non-executing, every outcome is
-  `executed:false`, and actual exchange-write capability remains unapproved.
-- [ ] Approve any exchange write capability (restricted rollout pre-submission
-  approval is complete, but provider submission remains unapproved and absent).
+  `executed:false`, and production exchange submission remains unapproved.
+- [ ] Approve production exchange-write activation. A disabled, unrouted writer
+  seam exists in source, but provider submission remains unapproved and no
+  production composition can call it.
 # Guarded execution safety
 
 - [x] Durable exact-account Radar reconciliation and sticky divergence quarantine
   ahead of provider evaluation (GET-only evidence, `executed:false`).
-- [ ] Exchange-write capability remains explicitly out of scope and absent.
+- [ ] Production exchange-write activation remains explicitly unapproved and
+  absent; the #315 writer seam is disabled and unrouted.
+# Guarded execution provider milestone (#315)
+
+- [x] Add a server-only modern `api.mexc.com` reduce-only create-order seam.
+- [x] Sign and transmit one exact JSON body with stable `externalOid`.
+- [x] Atomically claim durable secret-free evidence before delivery and reconcile
+  every recovered state before any retry; quarantine full-intent divergence.
+- [x] Keep Account Companion read credentials independent from execution keys.
+- [x] Default the independent write-provider flag and `LIVE_TRADING_ENABLED` to
+  false; expose no browser/public mutation route.
+- [ ] Complete independent P1/P2 review, stable Render-egress allowlisting,
+  dedicated write-key provisioning, and a separate activation ceremony.
+
+This milestone does not enable unrestricted live trading and cannot open or
+increase exposure. It is limit-only in one-way mode (`positionMode:2`) with an
+authoritative `positionId` and `reduceOnly:true`. DizyTrades `side` is order
+direction: `long`/buy may only reduce a proven short and maps to MEXC side `2`
+(`close short`); `short`/sell may only reduce a proven long and maps to side `4`
+(`close long`). The seam remains production-disabled and unrouted.
