@@ -301,3 +301,25 @@ revisions, and device/inode checks around open-handle operations. Deletion,
 replacement, corruption, stale observations, ambiguity, and unavailable state all
 fail closed. There is no public clear/mutation route and **no exchange-write
 capability, credential migration, or write signing path**.
+
+# Execution ownership and activation
+
+Guarded execution now has a dedicated server-only SQLite ownership store with
+WAL, `synchronous=FULL`, owner-only file modes, exact-account keys and revision/CAS
+transitions. Durable rows contain only bounded identifiers and transition
+timestamps. They never contain API keys, secrets, credentials, session tokens,
+caller assertions, provider response bodies or decrypted material. Open-file
+deletion/replacement, invalid schemas, inconsistent rows and stale revisions fail
+closed.
+
+An authenticated caller for the exact user/account may establish proof only via
+a fresh authoritative MEXC Radar GET-only readback for that same identity. Proof
+does not activate the account. Activation and revocation are distinct deliberate,
+server-only transitions, with no browser or public mutation route. Revocation is
+sticky across later successful proof; reactivation requires that new proof plus a
+separate activation transition. The ownership gate precedes reconciliation and
+all provider-evaluation seams while preserving kill-switch precedence. It confers
+**zero exchange-write authority**: Account Companion credentials are not migrated
+or decrypted, no MEXC mutation/signing path exists, the adapter remains
+non-executing, `LIVE_TRADING_ENABLED=false`, and all outcomes remain
+`executed:false`.

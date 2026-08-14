@@ -7,6 +7,7 @@ import type { ExecutionAuditStore } from "./audit-store";
 import type { ExecutionRiskStore } from "./risk-store";
 import { ExecutionReconciliationStoreError, type ExecutionReconciliationStore } from "./reconciliation-store";
 import { MEXC_PROVIDER_READBACK_MAX_AGE_MS } from "../../mexc-provider-readback";
+import { ExecutionOwnershipStoreError, type ExecutionOwnershipStore } from "./ownership-store";
 import type {
   AuthenticatedExecutionCaller,
   ExecutionBoundaryRequest,
@@ -27,6 +28,7 @@ export type ExecutionBoundaryDependencies = Readonly<{
   executionStateStore: ExecutionStateStore;
   executionAuditStore: ExecutionAuditStore;
   executionRiskStore: ExecutionRiskStore;
+  executionOwnershipStore?: ExecutionOwnershipStore;
   executionReconciliationStore?: ExecutionReconciliationStore;
   environment?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
@@ -119,8 +121,29 @@ export class InternalExecutionBoundary {
       return rejected("BOUNDARY_DEPENDENCY_FAILURE");
     }
 
-    // Durable reconciliation is a stronger account-local brake and is checked
-    // before the airlock can reach any provider evaluation seam.
+    // Ownership is checked before reconciliation and before the airlock can
+    // reach any provider-evaluation seam. Existing kill switches retain
+    // precedence through nullish assignment.
+    if (this.dependencies.executionOwnershipStore) {
+      try {
+        const ownership = this.dependencies.executionOwnershipStore.read(caller);
+        const observedAt = ownership.proofObservedAt === null ? NaN : Date.parse(ownership.proofObservedAt);
+        const age = (this.dependencies.now?.() ?? new Date()).getTime() - observedAt;
+        const stale = !Number.isFinite(age) || age < 0 || age > MEXC_PROVIDER_READBACK_MAX_AGE_MS;
+        const ownershipReason: ExecutionResult["reason"] | null = ownership.status === "unknown"
+          ? "EXECUTION_OWNERSHIP_UNPROVED"
+          : ownership.status === "revoked"
+            ? "EXECUTION_OWNERSHIP_REVOKED"
+            : ownership.status !== "active"
+              ? "EXECUTION_OWNERSHIP_INACTIVE"
+              : stale ? "EXECUTION_OWNERSHIP_PROOF_STALE" : null;
+        killReason ??= ownershipReason;
+      } catch (error) {
+        killReason ??= error instanceof ExecutionOwnershipStoreError ? error.code : "EXECUTION_OWNERSHIP_UNAVAILABLE";
+      }
+    }
+
+    // Reconciliation remains a separate, downstream account-local brake.
     if (this.dependencies.executionReconciliationStore) {
       try {
         const reconciliation = this.dependencies.executionReconciliationStore.read(caller);

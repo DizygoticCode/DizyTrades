@@ -518,3 +518,22 @@ Radar GET-only readback may be compared with bounded execution-owned expected
 contract volumes. Unknown state and unexplained divergence fail closed before
 provider evaluation; quarantine is durable and sticky. This adds **no exchange-write
 capability**: every execution result remains `executed:false`.
+
+# Guarded-execution ownership and activation ceremony
+
+The execution compartment owns a separate `DATA_DIR/execution-ownership.sqlite`
+store keyed by the exact `(userId, accountId)` pair. A proof transition requires
+an authenticated exact-account caller and a fresh, identity-matching result from
+the existing MEXC Radar fixed-path GET-only readback. The store retains only
+bounded identity, revision and timestamps—never API keys, credentials, sessions,
+caller assertions, provider payloads or decrypted material.
+
+Proof is not activation. A second authenticated, explicit server-only activation
+transition with the current revision is required, and there is no public mutation
+route. Explicit revocation is sticky: later successful Radar proof retains the
+revoked status until another deliberate activation transition. Unknown, inactive,
+revoked, stale, corrupt, replaced or unavailable ownership state blocks before
+reconciliation and any provider-evaluation seam; the established global and
+account kill switches retain precedence. This ceremony grants **zero exchange-write
+authority** and adds no write signer, write method, credential migration, executable
+adapter or `executed:true` result.

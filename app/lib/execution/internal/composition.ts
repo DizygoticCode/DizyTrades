@@ -8,6 +8,7 @@ import { verifyProductionExecutionCaller } from "./caller-assertion";
 import { createProductionExecutionRiskStore } from "./risk-store";
 import { createProductionExecutionReconciliationStore } from "./reconciliation-store";
 import { createProductionReconciliationOrchestrator } from "./production-reconciliation";
+import { createProductionExecutionOwnershipStore } from "./ownership-store";
 import type { ExecutionBoundaryRequest, ExecutionBoundaryResponse } from "../types";
 
 /**
@@ -22,6 +23,7 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
   const executionAuditStore = createProductionExecutionAuditStore();
   const executionRiskStore = createProductionExecutionRiskStore();
   const reconciliationStore = createProductionExecutionReconciliationStore();
+  const ownershipStore = createProductionExecutionOwnershipStore();
   const reconcile = createProductionReconciliationOrchestrator(reconciliationStore);
 
   return Object.freeze({
@@ -54,6 +56,7 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
         executionStateStore,
         executionAuditStore,
         executionRiskStore,
+        executionOwnershipStore: ownershipStore,
         executionReconciliationStore: reconciliationStore,
         environment: process.env,
       });

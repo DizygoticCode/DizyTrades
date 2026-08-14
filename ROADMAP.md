@@ -462,3 +462,16 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 - [x] Durable exact-account Radar reconciliation and sticky divergence quarantine
   ahead of provider evaluation (GET-only evidence, `executed:false`).
 - [ ] Exchange-write capability remains explicitly out of scope and absent.
+# Issue 308: durable ownership and activation ceremony
+
+- Complete: server-only exact `(userId, accountId)` ownership state with durable
+  revision/CAS transitions, restrictive SQLite WAL persistence and fail-closed
+  backing-file/schema validation.
+- Complete: proof uses the authenticated exact-account caller and fresh MEXC Radar
+  GET-only readback; proof, activation and sticky revocation are separate deliberate
+  transitions with no public mutation surface.
+- Complete: the ownership brake runs before reconciliation/provider evaluation and
+  preserves existing kill-switch precedence.
+- Safety boundary: this milestone adds zero exchange-write authority, migrates no
+  credentials, adds no executable adapter, keeps `LIVE_TRADING_ENABLED=false`, and
+  cannot produce `executed:true`.

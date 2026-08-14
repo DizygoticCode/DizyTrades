@@ -43,6 +43,7 @@ function makeService(options = {}) {
     syntheticObservation: options.syntheticObservation,
     syntheticProviderFault: options.syntheticProviderFault,
     executionReconciliationStore: options.executionReconciliationStore,
+    executionOwnershipStore: options.executionOwnershipStore,
     readKillSwitches: options.readKillSwitches ?? (() => ({ ...enabledSwitchState, globalDisabled: true })),
     authenticateInternalCaller: ({ callerId, assertionId }) => {
       const [userId, accountId] = assertionId.split(":");
@@ -77,6 +78,19 @@ test("reconciliation freshness fails closed while kill switches retain precedenc
   const globalResponse = makeService({ environment:{LIVE_TRADING_ENABLED:"false"}, now:()=>new Date("2026-08-12T12:01:00.000Z"), executionReconciliationStore:stale }).process({...valid,intentId:"intent-global",idempotencyKey:"idempotency-global"},prerequisites);
   assert.equal(globalResponse.result.reason,"GLOBAL_EXECUTION_DISABLED");
   assert.equal(globalResponse.auditEvents.at(-1).reason,"GLOBAL_EXECUTION_DISABLED");
+});
+
+test("ownership blocks before reconciliation/provider evaluation while global kill switch retains precedence", () => {
+  let ownershipReads = 0, reconciliationReads = 0;
+  const ownership = { read: () => { ownershipReads++; return { revision:0, status:"unknown", proofObservedAt:null, activatedAt:null, revokedAt:null }; } };
+  const reconciliation = { read: () => { reconciliationReads++; return { revision:1, status:"clean", reason:"CLEAN", expected:[], observedAt:"2026-08-12T12:00:59.000Z" }; } };
+  const blocked = makeService({ environment:{LIVE_TRADING_ENABLED:"false"}, now:()=>new Date("2026-08-12T12:01:00.000Z"), readKillSwitches:()=>enabledSwitchState, executionOwnershipStore:ownership, executionReconciliationStore:reconciliation, syntheticProviderScenario:"would-accept" }).process({...valid,intentId:"intent-owner",idempotencyKey:"idempotency-owner"},prerequisites);
+  assert.equal(blocked.result.reason,"EXECUTION_OWNERSHIP_UNPROVED");
+  assert.equal(blocked.auditEvents.some((event)=>event.kind==="provider-evaluated"),false);
+  assert.equal(ownershipReads,1);
+  assert.equal(reconciliationReads,1);
+  const global = makeService({ environment:{LIVE_TRADING_ENABLED:"false"}, now:()=>new Date("2026-08-12T12:01:00.000Z"), executionOwnershipStore:ownership, executionReconciliationStore:reconciliation }).process({...valid,intentId:"intent-owner-global",idempotencyKey:"idempotency-owner-global"},prerequisites);
+  assert.equal(global.result.reason,"GLOBAL_EXECUTION_DISABLED");
 });
 
 test("valid intent is structurally validated into an immutable domain object", () => {
