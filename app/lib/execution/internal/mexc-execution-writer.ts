@@ -62,7 +62,7 @@ function sameEvidence(actual:MexcLifecycleEvidence,expected:MexcIntentEvidence,e
 
 export function readMexcExecutionCredentials(environment:Readonly<Record<string,string|undefined>>):MexcExecutionCredentials {
   const accessKey=environment.MEXC_EXECUTION_ACCESS_KEY,secretKey=environment.MEXC_EXECUTION_SECRET_KEY,generation=environment.MEXC_EXECUTION_CREDENTIAL_GENERATION;
-  const exposed=Object.entries(environment).some(([key,value])=>/^(NEXT_PUBLIC_|PUBLIC_).*MEXC.*EXECUTION.*(KEY|SECRET|PRIVATE|CREDENTIAL|GENERATION)/.test(key)&&Boolean(value));
+  const exposed=Object.entries(environment).some(([key,value])=>/^(NEXT_PUBLIC_|PUBLIC_).*MEXC.*EXECUTION.*(KEY|SECRET|PRIVATE|CREDENTIAL|GENERATION)/i.test(key)&&Boolean(value));
   if(!accessKey||!secretKey||!generation||accessKey.length<16||secretKey.length<16||accessKey.length>256||secretKey.length>512||!CREDENTIAL.test(accessKey)||!CREDENTIAL.test(secretKey)||!TOKEN.test(generation)||exposed||accessKey===environment.OWNER_MEXC_READONLY_API_KEY||secretKey===environment.OWNER_MEXC_READONLY_API_SECRET)throw new MexcExecutionError("configuration");
   return Object.freeze({accessKey,secretKey,generation});
 }
