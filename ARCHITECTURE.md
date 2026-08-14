@@ -510,3 +510,11 @@ valued gross exposure must pass before the synthetic provider fixture is reached
 Global kill switches retain precedence. This is a risk officer, not an execution
 capability: there is no route, exchange write adapter, credential wiring, or policy
 mutation endpoint, and all results remain `executed:false`.
+# Authoritative execution reconciliation
+
+The guarded execution airlock has a separate, server-only SQLite reconciliation
+store scoped to the exact `(userId, accountId)` pair. Only validated, fresh MEXC
+Radar GET-only readback may be compared with bounded execution-owned expected
+contract volumes. Unknown state and unexplained divergence fail closed before
+provider evaluation; quarantine is durable and sticky. This adds **no exchange-write
+capability**: every execution result remains `executed:false`.

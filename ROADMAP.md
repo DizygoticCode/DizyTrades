@@ -457,3 +457,8 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
   represented explicitly, so this slice does not yet satisfy daily-drawdown risk.
 - [ ] Complete credential-to-account ownership and activation ceremony.
 - [ ] Approve any restricted test-account rollout or exchange write capability.
+# Guarded execution safety
+
+- [x] Durable exact-account Radar reconciliation and sticky divergence quarantine
+  ahead of provider evaluation (GET-only evidence, `executed:false`).
+- [ ] Exchange-write capability remains explicitly out of scope and absent.

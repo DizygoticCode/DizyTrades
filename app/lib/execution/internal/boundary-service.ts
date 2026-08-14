@@ -5,6 +5,8 @@ import { ExecutionAirlockService } from "./service";
 import type { ExecutionStateStore } from "./state-store";
 import type { ExecutionAuditStore } from "./audit-store";
 import type { ExecutionRiskStore } from "./risk-store";
+import { ExecutionReconciliationStoreError, type ExecutionReconciliationStore } from "./reconciliation-store";
+import { MEXC_PROVIDER_READBACK_MAX_AGE_MS } from "../../mexc-provider-readback";
 import type {
   AuthenticatedExecutionCaller,
   ExecutionBoundaryRequest,
@@ -25,6 +27,7 @@ export type ExecutionBoundaryDependencies = Readonly<{
   executionStateStore: ExecutionStateStore;
   executionAuditStore: ExecutionAuditStore;
   executionRiskStore: ExecutionRiskStore;
+  executionReconciliationStore?: ExecutionReconciliationStore;
   environment?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
   /** Test-only deterministic lifecycle fixture; production composition never sets it. */
@@ -114,6 +117,23 @@ export class InternalExecutionBoundary {
       killReason = executionKillSwitchReason(switches, caller);
     } catch {
       return rejected("BOUNDARY_DEPENDENCY_FAILURE");
+    }
+
+    // Durable reconciliation is a stronger account-local brake and is checked
+    // before the airlock can reach any provider evaluation seam.
+    if (this.dependencies.executionReconciliationStore) {
+      try {
+        const reconciliation = this.dependencies.executionReconciliationStore.read(caller);
+        const observedAt = reconciliation.observedAt === null ? NaN : Date.parse(reconciliation.observedAt);
+        const age = (this.dependencies.now?.() ?? new Date()).getTime() - observedAt;
+        const staleClean = reconciliation.status === "clean"
+          && (!Number.isFinite(age) || age < 0 || age > MEXC_PROVIDER_READBACK_MAX_AGE_MS);
+        if (reconciliation.status !== "clean" || staleClean) killReason ??= reconciliation.status === "quarantined"
+          ? "EXECUTION_ACCOUNT_QUARANTINED" : "EXECUTION_RECONCILIATION_UNKNOWN";
+      } catch (error) {
+        killReason ??= error instanceof ExecutionReconciliationStoreError
+          ? error.code : "EXECUTION_RECONCILIATION_UNAVAILABLE";
+      }
     }
 
     return this.airlock.process(

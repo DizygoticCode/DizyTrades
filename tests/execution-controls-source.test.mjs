@@ -8,7 +8,8 @@ const text = (path) => readFileSync(path, "utf8");
 test("production owns durable controls and uses the internal caller verifier", () => {
   const composition = text("app/lib/execution/internal/composition.ts");
   assert.match(composition, /createProductionExecutionControlStore/);
-  assert.match(composition, /authenticateInternalCaller: verifyProductionExecutionCaller/);
+  assert.match(composition, /const caller = verifyProductionExecutionCaller\(stableRequest\.callerAssertion\)/);
+  assert.match(composition, /authenticateInternalCaller:\s*\(assertion\)\s*=>\s*caller/);
   assert.match(text("app/lib/execution/internal/control-store.ts"), /execution-control\.sqlite/);
   assert.doesNotMatch(text("app/lib/execution/internal/control-store.ts"), /LIVE_TRADING_ENABLED|MEXC|fetch\(|credential|private.?key/i);
 });
