@@ -9,6 +9,7 @@ export type ExecutionOwnershipStatus = "unknown" | "proved" | "active" | "revoke
 export type ExecutionOwnershipState = Readonly<{
   revision: number;
   status: ExecutionOwnershipStatus;
+  bindingDigest: string | null;
   proofObservedAt: string | null;
   activatedAt: string | null;
   revokedAt: string | null;
@@ -23,7 +24,8 @@ export type ExecutionOwnershipEvent = Readonly<{
 }>;
 
 const VERSION = 1;
-const TOKEN = /^[A-Za-z0-9_-]{1,120}$/;
+const TOKEN = /^[A-Za-z0-9_:@.-]{1,120}$/;
+const HASH = /^[a-f0-9]{64}$/;
 type FileIdentity = Readonly<{ dev: number; ino: number }>;
 
 export class ExecutionOwnershipStoreError extends Error {
@@ -45,7 +47,12 @@ const canonicalTimestamp = (value: unknown) =>
 
 export interface ExecutionOwnershipStore {
   read(identity: ExecutionOwnershipIdentity): ExecutionOwnershipState;
-  recordProof(identity: ExecutionOwnershipIdentity, observedAt: string, expectedRevision: number): ExecutionOwnershipState;
+  recordProof(
+    identity: ExecutionOwnershipIdentity,
+    bindingDigest: string,
+    observedAt: string,
+    expectedRevision: number,
+  ): ExecutionOwnershipState;
   activate(identity: ExecutionOwnershipIdentity, occurredAt: string, expectedRevision: number): ExecutionOwnershipState;
   revoke(identity: ExecutionOwnershipIdentity, occurredAt: string, expectedRevision: number): ExecutionOwnershipState;
   events(identity: ExecutionOwnershipIdentity): readonly ExecutionOwnershipEvent[];
@@ -108,6 +115,7 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
             account_id TEXT NOT NULL CHECK(length(account_id) BETWEEN 1 AND 120),
             revision INTEGER NOT NULL CHECK(revision>=0),
             status TEXT NOT NULL CHECK(status IN ('unknown','proved','active','revoked')),
+            binding_digest TEXT CHECK(binding_digest IS NULL OR length(binding_digest)=64),
             proof_observed_at TEXT CHECK(proof_observed_at IS NULL OR length(proof_observed_at)<=64),
             activated_at TEXT CHECK(activated_at IS NULL OR length(activated_at)<=64),
             revoked_at TEXT CHECK(revoked_at IS NULL OR length(revoked_at)<=64),
@@ -130,7 +138,7 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
       if (this.path !== ":memory:") this.identity = this.current();
       return database;
     } catch (error) {
-      try { database?.close(); } catch {}
+      try { database?.close(); } catch { /* fail closed */ }
       this.database = null;
       this.identity = null;
       if (error instanceof ExecutionOwnershipStoreError) throw error;
@@ -138,11 +146,15 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
     }
   }
 
-  private parse(row: Record<string, unknown> | undefined, identity: ExecutionOwnershipIdentity): ExecutionOwnershipState {
+  private parse(
+    row: Record<string, unknown> | undefined,
+    identity: ExecutionOwnershipIdentity,
+  ): ExecutionOwnershipState {
     if (!row) {
       return Object.freeze({
         revision: 0,
         status: "unknown" as const,
+        bindingDigest: null,
         proofObservedAt: null,
         activatedAt: null,
         revokedAt: null,
@@ -150,16 +162,16 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
     }
 
     const status = String(row.status) as ExecutionOwnershipStatus;
+    const bindingDigest = row.binding_digest === null ? null : String(row.binding_digest);
     const proofObservedAt = row.proof_observed_at === null ? null : String(row.proof_observed_at);
     const activatedAt = row.activated_at === null ? null : String(row.activated_at);
     const revokedAt = row.revoked_at === null ? null : String(row.revoked_at);
     const updatedAt = String(row.updated_at);
-
     const semanticState =
-      (status === "unknown" && proofObservedAt === null && activatedAt === null && revokedAt === null)
-      || (status === "proved" && proofObservedAt !== null && activatedAt === null && revokedAt === null)
-      || (status === "active" && proofObservedAt !== null && activatedAt !== null && revokedAt === null)
-      || (status === "revoked" && revokedAt !== null);
+      (status === "unknown" && bindingDigest === null && proofObservedAt === null && activatedAt === null && revokedAt === null)
+      || (status === "proved" && bindingDigest !== null && proofObservedAt !== null && activatedAt === null && revokedAt === null)
+      || (status === "active" && bindingDigest !== null && proofObservedAt !== null && activatedAt !== null && revokedAt === null)
+      || (status === "revoked" && bindingDigest !== null && revokedAt !== null);
 
     if (
       row.schema_version !== VERSION
@@ -169,18 +181,18 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
       || !Number.isSafeInteger(row.revision)
       || (row.revision as number) < 0
       || !["unknown", "proved", "active", "revoked"].includes(status)
+      || (bindingDigest !== null && !HASH.test(bindingDigest))
       || !semanticState
       || !canonicalTimestamp(updatedAt)
       || (proofObservedAt !== null && !canonicalTimestamp(proofObservedAt))
       || (activatedAt !== null && !canonicalTimestamp(activatedAt))
       || (revokedAt !== null && !canonicalTimestamp(revokedAt))
-    ) {
-      fail("EXECUTION_OWNERSHIP_INVALID");
-    }
+    ) fail("EXECUTION_OWNERSHIP_INVALID");
 
     return Object.freeze({
       revision: row.revision as number,
       status,
+      bindingDigest,
       proofObservedAt,
       activatedAt,
       revokedAt,
@@ -204,14 +216,25 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
     }
   }
 
-  recordProof(identity: ExecutionOwnershipIdentity, observedAt: string, expectedRevision: number) {
-    if (!validIdentity(identity) || !canonicalTimestamp(observedAt)) return fail("EXECUTION_OWNERSHIP_INVALID");
+  recordProof(
+    identity: ExecutionOwnershipIdentity,
+    bindingDigest: string,
+    observedAt: string,
+    expectedRevision: number,
+  ) {
+    if (!validIdentity(identity) || !HASH.test(bindingDigest) || !canonicalTimestamp(observedAt)) {
+      return fail("EXECUTION_OWNERSHIP_INVALID");
+    }
     const current = this.read(identity);
     if (current.revision !== expectedRevision) return fail("EXECUTION_OWNERSHIP_INVALID");
     if (current.status === "revoked") return current;
+    if (current.bindingDigest !== null && current.bindingDigest !== bindingDigest) {
+      return fail("EXECUTION_OWNERSHIP_INVALID");
+    }
     return this.write(
       identity,
       current.status === "active" ? "active" : "proved",
+      bindingDigest,
       observedAt,
       current.activatedAt,
       null,
@@ -227,11 +250,13 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
     if (
       current.revision !== expectedRevision
       || current.status !== "proved"
+      || current.bindingDigest === null
       || current.proofObservedAt === null
     ) return fail("EXECUTION_OWNERSHIP_INVALID");
     return this.write(
       identity,
       "active",
+      current.bindingDigest,
       current.proofObservedAt,
       occurredAt,
       null,
@@ -245,10 +270,12 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
     if (!validIdentity(identity) || !canonicalTimestamp(occurredAt)) return fail("EXECUTION_OWNERSHIP_INVALID");
     const current = this.read(identity);
     if (current.revision !== expectedRevision) return fail("EXECUTION_OWNERSHIP_INVALID");
+    if (current.status === "unknown") return fail("EXECUTION_OWNERSHIP_INVALID");
     if (current.status === "revoked") return current;
     return this.write(
       identity,
       "revoked",
+      current.bindingDigest,
       current.proofObservedAt,
       current.activatedAt,
       occurredAt,
@@ -294,6 +321,7 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
   private write(
     identity: ExecutionOwnershipIdentity,
     status: ExecutionOwnershipStatus,
+    bindingDigest: string | null,
     proofObservedAt: string | null,
     activatedAt: string | null,
     revokedAt: string | null,
@@ -310,13 +338,21 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
       if ((current?.revision ?? 0) !== revision) fail("EXECUTION_OWNERSHIP_INVALID");
       const nextRevision = revision + 1;
       const updatedAt = new Date().toISOString();
-      database.prepare(`INSERT INTO execution_ownership VALUES(1,?,?,?,?,?,?,?,?)
+      database.prepare(`INSERT INTO execution_ownership VALUES(1,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(user_id,account_id) DO UPDATE SET
-          revision=excluded.revision,status=excluded.status,proof_observed_at=excluded.proof_observed_at,
-          activated_at=excluded.activated_at,revoked_at=excluded.revoked_at,updated_at=excluded.updated_at`)
+          revision=excluded.revision,status=excluded.status,binding_digest=excluded.binding_digest,
+          proof_observed_at=excluded.proof_observed_at,activated_at=excluded.activated_at,
+          revoked_at=excluded.revoked_at,updated_at=excluded.updated_at`)
         .run(
-          identity.userId, identity.accountId, nextRevision, status, proofObservedAt,
-          activatedAt, revokedAt, updatedAt,
+          identity.userId,
+          identity.accountId,
+          nextRevision,
+          status,
+          bindingDigest,
+          proofObservedAt,
+          activatedAt,
+          revokedAt,
+          updatedAt,
         );
       database.prepare(
         "INSERT INTO execution_ownership_events(user_id,account_id,revision,kind,occurred_at) VALUES(?,?,?,?,?)",
@@ -326,7 +362,7 @@ export class SqliteExecutionOwnershipStore implements ExecutionOwnershipStore {
       this.assertBacking();
       return this.read(identity);
     } catch (error) {
-      try { database.exec("ROLLBACK"); } catch {}
+      try { database.exec("ROLLBACK"); } catch { /* no transaction */ }
       if (error instanceof ExecutionOwnershipStoreError) throw error;
       return fail("EXECUTION_OWNERSHIP_UNAVAILABLE");
     }

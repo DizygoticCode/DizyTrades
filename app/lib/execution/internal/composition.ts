@@ -6,6 +6,8 @@ import { createProductionExecutionStateStore } from "./state-store";
 import { createProductionExecutionAuditStore } from "./audit-store";
 import { verifyProductionExecutionCaller } from "./caller-assertion";
 import { createProductionExecutionRiskStore } from "./risk-store";
+import { executionKillSwitchReason } from "./kill-switch";
+import { readProductionExecutionOwnershipBinding } from "./ownership-binding";
 import { createProductionExecutionOwnershipStore } from "./ownership-store";
 import { createProductionOwnershipProofOrchestrator } from "./ownership-ceremony";
 import { createProductionExecutionReconciliationStore } from "./reconciliation-store";
@@ -13,7 +15,10 @@ import { createProductionReconciliationOrchestrator } from "./production-reconci
 import { MEXC_PROVIDER_READBACK_MAX_AGE_MS } from "../../mexc-provider-readback";
 import type { ExecutionBoundaryRequest, ExecutionBoundaryResponse } from "../types";
 
-export type ServerExecutionBoundary = Readonly<{ preview(request: ExecutionBoundaryRequest): Promise<ExecutionBoundaryResponse> }>;
+/** Production composition remains server-only and non-executing. */
+export type ServerExecutionBoundary = Readonly<{
+  preview(request: ExecutionBoundaryRequest): Promise<ExecutionBoundaryResponse>;
+}>;
 
 export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
   const controls = createProductionExecutionControlStore();
@@ -37,16 +42,34 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
       const caller = verifyProductionExecutionCaller(stableRequest.callerAssertion);
 
       if (caller && caller.userId === stableRequest.userId && caller.accountId === stableRequest.accountId) {
-        try { await proveOwnership(caller); } catch {}
-        try {
-          const ownership = ownershipStore.read(caller);
-          const proofAge = ownership.proofObservedAt === null
-            ? Number.POSITIVE_INFINITY
-            : Date.now() - Date.parse(ownership.proofObservedAt);
-          if (ownership.status === "active" && Number.isFinite(proofAge) && proofAge >= 0 && proofAge <= MEXC_PROVIDER_READBACK_MAX_AGE_MS) {
-            await reconcile(Object.freeze({ userId: caller.userId, accountId: caller.accountId }));
-          }
-        } catch {}
+        // Never perform even GET-only provider work while a stronger operational
+        // brake is already active. Boundary evaluation below remains authoritative.
+        let providerReadsAllowed = false;
+        try { providerReadsAllowed = executionKillSwitchReason(controls.switches(), caller) === null; }
+        catch { providerReadsAllowed = false; }
+
+        if (providerReadsAllowed) {
+          try { await proveOwnership(caller); } catch { /* boundary converts durable state to a block */ }
+          try {
+            const binding = readProductionExecutionOwnershipBinding();
+            const ownership = ownershipStore.read(caller);
+            const proofAge = ownership.proofObservedAt === null
+              ? Number.POSITIVE_INFINITY
+              : Date.now() - Date.parse(ownership.proofObservedAt);
+            if (
+              binding
+              && binding.userId === caller.userId
+              && binding.accountId === caller.accountId
+              && ownership.status === "active"
+              && ownership.bindingDigest === binding.bindingDigest
+              && Number.isFinite(proofAge)
+              && proofAge >= 0
+              && proofAge <= MEXC_PROVIDER_READBACK_MAX_AGE_MS
+            ) {
+              await reconcile(Object.freeze({ userId: caller.userId, accountId: caller.accountId }));
+            }
+          } catch { /* fail closed in the boundary */ }
+        }
       }
 
       const boundary = new InternalExecutionBoundary({
@@ -60,6 +83,7 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
         executionAuditStore,
         executionRiskStore,
         executionOwnershipStore: ownershipStore,
+        readOwnershipBinding: () => readProductionExecutionOwnershipBinding(),
         executionReconciliationStore: reconciliationStore,
         environment: process.env,
       });
