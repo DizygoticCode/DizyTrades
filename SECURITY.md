@@ -26,7 +26,7 @@ MEXC signing, credential custody or provisioning import. Routes, clients and
 DizyPaper cannot import provider internals, and all authentication, kill-switch,
 validation, policy and duplicate decisions fail closed before provider evaluation.
 - The owner-only DizyAccount Companion may use server-held **read-only** MEXC Futures credentials for approved GET-only account and trade-read endpoints.
-- No private exchange write client or order-placement route exists.
+- A server-only MEXC write seam exists in source but is production-disabled and unrouted; no active or public order-placement route exists.
 - No browser workflow requests or stores exchange credentials.
 - The public health and diagnostics surfaces must continue to report live execution as disabled.
 
@@ -81,8 +81,11 @@ remain internal/test-only, preventing application callers from replacing the
 production-owned durable execution-state and audit stores. Malformed stored state, store
 failures, malformed provider output, exceptions, and other verifier or
 shutdown-provider failures fail closed before any execution capability can be
-reached. There is still no public execution route, write transport, signing
-implementation or write-key custody.
+reached. There is still no public execution route or production exchange adapter.
+The separately described MEXC writer contains bounded private-write signing and
+transport code, but it is not wired into `ExecutionBoundary`, any route, or
+browser code and remains disabled unless both independent activation flags and
+all last-pre-sign authority evidence pass.
 
 Never commit passwords, session secrets, API keys, Gmail App Passwords, `.env` files or exported account backups.
 
@@ -261,8 +264,9 @@ daily loss and mandatory reduce-only operation. Disarm and revoke are terminal;
 GET-only Radar refreshes cannot re-arm them. Operational kill switches retain
 precedence and suppress Radar reads. No rollout mutation is exposed by a public
 route; production ceremony helpers consume the existing short-lived single-use
-TOTP-assured caller assertion. This gate stops before provider submission and
-does not introduce a write credential, signer, transport, or executable adapter.
+TOTP-assured caller assertion. This rollout gate itself stops before provider
+submission. The separately described disabled MEXC writer seam is not wired into
+it and does not change the gate's non-executing production behavior.
 
 Before live execution is considered, DizyTrades requires at minimum:
 
@@ -283,11 +287,18 @@ Before live execution is considered, DizyTrades requires at minimum:
 - restricted test-account rollout;
 - independent security review before meaningful capital.
 
-The disabled MEXC write seam accepts one-way mode only and never changes account
-mode. It binds `positionId`, canonical body and authority revisions before an
-atomic durable delivery claim. Recovered or ambiguous claims are GET-reconciled
-by `externalOid`; symbol, side, volume, position identity/mode, margin mode and
-acknowledgement must all match or the exact account is sticky-quarantined.
+The disabled MEXC write seam accepts only validated **limit** reductions in
+one-way mode and never changes account mode. DizyTrades `side` is order direction:
+`long`/buy may only reduce a proven short and maps to MEXC side `2` (`close
+short`); `short`/sell may only reduce a proven long and maps to side `4` (`close
+long`). The writer requires an exact prepared airlock preview plus fresh opposing
+position ID/side/mode/margin-mode/volume evidence before signing. It binds the
+canonical body and authority revisions before an atomic durable delivery claim.
+Recovered or ambiguous claims are GET-reconciled by `externalOid`; symbol, side,
+volume, position identity/mode, margin mode and acknowledgement must all match or
+the exact account is sticky-quarantined. Both activation flags remain false in
+ordinary production and the seam is not wired into `ExecutionBoundary` or a
+route.
 # Future execution credential custody
 
 DizyTrades has a dedicated, server-only SQLite custody boundary for synthetic validation and future MEXC execution credentials. It encrypts the complete API-key/secret payload with AES-256-GCM, a fresh 96-bit nonce, and canonical authenticated ownership AAD. The AAD binds the stable database user, bounded account reference, exchange, future-execution purpose, record id, envelope version, and key version. Only bounded non-secret lifecycle metadata is audited.
