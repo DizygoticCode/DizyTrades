@@ -110,15 +110,15 @@ test("observations outside the UTC boundary window cannot become baselines", () 
   }
 });
 
-test("late or future readback is not accepted even when its provider timestamp is in-window", () => {
+test("late or future readback is rejected by the authority before persistence", () => {
   const store = new SqliteExecutionDayStartEquityStore(":memory:");
   assert.throws(
     () => capture(store, {}, new Date("2026-08-15T00:00:19.001Z")),
-    storeError("EXECUTION_DAY_START_EQUITY_INVALID"),
+    authorityError("EXECUTION_DAY_START_EQUITY_PREREQUISITE_FAILED"),
   );
   assert.throws(
     () => capture(store, { readback: readback({ observedAt: "2026-08-15T00:00:05.000Z" }) }, new Date("2026-08-15T00:00:04.000Z")),
-    storeError("EXECUTION_DAY_START_EQUITY_INVALID"),
+    authorityError("EXECUTION_DAY_START_EQUITY_PREREQUISITE_FAILED"),
   );
 });
 
