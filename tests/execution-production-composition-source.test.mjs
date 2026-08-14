@@ -15,4 +15,5 @@ test("production reconciliation consumes the single-use caller assertion exactly
   assert.doesNotMatch(composition, /authenticateInternalCaller:\s*verifyProductionExecutionCaller/);
   assert.match(composition, /authenticateInternalCaller:\s*\(assertion\)\s*=>\s*caller/);
   assert.match(composition, /assertion\.assertionId\s*===\s*stableRequest\.callerAssertion\.assertionId/);
+  assert.match(composition, /const requestSnapshot = structuredClone\(request\)/);
 });

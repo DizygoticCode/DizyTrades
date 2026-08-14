@@ -30,11 +30,12 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
       // The production caller assertion is single-use, so consume it exactly once
       // here and pass that already-authenticated caller into a per-request boundary
       // verifier rather than consuming the same assertion a second time.
+      const requestSnapshot = structuredClone(request);
       const stableRequest = Object.freeze({
-        ...request,
-        callerAssertion: Object.freeze({ ...request.callerAssertion }),
-        userId: request.userId,
-        accountId: request.accountId,
+        ...requestSnapshot,
+        callerAssertion: Object.freeze({ ...requestSnapshot.callerAssertion }),
+        userId: requestSnapshot.userId,
+        accountId: requestSnapshot.accountId,
       });
       const caller = verifyProductionExecutionCaller(stableRequest.callerAssertion);
 
