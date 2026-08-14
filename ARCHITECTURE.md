@@ -550,17 +550,22 @@ provider. Rollout policy is deliberately narrower (two symbols maximum, 100 USDT
 order notional, 2x leverage, 50 USDT daily loss, reduce-only required) and cannot
 be wider than the risk officer policy. The production authority has no route and
 uses only the existing single-use TOTP-assured internal caller assertion. Radar
-remains the sole GET-only evidence seam. The strongest state is pre-submission
-approval; no exchange submission mechanism or write credential exists.
+remains the sole GET-only evidence seam used by production composition. The
+strongest production state is pre-submission approval; the disabled writer seam
+below is not wired into that composition or any route.
 # Modern MEXC reduce-only writer seam
 
 The server contains a deliberately narrow MEXC Futures writer seam for `POST
 /api/v1/private/order/create`, followed immediately by authoritative
 GET-by-`externalOid` reconciliation. It accepts only a validated reduction of a
-known hedge-mode position, serializes requests, uses a stable idempotency ID,
-and durably reserves the intent before transport. Ambiguous delivery is never
-blindly retried; restart resumes reconciliation. Provider disagreement creates
-a sticky quarantine scoped to the exact user/account.
+known one-way-mode position (`positionMode:2`), maps long reductions to side 4
+and short reductions to side 2, binds the authoritative `positionId`, and sends
+`reduceOnly:true`. An atomic durable `submitting` claim precedes transport, so
+concurrent processes cannot both submit. Every recovered reservation/claim is
+reconciled by `externalOid` rather than blindly retried. Reconciliation verifies
+the complete canonical intent; disagreement creates sticky exact-account
+quarantine. Lifecycle rows bind the canonical intent digest and all authority
+revisions, and backing-file replacement permanently poisons the store instance.
 
 This is not a browser API and is not wired to a public route. The existing
 caller assertion, independently bound ownership, fresh reconciliation,

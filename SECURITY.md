@@ -282,6 +282,12 @@ Before live execution is considered, DizyTrades requires at minimum:
 - controlled provider persistent-disk snapshot rollback and service-restart rehearsal;
 - restricted test-account rollout;
 - independent security review before meaningful capital.
+
+The disabled MEXC write seam accepts one-way mode only and never changes account
+mode. It binds `positionId`, canonical body and authority revisions before an
+atomic durable delivery claim. Recovered or ambiguous claims are GET-reconciled
+by `externalOid`; symbol, side, volume, position identity/mode, margin mode and
+acknowledgement must all match or the exact account is sticky-quarantined.
 # Future execution credential custody
 
 DizyTrades has a dedicated, server-only SQLite custody boundary for synthetic validation and future MEXC execution credentials. It encrypts the complete API-key/secret payload with AES-256-GCM, a fresh 96-bit nonce, and canonical authenticated ownership AAD. The AAD binds the stable database user, bounded account reference, exchange, future-execution purpose, record id, envelope version, and key version. Only bounded non-secret lifecycle metadata is audited.
