@@ -119,6 +119,32 @@ test("read-only Radar remains ready when live trading is true and writer credent
   });
 });
 
+test("live=true alone cannot make read-only activation ready", () => {
+  failureKind(
+    () => buildMexcReadOnlyCredentialActivationReport({
+      ...readyEnvironment,
+      LIVE_TRADING_ENABLED: "true",
+    }),
+    "live-trading-enabled",
+  );
+  failureKind(
+    () => buildMexcReadOnlyCredentialActivationReport({
+      ...readyEnvironment,
+      ...separateWriterEnvironment,
+      LIVE_TRADING_ENABLED: "true",
+      MEXC_WRITE_PROVIDER_ENABLED: "false",
+    }),
+    "live-trading-enabled",
+  );
+  failureKind(
+    () => requireMexcReadOnlyCredentials({
+      ...readyEnvironment,
+      LIVE_TRADING_ENABLED: "true",
+    }),
+    "live-trading-enabled",
+  );
+});
+
 test("owner activation fails closed on partial, dormant or malformed read-only configuration", () => {
   failureKind(
     () => buildMexcReadOnlyCredentialActivationReport({
@@ -179,6 +205,14 @@ test("writer credentials are optional while absent but partial or reused writer 
       ...readyEnvironment,
       ...separateWriterEnvironment,
       MEXC_EXECUTION_SECRET_KEY: readyEnvironment.OWNER_MEXC_READONLY_API_SECRET,
+    }),
+    "credential-separation-failed",
+  );
+  failureKind(
+    () => buildMexcReadOnlyCredentialActivationReport({
+      ...readyEnvironment,
+      ...separateWriterEnvironment,
+      MEXC_EXECUTION_SECRET_KEY: readyEnvironment.OWNER_MEXC_READONLY_API_KEY,
     }),
     "credential-separation-failed",
   );

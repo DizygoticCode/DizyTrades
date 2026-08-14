@@ -18,6 +18,7 @@ export type MexcReadOnlyCredentialActivationState =
 
 export type MexcReadOnlyCredentialActivationFailureKind =
   | "invalid-enabled-flag"
+  | "live-trading-enabled"
   | "disabled-with-private-configuration"
   | "browser-exposed-credential"
   | "incomplete-credentials"
@@ -159,7 +160,7 @@ function assertWriterCredentialSeparation(
       "MEXC execution credential separation could not be proven.",
     );
   }
-  if (accessKey === readApiKey || secretKey === readApiSecret) {
+  if (new Set([readApiKey, readApiSecret, accessKey, secretKey]).size !== 4) {
     throw new MexcReadOnlyCredentialActivationError(
       "credential-separation-failed",
       "MEXC read-only and execution credentials must be independent.",
@@ -267,6 +268,18 @@ function parseMexcReadOnlyCredentialActivation(environment: Environment) {
     );
   }
   const writer = assertWriterCredentialSeparation(environment, apiKey, apiSecret);
+  const liveEnabled = liveTradingEnabled(environment);
+  if (
+    liveEnabled &&
+    (!writer.configured ||
+      !writer.separationProved ||
+      clean(environment.MEXC_WRITE_PROVIDER_ENABLED).toLowerCase() !== "true")
+  ) {
+    throw new MexcReadOnlyCredentialActivationError(
+      "live-trading-enabled",
+      "Live trading requires an explicitly enabled, complete and separate writer credential family before read-only coexistence is ready.",
+    );
+  }
 
   const core = activationCore({
     state: "ready",
@@ -274,7 +287,7 @@ function parseMexcReadOnlyCredentialActivation(environment: Environment) {
     readyForPrivateReads: true,
     operatorReadOnlyAttested: true,
     softwareProofDigest: softwareProof.proofDigest,
-    liveTradingEnabled: liveTradingEnabled(environment),
+    liveTradingEnabled: liveEnabled,
     writerCredentialsConfigured: writer.configured,
     writerCredentialSeparationProved: writer.separationProved,
   });
