@@ -50,15 +50,21 @@ function importsExecutionInternal(path, source) {
   });
 }
 
-test("execution boundary is server-only and contains exactly one non-executing adapter", () => {
+test("execution boundary is server-only and isolates the approved writer from the existing adapter", () => {
   const files = filesBelow("app/lib/execution");
   assert.deepEqual(files.filter((path) => path.endsWith("adapter.ts")), ["app/lib/execution/internal/adapter.ts"]);
   for (const path of files) {
     const source = text(path);
     assert.match(source, /^import "server-only";/, path);
-    assert.doesNotMatch(source, /\bfetch\s*\(|https?:\/\/|createHmac|\bApiKey\b|\bSignature\b/, path);
-    assert.doesNotMatch(source, /\/api\/v1\/private\/(?:order|position\/(?:change|submit|cancel)|account\/(?:transfer|withdraw))/i, path);
-    assert.doesNotMatch(source, /(?:WRITE|TRADING)_(?:API_)?(?:KEY|SECRET)|PRIVATE_KEY/, path);
+    if (path.endsWith("mexc-execution-writer.ts")) {
+      assert.match(source, /https:\/\/api\.mexc\.com/);
+      assert.match(source, /createHmac/);
+      assert.doesNotMatch(source, /\/api\/v1\/private\/order\/submit/);
+    } else {
+      assert.doesNotMatch(source, /\bfetch\s*\(|https?:\/\/|createHmac|\bApiKey\b|\bSignature\b/, path);
+      assert.doesNotMatch(source, /\/api\/v1\/private\/(?:order|position\/(?:change|submit|cancel)|account\/(?:transfer|withdraw))/i, path);
+      assert.doesNotMatch(source, /(?:WRITE|TRADING)_(?:API_)?(?:KEY|SECRET)|PRIVATE_KEY/, path);
+    }
   }
   assert.match(text("app/lib/execution/internal/adapter.ts"), /NonExecutingExecutionAdapter/);
   assert.doesNotMatch(text("app/lib/execution/internal/adapter.ts"), /Real|Live|Mexc/);
@@ -67,11 +73,12 @@ test("execution boundary is server-only and contains exactly one non-executing a
   assert.doesNotMatch(provider, /\bfetch\s*\(|axios|https?:\/\/|createHmac|sign(?:er|ature)|Mexc/i);
 });
 
-test("provider mechanics have no write transport, signing, custody or provisioning dependency", () => {
+test("provider mechanics isolate the writer from custody and provisioning", () => {
   for (const path of filesBelow("app/lib/execution")) {
     const source = text(path);
     assert.doesNotMatch(source, /credential-(?:custody|provisioning)|mexc-private|requestMexc|decryptCredential/i, path);
-    assert.doesNotMatch(source, /method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/i, path);
+    if (path.endsWith("mexc-execution-writer.ts")) assert.equal((source.match(/method:\s*"POST"/g)??[]).length,1);
+    else assert.doesNotMatch(source, /method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/i, path);
   }
 });
 
@@ -142,11 +149,14 @@ test("production remains false, private MEXC is GET-only and paper routes remain
   }
 });
 
-test("repository has no MEXC private order-write endpoint or execution API route", () => {
+test("repository exposes only the approved modern create endpoint and no execution API route", () => {
   const files = filesBelow("app").filter((path) => /\.[cm]?[jt]sx?$/.test(path));
   for (const path of files) {
     const source = text(path);
-    assert.doesNotMatch(source, /\/api\/v1\/private\/order\/(?:submit|cancel|change|create)/i, path);
+    if(path.endsWith("mexc-execution-writer.ts")) {
+      assert.match(source,/\/api\/v1\/private\/order\/create/);
+      assert.doesNotMatch(source,/\/api\/v1\/private\/order\/(?:submit|cancel|change)/i);
+    } else assert.doesNotMatch(source, /\/api\/v1\/private\/order\/(?:submit|cancel|change|create)/i, path);
   }
   assert.equal(filesBelow("app/api/execution").length, 0);
 });

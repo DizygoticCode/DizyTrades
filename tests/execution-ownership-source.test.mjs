@@ -45,12 +45,15 @@ test("MEXC Radar remains fixed-path GET-only and no executable adapter is introd
   assert.doesNotMatch(text("app/lib/execution/types.ts"), /executed:\s*true/);
 });
 
-test("execution sources have no write transport, public ceremony route, or executed:true", () => {
+test("execution sources isolate the approved MEXC writer and expose no public ceremony route or executed:true", () => {
   const executionSources = sourceFiles("app/lib/execution");
   for (const path of executionSources) {
     const source = text(path);
     assert.doesNotMatch(source, /executed\s*:\s*true/, path);
-    assert.doesNotMatch(source, /method\s*:\s*["'`](?:POST|PUT|PATCH|DELETE)["'`]/, path);
+    if (path.endsWith("mexc-execution-writer.ts")) {
+      assert.match(source, /method\s*:\s*"POST"/);
+      assert.doesNotMatch(source, /\/api\/v1\/private\/order\/submit/);
+    } else assert.doesNotMatch(source, /method\s*:\s*["'`](?:POST|PUT|PATCH|DELETE)["'`]/, path);
   }
 
   for (const path of sourceFiles("app")) {

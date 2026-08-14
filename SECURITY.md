@@ -329,3 +329,25 @@ revisions, and device/inode checks around open-handle operations. Deletion,
 replacement, corruption, stale observations, ambiguity, and unavailable state all
 fail closed. There is no public clear/mutation route and **no exchange-write
 capability, credential migration, or write signing path**.
+# MEXC execution activation prerequisite
+
+The execution credential is a separate server-only **Order Placing** key. It
+must never be copied from the read-only Account Companion key, entered in the
+browser, stored in Git, or included in logs/audit evidence. Configure
+`MEXC_EXECUTION_ACCESS_KEY`, `MEXC_EXECUTION_SECRET_KEY`, and an explicit
+`MEXC_EXECUTION_CREDENTIAL_GENERATION` directly in Render only during a
+separately approved activation ceremony. Missing, partial, or aliased
+configuration fails closed. Lifecycle storage contains digests, `externalOid`,
+order ID, bounded error class, state, attempt, and time—never a key, secret,
+signature, or raw provider response.
+
+IP restriction is a launch prerequisite, not an optional workaround. Before
+activation, obtain the service's current outbound ranges or dedicated outbound
+IP from Render's **Connect > Outbound** service settings and current Render
+networking documentation, then allowlist only that stable egress on the new MEXC
+key. If Render cannot provide suitably stable allowlistable egress, activation
+remains blocked; do not remove MEXC IP restrictions to make the canary work.
+
+Ordinary production and CI have `MEXC_WRITE_PROVIDER_ENABLED=false` and
+`LIVE_TRADING_ENABLED=false`. Tests inject an in-memory fake transport and must
+not receive real execution credentials.

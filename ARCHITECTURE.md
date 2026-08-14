@@ -552,3 +552,18 @@ be wider than the risk officer policy. The production authority has no route and
 uses only the existing single-use TOTP-assured internal caller assertion. Radar
 remains the sole GET-only evidence seam. The strongest state is pre-submission
 approval; no exchange submission mechanism or write credential exists.
+# Modern MEXC reduce-only writer seam
+
+The server contains a deliberately narrow MEXC Futures writer seam for `POST
+/api/v1/private/order/create`, followed immediately by authoritative
+GET-by-`externalOid` reconciliation. It accepts only a validated reduction of a
+known hedge-mode position, serializes requests, uses a stable idempotency ID,
+and durably reserves the intent before transport. Ambiguous delivery is never
+blindly retried; restart resumes reconciliation. Provider disagreement creates
+a sticky quarantine scoped to the exact user/account.
+
+This is not a browser API and is not wired to a public route. The existing
+caller assertion, independently bound ownership, fresh reconciliation,
+risk/rollout revisions and kill switches remain upstream authorities. Both
+`MEXC_WRITE_PROVIDER_ENABLED` and `LIVE_TRADING_ENABLED` are required by the
+server-only activation check and both remain false in deployment configuration.

@@ -475,3 +475,18 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 - [x] Durable exact-account Radar reconciliation and sticky divergence quarantine
   ahead of provider evaluation (GET-only evidence, `executed:false`).
 - [ ] Exchange-write capability remains explicitly out of scope and absent.
+# Guarded execution provider milestone (#315)
+
+- [x] Add a server-only modern `api.mexc.com` reduce-only create-order seam.
+- [x] Sign and transmit one exact JSON body with stable `externalOid`.
+- [x] Reserve durable secret-free evidence and reconcile ambiguous delivery
+  before any retry; quarantine exact-account divergence.
+- [x] Keep Account Companion read credentials independent from execution keys.
+- [x] Default the independent write-provider flag and `LIVE_TRADING_ENABLED` to
+  false; expose no browser/public mutation route.
+- [ ] Complete independent P1/P2 review, stable Render-egress allowlisting,
+  dedicated write-key provisioning, and a separate activation ceremony.
+
+This milestone does not enable unrestricted live trading and cannot open or
+increase exposure. Its only order mapping closes/reduces a proven existing
+position with `reduceOnly:true`.

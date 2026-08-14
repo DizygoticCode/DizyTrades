@@ -23,6 +23,8 @@ services:
         value: /var/data/dizytrades
       - key: LIVE_TRADING_ENABLED
         value: "false"
+      - key: MEXC_WRITE_PROVIDER_ENABLED
+        value: "false"
       - key: CREDENTIAL_CUSTODY_ENABLED
         value: "false"
       - key: CREDENTIAL_PROVISIONING_ENABLED
