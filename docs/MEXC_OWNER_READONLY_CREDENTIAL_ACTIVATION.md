@@ -27,7 +27,9 @@ All four owner variables are declared with `sync: false` in `render.yaml`, so a 
 Private credentials are returned to server code only when every condition is true:
 
 1. the Account Companion enable flag is exactly `true`;
-2. `LIVE_TRADING_ENABLED` is exactly `false`;
+2. `LIVE_TRADING_ENABLED` is exactly `false`; a future coexistence posture may
+   keep reads available only when the separately named writer family is complete,
+   distinct from the read key/secret, and `MEXC_WRITE_PROVIDER_ENABLED=true`;
 3. both owner credential values are present and structurally valid;
 4. the exact read-only operator attestation is present;
 5. no matching `NEXT_PUBLIC_` credential variable exists;
@@ -37,6 +39,9 @@ Private credentials are returned to server code only when every condition is tru
 9. the capability manifest continues to declare `writeCapability: false`.
 
 Partial, dormant, malformed or browser-prefixed configuration fails closed.
+In particular, setting only `LIVE_TRADING_ENABLED=true` never makes the
+read-only activation ready. Production and Render defaults remain false for both
+live trading and the writer provider.
 
 ## What the report exposes
 

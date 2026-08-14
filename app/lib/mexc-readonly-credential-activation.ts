@@ -8,7 +8,7 @@ import {
 } from "./mexc-readonly-permission-proof";
 
 export const MEXC_READONLY_CREDENTIAL_ACTIVATION_VERSION =
-  "mexc-readonly-credential-activation/1.0.0" as const;
+  "mexc-readonly-credential-activation/2.0.0" as const;
 export const MEXC_READONLY_PERMISSION_ATTESTATION =
   "account-read+trade-read;no-write/v1" as const;
 
@@ -18,12 +18,14 @@ export type MexcReadOnlyCredentialActivationState =
 
 export type MexcReadOnlyCredentialActivationFailureKind =
   | "invalid-enabled-flag"
-  | "disabled-with-private-configuration"
   | "live-trading-enabled"
+  | "disabled-with-private-configuration"
   | "browser-exposed-credential"
   | "incomplete-credentials"
   | "invalid-credentials"
   | "missing-read-only-attestation"
+  | "ambiguous-write-configuration"
+  | "credential-separation-failed"
   | "software-boundary-failed"
   | "not-ready";
 
@@ -48,7 +50,9 @@ export type MexcReadOnlyCredentialActivationReport = Readonly<{
   writePermissionRequested: false;
   operatorReadOnlyAttested: boolean;
   providerPermissionIntrospectionPerformed: false;
-  liveTradingEnabled: false;
+  liveTradingEnabled: boolean;
+  writerCredentialsConfigured: boolean;
+  writerCredentialSeparationProved: boolean;
   browserExposureForbidden: true;
   softwareBoundaryProved: true;
   softwareProofDigest: string;
@@ -62,10 +66,16 @@ const requestedPermissions = Object.freeze([
   "trade-read",
 ] as const);
 const printableNonWhitespace = /^[\x21-\x7e]+$/;
+const generationToken = /^[A-Za-z0-9_-]{1,120}$/;
 const privateEnvironmentKeys = Object.freeze([
   "OWNER_MEXC_READONLY_API_KEY",
   "OWNER_MEXC_READONLY_API_SECRET",
   "OWNER_MEXC_READONLY_PERMISSION_ATTESTATION",
+] as const);
+const writerEnvironmentKeys = Object.freeze([
+  "MEXC_EXECUTION_ACCESS_KEY",
+  "MEXC_EXECUTION_SECRET_KEY",
+  "MEXC_EXECUTION_CREDENTIAL_GENERATION",
 ] as const);
 
 function clean(value: string | undefined) {
@@ -82,12 +92,16 @@ function enabledFlag(value: string | undefined) {
   );
 }
 
+function liveTradingEnabled(environment: Environment) {
+  return clean(environment.LIVE_TRADING_ENABLED).toLowerCase() === "true";
+}
+
 function assertNoBrowserCredential(environment: Environment) {
   for (const [key, value] of Object.entries(environment)) {
     if (
-      key.startsWith("NEXT_PUBLIC_") &&
+      /^(?:NEXT_PUBLIC_|PUBLIC_)/i.test(key) &&
       /MEXC/i.test(key) &&
-      /(?:KEY|SECRET|CREDENTIAL|ATTESTATION)/i.test(key) &&
+      /(?:KEY|SECRET|CREDENTIAL|ATTESTATION|GENERATION)/i.test(key) &&
       clean(value)
     ) {
       throw new MexcReadOnlyCredentialActivationError(
@@ -116,6 +130,45 @@ function validateCredentialText(
   }
 }
 
+function assertWriterCredentialSeparation(
+  environment: Environment,
+  readApiKey: string,
+  readApiSecret: string,
+) {
+  const values = writerEnvironmentKeys.map((key) => clean(environment[key]));
+  const configuredCount = values.filter(Boolean).length;
+  if (configuredCount === 0) {
+    return Object.freeze({ configured: false, separationProved: false });
+  }
+  if (configuredCount !== writerEnvironmentKeys.length) {
+    throw new MexcReadOnlyCredentialActivationError(
+      "ambiguous-write-configuration",
+      "MEXC execution credentials must be absent or configured as a complete server-only family.",
+    );
+  }
+
+  const [accessKey, secretKey, generation] = values;
+  if (
+    accessKey.length < 16 || accessKey.length > 256 ||
+    secretKey.length < 16 || secretKey.length > 512 ||
+    !printableNonWhitespace.test(accessKey) ||
+    !printableNonWhitespace.test(secretKey) ||
+    !generationToken.test(generation)
+  ) {
+    throw new MexcReadOnlyCredentialActivationError(
+      "ambiguous-write-configuration",
+      "MEXC execution credential separation could not be proven.",
+    );
+  }
+  if (new Set([readApiKey, readApiSecret, accessKey, secretKey]).size !== 4) {
+    throw new MexcReadOnlyCredentialActivationError(
+      "credential-separation-failed",
+      "MEXC read-only and execution credentials must be independent.",
+    );
+  }
+  return Object.freeze({ configured: true, separationProved: true });
+}
+
 function digest(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -126,6 +179,9 @@ function activationCore(input: {
   readyForPrivateReads: boolean;
   operatorReadOnlyAttested: boolean;
   softwareProofDigest: string;
+  liveTradingEnabled: boolean;
+  writerCredentialsConfigured: boolean;
+  writerCredentialSeparationProved: boolean;
 }) {
   return Object.freeze({
     policyVersion: MEXC_READONLY_CREDENTIAL_ACTIVATION_VERSION,
@@ -138,7 +194,9 @@ function activationCore(input: {
     writePermissionRequested: false as const,
     operatorReadOnlyAttested: input.operatorReadOnlyAttested,
     providerPermissionIntrospectionPerformed: false as const,
-    liveTradingEnabled: false as const,
+    liveTradingEnabled: input.liveTradingEnabled,
+    writerCredentialsConfigured: input.writerCredentialsConfigured,
+    writerCredentialSeparationProved: input.writerCredentialSeparationProved,
     browserExposureForbidden: true as const,
     softwareBoundaryProved: true as const,
     softwareProofDigest: input.softwareProofDigest,
@@ -175,12 +233,16 @@ function parseMexcReadOnlyCredentialActivation(environment: Environment) {
         "Owner MEXC private configuration is present while Account Companion is disabled.",
       );
     }
+    const writer = assertWriterCredentialSeparation(environment, "", "");
     const core = activationCore({
       state: "disabled",
       configured: false,
       readyForPrivateReads: false,
       operatorReadOnlyAttested: false,
       softwareProofDigest: softwareProof.proofDigest,
+      liveTradingEnabled: liveTradingEnabled(environment),
+      writerCredentialsConfigured: writer.configured,
+      writerCredentialSeparationProved: writer.separationProved,
     });
     return Object.freeze({
       report: Object.freeze({
@@ -191,12 +253,6 @@ function parseMexcReadOnlyCredentialActivation(environment: Environment) {
     });
   }
 
-  if (clean(environment.LIVE_TRADING_ENABLED).toLowerCase() !== "false") {
-    throw new MexcReadOnlyCredentialActivationError(
-      "live-trading-enabled",
-      "Owner MEXC Account Companion requires LIVE_TRADING_ENABLED=false.",
-    );
-  }
   if (!apiKey || !apiSecret) {
     throw new MexcReadOnlyCredentialActivationError(
       "incomplete-credentials",
@@ -211,6 +267,19 @@ function parseMexcReadOnlyCredentialActivation(environment: Environment) {
       "Owner MEXC read-only permission attestation is missing or invalid.",
     );
   }
+  const writer = assertWriterCredentialSeparation(environment, apiKey, apiSecret);
+  const liveEnabled = liveTradingEnabled(environment);
+  if (
+    liveEnabled &&
+    (!writer.configured ||
+      !writer.separationProved ||
+      clean(environment.MEXC_WRITE_PROVIDER_ENABLED).toLowerCase() !== "true")
+  ) {
+    throw new MexcReadOnlyCredentialActivationError(
+      "live-trading-enabled",
+      "Live trading requires an explicitly enabled, complete and separate writer credential family before read-only coexistence is ready.",
+    );
+  }
 
   const core = activationCore({
     state: "ready",
@@ -218,6 +287,9 @@ function parseMexcReadOnlyCredentialActivation(environment: Environment) {
     readyForPrivateReads: true,
     operatorReadOnlyAttested: true,
     softwareProofDigest: softwareProof.proofDigest,
+    liveTradingEnabled: liveEnabled,
+    writerCredentialsConfigured: writer.configured,
+    writerCredentialSeparationProved: writer.separationProved,
   });
   const credentials = Object.freeze({ apiKey, apiSecret });
   return Object.freeze({
