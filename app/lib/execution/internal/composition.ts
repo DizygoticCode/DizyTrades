@@ -12,6 +12,7 @@ import { createProductionExecutionOwnershipStore } from "./ownership-store";
 import { createProductionOwnershipProofOrchestrator } from "./ownership-ceremony";
 import { createProductionExecutionReconciliationStore } from "./reconciliation-store";
 import { createProductionReconciliationOrchestrator } from "./production-reconciliation";
+import { createProductionExecutionRolloutStore } from "./rollout-store";
 import { MEXC_PROVIDER_READBACK_MAX_AGE_MS } from "../../mexc-provider-readback";
 import type { ExecutionBoundaryRequest, ExecutionBoundaryResponse } from "../types";
 
@@ -29,6 +30,7 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
   const proveOwnership = createProductionOwnershipProofOrchestrator(ownershipStore);
   const reconciliationStore = createProductionExecutionReconciliationStore();
   const reconcile = createProductionReconciliationOrchestrator(reconciliationStore);
+  const rolloutStore = createProductionExecutionRolloutStore();
 
   return Object.freeze({
     async preview(request: ExecutionBoundaryRequest) {
@@ -85,6 +87,7 @@ export const createServerExecutionBoundary = (): ServerExecutionBoundary => {
         executionOwnershipStore: ownershipStore,
         readOwnershipBinding: () => readProductionExecutionOwnershipBinding(),
         executionReconciliationStore: reconciliationStore,
+        executionRolloutStore: rolloutStore,
         environment: process.env,
       });
 

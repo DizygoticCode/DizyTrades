@@ -533,3 +533,22 @@ Radar GET-only readback may be compared with bounded execution-owned expected
 contract volumes. Unknown state and unexplained divergence fail closed before
 provider evaluation; quarantine is durable and sticky. This adds **no exchange-write
 capability**: every execution result remains `executed:false`.
+
+# Restricted rollout approval and arming
+
+`DATA_DIR/execution-rollout.sqlite` is a separate server-only, versioned WAL
+authority bound to one exact `(userId, accountId)`, the independently attested
+ownership digest and an exact risk-policy revision. Approval and arming are
+separate optimistic-CAS transitions. Every transition re-reads active/fresh
+ownership, clean/fresh authoritative reconciliation and enabled/unexpired risk
+authorization; arming additionally requires a fresh approval and an unchanged
+binding and risk revision. Disarm and revoke are sticky terminal states.
+
+The boundary evaluates operational kill switches, ownership, reconciliation and
+rollout in that order before reaching the existing deterministic non-executing
+provider. Rollout policy is deliberately narrower (two symbols maximum, 100 USDT
+order notional, 2x leverage, 50 USDT daily loss, reduce-only required) and cannot
+be wider than the risk officer policy. The production authority has no route and
+uses only the existing single-use TOTP-assured internal caller assertion. Radar
+remains the sole GET-only evidence seam. The strongest state is pre-submission
+approval; no exchange submission mechanism or write credential exists.

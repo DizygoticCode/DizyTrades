@@ -25,6 +25,13 @@ import {
 } from "./state-store";
 import type { ExecutionRiskStore } from "./risk-store";
 import { evaluateExecutionRisk } from "./risk";
+import type { ExecutionIntent } from "../types";
+
+export type PreSubmissionPolicy = (
+  intent: ExecutionIntent,
+  prerequisites: ExecutionPrerequisites,
+  preview: NonNullable<ExecutionResult["preview"]>,
+) => ExecutionResult["reason"] | null;
 
 type ServiceOptions = Readonly<{
   stateStore: ExecutionStateStore;
@@ -44,10 +51,10 @@ export class ExecutionAirlockService {
   constructor(private readonly options: ServiceOptions) {}
 
   /** @internal Only ExecutionBoundary may call this implementation. */
-  process(input: ExecutionIntentInput, prerequisites: ExecutionPrerequisites, boundaryKillReason: ExecutionResult["reason"] | null): ExecutionBoundaryResponse {
+  process(input: ExecutionIntentInput, prerequisites: ExecutionPrerequisites, boundaryKillReason: ExecutionResult["reason"] | null, preSubmissionPolicy?: PreSubmissionPolicy): ExecutionBoundaryResponse {
     try {
       this.options.auditStore.readVerified();
-      return this.processWithAudit(input, prerequisites, boundaryKillReason);
+      return this.processWithAudit(input, prerequisites, boundaryKillReason, preSubmissionPolicy);
     } catch (error) {
       const reason = executionAuditFailureCode(error);
       return Object.freeze({ result: Object.freeze({
@@ -58,7 +65,7 @@ export class ExecutionAirlockService {
     }
   }
 
-  private processWithAudit(input: ExecutionIntentInput, prerequisites: ExecutionPrerequisites, boundaryKillReason: ExecutionResult["reason"] | null): ExecutionBoundaryResponse {
+  private processWithAudit(input: ExecutionIntentInput, prerequisites: ExecutionPrerequisites, boundaryKillReason: ExecutionResult["reason"] | null, preSubmissionPolicy?: PreSubmissionPolicy): ExecutionBoundaryResponse {
     const events: ExecutionAuditEvent[] = [];
     const occurredAt = (this.options.now ?? (() => new Date()))().toISOString();
     let identity = {
@@ -209,6 +216,11 @@ export class ExecutionAirlockService {
       if (!risk.ok) {
         audit("execution-blocked", risk.reason);
         return persist(idempotencyScope, Object.freeze({ intentId: validation.intent.intentId, idempotencyKey: validation.intent.idempotencyKey, state:"blocked", executed:false, duplicate:false, reason:risk.reason, preview }));
+      }
+      const policyReason = preSubmissionPolicy?.(validation.intent, prerequisites, preview) ?? null;
+      if (policyReason) {
+        audit("execution-blocked", policyReason);
+        return persist(idempotencyScope, Object.freeze({ intentId: validation.intent.intentId, idempotencyKey: validation.intent.idempotencyKey, state:"blocked", executed:false, duplicate:false, reason:policyReason, preview }));
       }
     }
 

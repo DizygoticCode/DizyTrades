@@ -1,13 +1,14 @@
 import "server-only";
 
 import { executionKillSwitchReason, type ExecutionKillSwitches } from "./kill-switch";
-import { ExecutionAirlockService } from "./service";
+import { ExecutionAirlockService, type PreSubmissionPolicy } from "./service";
 import type { ExecutionStateStore } from "./state-store";
 import type { ExecutionAuditStore } from "./audit-store";
 import type { ExecutionRiskStore } from "./risk-store";
 import { ownershipBindingMatches, type ExecutionOwnershipBinding } from "./ownership-binding";
 import { ExecutionOwnershipStoreError, type ExecutionOwnershipStore } from "./ownership-store";
 import { ExecutionReconciliationStoreError, type ExecutionReconciliationStore } from "./reconciliation-store";
+import { EXECUTION_ROLLOUT_MAX_AGE_MS, ExecutionRolloutStoreError, type ExecutionRolloutStore } from "./rollout-store";
 import { MEXC_PROVIDER_READBACK_MAX_AGE_MS } from "../../mexc-provider-readback";
 import type {
   AuthenticatedExecutionCaller,
@@ -18,6 +19,23 @@ import type {
   SyntheticProviderScenario,
   SyntheticObservation,
 } from "../types";
+import type { RestrictedRolloutPolicy } from "./rollout-store";
+
+export const restrictedRolloutPreSubmissionPolicy = (policy: RestrictedRolloutPolicy): PreSubmissionPolicy =>
+  (intent, prerequisites, preview) => {
+    if (!policy.allowedSymbols.includes(intent.symbol)
+      || intent.leverage > policy.maximumLeverage
+      || intent.reduceOnly !== policy.reduceOnly
+      || !Number.isFinite(preview.estimatedNotional)
+      || preview.estimatedNotional > policy.maximumOrderNotional) return "EXECUTION_ROLLOUT_POLICY_DENIED";
+    const snapshot = prerequisites.riskSnapshot;
+    if (!snapshot || snapshot.userId !== intent.userId || snapshot.accountId !== intent.accountId
+      || !Number.isFinite(snapshot.equity) || snapshot.equity <= 0
+      || !Number.isFinite(snapshot.dayStartEquity) || snapshot.dayStartEquity <= 0) return "EXECUTION_ROLLOUT_POLICY_DENIED";
+    const dailyLoss = Math.max(0, snapshot.dayStartEquity - snapshot.equity);
+    return Number.isFinite(dailyLoss) && dailyLoss <= policy.maximumDailyLoss
+      ? null : "EXECUTION_ROLLOUT_POLICY_DENIED";
+  };
 
 export type ExecutionCallerVerifier = (
   assertion: ExecutionBoundaryRequest["callerAssertion"],
@@ -32,6 +50,7 @@ export type ExecutionBoundaryDependencies = Readonly<{
   executionOwnershipStore?: ExecutionOwnershipStore;
   readOwnershipBinding?: () => ExecutionOwnershipBinding | null;
   executionReconciliationStore?: ExecutionReconciliationStore;
+  executionRolloutStore?: ExecutionRolloutStore;
   environment?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
   syntheticProviderScenario?: SyntheticProviderScenario;
@@ -88,6 +107,7 @@ export class InternalExecutionBoundary {
   }
 
   preview(request: ExecutionBoundaryRequest): ExecutionBoundaryResponse {
+    let rolloutPolicy: RestrictedRolloutPolicy | null = null;
     let caller: AuthenticatedExecutionCaller | null;
     try {
       const authenticated = this.dependencies.authenticateInternalCaller(request.callerAssertion);
@@ -151,10 +171,34 @@ export class InternalExecutionBoundary {
       }
     }
 
+    // Rollout is deliberately evaluated only after ownership and reconciliation.
+    // Existing kill reasons use ??= throughout, so operational brakes retain precedence.
+    if (this.dependencies.executionRolloutStore) {
+      try {
+        const rollout = this.dependencies.executionRolloutStore.read(caller);
+        const age = rollout.updatedAt === null ? NaN : (this.dependencies.now?.() ?? new Date()).getTime() - Date.parse(rollout.updatedAt);
+        if (rollout.status === "unknown") killReason ??= "EXECUTION_ROLLOUT_UNKNOWN";
+        else if (rollout.status === "disarmed") killReason ??= "EXECUTION_ROLLOUT_DISARMED";
+        else if (rollout.status === "revoked") killReason ??= "EXECUTION_ROLLOUT_REVOKED";
+        else if (rollout.status !== "armed") killReason ??= "EXECUTION_ROLLOUT_NOT_ARMED";
+        else if (!Number.isFinite(age) || age < 0 || age > EXECUTION_ROLLOUT_MAX_AGE_MS) killReason ??= "EXECUTION_ROLLOUT_STALE";
+        else if (!ownershipBinding || rollout.bindingDigest !== ownershipBinding.bindingDigest) killReason ??= "EXECUTION_ROLLOUT_MISMATCH";
+        else if (!rollout.policy) killReason ??= "EXECUTION_ROLLOUT_POLICY_DENIED";
+        else {
+          const risk = this.dependencies.executionRiskStore.read(caller.userId, caller.accountId);
+          if (!risk || !risk.enabled || risk.revision !== rollout.riskRevision) killReason ??= "EXECUTION_ROLLOUT_MISMATCH";
+          else rolloutPolicy = rollout.policy;
+        }
+      } catch (error) {
+        killReason ??= error instanceof ExecutionRolloutStoreError ? error.code : "EXECUTION_ROLLOUT_UNAVAILABLE";
+      }
+    }
+
     return this.airlock.process(
       { ...request.intent, userId: caller.userId, accountId: caller.accountId },
       request.prerequisites,
       killReason,
+      rolloutPolicy ? restrictedRolloutPreSubmissionPolicy(rolloutPolicy) : undefined,
     );
   }
 }
