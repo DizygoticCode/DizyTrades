@@ -23,9 +23,39 @@ test("modern create signs and sends the identical canonical close-short body the
 
 test("ambiguous create reconciles before any retry and restart never produces a second POST",async()=>{const dir=mkdtempSync(join(tmpdir(),"mexc-writer-")),path=join(dir,"l.sqlite");try{let posts=0,gets=0,store=new SqliteMexcExecutionLifecycleStore(path),writer=new ModernMexcReduceOnlyWriter(async request=>{if(request.method==="POST"){posts++;throw new Error("network");}gets++;return response("recovered-1")},store,()=>1700000000000,0);assert.equal((await execute(writer)).state,"reconciled");store.close();store=new SqliteMexcExecutionLifecycleStore(path);writer=new ModernMexcReduceOnlyWriter(async request=>{if(request.method==="POST")posts++;else gets++;return response("recovered-1")},store,()=>1700000001000,0);assert.equal((await execute(writer)).state,"reconciled");assert.equal(posts,1);assert.equal(gets,1);store.close();}finally{rmSync(dir,{recursive:true,force:true});}});
 
+test("ambiguous delivery remains GET-reconcilable after write authority is revoked or rotated",async t=>{
+  const cases={
+    "activation disabled":state=>state.environment={...state.environment,LIVE_TRADING_ENABLED:"false",MEXC_WRITE_PROVIDER_ENABLED:"false"},
+    "kill switch":state=>state.evidence={...state.evidence,switches:{...state.evidence.switches,emergencyStop:true}},
+    "credential generation rotated":state=>state.credentials={...state.credentials,generation:"generation-2"},
+    "account quarantined":(state,store)=>store.quarantineAccount(intent.userId,intent.accountId,"post-ambiguity-quarantine",new Date(1700000000000).toISOString()),
+  };
+  for(const [name,revoke] of Object.entries(cases))await t.test(name,async()=>{
+    const store=new SqliteMexcExecutionLifecycleStore(":memory:");let posts=0,gets=0,recoveryAvailable=false;
+    const transport=async request=>{if(request.method==="POST"){posts++;throw new Error("ambiguous-network");}gets++;if(!recoveryAvailable)throw new Error("recovery-unavailable");return response("recovered-after-revocation");};
+    const writer=new ModernMexcReduceOnlyWriter(transport,store,()=>1700000000000,0);
+    await assert.rejects(execute(writer),error=>error.kind==="indeterminate");assert.equal(posts,1);assert.equal(gets,1);
+    const state={credentials,evidence:evidenceFor(intent),environment:enabled};revoke(state,store);recoveryAvailable=true;
+    const result=await writer.execute(intent,()=>({credentials:state.credentials,environment:state.environment,evidence:state.evidence}));
+    assert.equal(result.state,"reconciled");assert.equal(posts,1,"recovery must never authorize a second POST");assert.equal(gets,2);store.close();
+  });
+});
+
 test("provider divergence sticks quarantine to the exact account",async()=>{const store=new SqliteMexcExecutionLifecycleStore(":memory:"),writer=new ModernMexcReduceOnlyWriter(async request=>request.method==="POST"?response("accepted"):response("different"),store,()=>1700000000000,0);await assert.rejects(execute(writer),error=>error.kind==="quarantined");assert.equal(store.isAccountQuarantined("user-1","account-1"),true);assert.equal(store.isAccountQuarantined("user-1","account-2"),false);await assert.rejects(execute(writer,{...intent,idempotencyKey:"next"}),error=>error.kind==="quarantined");store.close();});
 
 test("credentials and activation fail closed and cannot alias Account Companion",()=>{const base={MEXC_EXECUTION_ACCESS_KEY:"write-access-fixture",MEXC_EXECUTION_SECRET_KEY:"write-secret-fixture-long",MEXC_EXECUTION_CREDENTIAL_GENERATION:"g"};assert.deepEqual(readMexcExecutionCredentials(base),{accessKey:"write-access-fixture",secretKey:"write-secret-fixture-long",generation:"g"});for(const env of [{},{...base,MEXC_EXECUTION_SECRET_KEY:undefined},{...base,OWNER_MEXC_READONLY_API_KEY:"write-access-fixture"},{...base,OWNER_MEXC_READONLY_API_SECRET:"write-secret-fixture-long"},{...base,NEXT_PUBLIC_MEXC_EXECUTION_SECRET:"leaked"},{...base,NEXT_PUBLIC_MEXC_EXECUTION_ACCESS_KEY:"leaked"},{...base,NEXT_PUBLIC_mexc_execution_access_key:"leaked"},{...base,PUBLIC_MEXC_EXECUTION_CREDENTIAL_GENERATION:"leaked"}])assert.throws(()=>readMexcExecutionCredentials(env));const authority={callerAssured:true,ownerBound:true,ownershipFresh:true,reconciliationClean:true,riskEnabled:true,rolloutArmed:true,killSwitchesClear:true,airlockPrepared:true,networkAllowlisted:true};assert.throws(()=>assertMexcWriteAuthority({LIVE_TRADING_ENABLED:"false",MEXC_WRITE_PROVIDER_ENABLED:"true"},authority));assert.throws(()=>assertMexcWriteAuthority({LIVE_TRADING_ENABLED:"true",MEXC_WRITE_PROVIDER_ENABLED:"true"},{...authority,killSwitchesClear:false}));assert.throws(()=>assertMexcWriteAuthority({LIVE_TRADING_ENABLED:"true",MEXC_WRITE_PROVIDER_ENABLED:"true"},{}));assert.doesNotThrow(()=>assertMexcWriteAuthority({LIVE_TRADING_ENABLED:"true",MEXC_WRITE_PROVIDER_ENABLED:"true"},authority));});
+
+test("final submit context preserves server-only credential separation checks",async t=>{
+  const cases={
+    "read-only key alias":{...enabled,OWNER_MEXC_READONLY_API_KEY:credentials.accessKey},
+    "read-only secret alias":{...enabled,OWNER_MEXC_READONLY_API_SECRET:credentials.secretKey},
+    "public execution exposure":{...enabled,NEXT_PUBLIC_MEXC_EXECUTION_ACCESS_KEY:"leaked-browser-value"},
+  };
+  for(const [name,environment] of Object.entries(cases))await t.test(name,async()=>{
+    let posts=0;const store=new SqliteMexcExecutionLifecycleStore(":memory:"),writer=new ModernMexcReduceOnlyWriter(async request=>{if(request.method==="POST")posts++;return response("never")},store,()=>1700000000000,0);
+    await assert.rejects(writer.execute(intent,context(intent,credentials,evidenceFor(intent),environment)),error=>error.kind==="validation");assert.equal(posts,0);store.close();
+  });
+});
 
 test("writer only accepts bounded one-way limit reductions",async()=>{for(const changed of [{reduceOnly:false},{positionMode:"hedge"},{orderType:"market"},{volume:4},{positionVolume:0},{side:"open-long"}]){let calls=0;const store=new SqliteMexcExecutionLifecycleStore(":memory:"),writer=new ModernMexcReduceOnlyWriter(async()=>{calls++;return response("never")},store,()=>0,0);await assert.rejects(execute(writer,{...intent,...changed}),error=>error.kind==="validation");assert.equal(calls,0);store.close();}});
 
