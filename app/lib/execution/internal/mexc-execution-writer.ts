@@ -11,6 +11,15 @@ export const MEXC_EXECUTION_RECV_WINDOW_SECONDS = 5;
 export const MEXC_EXECUTION_TIMEOUT_MS = 8_000;
 
 export type MexcExecutionCredentials = Readonly<{ accessKey: string; secretKey: string; generation: string }>;
+/** Server-only, synchronous authority read performed in the writer slot. Keeping
+ * this as a provider (rather than accepting snapshots in execute()) prevents a
+ * queued invocation from carrying credentials or mutable authority across a wait. */
+export type MexcPreTransportContext = Readonly<{
+  credentials:MexcExecutionCredentials;
+  environment:Readonly<Record<string,string|undefined>>;
+  evidence:MexcPreWriteEvidence;
+}>;
+export type MexcPreTransportContextProvider = ()=>MexcPreTransportContext;
 export type MexcExecutionIntent = Readonly<{
   userId:string; accountId:string; intentId:string; idempotencyKey:string; symbol:string;
   side:"long"|"short"; orderType:"limit"; positionMode:"one-way"; positionId:string;
@@ -72,7 +81,8 @@ export type MexcWriteAuthority = Readonly<Record<(typeof AUTHORITY_KEYS)[number]
 export function assertMexcWriteAuthority(environment:Readonly<Record<string,string|undefined>>,authority:MexcWriteAuthority){
   if(!mexcWriterEnabled(environment)||!authority||typeof authority!=="object"||Object.keys(authority).length!==AUTHORITY_KEYS.length||!AUTHORITY_KEYS.every(key=>Object.hasOwn(authority,key)&&authority[key]===true))throw new MexcExecutionError("disabled");
 }
-function validate(intent:MexcExecutionIntent,credentials:MexcExecutionCredentials){if(!TOKEN.test(intent.userId)||!TOKEN.test(intent.accountId)||!TOKEN.test(intent.intentId)||!TOKEN.test(intent.idempotencyKey)||!SYMBOL.test(intent.symbol)||intent.positionMode!=="one-way"||intent.orderType!=="limit"||!POSITION_ID.test(intent.positionId)||!['long','short'].includes(intent.side)||!['isolated','cross'].includes(intent.marginMode)||intent.reduceOnly!==true||!TOKEN.test(intent.bindingGeneration)||!TOKEN.test(intent.writeCredentialGeneration)||credentials.generation!==intent.writeCredentialGeneration||![intent.volume,intent.positionVolume,intent.price,intent.referencePrice,intent.estimatedNotional,intent.leverage].every(Number.isFinite)||intent.volume<=0||intent.volume>intent.positionVolume||intent.price<=0||intent.referencePrice<=0||intent.estimatedNotional<=0||intent.leverage<=0||![intent.rolloutRevision,intent.riskRevision,intent.reconciliationRevision].every(x=>Number.isSafeInteger(x)&&x>=0))throw new MexcExecutionError("validation");}
+function validateIntent(intent:MexcExecutionIntent){if(!TOKEN.test(intent.userId)||!TOKEN.test(intent.accountId)||!TOKEN.test(intent.intentId)||!TOKEN.test(intent.idempotencyKey)||!SYMBOL.test(intent.symbol)||intent.positionMode!=="one-way"||intent.orderType!=="limit"||!POSITION_ID.test(intent.positionId)||!['long','short'].includes(intent.side)||!['isolated','cross'].includes(intent.marginMode)||intent.reduceOnly!==true||!TOKEN.test(intent.bindingGeneration)||!TOKEN.test(intent.writeCredentialGeneration)||![intent.volume,intent.positionVolume,intent.price,intent.referencePrice,intent.estimatedNotional,intent.leverage].every(Number.isFinite)||intent.volume<=0||intent.volume>intent.positionVolume||intent.price<=0||intent.referencePrice<=0||intent.estimatedNotional<=0||intent.leverage<=0||![intent.rolloutRevision,intent.riskRevision,intent.reconciliationRevision].every(x=>Number.isSafeInteger(x)&&x>=0))throw new MexcExecutionError("validation");}
+function validateCredentials(credentials:MexcExecutionCredentials,intent:MexcExecutionIntent){if(!credentials||!CREDENTIAL.test(credentials.accessKey)||!CREDENTIAL.test(credentials.secretKey)||!TOKEN.test(credentials.generation)||credentials.accessKey.length<16||credentials.secretKey.length<16||credentials.generation!==intent.writeCredentialGeneration)throw new MexcExecutionError("validation");}
 function headers(credentials:MexcExecutionCredentials,time:string,target:string){return Object.freeze({"Content-Type":"application/json",ApiKey:credentials.accessKey,"Request-Time":time,"Recv-Window":String(MEXC_EXECUTION_RECV_WINDOW_SECONDS),Signature:createHmac("sha256",credentials.secretKey).update(credentials.accessKey+time+target).digest("hex")});}
 function parseResponse(response:MexcTransportResponse):unknown {if(response.status<200||response.status>=300||Buffer.byteLength(response.body)>64_000)return null;try{const x=JSON.parse(response.body);return (x?.success===true||x?.code===0)?x?.data:null;}catch{return null;}}
 function createOrderId(response:MexcTransportResponse):string|null {const data=parseResponse(response),id=typeof data==="object"&&data?Reflect.get(data,"orderId"):data;return typeof id==="string"&&ORDER_ID.test(id)?id:null;}
@@ -82,20 +92,28 @@ function safeClass(error:unknown){return error instanceof Error&&error.name==="A
 export class ModernMexcReduceOnlyWriter {
   private chain:Promise<unknown>=Promise.resolve();private lastStarted=0;
   constructor(private readonly transport:MexcExecutionTransport,private readonly store:MexcExecutionLifecycleStore,private readonly now=()=>Date.now(),private readonly minimumIntervalMs=250){}
-  execute(intent:MexcExecutionIntent,credentials:MexcExecutionCredentials,environment:Readonly<Record<string,string|undefined>>,preWriteEvidence:MexcPreWriteEvidence){const run=this.chain.then(()=>this.executeSerial(intent,credentials,environment,preWriteEvidence));this.chain=run.catch(()=>undefined);return run;}
-  private async executeSerial(intent:MexcExecutionIntent,credentials:MexcExecutionCredentials,environment:Readonly<Record<string,string|undefined>>,preWriteEvidence:MexcPreWriteEvidence):Promise<MexcLifecycleEvidence>{
-    validate(intent,credentials);assertMexcWriteAuthority(environment,composeMexcPreWriteAuthority(intent,preWriteEvidence,this.now()));if(this.store.isAccountQuarantined(intent.userId,intent.accountId))throw new MexcExecutionError("quarantined");
+  execute(intent:MexcExecutionIntent,contextProvider:MexcPreTransportContextProvider){const run=this.chain.then(()=>this.executeSerial(intent,contextProvider));this.chain=run.catch(()=>undefined);return run;}
+  private async executeSerial(intent:MexcExecutionIntent,contextProvider:MexcPreTransportContextProvider):Promise<MexcLifecycleEvidence>{
+    validateIntent(intent);
     const digest=mexcExecutionIdentityDigest(intent),externalOid=mexcExternalOid(intent),expected=intentEvidence(intent,externalOid);let evidence=this.store.read(digest);
     if(evidence&&!sameEvidence(evidence,expected,externalOid)){this.quarantine(intent,"authority-divergence");throw new MexcExecutionError("quarantined");}
     if(evidence?.state==="reconciled")return evidence;
     if(!evidence)evidence=this.store.reserve(digest,externalOid,expected,new Date(this.now()).toISOString());
     if(!sameEvidence(evidence,expected,externalOid)){this.quarantine(intent,"authority-divergence");throw new MexcExecutionError("quarantined");}
+    const delay=Math.max(0,this.minimumIntervalMs-(this.now()-this.lastStarted));if(delay)await new Promise(r=>setTimeout(r,delay));this.lastStarted=this.now();
+    // This synchronous read is intentionally after every queue/rate-limit wait.
+    // No async boundary is permitted between the final checks, claim, signing and
+    // initiation of transport.
+    const context=contextProvider();
+    validateCredentials(context.credentials,intent);
+    assertMexcWriteAuthority(context.environment,composeMexcPreWriteAuthority(intent,context.evidence,this.now()));
+    if(this.store.isAccountQuarantined(intent.userId,intent.accountId))throw new MexcExecutionError("quarantined");
+    const credentials=context.credentials;
     // Every recovered reservation may have been delivered before its state commit.
     if(evidence.state!=="reserved"||evidence.attempt>0)return this.reconcile(intent,credentials,evidence);
     const claimed=this.store.claim(digest,new Date(this.now()).toISOString());
     if(!claimed)return this.reconcile(intent,credentials,this.store.read(digest)!);
     evidence=claimed;
-    const delay=Math.max(0,this.minimumIntervalMs-(this.now()-this.lastStarted));if(delay)await new Promise(r=>setTimeout(r,delay));this.lastStarted=this.now();
     const body=canonicalBody(intent,externalOid),time=String(this.now());
     try{const response=await this.transport({url:MEXC_EXECUTION_BASE_URL+MEXC_ORDER_CREATE_PATH,method:"POST",headers:headers(credentials,time,body),body,timeoutMs:MEXC_EXECUTION_TIMEOUT_MS});const current=this.store.read(digest);if(current?.state==="reconciled")return current;const orderId=createOrderId(response);evidence=this.store.transition(digest,["submitting"],orderId?"submitted":"indeterminate",{orderId,errorClass:orderId?null:(response.status>=500?"provider-5xx":"invalid-response")},new Date(this.now()).toISOString());}
     catch(error){evidence=this.store.transition(digest,["submitting"],"indeterminate",{errorClass:safeClass(error)},new Date(this.now()).toISOString());}

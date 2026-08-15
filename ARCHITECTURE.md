@@ -575,6 +575,18 @@ provider identity; disagreement creates sticky exact-account quarantine.
 Lifecycle rows bind the canonical intent digest and all authority revisions, and
 backing-file replacement permanently poisons the store instance.
 
+The invocation carries only immutable intent plus a synchronous, server-owned
+pre-transport context provider. The writer validates lifecycle identity, performs
+recovery inspection/reservation, and waits for its serialized rate-limit slot
+before calling that provider. It then validates the freshly read activation
+flags, credentials and credential generation, caller assurance, kill switches,
+ownership/binding freshness, reconciliation, risk and rollout revisions,
+egress attestation and quarantine. Only after those checks does it atomically
+claim `reserved -> submitting`; signing and initiation of the single POST follow
+without an intervening asynchronous wait. A request that loses authority while
+queued therefore remains a known, unclaimed reservation rather than a falsely
+ambiguous delivery.
+
 This is not a browser API and is not wired to a public route or the production
 `ExecutionBoundary` provider. The writer itself requires both
 `MEXC_WRITE_PROVIDER_ENABLED=true` and `LIVE_TRADING_ENABLED=true` and derives
