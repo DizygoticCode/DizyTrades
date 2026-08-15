@@ -37,6 +37,7 @@ export interface MexcExecutionLifecycleStore {
   read(identityDigest:string):MexcLifecycleEvidence|null;
   reserve(identityDigest:string,externalOid:string,intent:MexcIntentEvidence,at:string):MexcLifecycleEvidence;
   claim(identityDigest:string,at:string):MexcLifecycleEvidence|null;
+  releaseClaim(identityDigest:string,at:string):MexcLifecycleEvidence;
   transition(identityDigest:string,expected:readonly MexcLifecycleState[],state:MexcLifecycleState,patch:Readonly<{orderId?:string|null;errorClass?:string|null}>,at:string):MexcLifecycleEvidence;
   quarantineAccount(userId:string,accountId:string,reason:string,at:string):void;
   isAccountQuarantined(userId:string,accountId:string):boolean;
@@ -118,14 +119,25 @@ export class ModernMexcReduceOnlyWriter {
     if(evidence.state!=="reserved"||evidence.attempt>0)return this.reconcile(intent,contextProvider,evidence);
     const delay=Math.max(0,this.minimumIntervalMs-(this.now()-this.lastStarted));if(delay)await new Promise(r=>setTimeout(r,delay));this.lastStarted=this.now();
     // This synchronous read is intentionally after every queue/rate-limit wait.
-    // No async boundary is permitted between the final checks, claim, signing and
-    // initiation of transport for a brand-new POST.
+    // A second read after claim() closes the SQLite busy-wait race before POST.
     const context=contextProvider();
-    const credentials=validateContextCredentials(context,intent,true);
+    validateContextCredentials(context,intent,true);
     assertMexcWriteAuthority(context.environment,composeMexcPreWriteAuthority(intent,context.evidence,this.now()));
     if(this.store.isAccountQuarantined(intent.userId,intent.accountId))throw new MexcExecutionError("quarantined");
     const claimed=this.store.claim(digest,new Date(this.now()).toISOString());
     if(!claimed)return this.reconcile(intent,contextProvider,this.store.read(digest)!);
+    let credentials:MexcExecutionCredentials;
+    try{
+      const finalContext=contextProvider();
+      credentials=validateContextCredentials(finalContext,intent,true);
+      assertMexcWriteAuthority(finalContext.environment,composeMexcPreWriteAuthority(intent,finalContext.evidence,this.now()));
+      if(this.store.isAccountQuarantined(intent.userId,intent.accountId))throw new MexcExecutionError("quarantined");
+    }catch(error){
+      // claim() can block on SQLite contention. No transport has started yet, so
+      // roll the CAS back to a retryable known-non-delivery reservation.
+      this.store.releaseClaim(digest,new Date(this.now()).toISOString());
+      throw error;
+    }
     evidence=claimed;
     const body=canonicalBody(intent,externalOid),time=String(this.now());
     try{const response=await this.transport({url:MEXC_EXECUTION_BASE_URL+MEXC_ORDER_CREATE_PATH,method:"POST",headers:headers(credentials,time,body),body,timeoutMs:MEXC_EXECUTION_TIMEOUT_MS});const current=this.store.read(digest);if(current?.state==="reconciled")return current;const orderId=createOrderId(response);evidence=this.store.transition(digest,["submitting"],orderId?"submitted":"indeterminate",{orderId,errorClass:orderId?null:(response.status>=500?"provider-5xx":"invalid-response")},new Date(this.now()).toISOString());}
