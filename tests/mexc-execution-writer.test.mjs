@@ -13,18 +13,49 @@ const intent={userId:"user-1",accountId:"account-1",intentId:"intent-id-315",ide
 const enabled={LIVE_TRADING_ENABLED:"true",MEXC_WRITE_PROVIDER_ENABLED:"true"};
 const switches={armed:true,globalDisabled:false,disabledUserIds:new Set(),disabledAccountKeys:new Set(),providerStateFresh:true,maintenance:false,emergencyStop:false};
 const prepared={intentId:intent.intentId,idempotencyKey:intent.idempotencyKey,state:"prepared",executed:false,duplicate:false,reason:"SYNTHETIC_PROVIDER_OUTCOME",preview:{symbol:intent.symbol,side:intent.side,orderType:intent.orderType,quantity:0.001,normalizedContractVolume:intent.volume,referencePrice:intent.referencePrice,estimatedNotional:intent.estimatedNotional,estimatedMargin:65,policyVersion:"execution-preview-policy/1.0.0",price:intent.price,leverage:intent.leverage,reduceOnly:true}};
-const authorityEvidence={caller:{userId:intent.userId,accountId:intent.accountId,totpAssured:true},ownership:{userId:intent.userId,accountId:intent.accountId,bindingGeneration:intent.bindingGeneration,freshUntil:"2023-11-14T22:14:00.000Z"},reconciliation:{userId:intent.userId,accountId:intent.accountId,revision:intent.reconciliationRevision,positionId:intent.positionId,positionSide:"short",positionMode:intent.positionMode,marginMode:intent.marginMode,positionVolume:intent.positionVolume,freshUntil:"2023-11-14T22:14:00.000Z",clean:true},risk:{userId:intent.userId,accountId:intent.accountId,revision:intent.riskRevision,enabled:true},rollout:{userId:intent.userId,accountId:intent.accountId,revision:intent.rolloutRevision,armed:true},switches,airlock:{userId:intent.userId,accountId:intent.accountId,intentId:intent.intentId,idempotencyKey:intent.idempotencyKey,result:prepared},network:{mexcEgressAllowlisted:true}};
-const evidenceFor=(nextIntent)=>({...authorityEvidence,ownership:{...authorityEvidence.ownership,bindingGeneration:nextIntent.bindingGeneration},reconciliation:{...authorityEvidence.reconciliation,revision:nextIntent.reconciliationRevision,positionSide:nextIntent.side==="long"?"short":"long",marginMode:nextIntent.marginMode},risk:{...authorityEvidence.risk,revision:nextIntent.riskRevision},rollout:{...authorityEvidence.rollout,revision:nextIntent.rolloutRevision},airlock:{...authorityEvidence.airlock,intentId:nextIntent.intentId,idempotencyKey:nextIntent.idempotencyKey,result:{...prepared,intentId:nextIntent.intentId,idempotencyKey:nextIntent.idempotencyKey,preview:{...prepared.preview,side:nextIntent.side,orderType:nextIntent.orderType,normalizedContractVolume:nextIntent.volume,price:nextIntent.price}}}});
-const execute=(writer,nextIntent=intent,nextCredentials=credentials,evidence=evidenceFor(nextIntent),environment=enabled)=>writer.execute(nextIntent,nextCredentials,environment,evidence);
+const authorityEvidence={caller:{userId:intent.userId,accountId:intent.accountId,totpAssured:true},ownership:{userId:intent.userId,accountId:intent.accountId,bindingGeneration:intent.bindingGeneration,freshUntil:"2023-11-14T22:14:00.000Z"},reconciliation:{userId:intent.userId,accountId:intent.accountId,revision:intent.reconciliationRevision,positionId:intent.positionId,positionSide:"short",positionMode:intent.positionMode,marginMode:intent.marginMode,positionVolume:intent.positionVolume,freshUntil:"2023-11-14T22:14:00.000Z",clean:true},risk:{userId:intent.userId,accountId:intent.accountId,revision:intent.riskRevision,enabled:true},rollout:{userId:intent.userId,accountId:intent.accountId,revision:intent.rolloutRevision,bindingGeneration:intent.bindingGeneration,riskRevision:intent.riskRevision,armed:true},switches,airlock:{userId:intent.userId,accountId:intent.accountId,intentId:intent.intentId,idempotencyKey:intent.idempotencyKey,result:prepared},network:{mexcEgressAllowlisted:true}};
+const evidenceFor=(nextIntent)=>({...authorityEvidence,ownership:{...authorityEvidence.ownership,bindingGeneration:nextIntent.bindingGeneration},reconciliation:{...authorityEvidence.reconciliation,revision:nextIntent.reconciliationRevision,positionSide:nextIntent.side==="long"?"short":"long",marginMode:nextIntent.marginMode},risk:{...authorityEvidence.risk,revision:nextIntent.riskRevision},rollout:{...authorityEvidence.rollout,revision:nextIntent.rolloutRevision,bindingGeneration:nextIntent.bindingGeneration,riskRevision:nextIntent.riskRevision},airlock:{...authorityEvidence.airlock,intentId:nextIntent.intentId,idempotencyKey:nextIntent.idempotencyKey,result:{...prepared,intentId:nextIntent.intentId,idempotencyKey:nextIntent.idempotencyKey,preview:{...prepared.preview,side:nextIntent.side,orderType:nextIntent.orderType,normalizedContractVolume:nextIntent.volume,price:nextIntent.price}}}});
+const context=(nextIntent=intent,nextCredentials=credentials,evidence=evidenceFor(nextIntent),environment=enabled)=>()=>({credentials:nextCredentials,environment,evidence});
+const execute=(writer,nextIntent=intent,nextCredentials=credentials,evidence=evidenceFor(nextIntent),environment=enabled)=>writer.execute(nextIntent,context(nextIntent,nextCredentials,evidence,environment));
 const response=(id,overrides={})=>({status:200,body:JSON.stringify({success:true,code:0,data:{orderId:id,externalOid:mexcExternalOid(intent),symbol:"BTC_USDT",side:2,vol:1,positionId:"991",positionMode:2,openType:1,...overrides}})});
 
 test("modern create signs and sends the identical canonical close-short body then immediately reconciles",async()=>{const calls=[],store=new SqliteMexcExecutionLifecycleStore(":memory:"),now=()=>1700000000000,writer=new ModernMexcReduceOnlyWriter(async request=>{calls.push(request);return calls.length===1?response("order-1"):response("order-1")},store,now,0);const result=await execute(writer);assert.equal(result.state,"reconciled");assert.equal(calls[0].url,MEXC_EXECUTION_BASE_URL+MEXC_ORDER_CREATE_PATH);assert.equal(calls[0].method,"POST");assert.deepEqual(JSON.parse(calls[0].body),{symbol:"BTC_USDT",price:65000,vol:1,side:2,type:1,openType:1,leverage:1,externalOid:mexcExternalOid(intent),positionId:"991",positionMode:2,reduceOnly:true});assert.equal(calls[0].headers["Request-Time"],"1700000000000");assert.equal(calls[0].headers["Recv-Window"],String(MEXC_EXECUTION_RECV_WINDOW_SECONDS));assert.equal(calls[0].headers.Signature,createHmac("sha256",credentials.secretKey).update(credentials.accessKey+calls[0].headers["Request-Time"]+calls[0].body).digest("hex"));assert.equal(calls[1].url,`${MEXC_EXECUTION_BASE_URL}${MEXC_EXTERNAL_ORDER_PATH}/BTC_USDT/${mexcExternalOid(intent)}`);assert.equal(calls[1].method,"GET");assert.doesNotMatch(JSON.stringify(result),/write-access|write-secret|Signature/);store.close();});
 
 test("ambiguous create reconciles before any retry and restart never produces a second POST",async()=>{const dir=mkdtempSync(join(tmpdir(),"mexc-writer-")),path=join(dir,"l.sqlite");try{let posts=0,gets=0,store=new SqliteMexcExecutionLifecycleStore(path),writer=new ModernMexcReduceOnlyWriter(async request=>{if(request.method==="POST"){posts++;throw new Error("network");}gets++;return response("recovered-1")},store,()=>1700000000000,0);assert.equal((await execute(writer)).state,"reconciled");store.close();store=new SqliteMexcExecutionLifecycleStore(path);writer=new ModernMexcReduceOnlyWriter(async request=>{if(request.method==="POST")posts++;else gets++;return response("recovered-1")},store,()=>1700000001000,0);assert.equal((await execute(writer)).state,"reconciled");assert.equal(posts,1);assert.equal(gets,1);store.close();}finally{rmSync(dir,{recursive:true,force:true});}});
 
+test("ambiguous delivery remains GET-reconcilable after write authority is revoked or rotated",async t=>{
+  const cases={
+    "activation disabled":state=>state.environment={...state.environment,LIVE_TRADING_ENABLED:"false",MEXC_WRITE_PROVIDER_ENABLED:"false"},
+    "kill switch":state=>state.evidence={...state.evidence,switches:{...state.evidence.switches,emergencyStop:true}},
+    "credential generation rotated":state=>state.credentials={...state.credentials,generation:"generation-2"},
+    "account quarantined":(state,store)=>store.quarantineAccount(intent.userId,intent.accountId,"post-ambiguity-quarantine",new Date(1700000000000).toISOString()),
+  };
+  for(const [name,revoke] of Object.entries(cases))await t.test(name,async()=>{
+    const store=new SqliteMexcExecutionLifecycleStore(":memory:");let posts=0,gets=0,recoveryAvailable=false;
+    const transport=async request=>{if(request.method==="POST"){posts++;throw new Error("ambiguous-network");}gets++;if(!recoveryAvailable)throw new Error("recovery-unavailable");return response("recovered-after-revocation");};
+    const writer=new ModernMexcReduceOnlyWriter(transport,store,()=>1700000000000,0);
+    await assert.rejects(execute(writer),error=>error.kind==="indeterminate");assert.equal(posts,1);assert.equal(gets,1);
+    const state={credentials,evidence:evidenceFor(intent),environment:enabled};revoke(state,store);recoveryAvailable=true;
+    const result=await writer.execute(intent,()=>({credentials:state.credentials,environment:state.environment,evidence:state.evidence}));
+    assert.equal(result.state,"reconciled");assert.equal(posts,1,"recovery must never authorize a second POST");assert.equal(gets,2);store.close();
+  });
+});
+
 test("provider divergence sticks quarantine to the exact account",async()=>{const store=new SqliteMexcExecutionLifecycleStore(":memory:"),writer=new ModernMexcReduceOnlyWriter(async request=>request.method==="POST"?response("accepted"):response("different"),store,()=>1700000000000,0);await assert.rejects(execute(writer),error=>error.kind==="quarantined");assert.equal(store.isAccountQuarantined("user-1","account-1"),true);assert.equal(store.isAccountQuarantined("user-1","account-2"),false);await assert.rejects(execute(writer,{...intent,idempotencyKey:"next"}),error=>error.kind==="quarantined");store.close();});
 
 test("credentials and activation fail closed and cannot alias Account Companion",()=>{const base={MEXC_EXECUTION_ACCESS_KEY:"write-access-fixture",MEXC_EXECUTION_SECRET_KEY:"write-secret-fixture-long",MEXC_EXECUTION_CREDENTIAL_GENERATION:"g"};assert.deepEqual(readMexcExecutionCredentials(base),{accessKey:"write-access-fixture",secretKey:"write-secret-fixture-long",generation:"g"});for(const env of [{},{...base,MEXC_EXECUTION_SECRET_KEY:undefined},{...base,OWNER_MEXC_READONLY_API_KEY:"write-access-fixture"},{...base,OWNER_MEXC_READONLY_API_SECRET:"write-secret-fixture-long"},{...base,NEXT_PUBLIC_MEXC_EXECUTION_SECRET:"leaked"},{...base,NEXT_PUBLIC_MEXC_EXECUTION_ACCESS_KEY:"leaked"},{...base,NEXT_PUBLIC_mexc_execution_access_key:"leaked"},{...base,PUBLIC_MEXC_EXECUTION_CREDENTIAL_GENERATION:"leaked"}])assert.throws(()=>readMexcExecutionCredentials(env));const authority={callerAssured:true,ownerBound:true,ownershipFresh:true,reconciliationClean:true,riskEnabled:true,rolloutArmed:true,killSwitchesClear:true,airlockPrepared:true,networkAllowlisted:true};assert.throws(()=>assertMexcWriteAuthority({LIVE_TRADING_ENABLED:"false",MEXC_WRITE_PROVIDER_ENABLED:"true"},authority));assert.throws(()=>assertMexcWriteAuthority({LIVE_TRADING_ENABLED:"true",MEXC_WRITE_PROVIDER_ENABLED:"true"},{...authority,killSwitchesClear:false}));assert.throws(()=>assertMexcWriteAuthority({LIVE_TRADING_ENABLED:"true",MEXC_WRITE_PROVIDER_ENABLED:"true"},{}));assert.doesNotThrow(()=>assertMexcWriteAuthority({LIVE_TRADING_ENABLED:"true",MEXC_WRITE_PROVIDER_ENABLED:"true"},authority));});
+
+test("final submit context preserves server-only credential separation checks",async t=>{
+  const cases={
+    "read-only key alias":{...enabled,OWNER_MEXC_READONLY_API_KEY:credentials.accessKey},
+    "read-only secret alias":{...enabled,OWNER_MEXC_READONLY_API_SECRET:credentials.secretKey},
+    "public execution exposure":{...enabled,NEXT_PUBLIC_MEXC_EXECUTION_ACCESS_KEY:"leaked-browser-value"},
+  };
+  for(const [name,environment] of Object.entries(cases))await t.test(name,async()=>{
+    let posts=0;const store=new SqliteMexcExecutionLifecycleStore(":memory:"),writer=new ModernMexcReduceOnlyWriter(async request=>{if(request.method==="POST")posts++;return response("never")},store,()=>1700000000000,0);
+    await assert.rejects(writer.execute(intent,context(intent,credentials,evidenceFor(intent),environment)),error=>error.kind==="validation");assert.equal(posts,0);store.close();
+  });
+});
 
 test("writer only accepts bounded one-way limit reductions",async()=>{for(const changed of [{reduceOnly:false},{positionMode:"hedge"},{orderType:"market"},{volume:4},{positionVolume:0},{side:"open-long"}]){let calls=0;const store=new SqliteMexcExecutionLifecycleStore(":memory:"),writer=new ModernMexcReduceOnlyWriter(async()=>{calls++;return response("never")},store,()=>0,0);await assert.rejects(execute(writer,{...intent,...changed}),error=>error.kind==="validation");assert.equal(calls,0);store.close();}});
 
@@ -39,5 +70,52 @@ test("source contains only the current create write endpoint and explicitly excl
 test("real transport is bounded to api.mexc.com and remains injectable",async()=>{const calls=[],transport=createMexcExecutionFetchTransport(async(url,init)=>{calls.push({url,init});return new Response('{"ok":true}',{status:200})});assert.deepEqual(await transport({url:MEXC_EXECUTION_BASE_URL+MEXC_ORDER_CREATE_PATH,method:"POST",headers:{safe:"header"},body:"{}",timeoutMs:100}),{status:200,body:'{"ok":true}'});assert.equal(calls[0].init.redirect,"error");await assert.rejects(transport({url:"https://attacker.invalid/order",method:"POST",headers:{},body:"{}",timeoutMs:100}));});
 
 test("two stores atomically claim one logical delivery",async()=>{const dir=mkdtempSync(join(tmpdir(),"mexc-cas-")),path=join(dir,"l.sqlite");try{let posts=0;let release;const blocked=new Promise(resolve=>{release=resolve});const transport=async request=>{if(request.method==="POST"){posts++;await blocked;return response("one")}return response("one")};const a=new SqliteMexcExecutionLifecycleStore(path),b=new SqliteMexcExecutionLifecycleStore(path),wa=new ModernMexcReduceOnlyWriter(transport,a,()=>1700000000000,0),wb=new ModernMexcReduceOnlyWriter(transport,b,()=>1700000000000,0);const first=execute(wa);await new Promise(resolve=>setTimeout(resolve,25));const second=execute(wb);await new Promise(resolve=>setTimeout(resolve,25));assert.equal(posts,1);release();await first;await second.catch(()=>undefined);assert.equal(posts,1);a.close();b.close();}finally{rmSync(dir,{recursive:true,force:true});}});
+
+test("authority revoked while lifecycle claim blocks is rechecked and released before POST",async()=>{
+  const backing=new SqliteMexcExecutionLifecycleStore(":memory:");let posts=0,providerReads=0,mutateOnClaim=true;
+  const state={credentials,evidence:evidenceFor(intent),environment:enabled};
+  const store={
+    read:(...args)=>backing.read(...args),reserve:(...args)=>backing.reserve(...args),releaseClaim:(...args)=>backing.releaseClaim(...args),transition:(...args)=>backing.transition(...args),quarantineAccount:(...args)=>backing.quarantineAccount(...args),isAccountQuarantined:(...args)=>backing.isAccountQuarantined(...args),
+    claim:(...args)=>{const claimed=backing.claim(...args);if(mutateOnClaim)state.evidence={...state.evidence,switches:{...state.evidence.switches,emergencyStop:true}};return claimed;},
+  };
+  const writer=new ModernMexcReduceOnlyWriter(async request=>{if(request.method==="POST")posts++;return response("after-claim")},store,()=>1700000000000,0);
+  const provider=()=>{providerReads++;return {credentials:state.credentials,environment:state.environment,evidence:state.evidence};};
+  await assert.rejects(writer.execute(intent,provider));assert.equal(providerReads,2);assert.equal(posts,0);
+  const digest=(await import("../app/lib/execution/internal/mexc-execution-writer.ts")).mexcExecutionIdentityDigest(intent);const released=backing.read(digest);assert.equal(released?.state,"reserved");assert.equal(released?.attempt,0);
+  mutateOnClaim=false;state.evidence=evidenceFor(intent);const result=await writer.execute(intent,provider);assert.equal(result.state,"reconciled");assert.equal(posts,1);backing.close();
+});
+
+test("queued requests obtain fresh authority and credential generation after the writer wait",async t=>{
+  const cases={
+    "kill switch":state=>state.evidence={...state.evidence,switches:{...state.evidence.switches,emergencyStop:true}},
+    "ownership binding":state=>state.evidence={...state.evidence,ownership:{...state.evidence.ownership,bindingGeneration:"revoked-binding"}},
+    "reconciliation revision":state=>state.evidence={...state.evidence,reconciliation:{...state.evidence.reconciliation,revision:999}},
+    "reconciliation freshness":state=>state.evidence={...state.evidence,reconciliation:{...state.evidence.reconciliation,freshUntil:"2020-01-01T00:00:00.000Z"}},
+    "risk revision":state=>state.evidence={...state.evidence,risk:{...state.evidence.risk,revision:999}},
+    "risk disabled":state=>state.evidence={...state.evidence,risk:{...state.evidence.risk,enabled:false}},
+    "rollout revision":state=>state.evidence={...state.evidence,rollout:{...state.evidence.rollout,revision:999}},
+    "rollout binding":state=>state.evidence={...state.evidence,rollout:{...state.evidence.rollout,bindingGeneration:"revoked-binding"}},
+    "rollout disarmed":state=>state.evidence={...state.evidence,rollout:{...state.evidence.rollout,armed:false}},
+    "egress attestation":state=>state.evidence={...state.evidence,network:{mexcEgressAllowlisted:false}},
+    "live activation":state=>state.environment={...state.environment,LIVE_TRADING_ENABLED:"false"},
+    "provider activation":state=>state.environment={...state.environment,MEXC_WRITE_PROVIDER_ENABLED:"false"},
+    "credential generation":state=>state.credentials={...state.credentials,generation:"generation-2"},
+    "quarantine":(state,store)=>store.quarantineAccount(state.intent.userId,state.intent.accountId,"queued-revocation",new Date(1700000000000).toISOString()),
+  };
+  for(const [name,revoke] of Object.entries(cases))await t.test(name,async()=>{
+    const store=new SqliteMexcExecutionLifecycleStore(":memory:");let release;const blocked=new Promise(resolve=>{release=resolve});let posts=0;
+    const transport=async request=>{if(request.method==="POST"){posts++;if(posts===1)await blocked;}return response("queued-order",{externalOid:JSON.parse(request.body??"{}").externalOid??mexcExternalOid(intent)});};
+    const writer=new ModernMexcReduceOnlyWriter(transport,store,()=>1700000000000,0);
+    const secondIntent={...intent,intentId:`second-${name.replaceAll(" ","-")}`,idempotencyKey:`second-${name.replaceAll(" ","-")}`};
+    const state={intent:secondIntent,credentials,evidence:evidenceFor(secondIntent),environment:enabled};let providerReads=0;
+    const first=execute(writer);while(posts===0)await new Promise(resolve=>setTimeout(resolve,1));
+    const second=writer.execute(secondIntent,()=>{providerReads++;return {credentials:state.credentials,environment:state.environment,evidence:state.evidence};});
+    await new Promise(resolve=>setTimeout(resolve,5));assert.equal(providerReads,0,"provider must not run while queued");
+    revoke(state,store);release();await first;
+    await assert.rejects(second);assert.equal(providerReads,1);assert.equal(posts,1,"revoked queued request must not POST");
+    const lifecycle=store.read((await import("../app/lib/execution/internal/mexc-execution-writer.ts")).mexcExecutionIdentityDigest(secondIntent));
+    assert.equal(lifecycle?.state,"reserved","known non-delivery must not be marked submitting/indeterminate");store.close();
+  });
+});
 
 test("valid older lifecycle replacement permanently poisons the store instance",async()=>{const dir=mkdtempSync(join(tmpdir(),"mexc-replace-")),path=join(dir,"live.sqlite"),old=join(dir,"old.sqlite");try{const store=new SqliteMexcExecutionLifecycleStore(path),writer=new ModernMexcReduceOnlyWriter(async request=>request.method==="POST"?response("one"):response("one"),store,()=>1700000000000,0);await execute(writer);store.close();copyFileSync(path,old);const reopened=new SqliteMexcExecutionLifecycleStore(path);assert.equal(reopened.isAccountQuarantined("user-1","account-1"),false);renameSync(old,path);assert.throws(()=>reopened.isAccountQuarantined("user-1","account-1"));assert.throws(()=>reopened.isAccountQuarantined("user-1","account-1"));assert.throws(()=>reopened.read("a".repeat(64)));reopened.close();}finally{rmSync(dir,{recursive:true,force:true});}});

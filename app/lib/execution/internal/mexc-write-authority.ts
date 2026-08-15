@@ -9,7 +9,7 @@ export type MexcPreWriteEvidence = Readonly<{
   ownership:Readonly<{userId:string;accountId:string;bindingGeneration:string;freshUntil:string}>;
   reconciliation:Readonly<{userId:string;accountId:string;revision:number;positionId:string;positionSide:"long"|"short";positionMode:"one-way";marginMode:"isolated"|"cross";positionVolume:number;freshUntil:string;clean:true}>;
   risk:Readonly<{userId:string;accountId:string;revision:number;enabled:true}>;
-  rollout:Readonly<{userId:string;accountId:string;revision:number;armed:true}>;
+  rollout:Readonly<{userId:string;accountId:string;revision:number;bindingGeneration:string;riskRevision:number;armed:true}>;
   switches:ExecutionKillSwitches;
   airlock:Readonly<{userId:string;accountId:string;intentId:string;idempotencyKey:string;result:ExecutionResult}>;
   network:Readonly<{mexcEgressAllowlisted:true}>;
@@ -27,7 +27,7 @@ export function composeMexcPreWriteAuthority(intent:MexcExecutionIntent,e:MexcPr
   const ownershipFresh=ownerBound&&fresh(e.ownership.freshUntil);
   const reconciliationClean=identity(e.reconciliation)&&e.reconciliation.clean===true&&fresh(e.reconciliation.freshUntil)&&e.reconciliation.revision===intent.reconciliationRevision&&e.reconciliation.positionId===intent.positionId&&e.reconciliation.positionSide===reducedPositionSide&&e.reconciliation.positionMode===intent.positionMode&&e.reconciliation.marginMode===intent.marginMode&&e.reconciliation.positionVolume===intent.positionVolume;
   const riskEnabled=identity(e.risk)&&e.risk.enabled===true&&e.risk.revision===intent.riskRevision;
-  const rolloutArmed=identity(e.rollout)&&e.rollout.armed===true&&e.rollout.revision===intent.rolloutRevision;
+  const rolloutArmed=identity(e.rollout)&&e.rollout.armed===true&&e.rollout.revision===intent.rolloutRevision&&e.rollout.bindingGeneration===intent.bindingGeneration&&e.rollout.riskRevision===intent.riskRevision;
   const preview=e.airlock.result.preview;
   const airlockPrepared=identity(e.airlock)&&e.airlock.intentId===intent.intentId&&e.airlock.idempotencyKey===intent.idempotencyKey&&e.airlock.result.intentId===intent.intentId&&e.airlock.result.idempotencyKey===intent.idempotencyKey&&e.airlock.result.state==="prepared"&&e.airlock.result.executed===false&&preview!==null&&preview.symbol===intent.symbol&&preview.side===intent.side&&preview.orderType===intent.orderType&&preview.normalizedContractVolume===intent.volume&&preview.leverage===intent.leverage&&preview.reduceOnly===true&&preview.referencePrice===intent.referencePrice&&preview.estimatedNotional===intent.estimatedNotional&&preview.price===intent.price;
   return Object.freeze({callerAssured,ownerBound,ownershipFresh,reconciliationClean,riskEnabled,rolloutArmed,killSwitchesClear:executionKillSwitchReason(e.switches,intent)===null,airlockPrepared,networkAllowlisted:e.network.mexcEgressAllowlisted===true});

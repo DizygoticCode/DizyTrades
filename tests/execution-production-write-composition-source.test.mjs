@@ -6,6 +6,10 @@ const source = readFileSync(
   new URL("../app/lib/execution/internal/production-write-composition.ts", import.meta.url),
   "utf8",
 );
+const writerSource = readFileSync(
+  new URL("../app/lib/execution/internal/mexc-execution-writer.ts", import.meta.url),
+  "utf8",
+);
 
 test("production composition has an explicit non-writing security-review boundary", () => {
   assert.doesNotMatch(source, /ModernMexcReduceOnlyWriter|createMexcExecutionFetchTransport/);
@@ -25,4 +29,23 @@ test("candidate handoff cannot receive credentials, environment or transport", (
   assert.ok(handoff);
   assert.match(handoff, /accept\(intent: MexcExecutionIntent, evidence: MexcPreWriteEvidence\)/);
   assert.doesNotMatch(handoff, /credential|environment|transport|fetch/i);
+});
+
+test("writer API cannot carry a frozen authority or credential snapshot through its queue", () => {
+  assert.match(writerSource, /execute\(intent:MexcExecutionIntent,contextProvider:MexcPreTransportContextProvider\)/);
+  assert.doesNotMatch(writerSource, /execute\(intent:MexcExecutionIntent,credentials:/);
+  const serial = writerSource.match(/private async executeSerial[\s\S]*?private async reconcile/)?.[0];
+  assert.ok(serial);
+  const wait = serial.indexOf("await new Promise");
+  const firstContext = serial.indexOf("contextProvider()");
+  const claim = serial.indexOf("this.store.claim");
+  const secondContext = serial.indexOf("contextProvider()", firstContext + 1);
+  const finalQuarantineRead = serial.lastIndexOf("this.store.isAccountQuarantined");
+  const post = serial.indexOf("this.transport({url:MEXC_EXECUTION_BASE_URL+MEXC_ORDER_CREATE_PATH");
+  assert.ok(wait < firstContext);
+  assert.ok(firstContext < claim);
+  assert.ok(claim < finalQuarantineRead);
+  assert.ok(finalQuarantineRead < secondContext);
+  assert.ok(secondContext < post);
+  assert.match(serial, /releaseClaim\(digest/);
 });
