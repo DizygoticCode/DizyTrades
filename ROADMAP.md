@@ -2,7 +2,7 @@
 
 DizyTrades is a transparent, deterministic crypto research, simulation and review platform. The enduring mission lives in [VISION.md](VISION.md); technical boundaries live in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-This roadmap reflects merged `main` as of **11 August 2026**. Items are not promises of dates. Work moves only after focused implementation, deterministic validation and review.
+This roadmap reflects merged `main` as of **15 August 2026**. Items are not promises of dates. Work moves only after focused implementation, deterministic validation and review.
 
 ## Current roadmap order
 
@@ -364,6 +364,20 @@ completes the durable single-instance kill-switch/control prerequisite only. It
 does not add an operator route, exchange adapter, authentication capability or
 order transport.
 
+### 15 August 2026 checkpoint — production composition remains inert, writer authority hardened
+
+The guarded-execution path has advanced through two additional reviewed milestones without enabling exchange submission:
+
+- [x] #320 added an **activation-disabled production write-composition seam** while hard-wiring the production factory to `ProductionMexcWriteComposition(null)`. Production constructs no `ModernMexcReduceOnlyWriter`, reads no execution credential and exposes no reachable MEXC POST path. The read-only Radar credential family remains independently validated and separated from any future write family.
+- [x] #322 eliminated the writer queue-to-sign stale-authority race. A queued new request obtains fresh server-owned credentials/authority only after the serialized/rate-limit wait, rechecks SQLite-backed quarantine, claims durable `reserved -> submitting`, then performs a second/final synchronous authority read after the potentially blocking claim before signing/POST.
+- [x] If post-claim authority disappears before transport, the exact `submitting/attempt=1/no-order-id` state is atomically released to `reserved/attempt=0`; known non-delivery is never mislabeled as an ambiguous submission.
+- [x] Potentially delivered lifecycle states remain GET-reconcilable by `externalOid` even after activation shutdown, kill-switch activation, quarantine or credential-generation rotation, without authorizing a second POST.
+- [x] Exact-head CI for #322 passed lint, the complete deterministic suite, production build and Chromium/Playwright; its actionable P2 was resolved and a fresh exact-head P1/P2 review found no remaining actionable P1/P2.
+- [ ] Verify stable Render -> MEXC egress allowlisting before provisioning a real write-capable credential.
+- [ ] Provision a dedicated, server-only, IP-restricted MEXC write credential only in a separately approved operator ceremony.
+- [ ] Independently review and deliberately connect the production composition to the writer while repository/deployment activation defaults remain false.
+- [ ] Perform a separately approved microscopic reduce-only canary only after every activation gate passes.
+
 Live execution remains disabled until every relevant requirement below is implemented, exercised and independently reviewed:
 
 - [ ] isolated execution service or equivalently isolated execution boundary
@@ -468,15 +482,18 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
   ownership, risk authorization and reconciliation are rechecked. This is only
   pre-submission approval: the adapter remains non-executing, every outcome is
   `executed:false`, and production exchange submission remains unapproved.
-- [ ] Approve production exchange-write activation. A disabled, unrouted writer
-  seam exists in source, but provider submission remains unapproved and no
-  production composition can call it.
+- [ ] Approve production exchange-write activation. An activation-disabled
+  production composition seam now exists, but its production factory remains
+  hard-wired to null writer dependencies. No real execution credential read,
+  writer construction or production MEXC POST path is reachable.
 # Guarded execution safety
 
 - [x] Durable exact-account Radar reconciliation and sticky divergence quarantine
   ahead of provider evaluation (GET-only evidence, `executed:false`).
-- [ ] Production exchange-write activation remains explicitly unapproved and
-  absent; the #315 writer seam is disabled and unrouted.
+- [ ] Production exchange-write activation remains explicitly unapproved.
+  #320 added only an inert composition boundary and #322 hardened the dormant
+  writer's last-pre-transport authority/recovery ordering; production still
+  constructs no writer and can reach no exchange POST.
 # Guarded execution provider milestone (#315)
 
 - [x] Add a server-only modern `api.mexc.com` reduce-only create-order seam.
@@ -486,8 +503,11 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 - [x] Keep Account Companion read credentials independent from execution keys.
 - [x] Default the independent write-provider flag and `LIVE_TRADING_ENABLED` to
   false; expose no browser/public mutation route.
-- [ ] Complete independent P1/P2 review, stable Render-egress allowlisting,
-  dedicated write-key provisioning, and a separate activation ceremony.
+- [x] Complete the queued/pre-transport authority hardening and exact-head
+  P1/P2 review required before the dormant writer can ever be considered for
+  production composition (#322).
+- [ ] Complete stable Render-egress allowlisting, dedicated write-key provisioning,
+  a separate production-writer composition review, and the activation ceremony.
 
 This milestone does not enable unrestricted live trading and cannot open or
 increase exposure. It is limit-only in one-way mode (`positionMode:2`) with an
