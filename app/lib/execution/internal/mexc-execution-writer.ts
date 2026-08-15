@@ -82,7 +82,20 @@ export function assertMexcWriteAuthority(environment:Readonly<Record<string,stri
   if(!mexcWriterEnabled(environment)||!authority||typeof authority!=="object"||Object.keys(authority).length!==AUTHORITY_KEYS.length||!AUTHORITY_KEYS.every(key=>Object.hasOwn(authority,key)&&authority[key]===true))throw new MexcExecutionError("disabled");
 }
 function validateIntent(intent:MexcExecutionIntent){if(!TOKEN.test(intent.userId)||!TOKEN.test(intent.accountId)||!TOKEN.test(intent.intentId)||!TOKEN.test(intent.idempotencyKey)||!SYMBOL.test(intent.symbol)||intent.positionMode!=="one-way"||intent.orderType!=="limit"||!POSITION_ID.test(intent.positionId)||!['long','short'].includes(intent.side)||!['isolated','cross'].includes(intent.marginMode)||intent.reduceOnly!==true||!TOKEN.test(intent.bindingGeneration)||!TOKEN.test(intent.writeCredentialGeneration)||![intent.volume,intent.positionVolume,intent.price,intent.referencePrice,intent.estimatedNotional,intent.leverage].every(Number.isFinite)||intent.volume<=0||intent.volume>intent.positionVolume||intent.price<=0||intent.referencePrice<=0||intent.estimatedNotional<=0||intent.leverage<=0||![intent.rolloutRevision,intent.riskRevision,intent.reconciliationRevision].every(x=>Number.isSafeInteger(x)&&x>=0))throw new MexcExecutionError("validation");}
-function validateCredentials(credentials:MexcExecutionCredentials,intent:MexcExecutionIntent){if(!credentials||!CREDENTIAL.test(credentials.accessKey)||!CREDENTIAL.test(credentials.secretKey)||!TOKEN.test(credentials.generation)||credentials.accessKey.length<16||credentials.secretKey.length<16||credentials.generation!==intent.writeCredentialGeneration)throw new MexcExecutionError("validation");}
+function validateContextCredentials(context:MexcPreTransportContext,intent:MexcExecutionIntent,requireIntentGeneration:boolean){
+  if(!context||typeof context!=="object"||!context.credentials||!context.environment)throw new MexcExecutionError("validation");
+  let credentials:MexcExecutionCredentials;
+  try{
+    credentials=readMexcExecutionCredentials(Object.freeze({
+      ...context.environment,
+      MEXC_EXECUTION_ACCESS_KEY:context.credentials.accessKey,
+      MEXC_EXECUTION_SECRET_KEY:context.credentials.secretKey,
+      MEXC_EXECUTION_CREDENTIAL_GENERATION:context.credentials.generation,
+    }));
+  }catch{throw new MexcExecutionError("validation");}
+  if(requireIntentGeneration&&credentials.generation!==intent.writeCredentialGeneration)throw new MexcExecutionError("validation");
+  return credentials;
+}
 function headers(credentials:MexcExecutionCredentials,time:string,target:string){return Object.freeze({"Content-Type":"application/json",ApiKey:credentials.accessKey,"Request-Time":time,"Recv-Window":String(MEXC_EXECUTION_RECV_WINDOW_SECONDS),Signature:createHmac("sha256",credentials.secretKey).update(credentials.accessKey+time+target).digest("hex")});}
 function parseResponse(response:MexcTransportResponse):unknown {if(response.status<200||response.status>=300||Buffer.byteLength(response.body)>64_000)return null;try{const x=JSON.parse(response.body);return (x?.success===true||x?.code===0)?x?.data:null;}catch{return null;}}
 function createOrderId(response:MexcTransportResponse):string|null {const data=parseResponse(response),id=typeof data==="object"&&data?Reflect.get(data,"orderId"):data;return typeof id==="string"&&ORDER_ID.test(id)?id:null;}
@@ -100,26 +113,31 @@ export class ModernMexcReduceOnlyWriter {
     if(evidence?.state==="reconciled")return evidence;
     if(!evidence)evidence=this.store.reserve(digest,externalOid,expected,new Date(this.now()).toISOString());
     if(!sameEvidence(evidence,expected,externalOid)){this.quarantine(intent,"authority-divergence");throw new MexcExecutionError("quarantined");}
+    // Potentially delivered lifecycle state must be reconciled even if write
+    // authority, kill switches or credential generation changed after the POST.
+    if(evidence.state!=="reserved"||evidence.attempt>0)return this.reconcile(intent,contextProvider,evidence);
     const delay=Math.max(0,this.minimumIntervalMs-(this.now()-this.lastStarted));if(delay)await new Promise(r=>setTimeout(r,delay));this.lastStarted=this.now();
     // This synchronous read is intentionally after every queue/rate-limit wait.
     // No async boundary is permitted between the final checks, claim, signing and
-    // initiation of transport.
+    // initiation of transport for a brand-new POST.
     const context=contextProvider();
-    validateCredentials(context.credentials,intent);
+    const credentials=validateContextCredentials(context,intent,true);
     assertMexcWriteAuthority(context.environment,composeMexcPreWriteAuthority(intent,context.evidence,this.now()));
     if(this.store.isAccountQuarantined(intent.userId,intent.accountId))throw new MexcExecutionError("quarantined");
-    const credentials=context.credentials;
-    // Every recovered reservation may have been delivered before its state commit.
-    if(evidence.state!=="reserved"||evidence.attempt>0)return this.reconcile(intent,credentials,evidence);
     const claimed=this.store.claim(digest,new Date(this.now()).toISOString());
-    if(!claimed)return this.reconcile(intent,credentials,this.store.read(digest)!);
+    if(!claimed)return this.reconcile(intent,contextProvider,this.store.read(digest)!);
     evidence=claimed;
     const body=canonicalBody(intent,externalOid),time=String(this.now());
     try{const response=await this.transport({url:MEXC_EXECUTION_BASE_URL+MEXC_ORDER_CREATE_PATH,method:"POST",headers:headers(credentials,time,body),body,timeoutMs:MEXC_EXECUTION_TIMEOUT_MS});const current=this.store.read(digest);if(current?.state==="reconciled")return current;const orderId=createOrderId(response);evidence=this.store.transition(digest,["submitting"],orderId?"submitted":"indeterminate",{orderId,errorClass:orderId?null:(response.status>=500?"provider-5xx":"invalid-response")},new Date(this.now()).toISOString());}
     catch(error){evidence=this.store.transition(digest,["submitting"],"indeterminate",{errorClass:safeClass(error)},new Date(this.now()).toISOString());}
-    return this.reconcile(intent,credentials,evidence);
+    return this.reconcile(intent,contextProvider,evidence);
   }
-  private async reconcile(intent:MexcExecutionIntent,credentials:MexcExecutionCredentials,evidence:MexcLifecycleEvidence){
+  private async reconcile(intent:MexcExecutionIntent,contextProvider:MexcPreTransportContextProvider,evidence:MexcLifecycleEvidence){
+    // Recovery is GET-only. It must remain available after emergency disablement,
+    // quarantine or credential-generation rotation so ambiguous delivery can be
+    // resolved without authorising another POST.
+    const context=contextProvider();
+    const credentials=validateContextCredentials(context,intent,false);
     const path=`${MEXC_EXTERNAL_ORDER_PATH}/${encodeURIComponent(intent.symbol)}/${encodeURIComponent(evidence.externalOid)}`,time=String(this.now());let response:MexcTransportResponse;
     try{response=await this.transport({url:MEXC_EXECUTION_BASE_URL+path,method:"GET",headers:headers(credentials,time,""),timeoutMs:MEXC_EXECUTION_TIMEOUT_MS});}catch{throw new MexcExecutionError("indeterminate");}
     const found=reconciledOrder(response,evidence,evidence.externalOid);if(!found){if(parseResponse(response)!==null){this.quarantine(intent,"order-intent-divergence");this.store.transition(evidence.identityDigest,[evidence.state],"quarantined",{errorClass:"order-intent-divergence"},new Date(this.now()).toISOString());throw new MexcExecutionError("quarantined");}throw new MexcExecutionError("indeterminate");}
