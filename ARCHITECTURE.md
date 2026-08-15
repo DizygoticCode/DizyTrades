@@ -553,6 +553,12 @@ uses only the existing single-use TOTP-assured internal caller assertion. Radar
 remains the sole GET-only evidence seam used by production composition. The
 strongest production state is pre-submission approval; the disabled writer seam
 below is not wired into that composition or any route.
+# Activation-disabled production write composition
+
+The production write-composition seam is deliberately present but inert. `createProductionMexcWriteComposition()` returns `ProductionMexcWriteComposition(null)` in production: it constructs no `ModernMexcReduceOnlyWriter`, reads no execution credential, creates no write fetch transport and has no reachable MEXC POST path. Its bounded synthetic candidate handoff accepts only immutable execution intent plus `MexcPreWriteEvidence`; credentials, environment, transport and `fetch` cannot cross that boundary. This lets production compose and audit candidate authority without making a writer reachable.
+
+The read-only Radar credential family remains separately validated. Any future writer connection must use a distinct server-only write credential generation and must arrive in a separate owner/security-approved change after stable egress allowlisting. Repository/deployment activation, custody and provisioning defaults remain false.
+
 # Modern MEXC reduce-only writer seam
 
 The server contains a deliberately narrow MEXC Futures writer seam for `POST
@@ -576,16 +582,30 @@ Lifecycle rows bind the canonical intent digest and all authority revisions, and
 backing-file replacement permanently poisons the store instance.
 
 The invocation carries only immutable intent plus a synchronous, server-owned
-pre-transport context provider. The writer validates lifecycle identity, performs
-recovery inspection/reservation, and waits for its serialized rate-limit slot
-before calling that provider. It then validates the freshly read activation
-flags, credentials and credential generation, caller assurance, kill switches,
-ownership/binding freshness, reconciliation, risk and rollout revisions,
-egress attestation and quarantine. Only after those checks does it atomically
-claim `reserved -> submitting`; signing and initiation of the single POST follow
-without an intervening asynchronous wait. A request that loses authority while
-queued therefore remains a known, unclaimed reservation rather than a falsely
-ambiguous delivery.
+pre-transport context provider. The writer validates lifecycle identity first. A
+lifecycle state that may already have reached MEXC is reconciled immediately by
+the approved GET-by-`externalOid` path, even if write activation has since been
+disabled, a kill switch has fired, the account is quarantined or credential
+generation has rotated; recovery does not authorize a second POST.
+
+For a never-attempted reservation, the writer waits for its serialized rate-limit
+slot before calling the context provider. It validates the freshly read activation
+flags, the complete server-only/separate credential contract and credential
+generation, caller assurance, kill switches, ownership/binding freshness,
+reconciliation, risk and rollout revisions and egress attestation, then checks
+exact-account quarantine and atomically claims `reserved -> submitting`. Because
+the SQLite claim can itself block, quarantine is checked again and the writer
+performs a **second/final synchronous context read** after the claim. That final
+read is the last mutable authority observation before canonical-body construction,
+signing and initiation of the single POST; no asynchronous wait or database read
+intervenes.
+
+If that post-claim authority check fails, `releaseClaim()` can only move the exact
+known-non-delivery `submitting`, `attempt=1`, no-order-id row back to
+`reserved`, `attempt=0`. Submitted, indeterminate, reconciled and other potentially
+delivered states cannot use that rollback. A request that loses authority while
+queued or while `claim()` is blocked therefore produces zero POSTs and remains
+known/retryable rather than being mislabeled as an ambiguous delivery.
 
 This is not a browser API and is not wired to a public route or the production
 `ExecutionBoundary` provider. The writer itself requires both

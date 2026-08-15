@@ -26,7 +26,9 @@ MEXC signing, credential custody or provisioning import. Routes, clients and
 DizyPaper cannot import provider internals, and all authentication, kill-switch,
 validation, policy and duplicate decisions fail closed before provider evaluation.
 - The owner-only DizyAccount Companion may use server-held **read-only** MEXC Futures credentials for approved GET-only account and trade-read endpoints.
-- A server-only MEXC write seam exists in source but is production-disabled and unrouted; no active or public order-placement route exists.
+- A server-only MEXC write seam exists in source, but production remains non-writing. #320 added an activation-disabled composition seam whose production factory is hard-wired to null writer dependencies; it constructs no writer, reads no execution credential and exposes no reachable production MEXC POST path.
+- The dormant writer itself is hardened against queue/rate-limit and SQLite-claim authority races: new submissions require fresh server-owned authority/credentials after the wait and a second/final synchronous authority read after the durable claim, with known non-delivery released safely if that final check fails.
+- Potentially delivered lifecycle states remain GET-reconcilable by `externalOid` after shutdown, kill-switch activation, quarantine or credential-generation rotation without authorizing another POST; no active or public order-placement route exists.
 - No browser workflow requests or stores exchange credentials.
 - The public health and diagnostics surfaces must continue to report live execution as disabled.
 
@@ -86,6 +88,16 @@ The separately described MEXC writer contains bounded private-write signing and
 transport code, but it is not wired into `ExecutionBoundary`, any route, or
 browser code and remains disabled unless both independent activation flags and
 all last-pre-sign authority evidence pass.
+
+## Activation-disabled production write composition
+
+`createProductionMexcWriteComposition()` is an explicit security-review boundary, not an active exchange adapter. Production currently returns `ProductionMexcWriteComposition(null)`: it does not construct `ModernMexcReduceOnlyWriter`, does not call `readMexcExecutionCredentials`, does not instantiate the write fetch transport and cannot invoke `writer.execute`. The synthetic candidate handoff receives only immutable intent plus bounded pre-write evidence and cannot receive credentials, environment, transport or `fetch`.
+
+The dormant writer accepts immutable intent plus a synchronous server-owned pre-transport context provider rather than frozen mutable snapshots. For a never-attempted request it validates lifecycle identity/reservation, waits for its serialized rate-limit slot, obtains fresh write credentials/environment/evidence, validates the complete server-only/separate credential contract and mutable authority, checks exact-account quarantine, and performs the durable claim. Because the SQLite claim can itself block, the writer then checks quarantine and obtains a **second/final** fresh context before body construction/signing/POST. There is no asynchronous wait or database call between that final mutable context and transport initiation.
+
+If authority disappears after claim but before transport, `releaseClaim()` can only roll the exact known-non-delivery `submitting`, `attempt=1`, `order_id IS NULL` row back to `reserved`, `attempt=0`; it cannot roll back submitted, indeterminate, reconciled or otherwise delivered evidence. Conversely, any lifecycle state that may already have been delivered is reconciled by the approved GET-by-`externalOid` path before any new-write authorization is considered. Recovery therefore remains possible after activation is disabled, a kill switch fires, the account is quarantined or credential generation rotates, while POST count remains unchanged.
+
+All repository/deployment activation, custody and provisioning defaults remain false. No real MEXC write credential has been provisioned by these milestones, no browser/public execution route exists and no real exchange order has been sent. Stable Render egress allowlisting, dedicated write-key provisioning, explicit production writer composition, independent activation approval and the first canary remain separate future gates.
 
 Never commit passwords, session secrets, API keys, Gmail App Passwords, `.env` files or exported account backups.
 
