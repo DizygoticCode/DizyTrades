@@ -128,10 +128,13 @@ export class ModernMexcReduceOnlyWriter {
     if(!claimed)return this.reconcile(intent,contextProvider,this.store.read(digest)!);
     let credentials:MexcExecutionCredentials;
     try{
+      // Quarantine is also SQLite-backed and may block. Read it before the final
+      // server-owned context so that context validation is the last mutable read
+      // before body construction, signing and transport initiation.
+      if(this.store.isAccountQuarantined(intent.userId,intent.accountId))throw new MexcExecutionError("quarantined");
       const finalContext=contextProvider();
       credentials=validateContextCredentials(finalContext,intent,true);
       assertMexcWriteAuthority(finalContext.environment,composeMexcPreWriteAuthority(intent,finalContext.evidence,this.now()));
-      if(this.store.isAccountQuarantined(intent.userId,intent.accountId))throw new MexcExecutionError("quarantined");
     }catch(error){
       // claim() can block on SQLite contention. No transport has started yet, so
       // roll the CAS back to a retryable known-non-delivery reservation.
