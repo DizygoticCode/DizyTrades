@@ -1,5 +1,0 @@
-import Link from "next/link";
-
-export default function AboutTeaser() {
-  return <section className="workflow section" aria-labelledby="about-teaser-title"><div><div className="section-kicker">WHY DIZYTRADES EXISTS</div><h2 id="about-teaser-title">Built from mistakes.<br />Built for process.</h2><p>DizyTrades began as the trading workspace I wanted to use myself: make the claim testable, keep risk and assumptions visible, trade the plan rather than the emotion, and preserve enough evidence to learn from the result.</p><Link className="text-action" href="/about">Read the founder story <span aria-hidden="true">→</span></Link></div><ol><li><b>01</b><span><strong>Test the claim</strong><small>A screenshot is not a track record. Important claims should survive inspection.</small></span></li><li><b>02</b><span><strong>Keep mistakes useful</strong><small>You won&apos;t always be right. A repeatable process keeps mistakes bounded and reviewable.</small></span></li><li><b>03</b><span><strong>Trade the plan</strong><small>Hunt opportunity. Do not chase it.</small></span></li></ol></section>;
-}
