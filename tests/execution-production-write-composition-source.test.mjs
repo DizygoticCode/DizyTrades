@@ -36,7 +36,14 @@ test("writer API cannot carry a frozen authority or credential snapshot through 
   assert.doesNotMatch(writerSource, /execute\(intent:MexcExecutionIntent,credentials:/);
   const serial = writerSource.match(/private async executeSerial[\s\S]*?private async reconcile/)?.[0];
   assert.ok(serial);
-  assert.ok(serial.indexOf("await new Promise") < serial.indexOf("contextProvider()"));
-  assert.ok(serial.indexOf("contextProvider()") < serial.indexOf("this.store.claim"));
-  assert.ok(serial.indexOf("this.store.claim") < serial.indexOf("this.transport({url:MEXC_EXECUTION_BASE_URL+MEXC_ORDER_CREATE_PATH"));
+  const wait = serial.indexOf("await new Promise");
+  const firstContext = serial.indexOf("contextProvider()");
+  const claim = serial.indexOf("this.store.claim");
+  const secondContext = serial.indexOf("contextProvider()", firstContext + 1);
+  const post = serial.indexOf("this.transport({url:MEXC_EXECUTION_BASE_URL+MEXC_ORDER_CREATE_PATH");
+  assert.ok(wait < firstContext);
+  assert.ok(firstContext < claim);
+  assert.ok(claim < secondContext);
+  assert.ok(secondContext < post);
+  assert.match(serial, /releaseClaim\(digest/);
 });
