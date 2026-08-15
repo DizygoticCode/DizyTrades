@@ -40,10 +40,12 @@ test("writer API cannot carry a frozen authority or credential snapshot through 
   const firstContext = serial.indexOf("contextProvider()");
   const claim = serial.indexOf("this.store.claim");
   const secondContext = serial.indexOf("contextProvider()", firstContext + 1);
+  const finalQuarantineRead = serial.lastIndexOf("this.store.isAccountQuarantined");
   const post = serial.indexOf("this.transport({url:MEXC_EXECUTION_BASE_URL+MEXC_ORDER_CREATE_PATH");
   assert.ok(wait < firstContext);
   assert.ok(firstContext < claim);
-  assert.ok(claim < secondContext);
+  assert.ok(claim < finalQuarantineRead);
+  assert.ok(finalQuarantineRead < secondContext);
   assert.ok(secondContext < post);
   assert.match(serial, /releaseClaim\(digest/);
 });
