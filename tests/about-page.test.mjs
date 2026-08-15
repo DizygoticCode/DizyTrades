@@ -10,12 +10,12 @@ test("public founder story is linked and preserves the process-first copy", asyn
     readSource("app/marketing/site-header.tsx"),
   ]);
 
-  assert.match(siteHeader, /href="\/about"[^>]*>About<\/Link>/);
-  assert.match(aboutPage, /Built from mistakes\.<br \/><span>Built for process\.<\/span>/);
-  assert.match(aboutPage, /I also wanted to build a project I felt there was a gap in the market for/);
-  assert.match(aboutPage, /No weekend Lambo rentals for Instagram affiliate hype/);
-  assert.match(aboutPage, /Uncertainty is part of the market\./);
-  assert.match(aboutPage, /You won&apos;t always be right\. What matters is having a process that keeps mistakes bounded, reviewable and useful\./);
-  assert.match(aboutPage, /Don&apos;t trust the screenshot\.<br \/>Test the claim\./);
-  assert.match(aboutPage, /Trade the plan\.<br \/>Not the emotion\./);
+  assert.ok(siteHeader.includes('href="/about"') && siteHeader.includes(">About</Link>"));
+  assert.ok(aboutPage.includes("Built from mistakes.<br /><span>Built for process.</span>"));
+  assert.ok(aboutPage.includes("I also wanted to build a project I felt there was a gap in the market for"));
+  assert.ok(aboutPage.includes("No weekend Lambo rentals for Instagram affiliate hype"));
+  assert.ok(aboutPage.includes("Uncertainty is part of the market."));
+  assert.ok(aboutPage.includes("You won&apos;t always be right. What matters is having a process that keeps mistakes bounded, reviewable and useful."));
+  assert.ok(aboutPage.includes("Don&apos;t trust the screenshot.<br />Test the claim."));
+  assert.ok(aboutPage.includes("Trade the plan.<br />Not the emotion."));
 });
