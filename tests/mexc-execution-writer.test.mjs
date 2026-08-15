@@ -71,6 +71,20 @@ test("real transport is bounded to api.mexc.com and remains injectable",async()=
 
 test("two stores atomically claim one logical delivery",async()=>{const dir=mkdtempSync(join(tmpdir(),"mexc-cas-")),path=join(dir,"l.sqlite");try{let posts=0;let release;const blocked=new Promise(resolve=>{release=resolve});const transport=async request=>{if(request.method==="POST"){posts++;await blocked;return response("one")}return response("one")};const a=new SqliteMexcExecutionLifecycleStore(path),b=new SqliteMexcExecutionLifecycleStore(path),wa=new ModernMexcReduceOnlyWriter(transport,a,()=>1700000000000,0),wb=new ModernMexcReduceOnlyWriter(transport,b,()=>1700000000000,0);const first=execute(wa);await new Promise(resolve=>setTimeout(resolve,25));const second=execute(wb);await new Promise(resolve=>setTimeout(resolve,25));assert.equal(posts,1);release();await first;await second.catch(()=>undefined);assert.equal(posts,1);a.close();b.close();}finally{rmSync(dir,{recursive:true,force:true});}});
 
+test("authority revoked while lifecycle claim blocks is rechecked and released before POST",async()=>{
+  const backing=new SqliteMexcExecutionLifecycleStore(":memory:");let posts=0,providerReads=0,mutateOnClaim=true;
+  const state={credentials,evidence:evidenceFor(intent),environment:enabled};
+  const store={
+    read:(...args)=>backing.read(...args),reserve:(...args)=>backing.reserve(...args),releaseClaim:(...args)=>backing.releaseClaim(...args),transition:(...args)=>backing.transition(...args),quarantineAccount:(...args)=>backing.quarantineAccount(...args),isAccountQuarantined:(...args)=>backing.isAccountQuarantined(...args),
+    claim:(...args)=>{const claimed=backing.claim(...args);if(mutateOnClaim)state.evidence={...state.evidence,switches:{...state.evidence.switches,emergencyStop:true}};return claimed;},
+  };
+  const writer=new ModernMexcReduceOnlyWriter(async request=>{if(request.method==="POST")posts++;return response("after-claim")},store,()=>1700000000000,0);
+  const provider=()=>{providerReads++;return {credentials:state.credentials,environment:state.environment,evidence:state.evidence};};
+  await assert.rejects(writer.execute(intent,provider));assert.equal(providerReads,2);assert.equal(posts,0);
+  const digest=(await import("../app/lib/execution/internal/mexc-execution-writer.ts")).mexcExecutionIdentityDigest(intent);const released=backing.read(digest);assert.equal(released?.state,"reserved");assert.equal(released?.attempt,0);
+  mutateOnClaim=false;state.evidence=evidenceFor(intent);const result=await writer.execute(intent,provider);assert.equal(result.state,"reconciled");assert.equal(posts,1);backing.close();
+});
+
 test("queued requests obtain fresh authority and credential generation after the writer wait",async t=>{
   const cases={
     "kill switch":state=>state.evidence={...state.evidence,switches:{...state.evidence.switches,emergencyStop:true}},
