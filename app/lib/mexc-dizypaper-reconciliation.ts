@@ -72,6 +72,11 @@ export type MexcDizyPaperReconciliation = Readonly<{
     positionMargin: ShadowNumericComparison;
     unrealizedPnl: ShadowNumericComparison;
   }>;
+  accountSummary: Readonly<{
+    aligned: number;
+    different: number;
+    incomparable: number;
+  }>;
   positions: readonly MexcDizyPaperPositionReconciliation[];
   summary: Readonly<{
     aligned: number;
@@ -470,6 +475,21 @@ export function reconcileMexcAccountWithDizyPaper(input: Readonly<{
     marks,
     tolerance: checkedTolerance,
   });
+  const accountComparisons = [
+    account.availableCash,
+    account.equity,
+    account.positionMargin,
+    account.unrealizedPnl,
+  ];
+  const accountSummary = {
+    aligned: accountComparisons.filter(
+      (comparison) => comparison.comparable && comparison.withinTolerance === true,
+    ).length,
+    different: accountComparisons.filter(
+      (comparison) => comparison.comparable && comparison.withinTolerance === false,
+    ).length,
+    incomparable: accountComparisons.filter((comparison) => !comparison.comparable).length,
+  };
   const warnings = [
     ...paperAccounting.warnings,
     ...(asset
@@ -491,6 +511,7 @@ export function reconcileMexcAccountWithDizyPaper(input: Readonly<{
     tolerance: checkedTolerance,
     paperAccounting,
     account,
+    accountSummary: Object.freeze(accountSummary),
     positions: Object.freeze(positions),
     summary: Object.freeze(summary),
     warnings: Object.freeze([...new Set(warnings)]),

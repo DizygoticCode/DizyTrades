@@ -108,7 +108,7 @@ export default async function AccountCompanionPage() {
           </strong>
           <small>
             {reconciliation.status === "fresh"
-              ? `${reconciliation.report.summary.aligned} aligned · ${reconciliation.report.summary.different} different`
+              ? `${reconciliation.report.accountSummary.aligned} aligned · ${reconciliation.report.accountSummary.different} different`
               : reconciliation.status === "blocked"
                 ? "Requires fresh MEXC state"
                 : reconciliation.failure.message}
@@ -322,7 +322,7 @@ export default async function AccountCompanionPage() {
                     <h2 id="account-reconciliation-title">Account reconciliation</h2>
                   </div>
                   <span>
-                    {reconciliation.report.summary.aligned} aligned · {reconciliation.report.summary.different} different · {reconciliation.report.summary.incomparable} incomparable
+                    {reconciliation.report.accountSummary.aligned} aligned · {reconciliation.report.accountSummary.different} different · {reconciliation.report.accountSummary.incomparable} incomparable
                   </span>
                 </div>
                 <div className={styles.tableWrap}>
