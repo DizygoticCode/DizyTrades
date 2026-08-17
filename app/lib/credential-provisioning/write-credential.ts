@@ -56,7 +56,13 @@ export async function provisionMexcWriteCredential(
   if (!await verifyOwnerPreflight(request.userId, request.ownerProof)) return null;
   const revalidatedEvidence = authority.currentEgressEvidence(id, new Date()); if (!revalidatedEvidence) return null;
   const sealed = custody.seal(id, request.credentials, revalidatedEvidence, now.toISOString(), 0);
-  const attested = await authority.attestSealedCredential(id, sealed.credentialFingerprintSha256, request.permissionAttestation, request.ownerProof, now);
+  let attested: Awaited<ReturnType<MexcWriteProvisioningAuthority["attestSealedCredential"]>>;
+  try {
+    attested = await authority.attestSealedCredential(id, sealed.credentialFingerprintSha256, request.permissionAttestation, request.ownerProof, now);
+  } catch {
+    custody.discardFailedAttestation(id, now.toISOString(), 1);
+    return null;
+  }
   if (!attested || attested.status !== "attested" || attested.revision !== 1 || attested.credentialFingerprintSha256 !== sealed.credentialFingerprintSha256) {
     custody.discardFailedAttestation(id, now.toISOString(), 1);
     return null;
