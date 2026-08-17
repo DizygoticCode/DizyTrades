@@ -35,7 +35,11 @@ test("password and MFA success both use the validated return target", () => {
   assert.match(loginPage, /<LoginForm returnTo=\{returnTo\} \/>/);
 });
 
-test("protected egress requests opt into a safe login return target", () => {
+test("protected egress preserves its validated identity across login and MFA", () => {
   assert.match(authSource, /redirect\(`\/login\?returnTo=\$\{encodeURIComponent\(target\)\}`\)/);
-  assert.match(egressPage, /requireUser\("\/account\/egress"\)/);
+  assert.match(egressPage, /const returnParams = new URLSearchParams\(\{/);
+  assert.match(egressPage, /accountId: ID\.test\(accountId\) \? accountId : "owner-primary"/);
+  assert.match(egressPage, /generation: ID\.test\(generation\) \? generation : "render-egress-test-1"/);
+  assert.match(egressPage, /if \(RESULT\.has\(result\)\) returnParams\.set\("result", result\)/);
+  assert.match(egressPage, /requireUser\(`\/account\/egress\?\$\{returnParams\.toString\(\)\}`\)/);
 });
