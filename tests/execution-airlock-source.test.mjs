@@ -60,6 +60,13 @@ test("execution boundary is server-only and isolates the approved writer from th
       assert.match(source, /https:\/\/api\.mexc\.com/);
       assert.match(source, /createHmac/);
       assert.doesNotMatch(source, /\/api\/v1\/private\/order\/submit/);
+    } else if (path.endsWith("render-egress-proof-authority.ts")) {
+      assert.match(source, /const PROBES=\["https:\/\/api4\.ipify\.org","https:\/\/checkip\.amazonaws\.com"\] as const;/, path);
+      assert.match(source, /method:"GET"/, path);
+      assert.match(source, /redirect:"error"/, path);
+      assert.doesNotMatch(source, /createHmac|\bApiKey\b|\bSignature\b|https:\/\/api\.mexc\.com/, path);
+      assert.doesNotMatch(source, /\/api\/v1\/private\/(?:order|position\/(?:change|submit|cancel)|account\/(?:transfer|withdraw))/i, path);
+      assert.doesNotMatch(source, /(?:WRITE|TRADING)_(?:API_)?(?:KEY|SECRET)|PRIVATE_KEY/, path);
     } else {
       assert.doesNotMatch(source, /\bfetch\s*\(|https?:\/\/|createHmac|\bApiKey\b|\bSignature\b/, path);
       assert.doesNotMatch(source, /\/api\/v1\/private\/(?:order|position\/(?:change|submit|cancel)|account\/(?:transfer|withdraw))/i, path);
