@@ -19,7 +19,7 @@ test("write credential provisioning is server-only, separately disabled, encrypt
   assert.match(custody, /DizyTrades\/mexc-write-credential-custody\/v1/);
   assert.doesNotMatch(custody, /createDecipheriv|withCredentials|openCredential|function decrypt/i);
   assert.doesNotMatch(custody, /access_key|secret_key/i);
-  assert.match(custody, /Number\([^\n]*\.changes\)/);
+  assert.match(custody, /const changes = Number\(/);
 });
 
 test("provisioning binds exact generation to a current #330 allowlist and fresh owner reauthentication", () => {
