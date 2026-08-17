@@ -5,6 +5,7 @@ import {
   RENDER_EGRESS_ALLOWLIST_OBSERVATION_MAX_AGE_MS,
   RENDER_EGRESS_SECOND_OBSERVATION_MIN_DELAY_MS,
   SqliteRenderEgressProofStore,
+  attestMexcEgressAllowlisted,
   declareRenderDedicatedEgress,
   observeRenderDedicatedEgress,
   probeProductionRenderEgressIpv4,
@@ -21,6 +22,7 @@ import {
 import {
   MEXC_WRITE_EGRESS_ATTESTATION,
   MEXC_WRITE_PERMISSION_ATTESTATION,
+  SqliteExecutionWriteCredentialAuthorityStore,
   type ExecutionWriteCredentialAuthorityStore,
   type WriteCredentialAuthorityState,
 } from "./internal/write-credential-authority-store";
@@ -164,6 +166,39 @@ export class MexcWriteProvisioningAuthority {
     private readonly credentialAuthorityStore: ExecutionWriteCredentialAuthorityStore,
   ) {}
 
+  inspectEgress(identity: WriteProvisioningIdentity): RenderEgressState {
+    return this.egressStore.read(identity);
+  }
+
+  inspectCredentialAuthority(identity: WriteProvisioningIdentity): WriteCredentialAuthorityState {
+    return this.credentialAuthorityStore.read(identity);
+  }
+
+  async attestCurrentEgressAllowlist(
+    identity: WriteProvisioningIdentity,
+    ownerProof: RenderEgressCeremonyOwnerProof,
+    now: Date,
+  ): Promise<RenderEgressState | null> {
+    if (!Number.isFinite(now.getTime())) return null;
+    const state = this.egressStore.read(identity);
+    if (
+      state.status !== "observed"
+      || state.revision < 1
+      || state.observationCount < 2
+      || !state.ipSetDigestSha256
+      || !SHA256.test(state.ipSetDigestSha256)
+    ) return null;
+    const existing = this.credentialAuthorityStore.read(identity);
+    if (existing.status !== "unknown" || existing.revision !== 0) return null;
+    return attestMexcEgressAllowlisted(this.egressStore, {
+      ...identity,
+      expectedRevision: state.revision,
+      ipSetDigestSha256: state.ipSetDigestSha256,
+      mexcAllowlistAttestation: MEXC_WRITE_EGRESS_ATTESTATION,
+      ownerProof,
+    }, now);
+  }
+
   currentEgressEvidence(identity: WriteProvisioningIdentity, now: Date): WriteProvisioningEgressEvidence | null {
     if (!Number.isFinite(now.getTime())) return null;
     const state = this.egressStore.read(identity);
@@ -223,4 +258,24 @@ export class MexcWriteProvisioningAuthority {
       ownerProof,
     }, now);
   }
+}
+
+export type ProductionMexcWriteProvisioningAuthorityHandle = Readonly<{
+  authority: MexcWriteProvisioningAuthority;
+  close: () => void;
+}>;
+
+export function openProductionMexcWriteProvisioningAuthority(): ProductionMexcWriteProvisioningAuthorityHandle {
+  const egressStore = new SqliteRenderEgressProofStore();
+  const credentialAuthorityStore = new SqliteExecutionWriteCredentialAuthorityStore();
+  return Object.freeze({
+    authority: new MexcWriteProvisioningAuthority(egressStore, credentialAuthorityStore),
+    close: () => {
+      try {
+        egressStore.close();
+      } finally {
+        credentialAuthorityStore.close();
+      }
+    },
+  });
 }
