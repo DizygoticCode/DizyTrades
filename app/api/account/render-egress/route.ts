@@ -38,12 +38,28 @@ function identityFrom(body: Record<string, string>): RenderEgressCeremonyIdentit
   return Object.freeze({ userId: "rob", accountId, writeCredentialGeneration });
 }
 
+function applicationBaseUrl() {
+  const configured = process.env.APP_BASE_URL?.trim() || "";
+  let base: URL;
+  try {
+    base = new URL(configured);
+  } catch {
+    throw new Error("APP_BASE_URL is not configured.");
+  }
+  if (base.username || base.password || base.search || base.hash) throw new Error("Invalid APP_BASE_URL.");
+  if (base.protocol !== "https:" && base.protocol !== "http:") throw new Error("Invalid APP_BASE_URL protocol.");
+  if (process.env.NODE_ENV === "production" && base.protocol !== "https:") {
+    throw new Error("APP_BASE_URL must use HTTPS in production.");
+  }
+  return base.origin;
+}
+
 function redirectResult(
-  request: Request,
+  publicBaseUrl: string,
   identity: RenderEgressCeremonyIdentity | null,
   result: "declared" | "observed" | "rejected" | "invalid",
 ) {
-  const url = new URL("/account/egress", request.url);
+  const url = new URL("/account/egress", publicBaseUrl);
   if (identity) {
     url.searchParams.set("accountId", identity.accountId);
     url.searchParams.set("generation", identity.writeCredentialGeneration);
@@ -61,11 +77,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Too many attempts." }, { status: 429, headers: noStore });
   }
 
+  let publicBaseUrl: string;
+  try {
+    publicBaseUrl = applicationBaseUrl();
+  } catch {
+    return NextResponse.json({ error: "Server redirect configuration unavailable." }, { status: 503, headers: noStore });
+  }
+
   let body: Record<string, string>;
   try {
     body = await boundedForm(request);
   } catch {
-    return redirectResult(request, null, "invalid");
+    return redirectResult(publicBaseUrl, null, "invalid");
   }
 
   const identity = identityFrom(body);
@@ -78,12 +101,12 @@ export async function POST(request: Request) {
     || currentPassword.length < 1
     || currentPassword.length > 256
     || !/^\d{6}$/.test(totp)
-  ) return redirectResult(request, identity, "invalid");
+  ) return redirectResult(publicBaseUrl, identity, "invalid");
 
   const ownerProof = Object.freeze({ sessionToken: context.sessionToken, currentPassword, totp });
   const state = action === "declare"
     ? await declareProductionRenderEgressCeremony(identity, ownerProof)
     : await observeProductionRenderEgressCeremony(identity, ownerProof);
-  if (!state) return redirectResult(request, identity, "rejected");
-  return redirectResult(request, identity, action === "declare" ? "declared" : "observed");
+  if (!state) return redirectResult(publicBaseUrl, identity, "rejected");
+  return redirectResult(publicBaseUrl, identity, action === "declare" ? "declared" : "observed");
 }
