@@ -15,6 +15,7 @@ import {
   type RenderRuntimeEvidence,
 } from "./internal/render-egress-proof-authority";
 import {
+  activateWriteCredentialAuthority,
   attestWriteCredentialAuthority,
   revokeWriteCredentialAuthority,
   type OwnerWriteCredentialAuthorityProof,
@@ -42,6 +43,14 @@ export type WriteProvisioningEgressEvidence = Readonly<{
   revision: number;
   ipSetDigestSha256: string;
   allowlistedAt: string;
+}>;
+
+export type WriteActivationCustodyEvidence = Readonly<{
+  status: "sealed" | "revoked";
+  credentialFingerprintSha256: string;
+  egressProofRevision: number;
+  egressIpSetDigestSha256: string;
+  egressAllowlistedAt: string;
 }>;
 
 export type WriteProvisioningOwnerProof = OwnerWriteCredentialAuthorityProof;
@@ -156,9 +165,8 @@ export async function observeProductionRenderEgressCeremony(
 }
 
 /**
- * The only application-facing bridge from write-key provisioning into execution authority.
- * It accepts identity, bounded evidence, a precomputed fingerprint and owner proof only.
- * Raw credentials, custody, transport, writer construction and activation are intentionally absent.
+ * The only application-facing bridge from write-key provisioning/activation into execution authority.
+ * Raw credentials, transport and writer construction are intentionally absent.
  */
 export class MexcWriteProvisioningAuthority {
   constructor(
@@ -242,6 +250,56 @@ export class MexcWriteProvisioningAuthority {
       credentialFingerprintSha256,
       permissionAttestation,
       egressAttestation: MEXC_WRITE_EGRESS_ATTESTATION,
+      ownerProof,
+    }, now);
+  }
+
+  async activateAttestedCredential(
+    identity: WriteProvisioningIdentity,
+    expectedRevision: number,
+    custody: WriteActivationCustodyEvidence,
+    runtime: RenderRuntimeEvidence,
+    observerIpv4: string,
+    ownerProof: WriteProvisioningOwnerProof,
+    now: Date,
+  ): Promise<WriteCredentialAuthorityState | null> {
+    if (!Number.isFinite(now.getTime()) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 1) return null;
+    const authority = this.credentialAuthorityStore.read(identity);
+    const egress = this.egressStore.read(identity);
+    if (
+      authority.status !== "attested"
+      || authority.revision !== expectedRevision
+      || !authority.credentialFingerprintSha256
+      || !SHA256.test(authority.credentialFingerprintSha256)
+      || authority.permissionAttestation !== MEXC_WRITE_PERMISSION_ATTESTATION
+      || authority.egressAttestation !== MEXC_WRITE_EGRESS_ATTESTATION
+      || custody.status !== "sealed"
+      || custody.credentialFingerprintSha256 !== authority.credentialFingerprintSha256
+      || egress.status !== "allowlisted"
+      || egress.mexcAllowlistAttestation !== MEXC_WRITE_EGRESS_ATTESTATION
+      || egress.renderServiceId !== runtime.serviceId
+      || egress.dedicatedIpv4s.length !== 1
+      || egress.dedicatedIpv4s[0] !== observerIpv4
+      || !egress.ipSetDigestSha256
+      || !egress.allowlistedAt
+      || !egress.lastObservedAt
+      || custody.egressProofRevision !== egress.revision
+      || custody.egressIpSetDigestSha256 !== egress.ipSetDigestSha256
+      || custody.egressAllowlistedAt !== egress.allowlistedAt
+    ) return null;
+    const observedAt = Date.parse(egress.lastObservedAt);
+    const allowlistedAt = Date.parse(egress.allowlistedAt);
+    const nowMs = now.getTime();
+    if (
+      !Number.isFinite(observedAt)
+      || !Number.isFinite(allowlistedAt)
+      || observedAt > nowMs
+      || allowlistedAt > nowMs
+      || nowMs - observedAt > RENDER_EGRESS_ALLOWLIST_OBSERVATION_MAX_AGE_MS
+    ) return null;
+    return activateWriteCredentialAuthority(this.credentialAuthorityStore, {
+      ...identity,
+      expectedRevision,
       ownerProof,
     }, now);
   }
