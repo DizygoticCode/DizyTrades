@@ -8,6 +8,7 @@ import {
   authIsConfigured,
   type AuthUser,
 } from "./auth-credentials";
+import { safeAuthReturnTarget } from "./auth-return-target";
 import {
   createSessionToken,
   issueSession,
@@ -39,9 +40,13 @@ export async function currentUser() {
   return user ? applyAccountProfile(user) : null;
 }
 
-export async function requireUser(): Promise<AuthUser> {
+export async function requireUser(returnTo?: string): Promise<AuthUser> {
   const user = await currentUser();
-  if (!user) redirect("/login");
+  if (!user) {
+    if (!returnTo) redirect("/login");
+    const target = safeAuthReturnTarget(returnTo);
+    redirect(`/login?returnTo=${encodeURIComponent(target)}`);
+  }
   return user;
 }
 

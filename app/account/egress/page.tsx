@@ -14,6 +14,7 @@ export const revalidate = 0;
 
 type Query = Record<string, string | string[] | undefined>;
 const ID = /^[A-Za-z0-9_:@.-]{1,120}$/;
+const RESULT = new Set(["declared", "observed", "rejected", "invalid"]);
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -42,13 +43,18 @@ function mutationFields(accountId: string, generation: string) {
 }
 
 export default async function OwnerRenderEgressCeremonyPage({ searchParams }: { searchParams: Promise<Query> }) {
-  const user = await requireUser();
-  if (user.id !== "rob" || user.role !== "owner") redirect("/terminal");
-
   const query = await searchParams;
   const result = first(query.result);
   const accountId = first(query.accountId).trim() || "owner-primary";
   const generation = first(query.generation).trim() || "render-egress-test-1";
+  const returnParams = new URLSearchParams({
+    accountId: ID.test(accountId) ? accountId : "owner-primary",
+    generation: ID.test(generation) ? generation : "render-egress-test-1",
+  });
+  if (RESULT.has(result)) returnParams.set("result", result);
+  const user = await requireUser(`/account/egress?${returnParams.toString()}`);
+  if (user.id !== "rob" || user.role !== "owner") redirect("/terminal");
+
   const identity: RenderEgressCeremonyIdentity | null = ID.test(accountId) && ID.test(generation)
     ? Object.freeze({ userId: user.id, accountId, writeCredentialGeneration: generation })
     : null;
