@@ -371,7 +371,7 @@ export class SqliteExecutionWriteCredentialAuthorityStore implements ExecutionWr
       const nextRevision = expectedRevision + 1;
       let changes: number;
       if (expectedRevision === 0) {
-        changes = database.prepare(`INSERT INTO write_credential_authority(
+        changes = Number(database.prepare(`INSERT INTO write_credential_authority(
           schema_version,user_id,account_id,write_generation,revision,status,credential_fingerprint_sha256,
           permission_attestation,egress_attestation,attested_at,activated_at,revoked_at,updated_at
         ) VALUES(1,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
@@ -387,9 +387,9 @@ export class SqliteExecutionWriteCredentialAuthorityStore implements ExecutionWr
           activatedAt,
           revokedAt,
           updatedAt,
-        ).changes;
+        ).changes);
       } else {
-        changes = database.prepare(`UPDATE write_credential_authority SET
+        changes = Number(database.prepare(`UPDATE write_credential_authority SET
           revision=?,status=?,credential_fingerprint_sha256=?,permission_attestation=?,egress_attestation=?,
           attested_at=?,activated_at=?,revoked_at=?,updated_at=?
           WHERE user_id=? AND account_id=? AND write_generation=? AND revision=?`).run(
@@ -406,7 +406,7 @@ export class SqliteExecutionWriteCredentialAuthorityStore implements ExecutionWr
           identity.accountId,
           identity.writeCredentialGeneration,
           expectedRevision,
-        ).changes;
+        ).changes);
       }
       if (changes !== 1) return fail("EXECUTION_WRITE_CREDENTIAL_AUTHORITY_CONFLICT");
       database.prepare(
