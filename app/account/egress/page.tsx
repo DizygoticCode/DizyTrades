@@ -42,7 +42,7 @@ function mutationFields(accountId: string, generation: string) {
 }
 
 export default async function OwnerRenderEgressCeremonyPage({ searchParams }: { searchParams: Promise<Query> }) {
-  const user = await requireUser();
+  const user = await requireUser("/account/egress");
   if (user.id !== "rob" || user.role !== "owner") redirect("/terminal");
 
   const query = await searchParams;
