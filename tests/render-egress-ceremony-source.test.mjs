@@ -40,6 +40,16 @@ test("owner route accepts only declare/observe and supplies server-owned runtime
   assert.doesNotMatch(route, /dedicatedIpv4s|renderServiceId|renderRegion|expectedRevision/);
 });
 
+test("owner route redirects only through the configured public application origin", () => {
+  assert.match(route, /process\.env\.APP_BASE_URL/);
+  assert.match(route, /base\.origin/);
+  assert.match(route, /APP_BASE_URL must use HTTPS in production/);
+  assert.match(route, /new URL\("\/account\/egress", publicBaseUrl\)/);
+  assert.match(route, /Server redirect configuration unavailable/);
+  assert.doesNotMatch(route, /new URL\("\/account\/egress", request\.url\)/);
+  assert.doesNotMatch(route, /redirectResult\(request,/);
+});
+
 test("owner page exposes a two-observation Render rehearsal and no exchange-write ceremony", () => {
   assert.match(page, /user\.id !== "rob" \|\| user\.role !== "owner"/);
   assert.match(page, /Single-IP \/32 proof ceremony/);
