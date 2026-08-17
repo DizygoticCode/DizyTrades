@@ -54,7 +54,7 @@ export default async function OwnerWriteCredentialActivationPage({ searchParams 
       </header>
 
       <section className={accountStyles.warning} role="status">
-        <strong>Execution transport remains disconnected.</strong>{" "}This ceremony cannot construct <code>ModernMexcReduceOnlyWriter</code>, connect <code>ProductionMexcWriteComposition</code>, change <code>LIVE_TRADING_ENABLED</code>/<code>MEXC_WRITE_PROVIDER_ENABLED</code>, decrypt the write credential, or send a MEXC POST/order.
+        <strong>Execution transport remains disconnected.</strong>{" "}This ceremony cannot construct or connect the production writer, change deployment activation flags, decrypt the write credential, or send a MEXC POST/order.
       </section>
 
       {result === "active" ? <section className={accountStyles.notice} role="status"><div><p className={accountStyles.eyebrow}>GENERATION ACTIVE</p><h2>#329 now marks the exact generation active.</h2><p>The production writer is still disconnected and no exchange request was sent.</p></div></section> : null}
