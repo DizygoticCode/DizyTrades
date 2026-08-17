@@ -1,0 +1,139 @@
+.panel {
+  margin-top: 24px;
+  padding: 24px;
+  border: 1px solid #203641;
+  border-radius: 16px;
+  background: #071014;
+  color: #d9ebf3;
+}
+
+.panel h2 {
+  margin: 0 0 10px;
+  color: #f1fbff;
+}
+
+.panel p {
+  margin: 0 0 18px;
+  max-width: 900px;
+  color: #a9c7d0;
+  line-height: 1.55;
+}
+
+.identityForm,
+.form {
+  display: grid;
+  gap: 16px;
+}
+
+.identityForm {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+  color: #c8e0e7;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.field input {
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #31505c;
+  border-radius: 10px;
+  background: #0a171d;
+  color: #f1fbff;
+  font: inherit;
+}
+
+.field input:focus {
+  outline: 2px solid #64e9e0;
+  outline-offset: 2px;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: 42px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primaryButton {
+  border: 1px solid #64e9e0;
+  background: #0e3d3d;
+  color: #dffffc;
+}
+
+.secondaryButton {
+  border: 1px solid #31505c;
+  background: #10242c;
+  color: #d9ebf3;
+}
+
+.proofGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.detailCard {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #203641;
+  border-radius: 12px;
+  background: #0a171d;
+}
+
+.detailCard span {
+  color: #86a9b3;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.detailCard strong {
+  overflow-wrap: anywhere;
+  color: #edfaff;
+}
+
+.detailCard small {
+  overflow-wrap: anywhere;
+  color: #86a9b3;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.complete {
+  margin-top: 24px;
+  padding: 24px;
+  border: 1px solid #2d8178;
+  border-radius: 16px;
+  background: #0b2b29;
+  color: #dffffc;
+}
+
+.complete h2 {
+  margin: 6px 0 10px;
+}
+
+.complete p:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 900px) {
+  .identityForm,
+  .proofGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,8 +1,17 @@
 import "server-only";
 
 import {
+  RENDER_DEDICATED_EGRESS_ATTESTATION,
   RENDER_EGRESS_ALLOWLIST_OBSERVATION_MAX_AGE_MS,
-  type SqliteRenderEgressProofStore,
+  RENDER_EGRESS_SECOND_OBSERVATION_MIN_DELAY_MS,
+  SqliteRenderEgressProofStore,
+  declareRenderDedicatedEgress,
+  observeRenderDedicatedEgress,
+  probeProductionRenderEgressIpv4,
+  renderRuntimeEvidenceFromEnvironment,
+  type OwnerRenderEgressProof,
+  type RenderEgressState,
+  type RenderRuntimeEvidence,
 } from "./internal/render-egress-proof-authority";
 import {
   attestWriteCredentialAuthority,
@@ -19,6 +28,7 @@ import {
 export { MEXC_WRITE_PERMISSION_ATTESTATION };
 
 const SHA256 = /^[a-f0-9]{64}$/;
+const RENDER_EGRESS_CEREMONY_REGION = "frankfurt" as const;
 
 export type WriteProvisioningIdentity = Readonly<{
   userId: string;
@@ -33,6 +43,115 @@ export type WriteProvisioningEgressEvidence = Readonly<{
 }>;
 
 export type WriteProvisioningOwnerProof = OwnerWriteCredentialAuthorityProof;
+export type RenderEgressCeremonyOwnerProof = OwnerRenderEgressProof;
+export type RenderEgressCeremonySnapshot = Readonly<{
+  region: typeof RENDER_EGRESS_CEREMONY_REGION;
+  runtime: RenderRuntimeEvidence | null;
+  observerIpv4: string | null;
+  state: RenderEgressState;
+  secondObservationEligibleAt: string | null;
+  secondObservationReady: boolean;
+  complete: boolean;
+}>;
+
+function secondObservationTiming(state: RenderEgressState, nowMs: number) {
+  if (!state.lastObservedAt) return { eligibleAt: null, ready: true };
+  const last = Date.parse(state.lastObservedAt);
+  if (!Number.isFinite(last)) return { eligibleAt: null, ready: false };
+  const eligibleMs = last + RENDER_EGRESS_SECOND_OBSERVATION_MIN_DELAY_MS;
+  return {
+    eligibleAt: new Date(eligibleMs).toISOString(),
+    ready: nowMs >= eligibleMs,
+  };
+}
+
+export async function inspectProductionRenderEgressCeremony(
+  identity: WriteProvisioningIdentity,
+): Promise<RenderEgressCeremonySnapshot | null> {
+  const store = new SqliteRenderEgressProofStore();
+  try {
+    const runtime = renderRuntimeEvidenceFromEnvironment();
+    const state = store.read(identity);
+    const observerIpv4 = runtime ? await probeProductionRenderEgressIpv4() : null;
+    const timing = secondObservationTiming(state, Date.now());
+    return Object.freeze({
+      region: RENDER_EGRESS_CEREMONY_REGION,
+      runtime,
+      observerIpv4,
+      state,
+      secondObservationEligibleAt: timing.eligibleAt,
+      secondObservationReady: timing.ready,
+      complete: state.status === "observed" && state.observationCount >= 2,
+    });
+  } catch {
+    return null;
+  } finally {
+    store.close();
+  }
+}
+
+export async function declareProductionRenderEgressCeremony(
+  identity: WriteProvisioningIdentity,
+  ownerProof: RenderEgressCeremonyOwnerProof,
+): Promise<RenderEgressState | null> {
+  const store = new SqliteRenderEgressProofStore();
+  try {
+    const runtime = renderRuntimeEvidenceFromEnvironment();
+    if (!runtime) return null;
+    const current = store.read(identity);
+    if (current.status !== "unknown" || current.revision !== 0) return null;
+    const observerIpv4 = await probeProductionRenderEgressIpv4();
+    if (!observerIpv4) return null;
+    return await declareRenderDedicatedEgress(store, {
+      ...identity,
+      expectedRevision: 0,
+      renderServiceId: runtime.serviceId,
+      renderRegion: RENDER_EGRESS_CEREMONY_REGION,
+      dedicatedIpv4s: Object.freeze([observerIpv4]),
+      renderAttestation: RENDER_DEDICATED_EGRESS_ATTESTATION,
+      ownerProof,
+    });
+  } catch {
+    return null;
+  } finally {
+    store.close();
+  }
+}
+
+export async function observeProductionRenderEgressCeremony(
+  identity: WriteProvisioningIdentity,
+  ownerProof: RenderEgressCeremonyOwnerProof,
+): Promise<RenderEgressState | null> {
+  const store = new SqliteRenderEgressProofStore();
+  try {
+    const runtime = renderRuntimeEvidenceFromEnvironment();
+    if (!runtime) return null;
+    const current = store.read(identity);
+    if (
+      (current.status !== "declared" && current.status !== "observed")
+      || current.revision < 1
+      || current.observationCount >= 2
+      || current.renderServiceId !== runtime.serviceId
+      || current.dedicatedIpv4s.length !== 1
+    ) return null;
+    const observerIpv4 = await probeProductionRenderEgressIpv4();
+    if (!observerIpv4 || current.dedicatedIpv4s[0] !== observerIpv4) return null;
+    const now = new Date();
+    const timing = secondObservationTiming(current, now.getTime());
+    if (!timing.ready) return null;
+    return await observeRenderDedicatedEgress(
+      store,
+      { ...identity, expectedRevision: current.revision, ownerProof },
+      runtime,
+      observerIpv4,
+      now,
+    );
+  } catch {
+    return null;
+  } finally {
+    store.close();
+  }
+}
 
 /**
  * The only application-facing bridge from write-key provisioning into execution authority.
