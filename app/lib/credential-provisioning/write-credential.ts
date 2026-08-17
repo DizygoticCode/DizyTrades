@@ -54,7 +54,8 @@ export async function provisionMexcWriteCredential(
   if (!validIdentity(id) || request.expectedRevision !== 0 || request.permissionAttestation !== MEXC_WRITE_PERMISSION_ATTESTATION || !Number.isFinite(now.getTime())) return null;
   const evidence = authority.currentEgressEvidence(id, now); if (!evidence) return null;
   if (!await verifyOwnerPreflight(request.userId, request.ownerProof)) return null;
-  const sealed = custody.seal(id, request.credentials, evidence, now.toISOString(), 0);
+  const revalidatedEvidence = authority.currentEgressEvidence(id, new Date()); if (!revalidatedEvidence) return null;
+  const sealed = custody.seal(id, request.credentials, revalidatedEvidence, now.toISOString(), 0);
   const attested = await authority.attestSealedCredential(id, sealed.credentialFingerprintSha256, request.permissionAttestation, request.ownerProof, now);
   if (!attested || attested.status !== "attested" || attested.revision !== 1 || attested.credentialFingerprintSha256 !== sealed.credentialFingerprintSha256) {
     custody.discardFailedAttestation(id, now.toISOString(), 1);
