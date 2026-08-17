@@ -33,6 +33,9 @@ export default async function AccountCompanionLayout({ children }: { children: R
         <Link href="/account/write-credential" style={{ color: "#ffb86b", textDecoration: "none" }}>
           Write credential ceremony
         </Link>
+        <Link href="/account/write-credential/activate" style={{ color: "#ff8f70", textDecoration: "none" }}>
+          Credential activation
+        </Link>
         <Link href="/account/control" style={{ color: "#ffd479", textDecoration: "none" }}>
           Connection shutdown
         </Link>
