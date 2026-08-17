@@ -8,7 +8,7 @@ const production=readFileSync(new URL("../app/lib/execution/internal/production-
 test("Render egress proof is server-only, secret-free and disconnected from production writer composition",()=>{
   assert.match(source,/^import "server-only";/);
   for(const required of ["databaseSession","verifyAccountPassword","verifyFreshTotp","RENDER_SERVICE_ID","RENDER_GIT_COMMIT","RENDER_INSTANCE_ID",
-    "render-dedicated-outbound-ip-set/v1","dual-https-egress-observation/v1","mexc-write-egress-allowlisted-for-generation/v1","payload_json","observationCount"])
+    "render-dedicated-outbound-ip-set/v1","dual-https-egress-observation/v1","MEXC_WRITE_EGRESS_ATTESTATION","payload_json","observationCount"])
     assert.match(source,new RegExp(required.replaceAll("/","\\/")));
   for(const forbidden of ["MEXC_EXECUTION_ACCESS_KEY","MEXC_EXECUTION_SECRET_KEY","MEXC_READONLY_ACCESS_KEY","MEXC_READONLY_SECRET_KEY",
     "ModernMexcReduceOnlyWriter","ProductionMexcWriteComposition","mexc-execution-writer","production-write-composition","credential-custody"])
