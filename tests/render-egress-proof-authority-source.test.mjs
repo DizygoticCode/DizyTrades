@@ -17,6 +17,12 @@ test("Render egress proof is server-only, secret-free and disconnected from prod
   assert.doesNotMatch(production,/render-egress-proof-authority/);
 });
 
+test("dedicated egress declaration is exactly one canonical public IPv4",()=>{
+  assert.match(source,/v\.length!==1\|\|!isPublicIpv4\(v\[0\]\)/);
+  assert.match(source,/ips:readonly \[string\]/);
+  assert.doesNotMatch(source,/v\.length!==3|readonly \[string,string,string\]/);
+});
+
 test("production probe destinations are fixed HTTPS observers",()=>{
   assert.match(source,/"https:\/\/api4\.ipify\.org"/);
   assert.match(source,/"https:\/\/checkip\.amazonaws\.com"/);
