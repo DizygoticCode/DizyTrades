@@ -17,7 +17,7 @@ test("Render egress ceremony stays behind the existing secret-free execution aut
   assert.match(executionFacade, /RENDER_EGRESS_SECOND_OBSERVATION_MIN_DELAY_MS/);
   assert.match(executionFacade, /current\.dedicatedIpv4s\[0\] !== observerIpv4/);
   assert.match(executionFacade, /current\.observationCount >= 2/);
-  assert.doesNotMatch(executionFacade, /attestMexcEgressAllowlisted/);
+  assert.doesNotMatch(ceremony, /attestMexcEgressAllowlisted/);
 
   assert.match(ceremony, /^import "server-only";/);
   assert.match(ceremony, /\.\/execution\/write-provisioning-authority/);
