@@ -263,7 +263,7 @@ export class ProductionMexcWriteComposition {
       rollout: Object.freeze({ userId: caller.userId, accountId: caller.accountId, revision: finalRollout.revision, bindingGeneration: finalBinding.credentialGeneration, riskRevision: finalRisk.revision, armed: true as const }),
       switches: finalSwitches,
       airlock: Object.freeze({ userId: caller.userId, accountId: caller.accountId, intentId: airlock.result.intentId, idempotencyKey: airlock.result.idempotencyKey, result: airlock.result }),
-      network: Object.freeze({ mexcEgressAllowlisted: true as const }),
+      network: Object.freeze({ mexcEgressAllowlisted: true as const, writeCredentialGeneration: "synthetic-candidate-only" }),
     });
     return d.syntheticCandidateHandoff.accept(intent, evidence);
   }
