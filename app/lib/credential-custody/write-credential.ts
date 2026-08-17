@@ -168,7 +168,7 @@ export class SqliteMexcWriteCredentialCustody {
     const ring = keyring(), fingerprint = mexcWriteCredentialFingerprintSha256(secret), envelope = encrypt(secret, identity, fingerprint, ring.active, ring.keys.get(ring.active)!);
     const db = this.db(); try {
       db.exec("BEGIN IMMEDIATE"); if (this.row(identity)) return fail();
-      const changes = Number(db.prepare(`INSERT INTO mexc_write_credential_custody VALUES(1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      const changes = Number(db.prepare(`INSERT INTO mexc_write_credential_custody VALUES(1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(identity.userId, identity.accountId, identity.writeCredentialGeneration, 1, "sealed", fingerprint, ring.active, envelope.nonce, envelope.ciphertext, envelope.authTag,
           evidence.revision, evidence.ipSetDigestSha256, evidence.allowlistedAt, at, at, null).changes);
       if (changes !== 1) return fail();
