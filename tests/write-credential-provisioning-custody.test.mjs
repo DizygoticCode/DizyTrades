@@ -71,7 +71,7 @@ test("sealed write custody is exact-generation, secret-free in metadata, persist
     assert.throws(() => store.seal(id, secret, evidence, iso(at + 1), 0), /MEXC_WRITE_CREDENTIAL_CUSTODY_UNAVAILABLE/);
     const other = store.seal(identity("write-generation-1", "account-2"), secret, evidence, iso(at + 2), 0);
     assert.equal(other.accountId, "account-2");
-    const bytes = [path, `${path}-wal`, `${path}-shm`].filter(existsSync).map(readFileSync);
+    const bytes = [path, `${path}-wal`, `${path}-shm`].filter(existsSync).map((candidate) => readFileSync(candidate));
     assert.equal(bytes.some((buffer) => buffer.includes(Buffer.from(secret.accessKey))), false);
     assert.equal(bytes.some((buffer) => buffer.includes(Buffer.from(secret.secretKey))), false);
     const db = new DatabaseSync(path), columns = db.prepare("PRAGMA table_info(mexc_write_credential_custody)").all().map((row) => row.name); db.close();
@@ -130,7 +130,7 @@ test("provisioning requires exact current #330 allowlist plus owner password and
 });
 
 test("provisioning rejects an allowlisted proof whose live observation has become stale", async () => {
-  const root = mkdtempSync(join(tmpdir(), "write-provisioning-stale-")); enableCustody(root); closeAuthDatabaseForTests();
+  const root = mkdtempSync(join(tmpdir(), "write-provisioning-stale-")), priorData = process.env.DATA_DIR; enableCustody(root); closeAuthDatabaseForTests();
   const custody = new SqliteMexcWriteCredentialCustody(join(root, "write.sqlite")), egress = new SqliteRenderEgressProofStore(join(root, "egress.sqlite"));
   try {
     const password = "correct-horse-battery-staple", user = await createAccount({ email: "owner-write-stale@example.test", password });
@@ -141,5 +141,9 @@ test("provisioning rejects an allowlisted proof whose live observation has becom
     const now = base + 30_000, result = await provisionMexcWriteCredential(custody, egress, { ...id, expectedRevision: 0, credentials: secret,
       ownerProof: { sessionToken: session, currentPassword: password, totp: totp(mfaSecret, now) } }, new Date(now));
     assert.equal(result, null); assert.equal(custody.read(id), null);
-  } finally { custody.close(); egress.close(); closeAuthDatabaseForTests(); clearCustodyEnvironment(); rmSync(root, { recursive: true, force: true }); }
+  } finally {
+    custody.close(); egress.close(); closeAuthDatabaseForTests(); clearCustodyEnvironment();
+    if (priorData === undefined) delete process.env.DATA_DIR; else process.env.DATA_DIR = priorData;
+    rmSync(root, { recursive: true, force: true });
+  }
 });
