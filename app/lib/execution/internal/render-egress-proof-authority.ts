@@ -33,7 +33,7 @@ export type RenderEgressState=Readonly<{
 }>;
 
 type Stored=Readonly<{
-  serviceId:string;region:RenderRegion;ips:readonly [string,string,string];digest:string;count:number;
+  serviceId:string;region:RenderRegion;ips:readonly [string];digest:string;count:number;
   firstIp:string|null;firstAt:string|null;lastIp:string|null;lastAt:string|null;lastCommit:string|null;lastInstance:string|null;
   mexcAllowlisted:boolean;allowlistedAt:string|null;revokedAt:string|null;
 }>;
@@ -60,13 +60,11 @@ export const isPublicIpv4=(v:unknown):v is string=>{
     (a===192&&b===0&&c===0)||(a===192&&b===0&&c===2)||(a===192&&b===168)||(a===198&&(b===18||b===19))||
     (a===198&&b===51&&c===100)||(a===203&&b===0&&c===113)||a>=224);
 };
-const ipNum=(v:string)=>v.split(".").map(Number).reduce((n,x)=>n*256+x,0);
-export const canonicalDedicatedIpv4s=(v:readonly string[]):readonly [string,string,string]|null=>{
-  if(v.length!==3||v.some(x=>!isPublicIpv4(x)))return null;const a=[...new Set(v)];if(a.length!==3)return null;
-  a.sort((l,r)=>ipNum(l)-ipNum(r));return Object.freeze(a) as readonly [string,string,string];
+export const canonicalDedicatedIpv4s=(v:readonly string[]):readonly [string]|null=>{
+  if(v.length!==1||!isPublicIpv4(v[0]))return null;return Object.freeze([v[0]]) as readonly [string];
 };
 export const renderDedicatedIpSetDigestSha256=(v:readonly string[])=>{
-  const a=canonicalDedicatedIpv4s(v);return a?createHash("sha256").update(a.join("\n")).digest("hex"):null;
+  const a=canonicalDedicatedIpv4s(v);return a?createHash("sha256").update(a[0]).digest("hex"):null;
 };
 const regions=new Set<RenderRegion>(["oregon","ohio","virginia","frankfurt","singapore"]);
 
