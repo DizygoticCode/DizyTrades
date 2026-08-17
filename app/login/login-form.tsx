@@ -3,13 +3,15 @@
 import { FormEvent, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { SCHOOL_DISPLAY_NAME } from "@/app/lib/branding";
+import { safeAuthReturnTarget } from "@/app/lib/auth-return-target";
 
 const subscribeToHydration = () => () => undefined;
 const getHydratedSnapshot = () => true;
 const getServerHydrationSnapshot = () => false;
 
-export default function LoginForm() {
+export default function LoginForm({ returnTo = "/terminal" }: { returnTo?: string }) {
   const router = useRouter();
+  const postLoginTarget = safeAuthReturnTarget(returnTo);
   const hydrated = useSyncExternalStore(
     subscribeToHydration,
     getHydratedSnapshot,
@@ -42,7 +44,7 @@ export default function LoginForm() {
         throw new Error(payload.error || "Sign-in failed.");
       }
       if (payload.mfaRequired && payload.challenge) { setChallenge(payload.challenge); return; }
-      router.replace("/terminal");
+      router.replace(postLoginTarget);
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Sign-in failed.");
@@ -58,7 +60,7 @@ export default function LoginForm() {
       const response = await fetch("/api/auth/mfa/challenge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ challenge, proof }) });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error || "MFA verification failed.");
-      setChallenge(""); router.replace("/terminal"); router.refresh();
+      setChallenge(""); router.replace(postLoginTarget); router.refresh();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "MFA verification failed."); }
     finally { setLoading(false); }
   };
