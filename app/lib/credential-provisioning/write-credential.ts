@@ -54,8 +54,9 @@ function liveAllowlistedEvidence(egressStore: SqliteRenderEgressProofStore, id: 
   const state = egressStore.read(id);
   if (state.status !== "allowlisted" || state.mexcAllowlistAttestation !== MEXC_WRITE_EGRESS_ATTESTATION ||
       !state.ipSetDigestSha256 || !SHA256.test(state.ipSetDigestSha256) || !state.allowlistedAt || !state.lastObservedAt) return null;
-  const observedAt = Date.parse(state.lastObservedAt), nowMs = now.getTime();
-  if (!Number.isFinite(observedAt) || observedAt > nowMs || nowMs - observedAt > RENDER_EGRESS_ALLOWLIST_OBSERVATION_MAX_AGE_MS) return null;
+  const observedAt = Date.parse(state.lastObservedAt), allowlistedAt = Date.parse(state.allowlistedAt), nowMs = now.getTime();
+  if (!Number.isFinite(observedAt) || !Number.isFinite(allowlistedAt) || observedAt > nowMs || allowlistedAt > nowMs ||
+      nowMs - observedAt > RENDER_EGRESS_ALLOWLIST_OBSERVATION_MAX_AGE_MS) return null;
   return Object.freeze({ revision: state.revision, ipSetDigestSha256: state.ipSetDigestSha256, allowlistedAt: state.allowlistedAt });
 }
 
