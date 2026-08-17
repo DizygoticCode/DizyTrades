@@ -140,8 +140,6 @@ export async function provisionProductionWriteCredential(
       permissionAttestation: MEXC_WRITE_PERMISSION_ATTESTATION,
       ownerProof,
     }, new Date());
-  } catch {
-    return null;
   } finally {
     custody.close();
     handle.close();
