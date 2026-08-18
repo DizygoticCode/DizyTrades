@@ -50,6 +50,12 @@ test("execution boundary is server-only and isolates network signing to the appr
       assert.doesNotMatch(source, /createHmac|\bApiKey\b|\bSignature\b|https:\/\/api\.mexc\.com/, path);
       assert.doesNotMatch(source, /\/api\/v1\/private\/(?:order|position\/(?:change|submit|cancel)|account\/(?:transfer|withdraw))/i, path);
       assert.doesNotMatch(source, /(?:WRITE|TRADING)_(?:API_)?(?:KEY|SECRET)|PRIVATE_KEY/, path);
+    } else if (path.endsWith("static-host-egress-proof-authority.ts")) {
+      assert.match(source, /const PROBES = \["https:\/\/api4\.ipify\.org", "https:\/\/checkip\.amazonaws\.com"\] as const;/, path);
+      assert.match(source, /method:\s*"GET"/, path); assert.match(source, /redirect:\s*"error"/, path);
+      assert.doesNotMatch(source, /createHmac|\bApiKey\b|\bSignature\b|https:\/\/api\.mexc\.com/, path);
+      assert.doesNotMatch(source, /\/api\/v1\/private\/(?:order|position\/(?:change|submit|cancel)|account\/(?:transfer|withdraw))/i, path);
+      assert.doesNotMatch(source, /(?:WRITE|TRADING)_(?:API_)?(?:KEY|SECRET)|PRIVATE_KEY/, path);
     } else if (path === productionCredentialLease) {
       assert.match(source, /createDecipheriv/, path);
       assert.match(source, /createHmac/, path);
@@ -106,6 +112,7 @@ test("application code has one execution implementation import path plus one aud
   const facade = text(writeProvisioningFacade);
   assert.deepEqual(moduleSpecifiers(facade).filter((specifier) => specifier.startsWith("./internal/")), [
     "./internal/render-egress-proof-authority",
+    "./internal/execution-host-egress-authority",
     "./internal/write-credential-attestation-authority",
     "./internal/write-credential-authority-store",
   ]);

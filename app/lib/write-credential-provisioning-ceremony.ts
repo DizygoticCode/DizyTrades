@@ -4,12 +4,12 @@ import { SqliteMexcWriteCredentialCustody } from "./credential-custody/write-cre
 import { provisionMexcWriteCredential } from "./credential-provisioning/write-credential";
 import {
   MEXC_WRITE_PERMISSION_ATTESTATION,
-  declareProductionRenderEgressCeremony,
-  inspectProductionRenderEgressCeremony,
-  observeProductionRenderEgressCeremony,
+  declareProductionExecutionHostEgressCeremony,
+  inspectProductionExecutionHostEgressCeremony,
+  observeProductionExecutionHostEgressCeremony,
   openProductionMexcWriteProvisioningAuthority,
-  type RenderEgressCeremonyOwnerProof,
-  type RenderEgressCeremonySnapshot,
+  type ExecutionHostCeremonyOwnerProof,
+  type ExecutionHostEgressCeremonySnapshot,
   type WriteProvisioningIdentity,
   type WriteProvisioningOwnerProof,
 } from "./execution/write-provisioning-authority";
@@ -23,7 +23,7 @@ const OWNER_USER_ID = "rob" as const;
 export type ProductionWriteCredentialCeremonyIdentity = WriteProvisioningIdentity & Readonly<{ userId: typeof OWNER_USER_ID }>;
 export type ProductionWriteCredentialCeremonySnapshot = Readonly<{
   identity: ProductionWriteCredentialCeremonyIdentity;
-  egress: RenderEgressCeremonySnapshot | null;
+  egress: ExecutionHostEgressCeremonySnapshot | null;
   credentialAuthority: Readonly<{
     revision: number;
     status: "unknown" | "attested" | "active" | "revoked";
@@ -58,13 +58,14 @@ export function productionWriteCredentialCeremonyIdentity(
 export async function inspectProductionWriteCredentialCeremony(): Promise<ProductionWriteCredentialCeremonySnapshot | null> {
   const identity = productionWriteCredentialCeremonyIdentity();
   if (!identity) return null;
-  const egress = await inspectProductionRenderEgressCeremony(identity);
-  const handle = openProductionMexcWriteProvisioningAuthority();
+  const egress = await inspectProductionExecutionHostEgressCeremony(identity);
+  let handle: ReturnType<typeof openProductionMexcWriteProvisioningAuthority> | null = null;
   const custody = new SqliteMexcWriteCredentialCustody();
   let credentialAuthority: ProductionWriteCredentialCeremonySnapshot["credentialAuthority"] = null;
   let custodyReceipt: ProductionWriteCredentialCeremonySnapshot["custody"] = null;
   let custodyAvailable = true;
   try {
+    handle = openProductionMexcWriteProvisioningAuthority();
     const state = handle.authority.inspectCredentialAuthority(identity);
     credentialAuthority = Object.freeze({
       revision: state.revision,
@@ -95,32 +96,33 @@ export async function inspectProductionWriteCredentialCeremony(): Promise<Produc
     return null;
   } finally {
     custody.close();
-    handle.close();
+    handle?.close();
   }
 }
 
-export async function declareProductionWriteCredentialEgress(ownerProof: RenderEgressCeremonyOwnerProof) {
+export async function declareProductionWriteCredentialEgress(ownerProof: ExecutionHostCeremonyOwnerProof) {
   const identity = productionWriteCredentialCeremonyIdentity();
   if (!identity) return null;
-  return declareProductionRenderEgressCeremony(identity, ownerProof);
+  return declareProductionExecutionHostEgressCeremony(identity, ownerProof);
 }
 
-export async function observeProductionWriteCredentialEgress(ownerProof: RenderEgressCeremonyOwnerProof) {
+export async function observeProductionWriteCredentialEgress(ownerProof: ExecutionHostCeremonyOwnerProof) {
   const identity = productionWriteCredentialCeremonyIdentity();
   if (!identity) return null;
-  return observeProductionRenderEgressCeremony(identity, ownerProof);
+  return observeProductionExecutionHostEgressCeremony(identity, ownerProof);
 }
 
-export async function attestProductionWriteCredentialEgressAllowlisted(ownerProof: RenderEgressCeremonyOwnerProof) {
+export async function attestProductionWriteCredentialEgressAllowlisted(ownerProof: ExecutionHostCeremonyOwnerProof) {
   const identity = productionWriteCredentialCeremonyIdentity();
   if (!identity) return null;
-  const handle = openProductionMexcWriteProvisioningAuthority();
+  let handle: ReturnType<typeof openProductionMexcWriteProvisioningAuthority> | null = null;
   try {
+    handle = openProductionMexcWriteProvisioningAuthority();
     return await handle.authority.attestCurrentEgressAllowlist(identity, ownerProof, new Date());
   } catch {
     return null;
   } finally {
-    handle.close();
+    handle?.close();
   }
 }
 
@@ -130,9 +132,10 @@ export async function provisionProductionWriteCredential(
 ) {
   const identity = productionWriteCredentialCeremonyIdentity();
   if (!identity) return null;
-  const handle = openProductionMexcWriteProvisioningAuthority();
+  let handle: ReturnType<typeof openProductionMexcWriteProvisioningAuthority> | null = null;
   const custody = new SqliteMexcWriteCredentialCustody();
   try {
+    handle = openProductionMexcWriteProvisioningAuthority();
     return await provisionMexcWriteCredential(custody, handle.authority, {
       ...identity,
       expectedRevision: 0,
@@ -140,8 +143,10 @@ export async function provisionProductionWriteCredential(
       permissionAttestation: MEXC_WRITE_PERMISSION_ATTESTATION,
       ownerProof,
     }, new Date());
+  } catch {
+    return null;
   } finally {
     custody.close();
-    handle.close();
+    handle?.close();
   }
 }

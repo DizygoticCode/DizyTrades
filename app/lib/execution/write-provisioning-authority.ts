@@ -15,6 +15,15 @@ import {
   type RenderRuntimeEvidence,
 } from "./internal/render-egress-proof-authority";
 import {
+  ProductionExecutionHostEgressAuthority,
+  inspectProductionExecutionHostEgressCeremony,
+  openProductionExecutionHostEgressAuthority,
+  type ExecutionHostEgressCeremonySnapshot,
+  type ExecutionHostEgressState,
+  type ExecutionHostOwnerProof,
+  type ExecutionHostRuntimeEvidence,
+} from "./internal/execution-host-egress-authority";
+import {
   activateWriteCredentialAuthority,
   attestWriteCredentialAuthority,
   revokeWriteCredentialAuthority,
@@ -29,6 +38,8 @@ import {
 } from "./internal/write-credential-authority-store";
 
 export { MEXC_WRITE_PERMISSION_ATTESTATION };
+export { inspectProductionExecutionHostEgressCeremony };
+export type { ExecutionHostEgressCeremonySnapshot, ExecutionHostRuntimeEvidence };
 
 const SHA256 = /^[a-f0-9]{64}$/;
 const RENDER_EGRESS_CEREMONY_REGION = "frankfurt" as const;
@@ -54,6 +65,7 @@ export type WriteActivationCustodyEvidence = Readonly<{
 }>;
 
 export type WriteProvisioningOwnerProof = OwnerWriteCredentialAuthorityProof;
+export type ExecutionHostCeremonyOwnerProof = ExecutionHostOwnerProof;
 export type RenderEgressCeremonyOwnerProof = OwnerRenderEgressProof;
 export type RenderEgressCeremonySnapshot = Readonly<{
   region: typeof RENDER_EGRESS_CEREMONY_REGION;
@@ -65,17 +77,37 @@ export type RenderEgressCeremonySnapshot = Readonly<{
   complete: boolean;
 }>;
 
+type CompatibleExecutionHostRuntimeEvidence = ExecutionHostRuntimeEvidence | RenderRuntimeEvidence;
+
 function secondObservationTiming(state: RenderEgressState, nowMs: number) {
   if (!state.lastObservedAt) return { eligibleAt: null, ready: true };
   const last = Date.parse(state.lastObservedAt);
   if (!Number.isFinite(last)) return { eligibleAt: null, ready: false };
   const eligibleMs = last + RENDER_EGRESS_SECOND_OBSERVATION_MIN_DELAY_MS;
-  return {
-    eligibleAt: new Date(eligibleMs).toISOString(),
-    ready: nowMs >= eligibleMs,
-  };
+  return { eligibleAt: new Date(eligibleMs).toISOString(), ready: nowMs >= eligibleMs };
 }
 
+function normalizeRenderEgressState(state: RenderEgressState): ExecutionHostEgressState {
+  return Object.freeze({
+    revision: state.revision,
+    status: state.status,
+    provider: "render" as const,
+    hostId: state.renderServiceId,
+    dedicatedIpv4s: state.dedicatedIpv4s,
+    ipSetDigestSha256: state.ipSetDigestSha256,
+    observationCount: state.observationCount,
+    firstObservedIp: state.firstObservedIp,
+    firstObservedAt: state.firstObservedAt,
+    lastObservedIp: state.lastObservedIp,
+    lastObservedAt: state.lastObservedAt,
+    mexcAllowlistAttestation: state.mexcAllowlistAttestation,
+    allowlistedAt: state.allowlistedAt,
+    revokedAt: state.revokedAt,
+    updatedAt: state.updatedAt,
+  });
+}
+
+/** Legacy Render-specific inspection retained for the existing Render egress page. */
 export async function inspectProductionRenderEgressCeremony(
   identity: WriteProvisioningIdentity,
 ): Promise<RenderEgressCeremonySnapshot | null> {
@@ -101,6 +133,7 @@ export async function inspectProductionRenderEgressCeremony(
   }
 }
 
+/** Legacy Render-specific mutation retained for the existing Render egress page. */
 export async function declareProductionRenderEgressCeremony(
   identity: WriteProvisioningIdentity,
   ownerProof: RenderEgressCeremonyOwnerProof,
@@ -129,6 +162,7 @@ export async function declareProductionRenderEgressCeremony(
   }
 }
 
+/** Legacy Render-specific mutation retained for the existing Render egress page. */
 export async function observeProductionRenderEgressCeremony(
   identity: WriteProvisioningIdentity,
   ownerProof: RenderEgressCeremonyOwnerProof,
@@ -164,18 +198,116 @@ export async function observeProductionRenderEgressCeremony(
   }
 }
 
+export async function declareProductionExecutionHostEgressCeremony(
+  identity: WriteProvisioningIdentity,
+  ownerProof: ExecutionHostCeremonyOwnerProof,
+): Promise<ExecutionHostEgressState | null> {
+  const authority = openProductionExecutionHostEgressAuthority();
+  if (!authority) return null;
+  try {
+    const result = await authority.declare(identity, ownerProof, new Date());
+    return result ? authority.read(identity) : null;
+  } catch {
+    return null;
+  } finally {
+    authority.close();
+  }
+}
+
+export async function observeProductionExecutionHostEgressCeremony(
+  identity: WriteProvisioningIdentity,
+  ownerProof: ExecutionHostCeremonyOwnerProof,
+): Promise<ExecutionHostEgressState | null> {
+  const authority = openProductionExecutionHostEgressAuthority();
+  if (!authority) return null;
+  try {
+    const result = await authority.observe(identity, ownerProof, new Date());
+    return result ? authority.read(identity) : null;
+  } catch {
+    return null;
+  } finally {
+    authority.close();
+  }
+}
+
 /**
- * The only application-facing bridge from write-key provisioning/activation into execution authority.
- * Raw credentials, transport and writer construction are intentionally absent.
+ * Application-facing bridge from write-key provisioning/activation into execution authority.
+ * The production path is provider-neutral. Direct Render-store injection is retained only as
+ * a compatibility boundary for the established Render proof regressions.
  */
 export class MexcWriteProvisioningAuthority {
-  constructor(
-    private readonly egressStore: SqliteRenderEgressProofStore,
-    private readonly credentialAuthorityStore: ExecutionWriteCredentialAuthorityStore,
-  ) {}
+  private readonly executionHostAuthority: ProductionExecutionHostEgressAuthority | null;
+  private readonly legacyRenderEgressStore: SqliteRenderEgressProofStore | null;
 
-  inspectEgress(identity: WriteProvisioningIdentity): RenderEgressState {
-    return this.egressStore.read(identity);
+  constructor(
+    egressAuthority: ProductionExecutionHostEgressAuthority | SqliteRenderEgressProofStore,
+    private readonly credentialAuthorityStore: ExecutionWriteCredentialAuthorityStore,
+  ) {
+    if (egressAuthority instanceof SqliteRenderEgressProofStore) {
+      this.executionHostAuthority = null;
+      this.legacyRenderEgressStore = egressAuthority;
+    } else {
+      this.executionHostAuthority = egressAuthority;
+      this.legacyRenderEgressStore = null;
+    }
+  }
+
+  private readEgress(identity: WriteProvisioningIdentity): ExecutionHostEgressState {
+    if (this.executionHostAuthority) return this.executionHostAuthority.read(identity);
+    return normalizeRenderEgressState(this.legacyRenderEgressStore!.read(identity));
+  }
+
+  private async attestEgressAllowlist(
+    identity: WriteProvisioningIdentity,
+    ownerProof: ExecutionHostCeremonyOwnerProof,
+    state: ExecutionHostEgressState,
+    now: Date,
+  ) {
+    if (this.executionHostAuthority) return this.executionHostAuthority.attestMexcAllowlist(identity, ownerProof, now);
+    return attestMexcEgressAllowlisted(this.legacyRenderEgressStore!, {
+      ...identity,
+      expectedRevision: state.revision,
+      ipSetDigestSha256: state.ipSetDigestSha256!,
+      mexcAllowlistAttestation: MEXC_WRITE_EGRESS_ATTESTATION,
+      ownerProof,
+    }, now);
+  }
+
+  private currentHostMatches(
+    identity: WriteProvisioningIdentity,
+    runtime: CompatibleExecutionHostRuntimeEvidence,
+    observerIpv4: string,
+    now: Date,
+  ) {
+    if (this.executionHostAuthority) {
+      if (!("provider" in runtime)) return false;
+      return this.executionHostAuthority.currentHostMatches(identity, runtime, observerIpv4, now);
+    }
+    const state = this.legacyRenderEgressStore!.read(identity);
+    const runtimeServiceId = "provider" in runtime
+      ? runtime.provider === "render" ? runtime.hostId : null
+      : runtime.serviceId;
+    if (!runtimeServiceId || state.renderServiceId !== runtimeServiceId) return false;
+    if (
+      state.status !== "allowlisted"
+      || state.mexcAllowlistAttestation !== MEXC_WRITE_EGRESS_ATTESTATION
+      || state.dedicatedIpv4s.length !== 1
+      || state.dedicatedIpv4s[0] !== observerIpv4
+      || !state.lastObservedAt
+      || !state.allowlistedAt
+    ) return false;
+    const observedAt = Date.parse(state.lastObservedAt);
+    const allowlistedAt = Date.parse(state.allowlistedAt);
+    const nowMs = now.getTime();
+    return Number.isFinite(observedAt)
+      && Number.isFinite(allowlistedAt)
+      && observedAt <= nowMs
+      && allowlistedAt <= nowMs
+      && nowMs - observedAt <= RENDER_EGRESS_ALLOWLIST_OBSERVATION_MAX_AGE_MS;
+  }
+
+  inspectEgress(identity: WriteProvisioningIdentity): ExecutionHostEgressState {
+    return this.readEgress(identity);
   }
 
   inspectCredentialAuthority(identity: WriteProvisioningIdentity): WriteCredentialAuthorityState {
@@ -184,11 +316,11 @@ export class MexcWriteProvisioningAuthority {
 
   async attestCurrentEgressAllowlist(
     identity: WriteProvisioningIdentity,
-    ownerProof: RenderEgressCeremonyOwnerProof,
+    ownerProof: ExecutionHostCeremonyOwnerProof,
     now: Date,
-  ): Promise<RenderEgressState | null> {
+  ): Promise<ExecutionHostEgressState | null> {
     if (!Number.isFinite(now.getTime())) return null;
-    const state = this.egressStore.read(identity);
+    const state = this.readEgress(identity);
     if (
       state.status !== "observed"
       || state.revision < 1
@@ -198,18 +330,16 @@ export class MexcWriteProvisioningAuthority {
     ) return null;
     const existing = this.credentialAuthorityStore.read(identity);
     if (existing.status !== "unknown" || existing.revision !== 0) return null;
-    return attestMexcEgressAllowlisted(this.egressStore, {
-      ...identity,
-      expectedRevision: state.revision,
-      ipSetDigestSha256: state.ipSetDigestSha256,
-      mexcAllowlistAttestation: MEXC_WRITE_EGRESS_ATTESTATION,
-      ownerProof,
-    }, now);
+    const result = await this.attestEgressAllowlist(identity, ownerProof, state, now);
+    return result ? this.readEgress(identity) : null;
   }
 
   currentEgressEvidence(identity: WriteProvisioningIdentity, now: Date): WriteProvisioningEgressEvidence | null {
     if (!Number.isFinite(now.getTime())) return null;
-    const state = this.egressStore.read(identity);
+    const existing = this.credentialAuthorityStore.read(identity);
+    if (existing.status !== "unknown" || existing.revision !== 0) return null;
+    if (this.executionHostAuthority) return this.executionHostAuthority.currentEvidence(identity, now);
+    const state = this.readEgress(identity);
     if (
       state.status !== "allowlisted"
       || state.mexcAllowlistAttestation !== MEXC_WRITE_EGRESS_ATTESTATION
@@ -228,8 +358,6 @@ export class MexcWriteProvisioningAuthority {
       || allowlistedAt > nowMs
       || nowMs - observedAt > RENDER_EGRESS_ALLOWLIST_OBSERVATION_MAX_AGE_MS
     ) return null;
-    const existing = this.credentialAuthorityStore.read(identity);
-    if (existing.status !== "unknown" || existing.revision !== 0) return null;
     return Object.freeze({
       revision: state.revision,
       ipSetDigestSha256: state.ipSetDigestSha256,
@@ -258,14 +386,14 @@ export class MexcWriteProvisioningAuthority {
     identity: WriteProvisioningIdentity,
     expectedRevision: number,
     custody: WriteActivationCustodyEvidence,
-    runtime: RenderRuntimeEvidence,
+    runtime: CompatibleExecutionHostRuntimeEvidence,
     observerIpv4: string,
     ownerProof: WriteProvisioningOwnerProof,
     now: Date,
   ): Promise<WriteCredentialAuthorityState | null> {
     if (!Number.isFinite(now.getTime()) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 1) return null;
     const authority = this.credentialAuthorityStore.read(identity);
-    const egress = this.egressStore.read(identity);
+    const egress = this.readEgress(identity);
     if (
       authority.status !== "attested"
       || authority.revision !== expectedRevision
@@ -277,25 +405,13 @@ export class MexcWriteProvisioningAuthority {
       || custody.credentialFingerprintSha256 !== authority.credentialFingerprintSha256
       || egress.status !== "allowlisted"
       || egress.mexcAllowlistAttestation !== MEXC_WRITE_EGRESS_ATTESTATION
-      || egress.renderServiceId !== runtime.serviceId
-      || egress.dedicatedIpv4s.length !== 1
-      || egress.dedicatedIpv4s[0] !== observerIpv4
       || !egress.ipSetDigestSha256
+      || !SHA256.test(egress.ipSetDigestSha256)
       || !egress.allowlistedAt
-      || !egress.lastObservedAt
       || custody.egressProofRevision !== egress.revision
       || custody.egressIpSetDigestSha256 !== egress.ipSetDigestSha256
       || custody.egressAllowlistedAt !== egress.allowlistedAt
-    ) return null;
-    const observedAt = Date.parse(egress.lastObservedAt);
-    const allowlistedAt = Date.parse(egress.allowlistedAt);
-    const nowMs = now.getTime();
-    if (
-      !Number.isFinite(observedAt)
-      || !Number.isFinite(allowlistedAt)
-      || observedAt > nowMs
-      || allowlistedAt > nowMs
-      || nowMs - observedAt > RENDER_EGRESS_ALLOWLIST_OBSERVATION_MAX_AGE_MS
+      || !this.currentHostMatches(identity, runtime, observerIpv4, now)
     ) return null;
     return activateWriteCredentialAuthority(this.credentialAuthorityStore, {
       ...identity,
@@ -324,13 +440,14 @@ export type ProductionMexcWriteProvisioningAuthorityHandle = Readonly<{
 }>;
 
 export function openProductionMexcWriteProvisioningAuthority(): ProductionMexcWriteProvisioningAuthorityHandle {
-  const egressStore = new SqliteRenderEgressProofStore();
+  const egressAuthority = openProductionExecutionHostEgressAuthority();
+  if (!egressAuthority) throw new Error("EXECUTION_HOST_EGRESS_AUTHORITY_UNAVAILABLE");
   const credentialAuthorityStore = new SqliteExecutionWriteCredentialAuthorityStore();
   return Object.freeze({
-    authority: new MexcWriteProvisioningAuthority(egressStore, credentialAuthorityStore),
+    authority: new MexcWriteProvisioningAuthority(egressAuthority, credentialAuthorityStore),
     close: () => {
       try {
-        egressStore.close();
+        egressAuthority.close();
       } finally {
         credentialAuthorityStore.close();
       }
