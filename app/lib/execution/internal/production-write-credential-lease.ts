@@ -13,9 +13,7 @@ import {
   MEXC_WRITE_PERMISSION_ATTESTATION,
   openProductionMexcWriteProvisioningAuthority,
 } from "../write-provisioning-authority";
-import {
-  MEXC_WRITE_EGRESS_ATTESTATION,
-} from "./write-credential-authority-store";
+import { MEXC_WRITE_EGRESS_ATTESTATION } from "./write-credential-authority-store";
 import { RENDER_EGRESS_ALLOWLIST_OBSERVATION_MAX_AGE_MS } from "./render-egress-proof-authority";
 import type { MexcExecutionCredentials } from "./mexc-execution-writer";
 
@@ -147,21 +145,22 @@ export function productionWriteCredentialExecutionIdentity(
 }
 
 /**
- * Execution-only lease. Plaintext exists only in the returned writer-slot context
- * and is never persisted, logged, exposed through a route, or accepted from the browser.
- * Every lease re-reads #329, #330 and #331 for the exact server-owned generation.
+ * Execution-only production lease. The lease deliberately reads process.env,
+ * because the #329/#330 provisioning authority and #331 custody stores are
+ * production process resources. Callers cannot inject a parallel credential
+ * universe while the durable authority is read from the real process state.
  */
 export function readProductionMexcWriteCredentialLease(
   identity: ProductionWriteCredentialExecutionIdentity,
-  environment: Environment = process.env,
   now: Date = new Date(),
 ): MexcExecutionCredentials {
+  const environment = process.env;
   if (!Number.isFinite(now.getTime())) return fail();
   const configured = productionWriteCredentialExecutionIdentity(environment);
   if (!configured || configured.userId !== identity.userId || configured.accountId !== identity.accountId || configured.writeCredentialGeneration !== identity.writeCredentialGeneration) return fail();
 
   const authorityHandle = openProductionMexcWriteProvisioningAuthority();
-  const custody = new SqliteMexcWriteCredentialCustody();
+  const custody = new SqliteMexcWriteCredentialCustody(custodyPath(environment));
   try {
     const authority = authorityHandle.authority.inspectCredentialAuthority(identity);
     const egress = authorityHandle.authority.inspectEgress(identity);
