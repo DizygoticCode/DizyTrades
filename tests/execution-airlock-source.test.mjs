@@ -6,6 +6,7 @@ import test from "node:test";
 const root = process.cwd();
 const text = (path) => readFileSync(join(root, path), "utf8");
 const writeProvisioningFacade = "app/lib/execution/write-provisioning-authority.ts";
+const productionCredentialLease = "app/lib/execution/internal/production-write-credential-lease.ts";
 const excludedSourceDirectories = new Set([".git", ".next", "coverage", "node_modules", "playwright-report", "test-results", "tests"]);
 function filesBelow(path) {
   const output = [];
@@ -36,7 +37,7 @@ function importsExecutionInternal(path, source) {
   });
 }
 
-test("execution boundary is server-only and isolates the approved writer from the existing adapter", () => {
+test("execution boundary is server-only and isolates network signing to the approved writer", () => {
   const files = filesBelow("app/lib/execution");
   assert.deepEqual(files.filter((path) => path.endsWith("adapter.ts")), ["app/lib/execution/internal/adapter.ts"]);
   for (const path of files) {
@@ -49,6 +50,12 @@ test("execution boundary is server-only and isolates the approved writer from th
       assert.doesNotMatch(source, /createHmac|\bApiKey\b|\bSignature\b|https:\/\/api\.mexc\.com/, path);
       assert.doesNotMatch(source, /\/api\/v1\/private\/(?:order|position\/(?:change|submit|cancel)|account\/(?:transfer|withdraw))/i, path);
       assert.doesNotMatch(source, /(?:WRITE|TRADING)_(?:API_)?(?:KEY|SECRET)|PRIVATE_KEY/, path);
+    } else if (path === productionCredentialLease) {
+      assert.match(source, /createDecipheriv/, path);
+      assert.match(source, /createHmac/, path);
+      assert.doesNotMatch(source, /\bfetch\s*\(|https?:\/\/|\bApiKey\b|\bSignature\b/, path);
+      assert.doesNotMatch(source, /\/api\/v1\/private\/(?:order|position\/(?:change|submit|cancel)|account\/(?:transfer|withdraw))/i, path);
+      assert.doesNotMatch(source, /method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/i, path);
     } else {
       assert.doesNotMatch(source, /\bfetch\s*\(|https?:\/\/|createHmac|\bApiKey\b|\bSignature\b/, path);
       assert.doesNotMatch(source, /\/api\/v1\/private\/(?:order|position\/(?:change|submit|cancel)|account\/(?:transfer|withdraw))/i, path);
@@ -61,9 +68,17 @@ test("execution boundary is server-only and isolates the approved writer from th
   assert.doesNotMatch(provider, /\bfetch\s*\(|axios|https?:\/\/|createHmac|sign(?:er|ature)|Mexc/i);
 });
 
-test("provider mechanics isolate the writer from custody and provisioning", () => {
+test("provider mechanics isolate the writer while the sole credential lease owns custody and provisioning access", () => {
   for (const path of filesBelow("app/lib/execution")) {
-    const source = text(path); assert.doesNotMatch(source, /credential-(?:custody|provisioning)|mexc-private|requestMexc|decryptCredential/i, path);
+    const source = text(path);
+    if (path === productionCredentialLease) {
+      assert.match(source, /credential-custody\/write-credential/, path);
+      assert.match(source, /openProductionMexcWriteProvisioningAuthority/, path);
+      assert.match(source, /createDecipheriv/, path);
+      assert.doesNotMatch(source, /mexc-private|requestMexc|\bfetch\s*\(|https?:\/\/|method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/i, path);
+    } else {
+      assert.doesNotMatch(source, /credential-(?:custody|provisioning)|mexc-private|requestMexc|decryptCredential/i, path);
+    }
     if (path.endsWith("mexc-execution-writer.ts")) assert.equal((source.match(/method:\s*"POST"/g)??[]).length,1);
     else assert.doesNotMatch(source, /method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/i, path);
   }
@@ -82,7 +97,7 @@ test("no route, client or paper module imports execution/provider internals", ()
   for (const path of filesBelow("app").filter((path) => /paper/i.test(path))) if (/\.[cm]?[jt]sx?$/.test(path)) assert.equal(importsExecutionInternal(path, text(path)), false, path);
 });
 
-test("application code has one execution implementation import path plus one audited secret-free provisioning authority bridge", () => {
+test("application code has one execution implementation import path plus one audited secret-free provisioning and activation authority bridge", () => {
   const applicationFiles = filesBelow(".").filter((path) => /\.[cm]?[jt]sx?$/.test(path)
     && !path.startsWith("app/lib/execution/internal/") && path !== "app/lib/execution/boundary.ts" && path !== writeProvisioningFacade);
   assert.ok(applicationFiles.includes("instrumentation.ts"), "root server entrypoints are scanned");
@@ -94,8 +109,9 @@ test("application code has one execution implementation import path plus one aud
     "./internal/write-credential-attestation-authority",
     "./internal/write-credential-authority-store",
   ]);
+  assert.match(facade, /activateWriteCredentialAuthority/);
   assert.doesNotMatch(facade, /accessKey|secretKey|credentials\s*:|credential-custody|mexc-execution-writer|production-write-composition/);
-  assert.doesNotMatch(facade, /activateWriteCredentialAuthority|activateProductionWriteCredentialAuthority|\bfetch\s*\(|https?:\/\/|method:\s*["']POST["']/i);
+  assert.doesNotMatch(facade, /activateProductionWriteCredentialAuthority|\bfetch\s*\(|https?:\/\/|method:\s*["']POST["']/i);
 
   for (const source of ['export { ExecutionAirlockService } from "./internal/service";', 'import service from "../execution/internal/service";', 'export * from "../../lib/execution/internal/audit";', 'const service = await import("./internal/service");', 'const service = require("./internal/service");', 'export * from "@/lib/execution/internal/service";']) assert.equal(importsExecutionInternal("app/lib/execution/bridge.ts", source), true, source);
   for (const source of ['import "./app/lib/execution/internal/testing";', 'export { createServerExecutionBoundary } from "./app/lib/execution/internal/composition";', 'const boundary = await import("./app/lib/execution/internal/boundary-service");', 'const testing = await import(`./app/lib/execution/internal/testing`);', 'const service = require("./app/lib/execution/internal/service");', 'export * from "@/lib/execution/internal/audit";']) assert.equal(importsExecutionInternal("instrumentation.ts", source), true, source);
