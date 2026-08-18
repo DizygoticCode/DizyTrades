@@ -37,16 +37,17 @@ test("provisioning reserves the one fresh TOTP for #329 and never imports execut
   assert.doesNotMatch(provisioning, /activateWriteCredentialAuthority/);
 });
 
-test("the one execution provisioning facade is secret-free, attestation-only and has no activation or transport", () => {
+test("the one execution provisioning facade is secret-free, owns attestation and activation authority, and has no transport", () => {
   assert.match(facade, /^import "server-only";/);
   assert.match(facade, /render-egress-proof-authority/);
   assert.match(facade, /write-credential-attestation-authority/);
   assert.match(facade, /write-credential-authority-store/);
   assert.match(facade, /attestWriteCredentialAuthority/);
+  assert.match(facade, /activateWriteCredentialAuthority/);
   assert.match(facade, /revokeWriteCredentialAuthority/);
   assert.match(facade, /MEXC_WRITE_PERMISSION_ATTESTATION/);
   assert.match(facade, /MEXC_WRITE_EGRESS_ATTESTATION/);
-  assert.doesNotMatch(facade, /activateWriteCredentialAuthority|activateProductionWriteCredentialAuthority/);
+  assert.doesNotMatch(facade, /activateProductionWriteCredentialAuthority/);
   assert.doesNotMatch(facade, /accessKey|secretKey|credentials\s*:/);
   assert.doesNotMatch(facade, /credential-custody|mexc-execution-writer|production-write-composition/);
   assert.doesNotMatch(facade, /fetch\s*\(|method\s*:\s*["']POST["']|https:\/\/api\.mexc\.com/i);
