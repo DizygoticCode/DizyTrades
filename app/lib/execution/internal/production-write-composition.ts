@@ -3,6 +3,7 @@ import "server-only";
 import type { AuthenticatedExecutionCaller, ExecutionBoundaryRequest, ExecutionBoundaryResponse } from "../types";
 import {
   MEXC_PROVIDER_READBACK_MAX_AGE_MS,
+  readAuthoritativeMexcAccountRisk,
   translateMexcReadback,
   type MexcProviderAccountRiskReadback,
   type MexcProviderPosition,
@@ -12,15 +13,30 @@ import { createProductionExecutionStateStore } from "./state-store";
 import { createProductionExecutionAuditStore } from "./audit-store";
 import { createProductionExecutionRiskStore, type ExecutionRiskStore } from "./risk-store";
 import { executionKillSwitchReason, type ExecutionKillSwitches } from "./kill-switch";
-import type { ExecutionOwnershipBinding } from "./ownership-binding";
-import type { ExecutionOwnershipStore } from "./ownership-store";
-import type { ExecutionReconciliationStore } from "./reconciliation-store";
+import { createProductionExecutionControlStore } from "./control-store";
+import { verifyProductionExecutionCaller } from "./caller-assertion";
+import { readProductionExecutionOwnershipBinding, type ExecutionOwnershipBinding } from "./ownership-binding";
+import { createProductionExecutionOwnershipStore, type ExecutionOwnershipStore } from "./ownership-store";
+import { createProductionOwnershipProofOrchestrator } from "./ownership-ceremony";
+import { createProductionExecutionReconciliationStore, type ExecutionReconciliationStore } from "./reconciliation-store";
 import { reconcileAuthoritativeMexcReadback } from "./authoritative-reconciliation";
-import { EXECUTION_ROLLOUT_MAX_AGE_MS, type ExecutionRolloutStore } from "./rollout-store";
+import { EXECUTION_ROLLOUT_MAX_AGE_MS, createProductionExecutionRolloutStore, type ExecutionRolloutStore } from "./rollout-store";
 import { authoritativeRiskSnapshotFromDayStart } from "./day-start-equity-authority";
-import type { ExecutionDayStartEquityStore } from "./day-start-equity-store";
-import type { MexcExecutionIntent, MexcLifecycleEvidence } from "./mexc-execution-writer";
+import { createProductionExecutionDayStartEquityStore, type ExecutionDayStartEquityStore } from "./day-start-equity-store";
+import {
+  ModernMexcReduceOnlyWriter,
+  createMexcExecutionFetchTransport,
+  type MexcExecutionIntent,
+  type MexcLifecycleEvidence,
+  type MexcPreTransportContext,
+} from "./mexc-execution-writer";
+import { SqliteMexcExecutionLifecycleStore } from "./mexc-execution-lifecycle-store";
 import type { MexcPreWriteEvidence } from "./mexc-write-authority";
+import {
+  productionWriteCredentialExecutionIdentity,
+  readProductionMexcWriteCredentialLease,
+  type ProductionWriteCredentialExecutionIdentity,
+} from "./production-write-credential-lease";
 
 export const MEXC_EXECUTION_EGRESS_ALLOWLIST_ATTESTATION =
   "mexc-order-placing-egress-allowlisted/v1" as const;
@@ -34,6 +50,7 @@ export class ProductionMexcWriteCompositionError extends Error {
 
 type Environment = Readonly<Record<string, string | undefined>>;
 type TotpExecutionCaller = AuthenticatedExecutionCaller & Readonly<{ totpAssured: true }>;
+
 /** Test-only sink. It receives a derived candidate, never credentials or network authority. */
 export type SyntheticCandidateHandoff = Readonly<{
   accept(intent: MexcExecutionIntent, evidence: MexcPreWriteEvidence): Promise<MexcLifecycleEvidence>;
@@ -52,7 +69,9 @@ export type ProductionMexcWriteDependencies = Readonly<{
   rolloutStore: ExecutionRolloutStore;
   dayStartEquityStore: ExecutionDayStartEquityStore;
   readback: (identity: Readonly<{ userId: string; accountId: string }>) => Promise<MexcProviderAccountRiskReadback>;
-  syntheticCandidateHandoff: SyntheticCandidateHandoff;
+  syntheticCandidateHandoff?: SyntheticCandidateHandoff;
+  productionWriter?: ModernMexcReduceOnlyWriter;
+  writeCredentialIdentity?: ProductionWriteCredentialExecutionIdentity;
   executionStateStore: ReturnType<typeof createProductionExecutionStateStore>;
   executionAuditStore: ReturnType<typeof createProductionExecutionAuditStore>;
 }>;
@@ -109,18 +128,11 @@ function authoritativeRequest(
   });
 }
 
-/**
- * Server-only candidate derivation for a future operator-controlled ceremony.
- * Nothing imports this from a route. Production has no handoff; tests may inject
- * a synthetic sink that cannot sign or transport an order.
- */
 export class ProductionMexcWriteComposition {
   constructor(private readonly dependencies: ProductionMexcWriteDependencies | null) {}
 
   async execute(request: ExecutionBoundaryRequest): Promise<MexcLifecycleEvidence> {
     const d = this.dependencies;
-    // The production factory deliberately supplies no handoff. Candidate evaluation
-    // is available only to tests that inject a synthetic, non-network sink.
     if (!d) return fail("disabled");
     if (clean(d.environment.MEXC_WRITE_PROVIDER_ENABLED) !== "true") return fail("disabled");
 
@@ -191,8 +203,6 @@ export class ProductionMexcWriteComposition {
       readOwnershipBinding: d.readBinding,
       executionReconciliationStore: d.reconciliationStore,
       executionRolloutStore: d.rolloutStore,
-      // Candidate preparation is distinct from writer eligibility. The established
-      // boundary remains fail-closed for live=true and is never weakened here.
       environment: Object.freeze({ ...d.environment, LIVE_TRADING_ENABLED: "false" }),
       now: d.now,
     });
@@ -201,7 +211,6 @@ export class ProductionMexcWriteComposition {
     const preview = airlock.result.preview;
     const position = targetPosition(readback, airlock);
 
-    // Re-read every mutable authority immediately before the synthetic candidate handoff.
     const finalNow = d.now();
     const finalSwitches = d.switches();
     if (executionKillSwitchReason(finalSwitches, caller) !== null) return fail("blocked");
@@ -220,6 +229,10 @@ export class ProductionMexcWriteComposition {
     ) return fail("blocked");
 
     if (preview.orderType !== "limit" || preview.price === undefined) return fail("blocked");
+    const productionIdentity = d.productionWriter ? d.writeCredentialIdentity : undefined;
+    if (d.productionWriter && (!productionIdentity || productionIdentity.userId !== caller.userId || productionIdentity.accountId !== caller.accountId)) return fail("blocked");
+    const writeCredentialGeneration = productionIdentity?.writeCredentialGeneration ?? "synthetic-candidate-only";
+
     const intent: MexcExecutionIntent = Object.freeze({
       userId: caller.userId,
       accountId: caller.accountId,
@@ -242,38 +255,106 @@ export class ProductionMexcWriteComposition {
       rolloutRevision: finalRollout.revision,
       riskRevision: finalRisk.revision,
       reconciliationRevision: finalReconciliation.revision,
-      writeCredentialGeneration: "synthetic-candidate-only",
+      writeCredentialGeneration,
     });
-    const evidence: MexcPreWriteEvidence = Object.freeze({
+
+    const evidenceFrom = (
+      switches: ExecutionKillSwitches,
+      currentBinding: ExecutionOwnershipBinding,
+      currentOwnership: typeof finalOwnership,
+      currentReconciliation: typeof finalReconciliation,
+      currentRisk: NonNullable<typeof finalRisk>,
+      currentRollout: typeof finalRollout,
+    ): MexcPreWriteEvidence => Object.freeze({
       caller: Object.freeze({ userId: caller.userId, accountId: caller.accountId, totpAssured: true as const }),
-      ownership: Object.freeze({ userId: caller.userId, accountId: caller.accountId, bindingGeneration: finalBinding.credentialGeneration, freshUntil: freshUntil(finalOwnership.proofObservedAt!) }),
+      ownership: Object.freeze({ userId: caller.userId, accountId: caller.accountId, bindingGeneration: currentBinding.credentialGeneration, freshUntil: freshUntil(currentOwnership.proofObservedAt!) }),
       reconciliation: Object.freeze({
         userId: caller.userId,
         accountId: caller.accountId,
-        revision: finalReconciliation.revision,
+        revision: currentReconciliation.revision,
         positionId: position.providerPositionId,
         positionSide: position.side,
         positionMode: "one-way" as const,
         marginMode: position.openType,
         positionVolume: position.contractVolume,
-        freshUntil: freshUntil(finalReconciliation.observedAt!),
+        freshUntil: freshUntil(currentReconciliation.observedAt!),
         clean: true as const,
       }),
-      risk: Object.freeze({ userId: caller.userId, accountId: caller.accountId, revision: finalRisk.revision, enabled: true as const }),
-      rollout: Object.freeze({ userId: caller.userId, accountId: caller.accountId, revision: finalRollout.revision, bindingGeneration: finalBinding.credentialGeneration, riskRevision: finalRisk.revision, armed: true as const }),
-      switches: finalSwitches,
+      risk: Object.freeze({ userId: caller.userId, accountId: caller.accountId, revision: currentRisk.revision, enabled: true as const }),
+      rollout: Object.freeze({ userId: caller.userId, accountId: caller.accountId, revision: currentRollout.revision, bindingGeneration: currentBinding.credentialGeneration, riskRevision: currentRisk.revision, armed: true as const }),
+      switches,
       airlock: Object.freeze({ userId: caller.userId, accountId: caller.accountId, intentId: airlock.result.intentId, idempotencyKey: airlock.result.idempotencyKey, result: airlock.result }),
-      network: Object.freeze({ mexcEgressAllowlisted: true as const, writeCredentialGeneration: "synthetic-candidate-only" }),
+      network: Object.freeze({ mexcEgressAllowlisted: true as const, writeCredentialGeneration }),
     });
-    return d.syntheticCandidateHandoff.accept(intent, evidence);
+
+    const evidence = evidenceFrom(finalSwitches, finalBinding, finalOwnership, finalReconciliation, finalRisk, finalRollout);
+    if (!d.productionWriter) {
+      if (!d.syntheticCandidateHandoff) return fail("disabled");
+      return d.syntheticCandidateHandoff.accept(intent, evidence);
+    }
+
+    const contextProvider = (): MexcPreTransportContext => {
+      const slotNow = d.now();
+      const slotSwitches = d.switches();
+      const slotBinding = d.readBinding();
+      const slotOwnership = d.ownershipStore.read(caller);
+      const slotReconciliation = d.reconciliationStore.read(caller);
+      const slotRisk = d.riskStore.read(caller.userId, caller.accountId);
+      const slotRollout = d.rolloutStore.read(caller);
+      if (
+        !productionIdentity ||
+        executionKillSwitchReason(slotSwitches, caller) !== null ||
+        !slotBinding || slotBinding.bindingDigest !== binding.bindingDigest || slotBinding.credentialGeneration !== intent.bindingGeneration ||
+        slotOwnership.status !== "active" || slotOwnership.bindingDigest !== slotBinding.bindingDigest || !fresh(slotOwnership.proofObservedAt, slotNow, MEXC_PROVIDER_READBACK_MAX_AGE_MS) ||
+        slotReconciliation.status !== "clean" || slotReconciliation.reason !== "CLEAN" || slotReconciliation.revision !== intent.reconciliationRevision || !fresh(slotReconciliation.observedAt, slotNow, MEXC_PROVIDER_READBACK_MAX_AGE_MS) ||
+        !slotRisk || !slotRisk.enabled || slotRisk.revision !== intent.riskRevision || !fresh(slotRisk.updatedAt, slotNow, EXECUTION_ROLLOUT_MAX_AGE_MS) || Date.parse(slotRisk.reviewAt) < slotNow.getTime() ||
+        slotRollout.status !== "armed" || !slotRollout.policy || slotRollout.revision !== intent.rolloutRevision || slotRollout.bindingDigest !== slotBinding.bindingDigest || slotRollout.riskRevision !== slotRisk.revision || !fresh(slotRollout.updatedAt, slotNow, EXECUTION_ROLLOUT_MAX_AGE_MS) ||
+        clean(d.environment.MEXC_EXECUTION_EGRESS_ALLOWLIST_ATTESTATION) !== MEXC_EXECUTION_EGRESS_ALLOWLIST_ATTESTATION
+      ) return fail("blocked");
+
+      const slotEvidence = evidenceFrom(slotSwitches, slotBinding, slotOwnership, slotReconciliation, slotRisk, slotRollout);
+      const credentials = readProductionMexcWriteCredentialLease(productionIdentity, d.environment, slotNow);
+      return Object.freeze({ credentials, environment: d.environment, evidence: slotEvidence });
+    };
+
+    return d.productionWriter.execute(intent, contextProvider);
   }
 }
 
 export function createProductionMexcWriteComposition(
-  _environment: Environment = process.env,
+  environment: Environment = process.env,
 ): ProductionMexcWriteComposition {
-  // Security-review boundary: production cannot read write credentials, construct a
-  // network transport, or receive a writer. A separately approved change must add
-  // those capabilities; flipping deployment flags cannot cross this boundary.
-  return new ProductionMexcWriteComposition(null);
+  const writeCredentialIdentity = productionWriteCredentialExecutionIdentity(environment);
+  if (!writeCredentialIdentity) return new ProductionMexcWriteComposition(null);
+
+  const controls = createProductionExecutionControlStore();
+  const ownershipStore = createProductionExecutionOwnershipStore();
+  const reconciliationStore = createProductionExecutionReconciliationStore();
+  const riskStore = createProductionExecutionRiskStore();
+  const rolloutStore = createProductionExecutionRolloutStore();
+  const dayStartEquityStore = createProductionExecutionDayStartEquityStore();
+  const executionStateStore = createProductionExecutionStateStore();
+  const executionAuditStore = createProductionExecutionAuditStore();
+  const proveOwnership = createProductionOwnershipProofOrchestrator(ownershipStore);
+  const lifecycleStore = new SqliteMexcExecutionLifecycleStore();
+  const productionWriter = new ModernMexcReduceOnlyWriter(createMexcExecutionFetchTransport(), lifecycleStore);
+
+  return new ProductionMexcWriteComposition(Object.freeze({
+    environment,
+    now: () => new Date(),
+    verifyCaller: verifyProductionExecutionCaller,
+    switches: () => controls.switches(),
+    proveOwnership,
+    readBinding: () => readProductionExecutionOwnershipBinding(),
+    ownershipStore,
+    reconciliationStore,
+    riskStore,
+    rolloutStore,
+    dayStartEquityStore,
+    readback: (identity) => readAuthoritativeMexcAccountRisk(identity),
+    productionWriter,
+    writeCredentialIdentity,
+    executionStateStore,
+    executionAuditStore,
+  }));
 }
