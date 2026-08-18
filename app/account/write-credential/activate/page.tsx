@@ -76,7 +76,7 @@ export default async function OwnerWriteCredentialActivationPage({ searchParams 
 
           <section className={styles.proofGrid} aria-label="Activation evidence">
             <article className={styles.detailCard}><span>Current observer IPv4</span><strong>{egress?.observerIpv4 ?? "No agreement"}</strong><small>Must equal the durable /32 above</small></article>
-            <article className={styles.detailCard}><span>Production service</span><strong>{egress?.runtime?.serviceId ?? "Unavailable"}</strong><small>Must match the durable #330 service identity</small></article>
+            <article className={styles.detailCard}><span>Production service</span><strong>{egress?.runtime?.hostId ?? "Unavailable"}</strong><small>Must match the durable #330 service identity</small></article>
             <article className={styles.detailCard}><span>Last egress observation</span><strong>{state?.lastObservedAt ?? "—"}</strong><small>Activation enforces the existing freshness window</small></article>
             <article className={styles.detailCard}><span>Egress digest</span><strong className={styles.mono}>{shortDigest(state?.ipSetDigestSha256)}</strong><small>Must match the sealed custody receipt</small></article>
             <article className={styles.detailCard}><span>Authority fingerprint</span><strong className={styles.mono}>{shortDigest(authority?.credentialFingerprintSha256)}</strong><small>Must match #331 exactly</small></article>
