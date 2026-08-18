@@ -10,7 +10,7 @@ test("production reconciliation consumes the single-use caller assertion exactly
   const composition = text("app/lib/execution/internal/composition.ts");
   const callerAssertion = text("app/lib/execution/internal/caller-assertion.ts");
 
-  assert.match(callerAssertion, /return productionStore\.consume\(assertion\)/);
+  assert.equal((callerAssertion.match(/productionStore\.consume\(assertion\)/g) ?? []).length, 1);
   assert.equal((composition.match(/verifyProductionExecutionCaller\s*\(/g) ?? []).length, 1);
   assert.doesNotMatch(composition, /authenticateInternalCaller:\s*verifyProductionExecutionCaller/);
   assert.match(composition, /authenticateInternalCaller:\s*\(assertion\)\s*=>\s*caller/);
