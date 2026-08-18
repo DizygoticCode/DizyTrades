@@ -190,7 +190,7 @@ test("#340 route/page stay owner-only, server-identity-bound, secret-free and di
   assert.match(page, /Order Placing permission only/);
   assert.match(page, /restricted to exactly the proven public \/32/);
   assert.match(page, /writer connection remains separate/);
-  assert.match(ceremony, /inspectProductionRenderEgressCeremony/);
+  assert.match(ceremony, /inspectProductionExecutionHostEgressCeremony/);
   assert.match(ceremony, /custody\.read\(identity\)/);
   assert.match(ceremony, /activateAttestedCredential/);
   assert.doesNotMatch(ceremony, /decrypt|unseal|readSecret|credentialSecret/);
@@ -201,8 +201,9 @@ test("#340 route/page stay owner-only, server-identity-bound, secret-free and di
   assert.match(facade, /custody\.egressProofRevision !== egress\.revision/);
   assert.match(facade, /custody\.egressIpSetDigestSha256 !== egress\.ipSetDigestSha256/);
   assert.match(facade, /custody\.egressAllowlistedAt !== egress\.allowlistedAt/);
-  assert.match(facade, /egress\.renderServiceId !== runtime\.serviceId/);
-  assert.match(facade, /egress\.dedicatedIpv4s\[0\] !== observerIpv4/);
-  assert.match(facade, /RENDER_EGRESS_ALLOWLIST_OBSERVATION_MAX_AGE_MS/);
+  assert.match(facade, /ProductionExecutionHostEgressAuthority/);
+  assert.match(facade, /openProductionExecutionHostEgressAuthority/);
+  assert.match(facade, /this\.currentHostMatches\(identity, runtime, observerIpv4, now\)/);
+  assert.match(facade, /this\.executionHostAuthority\.currentHostMatches\(identity, runtime, observerIpv4, now\)/);
   assert.match(facade, /activateWriteCredentialAuthority/);
 });
