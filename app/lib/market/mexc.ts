@@ -47,7 +47,7 @@ export function mergeMexcTickers(markets: MarketInstrument[], spot: unknown, fut
   const map = new Map<string, Raw>();
   for (const row of spotRows) if (row && typeof row === "object") map.set(`spot:${String((row as Raw).symbol).toUpperCase()}`, row as Raw);
   for (const row of futureRows) if (row && typeof row === "object") map.set(`futures:${String((row as Raw).symbol).toUpperCase()}`, row as Raw);
-  return markets.map(m => { const row = map.get(`${m.marketType}:${m.sourceSymbol}`); if (!row) return m; const lastPrice = finite(row.lastPrice ?? row.lastPrice), change24h = finite(row.priceChangePercent ?? row.riseFallRate), volume24h = finite(row.quoteVolume ?? row.amount24 ?? row.volume24); return {...m, lastPrice, change24h: m.marketType === "futures" && change24h !== undefined ? change24h * 100 : change24h, volume24h}; });
+  return markets.map(m => { const row = map.get(`${m.marketType}:${m.sourceSymbol}`); if (!row) return m; const lastPrice = finite(row.lastPrice), change24h = finite(row.priceChangePercent ?? row.riseFallRate), volume24h = finite(row.quoteVolume ?? row.amount24 ?? row.volume24); return {...m, lastPrice, change24h: m.marketType === "futures" && change24h !== undefined ? change24h * 100 : change24h, volume24h}; });
 }
 
 export function normaliseCandles(raw: unknown, nowSeconds: number, timeframe: CandleTimeframe): Candle[] {
@@ -61,10 +61,21 @@ let cache: Cache = {markets:[],refreshedAt:0,tickerAt:0}; const CATALOGUE_MS=10*
 async function refresh(signal?: AbortSignal) {
   const [spotInfo,futureInfo] = await Promise.all([fetch("https://api.mexc.com/api/v3/exchangeInfo",{signal,cache:"no-store"}),fetch("https://api.mexc.com/api/v1/contract/detail",{signal,cache:"no-store"})]);
   if(!spotInfo.ok||!futureInfo.ok) throw new Error("Market directory unavailable"); const [s,f]=await Promise.all([spotInfo.json(),futureInfo.json()]);
-  const markets=[...normaliseMexcSpot(s),...normaliseMexcFutures((f as {data?:unknown}).data)].slice(0,MAX_MARKETS); if(!markets.length) throw new Error("Market directory unavailable"); cache={...cache,markets,refreshedAt:Date.now()}; return markets;
+  const markets=[...normaliseMexcSpot(s),...normaliseMexcFutures((f as {data?:unknown}).data)].slice(0,MAX_MARKETS); if(!markets.length) throw new Error("Market directory unavailable"); cache={...cache,markets,refreshedAt:Date.now(),tickerAt:0}; return markets;
 }
 async function tickers(markets:MarketInstrument[],signal?:AbortSignal){try{const [s,f]=await Promise.all([fetch("https://api.mexc.com/api/v3/ticker/24hr",{signal,cache:"no-store"}),fetch("https://api.mexc.com/api/v1/contract/ticker",{signal,cache:"no-store"})]);if(!s.ok||!f.ok)throw 0;const merged=mergeMexcTickers(markets,await s.json(),await f.json());cache={...cache,markets:merged,tickerAt:Date.now()};return merged}catch{return markets}}
-export async function getMexcMarkets(signal?:AbortSignal){let markets=cache.markets;if(!markets.length||Date.now()-cache.refreshedAt>=CATALOGUE_MS){cache.refresh??=refresh(signal).finally(()=>{cache.refresh=undefined});try{markets=await cache.refresh}catch(e){if(!markets.length)throw e}}if(Date.now()-cache.tickerAt>=TICKER_MS&&!cache.tickerRefresh){cache.tickerRefresh=tickers(markets).finally(()=>{cache.tickerRefresh=undefined});void cache.tickerRefresh;}return markets}
+export async function getMexcMarkets(signal?:AbortSignal){
+  let markets=cache.markets;
+  if(!markets.length||Date.now()-cache.refreshedAt>=CATALOGUE_MS){
+    cache.refresh??=refresh(signal).finally(()=>{cache.refresh=undefined});
+    try{markets=await cache.refresh}catch(e){if(!markets.length)throw e}
+  }
+  const needsTicker=Date.now()-cache.tickerAt>=TICKER_MS;
+  if(needsTicker&&!cache.tickerRefresh) cache.tickerRefresh=tickers(markets,signal).finally(()=>{cache.tickerRefresh=undefined});
+  if(cache.tickerAt===0&&cache.tickerRefresh) markets=await cache.tickerRefresh;
+  else if(cache.tickerRefresh) void cache.tickerRefresh;
+  return markets;
+}
 export function resetMexcMarketCache(){cache={markets:[],refreshedAt:0,tickerAt:0}}
 
 export const mexcProvider:MarketProvider={exchange:"mexc",getMarkets:getMexcMarkets,async getCandles(request:CandleRequest,signal?:AbortSignal):Promise<CandleResult>{const {instrument}=request, interval=MEXC_INTERVALS[request.timeframe], end=request.end??Math.floor(Date.now()/1000);let url:URL;if(instrument.marketType==="spot"){url=new URL("https://api.mexc.com/api/v3/klines");url.searchParams.set("symbol",instrument.sourceSymbol);url.searchParams.set("interval",request.timeframe);url.searchParams.set("limit",String(Math.min(request.limit,1000)));url.searchParams.set("endTime",String(end*1000));}else{url=new URL(`https://api.mexc.com/api/v1/contract/kline/${instrument.sourceSymbol}`);url.searchParams.set("interval",interval.api);url.searchParams.set("start",String(Math.max(0,end-interval.seconds*request.limit)));url.searchParams.set("end",String(end));}const response=await fetch(url,{headers:{accept:"application/json"},signal,cache:"no-store"});if(!response.ok)throw new Error("Candle feed unavailable");const payload=await response.json();const raw=instrument.marketType==="spot"?payload:(payload as {success?:boolean,data?:unknown}).data;const candles=normaliseCandles(raw,Math.floor(Date.now()/1000),request.timeframe).slice(-request.limit);if(!candles.length)throw new Error("Candle feed unavailable");return{source:instrument.marketType==="spot"?"MEXC public spot API":"MEXC public contract API",exchange:"mexc",marketKey:instrument.key,symbol:instrument.sourceSymbol,timeframe:request.timeframe,candles,receivedAt:Date.now(),nextEnd:candles[0].time-1}}};
