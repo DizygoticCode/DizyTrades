@@ -130,7 +130,21 @@ export class ExecutionCallerAssertionStore {
   close() { this.database?.close(); this.database = null; this.fileIdentity = null; }
 }
 
+export type TotpAssuredExecutionCaller = AuthenticatedExecutionCaller & {
+  totpAssured: true;
+};
+
 let productionStore: ExecutionCallerAssertionStore | null = null;
-export const verifyProductionExecutionCaller = (assertion: ExecutionBoundaryRequest["callerAssertion"]) => {
-  try { productionStore ??= new ExecutionCallerAssertionStore(); return productionStore.consume(assertion); } catch { return null; }
+export const verifyProductionExecutionCaller = (
+  assertion: ExecutionBoundaryRequest["callerAssertion"],
+): TotpAssuredExecutionCaller | null => {
+  try {
+    productionStore ??= new ExecutionCallerAssertionStore();
+    const caller = productionStore.consume(assertion);
+    if (!caller) return null;
+    const assuredCaller: TotpAssuredExecutionCaller = { ...caller, totpAssured: true };
+    return Object.freeze(assuredCaller);
+  } catch {
+    return null;
+  }
 };
