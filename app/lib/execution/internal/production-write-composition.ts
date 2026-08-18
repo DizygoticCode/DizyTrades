@@ -313,7 +313,7 @@ export class ProductionMexcWriteComposition {
       ) return fail("blocked");
 
       const slotEvidence = evidenceFrom(slotSwitches, slotBinding, slotOwnership, slotReconciliation, slotRisk, slotRollout);
-      const credentials = readProductionMexcWriteCredentialLease(productionIdentity, d.environment, slotNow);
+      const credentials = readProductionMexcWriteCredentialLease(productionIdentity, slotNow);
       return Object.freeze({ credentials, environment: d.environment, evidence: slotEvidence });
     };
 
@@ -324,6 +324,7 @@ export class ProductionMexcWriteComposition {
 export function createProductionMexcWriteComposition(
   environment: Environment = process.env,
 ): ProductionMexcWriteComposition {
+  if (environment !== process.env) return new ProductionMexcWriteComposition(null);
   const writeCredentialIdentity = productionWriteCredentialExecutionIdentity(environment);
   if (!writeCredentialIdentity) return new ProductionMexcWriteComposition(null);
 
