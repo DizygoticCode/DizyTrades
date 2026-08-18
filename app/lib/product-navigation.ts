@@ -148,6 +148,17 @@ export const DIZY_PRODUCT_LINKS: readonly DizyProductLink[] = [
   },
 ] as const;
 
+const PUBLIC_MARKETING_ROUTE_PREFIXES = ["/", "/about", "/contact", "/dizy", "/dex"] as const;
+const AUTH_ROUTE_PREFIXES = [
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/recover-mfa",
+  "/resend-verification",
+  "/verify-email",
+] as const;
+
 function routeMatches(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
@@ -159,5 +170,6 @@ export function activeDizyProduct(pathname: string): DizyProductId | null {
 }
 
 export function showSharedProductNavigation(pathname: string) {
-  return !["/login", "/signup"].some((prefix) => routeMatches(pathname, prefix));
+  if (PUBLIC_MARKETING_ROUTE_PREFIXES.some((prefix) => routeMatches(pathname, prefix))) return false;
+  return !AUTH_ROUTE_PREFIXES.some((prefix) => routeMatches(pathname, prefix));
 }
