@@ -2,7 +2,7 @@
 
 DizyTrades is a transparent, deterministic crypto research, simulation and review platform. The enduring mission lives in [VISION.md](VISION.md); technical boundaries live in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-This roadmap reflects merged `main` as of **15 August 2026**. Items are not promises of dates. Work moves only after focused implementation, deterministic validation and review.
+This roadmap reflects merged `main` as of **18 August 2026**. Items are not promises of dates. Work moves only after focused implementation, deterministic validation and review.
 
 ## Current roadmap order
 
@@ -309,94 +309,43 @@ No dependency bundle is merged merely because Dependabot opened it.
 
 ## Final major programme — guarded execution readiness
 
-### 12. Security architecture before any live order route
+### 12. 18 August 2026 checkpoint — guarded execution software boundary complete, activation still off
 
-The completed DizyAccount read-only companion is a prerequisite and observation layer. It is **not** an execution approval.
+The guarded-execution programme has moved beyond the historical #320/#322 dormant-writer checkpoint. The production code now contains the reviewed write path, but deployment activation remains deliberately false and no real order has been sent.
 
-An initial non-executing airlock defines server-only intent, structural validation,
-duplicate detection, kill-switch and audit-event contracts. Its sole adapter
-always blocks and has no exchange transport. This architecture slice does **not**
-complete any live-execution requirement below: each item must still be made
-operational, durable where required, exercised and independently approved before
-an exchange write path is considered.
+Completed security slices:
 
-A second readiness slice exercises an in-memory, server-only deterministic risk
-preview against a versioned default-deny policy and fresh supplied price,
-account and position state. It remains non-routable and non-executing. The
-requirements below remain unchecked because this slice is not operational
-execution infrastructure and has not received independent security approval.
+- [x] durable execution state, tamper-evident audit, durable controls, authenticated caller assertions, exact-account ownership, authoritative GET-only reconciliation, day-start/risk authority and restricted rollout
+- [x] modern MEXC reduce-only limit writer with durable lifecycle claim, stable `externalOid`, bounded signing/transport and GET-only ambiguous-delivery reconciliation
+- [x] #329 durable exact-account/write-generation credential authority with permission and egress attestations, CAS revisions and sticky revocation
+- [x] #330/#332 exact single-public-IPv4 `/32` egress authority with two independent observations, freshness, owner password and fresh replay-resistant TOTP
+- [x] #331 encrypted dedicated write-credential custody, exact fingerprint binding and generation burn on failed attestation
+- [x] #333 owner-only production egress rehearsal surface and the subsequent public-origin/MFA-return hardening required by the live rehearsal
+- [x] #339 owner-only dedicated write-key provisioning ceremony ending at `attested`
+- [x] #340 separate owner-only activation ceremony promoting only the exact sealed/attested generation to `active`
+- [x] #341 production composition connection to the existing `ModernMexcReduceOnlyWriter`, with credential lease and final mutable-authority re-read immediately before transport
+- [x] #342 durable microscopic canary permit: exact-intent-bound, short-lived, single-use, reduce-only LIMIT, exactly 1x and at most 25 USDT notional before a production lifecycle can enter `submitting`
 
-A third readiness slice isolates the in-process airlock behind one narrow typed
-boundary. It authenticates and binds internal callers, owns kill-switch
-enforcement and prevents application, client, route and paper-simulation imports
-from bypassing the boundary. The boundary remains an in-process isolation rather
-than a separately deployed service; kill-switch state is not durable/shared,
-audit events are not immutable storage, and no independent operational or
-security approval has occurred. It adds no exchange write capability.
+Current production posture:
 
-A fourth readiness slice adds a dedicated server-only SQLite execution-state
-store on the existing `DATA_DIR` persistent disk. It transactionally reserves
-the existing user/account/idempotency-key scope before synthetic provider
-mechanics, persists only bounded rejected/blocked/synthetic-prepared results with
-`executed:false`, survives service reconstruction and fails closed on malformed
-or unavailable storage. This completes the **single-instance durable execution
-state / restart-safe idempotency readiness slice only**. It does not submit an
-order, does not provide horizontally shared idempotency and does not complete
-exchange acknowledgement, reconciliation or immutable execution audit.
+- [x] `LIVE_TRADING_ENABLED=false` remains the committed/default deployment posture
+- [x] `MEXC_WRITE_PROVIDER_ENABLED=false` remains the committed/default deployment posture
+- [x] no browser/public general execution route exists
+- [x] Account Companion read credentials remain independent and GET-only
+- [x] no real MEXC order has been submitted by the guarded-execution programme
+- [x] ambiguous-delivery recovery remains GET-only and cannot authorize a second POST
 
-A fifth persistence slice adds **durable append-only tamper-evident
-single-instance execution audit persistence** in a separate SQLite file on the
-existing disk. Strict canonical event validation, durable sequencing and a
-SHA-256 chain detect modification across restart; audit open, verification and
-append failures stop mechanics before synthetic provider evaluation. This is
-application-append-only evidence on one persistent disk, not externally anchored
-WORM or truly immutable storage, so the broader immutable-audit requirement
-remains unchecked.
+Current operational blocker and migration boundary:
 
-A sixth readiness slice replaces the static production shutdown state with a
-separate production-owned `DATA_DIR/execution-control.sqlite` store. Its
-versioned, bounded document starts disarmed and globally disabled, uses durable
-atomic compare-and-swap updates, and independently enforces emergency,
-maintenance, global, user, account, explicit arming and provider-freshness
-brakes. Missing state is initialized fail-closed; corrupt, malformed,
-unsupported or unavailable storage never falls back to environment state. This
-completes the durable single-instance kill-switch/control prerequisite only. It
-does not add an operator route, exchange adapter, authentication capability or
-order transport.
+- [ ] restore trusted private MEXC account state; the current Render-side read-only call is failing closed on MEXC code 406 because the server IP whitelist no longer matches
+- [ ] replace the Render-specific execution-host identity assumption with an equivalently strict provider-neutral approved-host + exact static `/32` authority before moving execution to Server Club
+- [ ] complete a controlled persistent-state migration, integrity and rollback/restart rehearsal before changing the production execution host
+- [ ] verify the Server Club host's static public IPv4 from independent observers and bind fresh egress evidence to that exact `/32`
+- [ ] reprovision/re-attest the dedicated write generation against the migrated host rather than silently inheriting stale Render egress authority
+- [ ] perform an independently approved microscopic reduce-only canary only after trusted account state, reconciliation, risk, rollout, egress, custody and every kill-switch/activation gate are fresh on the migrated host
+- [ ] make a separate explicit decision about broader production exchange-write activation only after the canary is reconciled and reviewed
 
-### 15 August 2026 checkpoint — production composition remains inert, writer authority hardened
-
-The guarded-execution path has advanced through two additional reviewed milestones without enabling exchange submission:
-
-- [x] #320 added an **activation-disabled production write-composition seam** while hard-wiring the production factory to `ProductionMexcWriteComposition(null)`. Production constructs no `ModernMexcReduceOnlyWriter`, reads no execution credential and exposes no reachable MEXC POST path. The read-only Radar credential family remains independently validated and separated from any future write family.
-- [x] #322 eliminated the writer queue-to-sign stale-authority race. A queued new request obtains fresh server-owned credentials/authority only after the serialized/rate-limit wait, rechecks SQLite-backed quarantine, claims durable `reserved -> submitting`, then performs a second/final synchronous authority read after the potentially blocking claim before signing/POST.
-- [x] If post-claim authority disappears before transport, the exact `submitting/attempt=1/no-order-id` state is atomically released to `reserved/attempt=0`; known non-delivery is never mislabeled as an ambiguous submission.
-- [x] Potentially delivered lifecycle states remain GET-reconcilable by `externalOid` even after activation shutdown, kill-switch activation, quarantine or credential-generation rotation, without authorizing a second POST.
-- [x] Exact-head CI for #322 passed lint, the complete deterministic suite, production build and Chromium/Playwright; its actionable P2 was resolved and a fresh exact-head P1/P2 review found no remaining actionable P1/P2.
-- [ ] Verify stable Render -> MEXC egress allowlisting before provisioning a real write-capable credential.
-- [ ] Provision a dedicated, server-only, IP-restricted MEXC write credential only in a separately approved operator ceremony.
-- [ ] Independently review and deliberately connect the production composition to the writer while repository/deployment activation defaults remain false.
-- [ ] Perform a separately approved microscopic reduce-only canary only after every activation gate passes.
-
-Live execution remains disabled until every relevant requirement below is implemented, exercised and independently reviewed:
-
-- [ ] isolated execution service or equivalently isolated execution boundary
-- [x] encrypted future live-trading credential custody suitable for write-capable keys (disabled and disconnected; no execution wiring)
-- [x] MFA and hardened database-backed sessions
-- [ ] shared authentication and abuse rate limiting before any horizontal multi-instance deployment (current supported production is one Render instance with persistent SQLite state and vertical scaling first)
-- [ ] server-side order preview and risk validation
-- [ ] idempotent order submission
-- [ ] exchange acknowledgement and deterministic reconciliation
-- [ ] symbol, leverage, notional and daily-loss limits
-- [ ] reduce-only enforcement
-- [ ] stale-price and stale-account-state rejection
-- [x] durable global, per-user and per-account kill switches (single-instance control store; no execution enablement)
-- [ ] immutable execution audit trail
-- [ ] controlled provider persistent-disk snapshot rollback and service-restart rehearsal
-- [ ] restricted test-account rollout
-- [ ] independent security approval
-
-Only after those gates pass should an explicit decision be made about whether to enable any exchange write capability at all.
+Shared authentication/rate limiting remains a prerequisite only if the supported topology later becomes horizontally multi-instance. The current security design remains single-instance with durable local SQLite authority and fail-closed restart semantics.
 
 ## Parked institutional-style analysis
 
@@ -438,7 +387,7 @@ A metric may be considered only after representative evidence and a separate pro
 
 ### Guarded Trading Platform — conditional future
 
-Complete only after credential, risk, reconciliation, shutdown, provider-recovery and audit requirements pass independent review.
+The software security boundary now includes the production writer connection and microscopic one-shot canary gate, but the milestone remains incomplete until host migration/egress, trusted account state, controlled canary reconciliation and explicit activation review are complete.
 
 ## Delivery and cost rules
 
@@ -453,65 +402,3 @@ Complete only after credential, risk, reconciliation, shutdown, provider-recover
 - Live trading remains disabled until the final security milestone is complete.
 - Prefer the existing Render service, GitHub workflows and free tooling.
 - Do not create paid services, disks, databases, APIs or subscriptions without explicit owner approval.
-# Guarded execution readiness
-
-- [x] Add disabled, encrypted, server-only future credential custody with key versioning and atomic rewrap.
-- [x] Add a disabled-by-default, owner-only fresh-password + fresh-TOTP provisioning and revocation ceremony with metadata-only status.
-- [x] Complete the separately reviewed, strongly authenticated credential provisioning ceremony design.
-- [x] Review and design non-executing provider mechanics behind `ExecutionBoundary`. The deterministic synthetic contract is complete; it is not wired to custody or provisioning and does not complete controlled activation or live execution.
-- [x] Add durable single-instance execution-state persistence and restart-safe user/account/idempotency-key protection for the non-executing airlock. This is not real idempotent order submission and adds no exchange write capability.
-- [x] Add durable append-only tamper-evident single-instance execution audit persistence. This does not claim external WORM/immutable storage and adds no exchange transport or credential wiring.
-- [x] Add a deterministic synthetic lifecycle/reconciliation contract with bounded restart-safe evidence and `executed:false`. This is not exchange acknowledgement or readback reconciliation.
-- [x] Add short-lived, single-use server-only internal caller assertions backed by TOTP-assured database sessions. No public mint/execution route exists; the separately completed exact-account ownership ceremony does not complete risk approval or restricted rollout, production stays disarmed/global-disabled, the adapter stays non-executing and real MEXC launch codes remain confiscated.
-- [x] Install a durable, default-deny server-side account authorization and risk
-  officer ahead of synthetic provider evaluation, while retaining the
-  non-executing adapter and `executed:false` result contract.
-- [x] Add bounded authoritative MEXC account/position readback through the existing
-  owner read-only credential seam. The missing authoritative day-start equity is
-  represented explicitly, so this slice does not yet satisfy daily-drawdown risk.
-- [x] Complete the server-only credential-to-account ownership and activation
-  ceremony. Proof requires a fresh GET-only Radar readback plus an independent,
-  exact owner/account and credential-generation operator attestation; activation
-  is a separate authenticated CAS transition and revocation is sticky. This adds
-  no credential migration, public mutation route, exchange write, or execution
-  capability, and production remains disarmed and globally disabled.
-
-- [x] Add a durable restricted-rollout approval and arming gate for the single
-  independently bound owner test account. Approval and arming are separate CAS
-  transitions; disarm/revoke are sticky; bounded reduce-only policy, current
-  ownership, risk authorization and reconciliation are rechecked. This is only
-  pre-submission approval: the adapter remains non-executing, every outcome is
-  `executed:false`, and production exchange submission remains unapproved.
-- [ ] Approve production exchange-write activation. An activation-disabled
-  production composition seam now exists, but its production factory remains
-  hard-wired to null writer dependencies. No real execution credential read,
-  writer construction or production MEXC POST path is reachable.
-# Guarded execution safety
-
-- [x] Durable exact-account Radar reconciliation and sticky divergence quarantine
-  ahead of provider evaluation (GET-only evidence, `executed:false`).
-- [ ] Production exchange-write activation remains explicitly unapproved.
-  #320 added only an inert composition boundary and #322 hardened the dormant
-  writer's last-pre-transport authority/recovery ordering; production still
-  constructs no writer and can reach no exchange POST.
-# Guarded execution provider milestone (#315)
-
-- [x] Add a server-only modern `api.mexc.com` reduce-only create-order seam.
-- [x] Sign and transmit one exact JSON body with stable `externalOid`.
-- [x] Atomically claim durable secret-free evidence before delivery and reconcile
-  every recovered state before any retry; quarantine full-intent divergence.
-- [x] Keep Account Companion read credentials independent from execution keys.
-- [x] Default the independent write-provider flag and `LIVE_TRADING_ENABLED` to
-  false; expose no browser/public mutation route.
-- [x] Complete the queued/pre-transport authority hardening and exact-head
-  P1/P2 review required before the dormant writer can ever be considered for
-  production composition (#322).
-- [ ] Complete stable Render-egress allowlisting, dedicated write-key provisioning,
-  a separate production-writer composition review, and the activation ceremony.
-
-This milestone does not enable unrestricted live trading and cannot open or
-increase exposure. It is limit-only in one-way mode (`positionMode:2`) with an
-authoritative `positionId` and `reduceOnly:true`. DizyTrades `side` is order
-direction: `long`/buy may only reduce a proven short and maps to MEXC side `2`
-(`close short`); `short`/sell may only reduce a proven long and maps to side `4`
-(`close long`). The seam remains production-disabled and unrouted.
