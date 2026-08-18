@@ -4,19 +4,23 @@ import { join } from "node:path";
 import test from "node:test";
 
 const custody = readFileSync("app/lib/credential-custody/index.ts", "utf8");
-const execution = readdirSync("app/lib/execution", { recursive: true }).filter((name) => String(name).endsWith(".ts"))
-  .map((name) => readFileSync(`app/lib/execution/${name}`, "utf8")).join("\n");
+const executionFiles = readdirSync("app/lib/execution", { recursive: true }).filter((name) => String(name).endsWith(".ts"));
+const execution = executionFiles.map((name) => readFileSync(`app/lib/execution/${name}`, "utf8")).join("\n");
 
 function productionSource(directory) {
   return readdirSync(directory, { recursive: true }).filter((name) => /\.(?:ts|tsx)$/.test(String(name)))
     .map((name) => readFileSync(join(directory, String(name)), "utf8")).join("\n");
 }
 
-test("custody stays server-only, networkless, signerless, and disconnected from execution", () => {
+test("custody stays server-only, networkless, signerless, and reaches execution only through the audited lease", () => {
   assert.match(custody, /^import "server-only";/);
   for (const forbidden of ["use client", "fetch(", "mexc-private", "execution/", "NEXT_PUBLIC_", "signRequest", "placeOrder", "cancelOrder", "amendOrder"])
     assert.equal(custody.includes(forbidden), false, forbidden);
-  assert.equal(execution.includes("credential-custody"), false);
+  assert.deepEqual(
+    executionFiles.filter((name) => readFileSync(`app/lib/execution/${name}`, "utf8").includes("credential-custody")),
+    ["internal/production-write-credential-lease.ts"],
+  );
+  assert.match(execution, /production-write-credential-lease/);
 });
 
 test("production API routes have no credential custody reference", () => {
