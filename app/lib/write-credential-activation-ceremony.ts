@@ -2,7 +2,7 @@ import "server-only";
 
 import { SqliteMexcWriteCredentialCustody } from "./credential-custody/write-credential";
 import {
-  inspectProductionRenderEgressCeremony,
+  inspectProductionExecutionHostEgressCeremony,
   openProductionMexcWriteProvisioningAuthority,
   type WriteProvisioningOwnerProof,
 } from "./execution/write-provisioning-authority";
@@ -38,7 +38,8 @@ export async function inspectProductionWriteCredentialActivationCeremony(): Prom
     && state.dedicatedIpv4s.length === 1
     && egress?.runtime
     && egress.observerIpv4
-    && state.renderServiceId === egress.runtime.serviceId
+    && state.provider === egress.runtime.provider
+    && state.hostId === egress.runtime.hostId
     && state.dedicatedIpv4s[0] === egress.observerIpv4,
   );
   return Object.freeze({ ...snapshot, activationEligible });
@@ -51,12 +52,13 @@ export async function activateProductionWriteCredential(
   if (!confirmation.orderPlacingOnlyConfirmed || !confirmation.mexcIpAllowlistConfirmed) return null;
   const identity = productionWriteCredentialCeremonyIdentity();
   if (!identity) return null;
-  const egress = await inspectProductionRenderEgressCeremony(identity);
+  const egress = await inspectProductionExecutionHostEgressCeremony(identity);
   if (!egress?.runtime || !egress.observerIpv4) return null;
 
-  const handle = openProductionMexcWriteProvisioningAuthority();
+  let handle: ReturnType<typeof openProductionMexcWriteProvisioningAuthority> | null = null;
   const custody = new SqliteMexcWriteCredentialCustody();
   try {
+    handle = openProductionMexcWriteProvisioningAuthority();
     const authority = handle.authority.inspectCredentialAuthority(identity);
     if (authority.status !== "attested" || authority.revision < 1) return null;
     const sealed = custody.read(identity);
@@ -74,6 +76,6 @@ export async function activateProductionWriteCredential(
     return null;
   } finally {
     custody.close();
-    handle.close();
+    handle?.close();
   }
 }
