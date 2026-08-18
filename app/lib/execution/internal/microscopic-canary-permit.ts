@@ -5,7 +5,12 @@ import { chmodSync, existsSync, mkdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import type { MexcExecutionIntent } from "./mexc-execution-writer";
+import {
+  mexcExecutionIdentityDigest,
+  mexcExternalOid,
+  type MexcExecutionIntent,
+  type MexcIntentEvidence,
+} from "./mexc-execution-writer";
 
 export const MEXC_MICROSCOPIC_CANARY_MAX_NOTIONAL = 25;
 export const MEXC_MICROSCOPIC_CANARY_TTL_MS = 2 * 60 * 1000;
@@ -27,9 +32,10 @@ export type MicroscopicCanaryPermitState = Readonly<{
   userId: string;
   accountId: string;
   writeCredentialGeneration: string;
+  identityDigestSha256: string | null;
   revision: number;
   status: MicroscopicCanaryPermitStatus;
-  intentDigestSha256: string | null;
+  lifecycleBindingDigestSha256: string | null;
   armedAt: string | null;
   expiresAt: string | null;
   consumedAt: string | null;
@@ -66,6 +72,8 @@ const identityValid = (identity: Identity) =>
   && ID.test(identity.accountId)
   && TOKEN.test(identity.writeCredentialGeneration);
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
+const providerSide = (intent: MexcExecutionIntent) => intent.side === "long" ? 2 : 4;
+const providerOpenType = (intent: MexcExecutionIntent): 1 | 2 => intent.marginMode === "isolated" ? 1 : 2;
 
 export const microscopicCanaryIdentity = (intent: MexcExecutionIntent): Identity => Object.freeze({
   userId: intent.userId,
@@ -81,7 +89,6 @@ export function microscopicCanaryIntentEligible(intent: MexcExecutionIntent) {
     && TOKEN.test(intent.intentId)
     && TOKEN.test(intent.idempotencyKey)
     && SYMBOL.test(intent.symbol)
-    && intent.side !== undefined
     && (intent.side === "long" || intent.side === "short")
     && intent.orderType === "limit"
     && intent.positionMode === "one-way"
@@ -103,31 +110,52 @@ export function microscopicCanaryIntentEligible(intent: MexcExecutionIntent) {
   );
 }
 
-export function microscopicCanaryIntentDigest(intent: MexcExecutionIntent) {
+const transportIntentDigest = (intent: MexcExecutionIntent) => sha256(JSON.stringify({
+  symbol: intent.symbol,
+  price: intent.price,
+  vol: intent.volume,
+  side: providerSide(intent),
+  type: 1,
+  openType: providerOpenType(intent),
+  leverage: intent.leverage,
+  externalOid: mexcExternalOid(intent),
+  positionId: intent.positionId,
+  positionMode: 2,
+  reduceOnly: true,
+}));
+
+export function microscopicCanaryLifecycleBindingDigestForIntent(intent: MexcExecutionIntent) {
   if (!microscopicCanaryIntentEligible(intent)) return fail("MICROSCOPIC_CANARY_INVALID");
   return sha256(JSON.stringify([
-    intent.userId,
-    intent.accountId,
-    intent.intentId,
-    intent.idempotencyKey,
-    intent.symbol,
-    intent.side,
-    intent.orderType,
-    intent.positionMode,
-    intent.positionId,
-    intent.marginMode,
-    intent.positionVolume,
-    intent.volume,
-    intent.price,
-    intent.referencePrice,
-    intent.estimatedNotional,
-    intent.leverage,
-    intent.reduceOnly,
+    mexcExecutionIdentityDigest(intent),
+    transportIntentDigest(intent),
     intent.bindingGeneration,
+    intent.writeCredentialGeneration,
     intent.rolloutRevision,
     intent.riskRevision,
     intent.reconciliationRevision,
-    intent.writeCredentialGeneration,
+  ]));
+}
+
+export function microscopicCanaryLifecycleBindingDigestForEvidence(
+  identityDigest: string,
+  evidence: MexcIntentEvidence,
+) {
+  if (
+    !SHA256.test(identityDigest)
+    || !SHA256.test(evidence.intentDigest)
+    || !TOKEN.test(evidence.bindingGeneration)
+    || !TOKEN.test(evidence.writeCredentialGeneration)
+    || ![evidence.rolloutRevision, evidence.riskRevision, evidence.reconciliationRevision].every((value) => Number.isSafeInteger(value) && value >= 1)
+  ) return fail("MICROSCOPIC_CANARY_INVALID");
+  return sha256(JSON.stringify([
+    identityDigest,
+    evidence.intentDigest,
+    evidence.bindingGeneration,
+    evidence.writeCredentialGeneration,
+    evidence.rolloutRevision,
+    evidence.riskRevision,
+    evidence.reconciliationRevision,
   ]));
 }
 
@@ -191,9 +219,10 @@ export class SqliteMicroscopicCanaryPermitStore {
           user_id TEXT NOT NULL,
           account_id TEXT NOT NULL,
           write_credential_generation TEXT NOT NULL,
+          identity_digest_sha256 TEXT NOT NULL UNIQUE CHECK(length(identity_digest_sha256)=64),
           revision INTEGER NOT NULL,
           status TEXT NOT NULL CHECK(status IN ('armed','consumed','revoked')),
-          intent_digest_sha256 TEXT NOT NULL CHECK(length(intent_digest_sha256)=64),
+          lifecycle_binding_digest_sha256 TEXT NOT NULL CHECK(length(lifecycle_binding_digest_sha256)=64),
           armed_at TEXT NOT NULL,
           expires_at TEXT NOT NULL,
           consumed_at TEXT,
@@ -237,9 +266,10 @@ export class SqliteMicroscopicCanaryPermitStore {
       this.assertFileIdentity();
       if (!row) return Object.freeze({
         ...identity,
+        identityDigestSha256: null,
         revision: 0,
         status: "unknown" as const,
-        intentDigestSha256: null,
+        lifecycleBindingDigestSha256: null,
         armedAt: null,
         expiresAt: null,
         consumedAt: null,
@@ -252,10 +282,11 @@ export class SqliteMicroscopicCanaryPermitStore {
         || row.user_id !== identity.userId
         || row.account_id !== identity.accountId
         || row.write_credential_generation !== identity.writeCredentialGeneration
+        || !SHA256.test(String(row.identity_digest_sha256))
         || !Number.isSafeInteger(row.revision)
         || Number(row.revision) < 1
         || !["armed", "consumed", "revoked"].includes(status)
-        || !SHA256.test(String(row.intent_digest_sha256))
+        || !SHA256.test(String(row.lifecycle_binding_digest_sha256))
         || !timestamp(row.armed_at)
         || !timestamp(row.expires_at)
         || !timestamp(row.updated_at)
@@ -267,9 +298,10 @@ export class SqliteMicroscopicCanaryPermitStore {
       ) return fail("MICROSCOPIC_CANARY_INVALID");
       return Object.freeze({
         ...identity,
+        identityDigestSha256: String(row.identity_digest_sha256),
         revision: Number(row.revision),
         status,
-        intentDigestSha256: String(row.intent_digest_sha256),
+        lifecycleBindingDigestSha256: String(row.lifecycle_binding_digest_sha256),
         armedAt: String(row.armed_at),
         expiresAt: String(row.expires_at),
         consumedAt: row.consumed_at === null ? null : String(row.consumed_at),
@@ -285,18 +317,19 @@ export class SqliteMicroscopicCanaryPermitStore {
   arm(intent: MexcExecutionIntent, at: string, expectedRevision = 0): MicroscopicCanaryPermitState {
     if (!timestamp(at) || expectedRevision !== 0 || !microscopicCanaryIntentEligible(intent)) return fail("MICROSCOPIC_CANARY_INVALID");
     const identity = microscopicCanaryIdentity(intent);
-    const digest = microscopicCanaryIntentDigest(intent);
+    const identityDigest = mexcExecutionIdentityDigest(intent);
+    const bindingDigest = microscopicCanaryLifecycleBindingDigestForIntent(intent);
     const expiresAt = new Date(Date.parse(at) + MEXC_MICROSCOPIC_CANARY_TTL_MS).toISOString();
     const db = this.db();
     try {
       db.exec("BEGIN IMMEDIATE");
       const inserted = db.prepare(`INSERT OR IGNORE INTO microscopic_canary_state
-        VALUES(1,?,?,?,?,?,'armed',?,?,NULL,NULL,?)`).run(
+        VALUES(1,?,?,?,?,1,'armed',?,?,?,NULL,NULL,?)`).run(
           identity.userId,
           identity.accountId,
           identity.writeCredentialGeneration,
-          1,
-          digest,
+          identityDigest,
+          bindingDigest,
           at,
           expiresAt,
           at,
@@ -319,56 +352,43 @@ export class SqliteMicroscopicCanaryPermitStore {
     }
   }
 
-  consume(intent: MexcExecutionIntent, at: string): boolean {
-    if (!timestamp(at) || !microscopicCanaryIntentEligible(intent)) return false;
-    const identity = microscopicCanaryIdentity(intent);
-    const digest = microscopicCanaryIntentDigest(intent);
+  consumeLifecycle(identityDigest: string, evidence: MexcIntentEvidence, at: string): boolean {
+    if (!SHA256.test(identityDigest) || !timestamp(at)) return false;
+    let bindingDigest: string;
+    try { bindingDigest = microscopicCanaryLifecycleBindingDigestForEvidence(identityDigest, evidence); }
+    catch { return false; }
     const nowMs = Date.parse(at);
     const db = this.db();
     try {
       db.exec("BEGIN IMMEDIATE");
-      const row = db.prepare(`SELECT revision,status,intent_digest_sha256,armed_at,expires_at
-        FROM microscopic_canary_state
-        WHERE user_id=? AND account_id=? AND write_credential_generation=?`).get(
-          identity.userId,
-          identity.accountId,
-          identity.writeCredentialGeneration,
+      const row = db.prepare(`SELECT * FROM microscopic_canary_state
+        WHERE identity_digest_sha256=? AND write_credential_generation=?`).get(
+          identityDigest,
+          evidence.writeCredentialGeneration,
         ) as Record<string, unknown> | undefined;
-      if (!row) {
-        db.exec("COMMIT");
-        return false;
-      }
-      if (
-        !Number.isSafeInteger(row.revision)
-        || Number(row.revision) < 1
-        || row.status !== "armed"
-        || row.intent_digest_sha256 !== digest
-        || !timestamp(row.armed_at)
-        || !timestamp(row.expires_at)
-      ) {
+      if (!row || row.status !== "armed" || row.lifecycle_binding_digest_sha256 !== bindingDigest || !timestamp(row.armed_at) || !timestamp(row.expires_at)) {
         db.exec("COMMIT");
         return false;
       }
       const armedMs = Date.parse(String(row.armed_at));
       const expiresMs = Date.parse(String(row.expires_at));
-      if (armedMs > nowMs || nowMs > expiresMs) {
+      if (armedMs > nowMs || nowMs > expiresMs || !Number.isSafeInteger(row.revision) || Number(row.revision) < 1) {
         db.exec("COMMIT");
         return false;
       }
       const revision = Number(row.revision) + 1;
       const updated = db.prepare(`UPDATE microscopic_canary_state
         SET revision=?,status='consumed',consumed_at=?,terminal_at=?,updated_at=?
-        WHERE user_id=? AND account_id=? AND write_credential_generation=?
-          AND revision=? AND status='armed' AND intent_digest_sha256=?`).run(
+        WHERE identity_digest_sha256=? AND write_credential_generation=?
+          AND revision=? AND status='armed' AND lifecycle_binding_digest_sha256=?`).run(
             revision,
             at,
             at,
             at,
-            identity.userId,
-            identity.accountId,
-            identity.writeCredentialGeneration,
+            identityDigest,
+            evidence.writeCredentialGeneration,
             Number(row.revision),
-            digest,
+            bindingDigest,
           );
       if (updated.changes !== 1) {
         db.exec("ROLLBACK");
@@ -376,7 +396,14 @@ export class SqliteMicroscopicCanaryPermitStore {
       }
       db.prepare(`INSERT INTO microscopic_canary_events
         (user_id,account_id,write_credential_generation,revision,kind,occurred_at)
-        VALUES(?,?,?,?,?,?)`).run(identity.userId, identity.accountId, identity.writeCredentialGeneration, revision, "consumed", at);
+        VALUES(?,?,?,?,?,?)`).run(
+          String(row.user_id),
+          String(row.account_id),
+          String(row.write_credential_generation),
+          revision,
+          "consumed",
+          at,
+        );
       db.exec("COMMIT");
       this.harden();
       this.assertFileIdentity();
@@ -392,7 +419,7 @@ export class SqliteMicroscopicCanaryPermitStore {
     if (!identityValid(identity) || !timestamp(at) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 1) return fail("MICROSCOPIC_CANARY_INVALID");
     const current = this.read(identity);
     if (current.status === "consumed" || current.status === "revoked") return current;
-    if (current.status !== "armed" || current.revision !== expectedRevision || !current.intentDigestSha256) return fail("MICROSCOPIC_CANARY_CONFLICT");
+    if (current.status !== "armed" || current.revision !== expectedRevision || !current.lifecycleBindingDigestSha256) return fail("MICROSCOPIC_CANARY_CONFLICT");
     const db = this.db();
     try {
       db.exec("BEGIN IMMEDIATE");
