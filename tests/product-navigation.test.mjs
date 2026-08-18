@@ -41,8 +41,8 @@ test("nested product pages retain their relevant active product", () => {
   assert.equal(activeDizyProduct("/"), null);
 });
 
-test("the shared product strip is standard on every product page including terminal", () => {
-  assert.equal(showSharedProductNavigation("/"), true);
+test("the shared product strip stays on workspace routes while public home owns its marketing chrome", () => {
+  assert.equal(showSharedProductNavigation("/"), false);
   assert.equal(showSharedProductNavigation("/scanner"), true);
   assert.equal(showSharedProductNavigation("/terminal"), true);
   assert.equal(showSharedProductNavigation("/terminal/settings"), true);
