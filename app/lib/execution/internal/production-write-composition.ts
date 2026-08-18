@@ -340,7 +340,7 @@ export function createProductionMexcWriteComposition(
   const lifecycleStore = new SqliteMexcExecutionLifecycleStore();
   const productionWriter = new ModernMexcReduceOnlyWriter(createMexcExecutionFetchTransport(), lifecycleStore);
 
-  return new ProductionMexcWriteComposition(Object.freeze({
+  const dependencies: ProductionMexcWriteDependencies = {
     environment,
     now: () => new Date(),
     verifyCaller: verifyProductionExecutionCaller,
@@ -357,5 +357,6 @@ export function createProductionMexcWriteComposition(
     writeCredentialIdentity,
     executionStateStore,
     executionAuditStore,
-  }));
+  };
+  return new ProductionMexcWriteComposition(Object.freeze(dependencies));
 }
