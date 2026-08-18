@@ -212,6 +212,7 @@ export default function DizyPage() {
           <a href={OFFICIAL_X_URL} target="_blank" rel="noopener noreferrer">X</a>
           <a href={SOLSCAN_URL} target="_blank" rel="noopener noreferrer">Solscan</a>
           <Link href="/dex">DizyDEX</Link>
+          <Link href="/contact">Contact</Link>
         </div>
       </footer>
     </div>
