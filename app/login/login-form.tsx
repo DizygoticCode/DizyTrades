@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { SCHOOL_DISPLAY_NAME } from "@/app/lib/branding";
@@ -8,6 +9,15 @@ import { safeAuthReturnTarget } from "@/app/lib/auth-return-target";
 const subscribeToHydration = () => () => undefined;
 const getHydratedSnapshot = () => true;
 const getServerHydrationSnapshot = () => false;
+
+function LoginBrand() {
+  return (
+    <Link className="login-brand" href="/" aria-label="DizyTrades home">
+      <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
+      <div><strong>DizyTrades</strong><small>Everything Dizy™</small></div>
+    </Link>
+  );
+}
 
 export default function LoginForm({ returnTo = "/terminal" }: { returnTo?: string }) {
   const router = useRouter();
@@ -92,6 +102,7 @@ export default function LoginForm({ returnTo = "/terminal" }: { returnTo?: strin
   const interactive = hydrated && !loading;
 
   if (challenge) return <form className="login-card" onSubmit={completeMfa}>
+    <LoginBrand />
     <h1>Two-factor verification</h1><p>Enter your authenticator code or a one-time recovery code.</p>
     <label><span>Verification code</span><input autoComplete="one-time-code" inputMode="text" name="proof" required /></label>
     {error ? <div className="login-error" role="alert">{error}</div> : null}
@@ -101,10 +112,7 @@ export default function LoginForm({ returnTo = "/terminal" }: { returnTo?: strin
   </form>;
   return (
     <form className="login-card" onSubmit={submit}>
-      <div className="login-brand">
-        <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
-        <div><strong>DizyTrades</strong><small>Everything Dizy™</small></div>
-      </div>
+      <LoginBrand />
       <div className="test-chip"><i /> SIMULATION WORKSPACE</div>
       <h1>Welcome back</h1>
       <p>Sign in to your charting, signals, order-flow and paper-trading workspace.</p>
