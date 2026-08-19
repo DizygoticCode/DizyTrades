@@ -11,6 +11,14 @@ function replaceOnce(label, before, after) {
   source = source.slice(0, first) + after + source.slice(first + before.length);
 }
 
+function replaceExactly(label, before, after, expected) {
+  const pieces = source.split(before);
+  const actual = pieces.length - 1;
+  if (actual !== expected)
+    throw new Error(`${label}: expected ${expected} occurrences, found ${actual}`);
+  source = pieces.join(after);
+}
+
 replaceOnce(
   "DEX helper import",
   'import { DIZY_USDT_POOL, splitDexOhlcv, supportsDexChartTimeframe } from "./lib/dex/dizy";',
@@ -47,12 +55,22 @@ replaceOnce(
   `        const providerTimeline = chartMarketTimeline(\n          chartMarket,\n          payload.candles,\n          timeframe as CandleTimeframe,\n        );`,
 );
 
-for (const [label, before, after] of [
-  ["replace market timeline", "closed: dexTimeline.closed", "closed: providerTimeline.closed"],
-  ["reconcile market timeline", "closed: dexTimeline.closed", "closed: providerTimeline.closed"],
-  ["DEX live condition", "dispatchTimeline(dexTimeline.live", "dispatchTimeline(providerTimeline.live"],
-  ["DEX live candle", "candle: dexTimeline.live", "candle: providerTimeline.live"],
-]) replaceOnce(label, before, after);
+replaceExactly(
+  "closed timeline references",
+  "closed: dexTimeline.closed",
+  "closed: providerTimeline.closed",
+  2,
+);
+replaceOnce(
+  "DEX live condition",
+  "dispatchTimeline(dexTimeline.live",
+  "dispatchTimeline(providerTimeline.live",
+);
+replaceOnce(
+  "DEX live candle",
+  "candle: dexTimeline.live",
+  "candle: providerTimeline.live",
+);
 
 replaceOnce(
   "provider data source",
