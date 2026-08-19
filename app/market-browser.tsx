@@ -165,13 +165,7 @@ export function MarketBrowser({ anchorRef, markets, selectedMarketKey, selectedD
   useEffect(() => {
     if (!showGlobal) return;
     const text = query.trim();
-    if (text.length < 2) {
-      setGlobalItems([]);
-      setGlobalError("");
-      setGlobalCached(false);
-      setGlobalReceivedAt(0);
-      return;
-    }
+    if (text.length < 2) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setGlobalLoading(true);
@@ -293,7 +287,7 @@ export function MarketBrowser({ anchorRef, markets, selectedMarketKey, selectedD
     <button aria-label="Close market browser" className={styles.backdrop} onClick={onClose}/>
     <section aria-label="Market Browser" aria-modal="true" className={styles.marketBrowser} ref={panelRef} role="dialog" style={{ top: position.top, left: position.left }}>
       <header className={styles.header}><strong>Market Browser</strong><button aria-expanded={statusOpen} className={`${styles.status} ${(showGlobal ? globalError : degraded) ? styles.degraded : (showGlobal ? globalCached : cached) ? styles.cached : ""}`} onClick={() => (showDex || showGlobal) && setStatusOpen(value=>!value)} type="button">{providerLabel}</button><button aria-label="Close market browser" className={styles.closeButton} onClick={onClose} type="button">×</button>{statusOpen && (showDex || showGlobal) ? <aside className={styles.statusPopover}><b>{showGlobal ? globalError ? "Global provider unavailable" : globalCached ? "Cached global search" : "Twelve Data search" : degraded ? "Provider degraded" : cached ? "Cached market data" : "Provider connected"}</b><p>{showGlobal ? globalError || "Global instrument discovery and chart candles are served through Twelve Data." : degraded || "DEX Screener / GeckoTerminal market data."}</p><button onClick={()=>setRetry(value=>value+1)} type="button">Retry</button></aside>:null}</header>
-      <div className={styles.search}><span aria-hidden="true">⌕</span><input autoFocus aria-label="Search markets" onChange={event=>{setQuery(event.target.value);setCursor("1");}} placeholder={showGlobal ? "Search global symbol or company…" : showDex && !showMexc ? "Search token, mint, pool or DEX…" : mixedFavorites ? "Search all favourites…" : "Search symbol, asset or contract…"} value={query}/>{query ? <button aria-label="Clear search" onClick={()=>setQuery("")} type="button">×</button>:null}</div>
+      <div className={styles.search}><span aria-hidden="true">⌕</span><input autoFocus aria-label="Search markets" onChange={event=>{const next=event.target.value;setQuery(next);setCursor("1");if(showGlobal&&next.trim().length<2){setGlobalItems([]);setGlobalError("");setGlobalCached(false);setGlobalReceivedAt(0);setGlobalLoading(false);}}} placeholder={showGlobal ? "Search global symbol or company…" : showDex && !showMexc ? "Search token, mint, pool or DEX…" : mixedFavorites ? "Search all favourites…" : "Search symbol, asset or contract…"} value={query}/>{query ? <button aria-label="Clear search" onClick={()=>{setQuery("");if(showGlobal){setGlobalItems([]);setGlobalError("");setGlobalCached(false);setGlobalReceivedAt(0);setGlobalLoading(false);}}} type="button">×</button>:null}</div>
       <Tabs className={styles.primaryTabs} items={primary} label="Market type" value={tab} onChange={chooseTab}/>
       <div className={styles.secondaryFilters}><Tabs className={styles.secondaryTabs} items={secondary[tab]} label={`${tab} filters`} value={subtab} onChange={(value, anchor)=>{if(value==="More"){if(anchor)setMorePosition({top:anchor.bottom+4,left:Math.max(8,Math.min(anchor.left,window.innerWidth-170))});setMoreOpen(current=>!current);}else{setSubtab(value);setMoreOpen(false);}}}/>{tab==="DizyDEX"?<button aria-expanded={filtersOpen} aria-label="DEX filters" className={styles.filterButton} onClick={()=>setFiltersOpen(value=>!value)} type="button">⚙</button>:null}
         {filtersOpen?<div className={styles.filterPopover}><label>Minimum liquidity<input min="0" type="number" value={filters.liquidity} onChange={event=>setFilters(current=>({...current,liquidity:event.target.value}))}/></label><label>Minimum 24h volume<input min="0" type="number" value={filters.volume} onChange={event=>setFilters(current=>({...current,volume:event.target.value}))}/></label><label>Maximum pair age (hours)<input min="0" type="number" value={filters.age} onChange={event=>setFilters(current=>({...current,age:event.target.value}))}/></label><button onClick={()=>setFilters({liquidity:"",volume:"",age:""})} type="button">Reset</button></div>:null}
