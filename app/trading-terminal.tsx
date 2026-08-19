@@ -57,14 +57,21 @@ import { createDizyBrainSnapshot } from "./lib/dizybrain-snapshot";
 import { toDizyFlowEvidenceReference } from "./lib/order-flow/intelligence";
 import type { MarketDescriptor } from "./lib/market/types";
 import type { DexMarket } from "./lib/dex/types";
-import { DIZY_USDT_POOL, splitDexOhlcv, supportsDexChartTimeframe } from "./lib/dex/dizy";
+import { DIZY_USDT_POOL } from "./lib/dex/dizy";
 import { marketBadge } from "./lib/market/catalogue";
 import { formatUsdMarketPrice } from "./lib/market/price-format";
 import type { CandleTimeframe } from "./lib/market/types";
 import {
-  useMexcRealtime,
+  chartMarketCandleEndpoint,
+  chartMarketSupportsTimeframe,
+  chartMarketTimeline,
+  createDexChartMarket,
+  createMexcChartMarket,
+} from "./lib/market/chart-market";
+import {
+  useChartMarketRealtime,
   type RealtimeStatus,
-} from "./lib/market/use-mexc-realtime";
+} from "./lib/market/use-chart-market-realtime";
 import {
   calculateExchangeAlignedCountdownSeconds,
   defaultVisibleCandleCount,
@@ -1287,7 +1294,13 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [flowHistoryOpen,setFlowHistoryOpen]=useState(false);
   const selectedMarket=markets.find((market)=>market.key===selectedMarketKey);
   const dexSelected=selectedDexMarket!==null;
-  const futuresSelected=!dexSelected&&selectedMarket?.marketType!=="spot";
+  const chartMarket=useMemo(
+    () => selectedDexMarket
+      ? createDexChartMarket(selectedDexMarket)
+      : createMexcChartMarket(selectedMarket, symbol),
+    [selectedDexMarket, selectedMarket, symbol],
+  );
+  const futuresSelected=chartMarket.kind==="futures";
   const orderFlow=useOrderFlow({settings:orderFlowSettings,paused:!futuresSelected,symbol,contractSize:selectedMarket?.contractSize??1,priceUnit:selectedMarket?.priceUnit,priceScale:selectedMarket?.priceScale,marketKey:selectedMarket?.key,marketType:selectedMarket?.marketType,reference:liveCandle?.close?{price:liveCandle.close,source:"last"}:undefined});
   const [selectorOpen, setSelectorOpen] = useState(false);
   const marketTrigger = useRef<HTMLButtonElement>(null);
@@ -1439,51 +1452,56 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       else setBackgroundSyncing(true);
       if (blocking) setFeedError("");
       try {
-        const dexRequest = selectedDexMarket;
-        if (dexRequest && !supportsDexChartTimeframe(timeframe))
-          throw new Error("Unsupported DEX timeframe");
-        const endpoint = dexRequest
-          ? `/api/dex/ohlcv?chain=${encodeURIComponent(dexRequest.chain)}&pool=${encodeURIComponent(dexRequest.poolAddress)}&interval=${encodeURIComponent(timeframe)}&limit=${Math.min(historyCapacity, 1000)}`
-          : `/api/market?exchange=mexc&marketType=${selectedMarket?.marketType ?? "futures"}&symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&limit=${historyCapacity}`;
+        const dexRequest = chartMarket.provider.id === "dizydex";
+        const endpoint = chartMarketCandleEndpoint(
+          chartMarket,
+          timeframe as CandleTimeframe,
+          historyCapacity,
+        );
         const response = await fetch(endpoint, { signal: controller.signal });
         if (!response.ok) throw new Error("Feed unavailable");
         const payload = (await response.json()) as { source: string; candles: Candle[] };
-        if (!payload.candles.length || (!dexRequest && payload.candles.length < 20))
+        if (
+          !payload.candles.length ||
+          payload.candles.length < chartMarket.capabilities.minimumHistory
+        )
           throw new Error("Insufficient candle history");
         if (
           requestId !== marketRequest.current ||
           requestKey !== `${selectedMarketKey}:${timeframe}`
         )
           return;
-        const dexTimeline = dexRequest
-          ? splitDexOhlcv(payload.candles, timeframe as CandleTimeframe)
-          : { closed: payload.candles, live: null as Candle | null };
+        const providerTimeline = chartMarketTimeline(
+          chartMarket,
+          payload.candles,
+          timeframe as CandleTimeframe,
+        );
         dispatchTimeline(
           reason === "market-change" || reason === "initial"
-            ? { type: "replaceMarket", marketKey: requestKey, closed: dexTimeline.closed, limit: historyCapacity }
-            : { type: "reconcileClosed", marketKey: requestKey, closed: dexTimeline.closed, limit: historyCapacity },
+            ? { type: "replaceMarket", marketKey: requestKey, closed: providerTimeline.closed, limit: historyCapacity }
+            : { type: "reconcileClosed", marketKey: requestKey, closed: providerTimeline.closed, limit: historyCapacity },
         );
         if (dexRequest) {
-          dispatchTimeline(dexTimeline.live
-            ? { type: "kline", marketKey: requestKey, candle: dexTimeline.live }
+          dispatchTimeline(providerTimeline.live
+            ? { type: "kline", marketKey: requestKey, candle: providerTimeline.live }
             : { type: "clearLive", marketKey: requestKey });
         }
         if (resetView && view.autoFitOnMarketChange)
           setViewportReset((value) => value + 1);
-        setDataSource(dexRequest ? `${payload.source.toUpperCase()} · RAYDIUM` : payload.source.toUpperCase());
+        setDataSource(dexRequest ? `${payload.source.toUpperCase()} · ${chartMarket.provider.venue.toUpperCase()}` : payload.source.toUpperCase());
         setFeedError("");
         setResultMarketKey(requestKey);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError")
           return;
         if (requestId !== marketRequest.current) return;
-        const dexFailure = selectedDexMarket !== null;
+        const dexFailure = chartMarket.provider.id === "dizydex";
         if (dexFailure && !blocking) {
           setRealtimeStatus("delayed");
           return;
         }
         setFeedError(
-          error instanceof Error && error.message === "Unsupported DEX timeframe"
+          error instanceof Error && error.message === "Unsupported chart timeframe"
             ? "That timeframe is not available for on-chain pool candles."
             : error instanceof Error && error.message === "Insufficient candle history"
               ? dexFailure ? "DIZY pool candles are still building." : "Insufficient confirmed candle history."
@@ -1498,16 +1516,14 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
         }
       }
     },
-    [symbol, selectedMarketKey, selectedMarket, selectedDexMarket, timeframe, view.autoFitOnMarketChange, historyCapacity],
+    [selectedMarketKey, chartMarket, timeframe, view.autoFitOnMarketChange, historyCapacity],
   );
 
   const demo = dataSource === "DEMONSTRATION DATA";
-  useMexcRealtime({
-    enabled: terminalTab === "charts" && !dexSelected && !demo && !replayActive && view.realtimeChartUpdates,
-    symbol,
-    marketType: selectedMarket?.marketType ?? "futures",
+  useChartMarketRealtime({
+    enabled: terminalTab === "charts" && !demo && !replayActive && view.realtimeChartUpdates,
+    market: chartMarket,
     timeframe: timeframe as CandleTimeframe,
-    contractSize:selectedMarket?.contractSize??1,
     onStatus: setRealtimeStatus,
     onClockOffset: setClockOffset,
     onResync: () =>
@@ -1524,14 +1540,6 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       });},
   });
 
-  useEffect(() => {
-    if (!dexSelected || terminalTab !== "charts" || replayActive || !view.realtimeChartUpdates) return;
-    const timer = window.setInterval(
-      () => void loadMarketData({ reason: "reconnect", resetView: false }),
-      65_000,
-    );
-    return () => window.clearInterval(timer);
-  }, [dexSelected, terminalTab, replayActive, view.realtimeChartUpdates, loadMarketData]);
 
   useEffect(() => {
     if (!timeline.rolloverSequence || timeline.marketKey !== marketKey) return;
@@ -1881,7 +1889,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                     setRealtimeStatus("delayed");
                     setSymbol(`${market.symbol}_${market.quoteSymbol}`);
                     setSelectedMarketKey(`dex:${market.key}`);
-                    if (market.poolAddress===DIZY_USDT_POOL || !supportsDexChartTimeframe(timeframe)) setTimeframe("1m");
+                    if (market.poolAddress===DIZY_USDT_POOL || !chartMarketSupportsTimeframe(createDexChartMarket(market), timeframe)) setTimeframe("1m");
                     setExecutionMode("Off");
                     setSettingsOpen(false);
                     setSelectorOpen(false);
@@ -1920,7 +1928,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               role="group"
               tabIndex={0}
             >
-              {ALL_TIMEFRAMES.filter((item) => !dexSelected || supportsDexChartTimeframe(item)).map((item) => (
+              {ALL_TIMEFRAMES.filter((item) => chartMarketSupportsTimeframe(chartMarket, item)).map((item) => (
                 <button
                   aria-pressed={timeframe === item}
                   className={timeframe === item ? "active" : ""}
