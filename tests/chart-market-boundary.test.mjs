@@ -5,6 +5,7 @@ import {
   chartMarketCandleEndpoint,
   chartMarketSupportsTimeframe,
   createDexChartMarket,
+  createGlobalChartMarket,
   createMexcChartMarket,
 } from "../app/lib/market/chart-market.ts";
 
@@ -90,6 +91,34 @@ test("DizyDEX pools use the same chart market model with explicit bounded capabi
   );
 });
 
+test("global instruments use the neutral chart boundary without execution capabilities", () => {
+  const market = createGlobalChartMarket({
+    key: "twelvedata:NASDAQ:AAPL",
+    provider: "twelvedata",
+    symbol: "AAPL",
+    displayName: "AAPL · Apple Inc",
+    name: "Apple Inc",
+    exchange: "NASDAQ",
+    micCode: "XNAS",
+    currency: "USD",
+    country: "United States",
+    instrumentType: "Common Stock",
+    assetClass: "stock",
+  });
+  assert.equal(market.provider.id, "twelvedata");
+  assert.equal(market.kind, "global");
+  assert.equal(market.capabilities.realtime, "refresh");
+  assert.equal(market.capabilities.refreshMs, 30_000);
+  assert.equal(market.capabilities.executedTrades, false);
+  assert.equal(market.capabilities.orderBook, false);
+  assert.equal(chartMarketSupportsTimeframe(market, "1m"), true);
+  assert.equal(chartMarketSupportsTimeframe(market, "1M"), true);
+  assert.equal(
+    chartMarketCandleEndpoint(market, "4h", 5000),
+    "/api/global-markets/candles?symbol=AAPL&exchange=NASDAQ&timeframe=4h&limit=2000&mic=XNAS",
+  );
+});
+
 test("provider-specific realtime transport is owned by the neutral adapter, not the terminal", () => {
   assert.match(realtimeAdapter, /useMexcRealtime/);
   assert.match(realtimeAdapter, /options\.market\.provider\.id === "mexc"/);
@@ -102,7 +131,10 @@ test("trading terminal consumes the provider-neutral chart boundary instead of p
   assert.match(terminal, /chartMarketCandleEndpoint/);
   assert.match(terminal, /createMexcChartMarket/);
   assert.match(terminal, /createDexChartMarket/);
+  assert.match(terminal, /createGlobalChartMarket/);
   assert.doesNotMatch(terminal, /useMexcRealtime/);
   assert.doesNotMatch(terminal, /\/api\/market\?exchange=mexc/);
   assert.doesNotMatch(terminal, /\/api\/dex\/ohlcv\?/);
+  assert.doesNotMatch(terminal, /api\.twelvedata\.com/);
+  assert.doesNotMatch(terminal, /TWELVE_DATA_API_KEY/);
 });
