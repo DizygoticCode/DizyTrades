@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { collectOperationalDiagnostics } from "../app/lib/operational-diagnostics.ts";
+
+const diagnosticsClient = await readFile(
+  new URL("../app/diagnostics/diagnostics-client.tsx", import.meta.url),
+  "utf8",
+);
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "dizy-diagnostics-"));
@@ -44,6 +49,15 @@ test("diagnostics report bounded storage, deployment and sanitised audit activit
     assert.equal(report.deployment.commit, "1234567890abcdef1234567890abcdef12345678");
     assert.equal(report.configuration.sessionSecretConfigured, true);
     assert.equal(report.configuration.liveTradingEnabled, false);
+    for (const value of [
+      report.runtime.residentMemoryBytes,
+      report.runtime.heapUsedBytes,
+      report.runtime.heapTotalBytes,
+      report.runtime.externalBytes,
+      report.runtime.arrayBuffersBytes,
+    ]) {
+      assert.equal(Number.isFinite(value) && value >= 0, true);
+    }
     assert.equal(report.storage.readable, true);
     assert.equal(report.storage.writable, true);
     assert.ok(report.storage.scannedFiles >= 3);
@@ -64,6 +78,14 @@ test("diagnostics report bounded storage, deployment and sanitised audit activit
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("DizyOps runtime exposes the complete bounded process memory breakdown", () => {
+  assert.match(diagnosticsClient, /Resident memory/);
+  assert.match(diagnosticsClient, /Heap used/);
+  assert.match(diagnosticsClient, /Heap total/);
+  assert.match(diagnosticsClient, /External memory/);
+  assert.match(diagnosticsClient, /Array buffers/);
 });
 
 test("storage scans stop at the explicit file boundary", async () => {
