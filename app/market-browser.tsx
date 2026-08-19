@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import { createPortal } from "react-dom";
 import styles from "./market-browser-panel.module.css";
 import type { DexMarket } from "./lib/dex/types";
+import type { GlobalMarketDescriptor } from "./lib/market/global";
 import type { MarketDescriptor } from "./lib/market/types";
 import { marketBadge, marketSubtitle, searchMarkets, type MarketTab } from "./lib/market/catalogue";
 
@@ -12,22 +13,25 @@ type Props = {
   markets: MarketDescriptor[];
   selectedMarketKey: string;
   selectedDexMarketKey?: string;
+  selectedGlobalMarketKey?: string;
   favourites: string[];
   onFavourite: (key: string) => void;
   onSelect: (market: MarketDescriptor) => void;
   onSelectDex: (market: DexMarket) => void;
+  onSelectGlobal: (market: GlobalMarketDescriptor) => void;
   onClose: () => void;
 };
-type Primary = "Favorites" | "Spot" | "Futures" | "DizyDEX" | "Movers";
+type Primary = "Favorites" | "Spot" | "Futures" | "Global" | "DizyDEX" | "Movers";
 type Sort = "market" | "price" | "change" | "volume";
 type Direction = "asc" | "desc";
 type DexFavorite = { key: string; chain: "solana" | "bsc"; poolAddress: string };
 
-const primary: Primary[] = ["Favorites", "Spot", "Futures", "DizyDEX", "Movers"];
+const primary: Primary[] = ["Favorites", "Spot", "Futures", "Global", "DizyDEX", "Movers"];
 const secondary: Record<Primary, string[]> = {
   Favorites: ["All", "Spot", "Futures", "DEX"],
   Spot: ["All", "USDT", "USDC", "BTC", "ETH", "More"],
   Futures: ["All", "USDT-M", "USDC-M", "Delivery", "More"],
+  Global: ["All", "Stocks", "ETFs", "Forex", "Crypto"],
   DizyDEX: ["All", "Solana", "BNB", "More"],
   Movers: ["New", "Hot", "Gainers", "Losers", "Volume"],
 };
@@ -77,8 +81,14 @@ function DexRow({ market, selected, favourite, now, onFavourite, onSelect }: { m
     <span className={styles.priceCell}>{formatPrice(market.priceUsd)}</span><Change value={market.changes.h24}/><span className={styles.volumeColumn}>{compact(market.volume24h)}</span>
   </div>;
 }
+function GlobalRow({ market, selected, onSelect }: { market: GlobalMarketDescriptor; selected: boolean; onSelect: () => void }) {
+  return <div aria-selected={selected} className={`${styles.resultRow} ${selected ? styles.selected : ""}`} role="option" tabIndex={0} onClick={onSelect} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(); } }}>
+    <div className={styles.identityCell}><span aria-hidden="true" className={styles.providerMark}>G</span><Logo label={market.symbol}/><span className={styles.identityText}><strong><span>{market.displayName}</span><em className={styles.globalBadge}>GLOBAL</em></strong><small>{market.country ? `${market.country} · ` : ""}{market.instrumentType}</small></span></div>
+    <span className={styles.priceCell}>{market.exchange}</span><span className={styles.changeCell}>{market.assetClass.toUpperCase()}</span><span className={styles.volumeColumn}>{market.currency}</span>
+  </div>;
+}
 
-export function MarketBrowser({ anchorRef, markets, selectedMarketKey, selectedDexMarketKey, favourites, onFavourite, onSelect, onSelectDex, onClose }: Props) {
+export function MarketBrowser({ anchorRef, markets, selectedMarketKey, selectedDexMarketKey, selectedGlobalMarketKey, favourites, onFavourite, onSelect, onSelectDex, onSelectGlobal, onClose }: Props) {
   const [tab, setTab] = useState<Primary>("Spot");
   const [subtab, setSubtab] = useState("All");
   const [query, setQuery] = useState("");
@@ -90,6 +100,11 @@ export function MarketBrowser({ anchorRef, markets, selectedMarketKey, selectedD
   const [statusOpen, setStatusOpen] = useState(false);
   const [dexItems, setDexItems] = useState<DexMarket[]>([]);
   const [dexSelected, setDexSelected] = useState("");
+  const [globalItems, setGlobalItems] = useState<GlobalMarketDescriptor[]>([]);
+  const [globalLoading, setGlobalLoading] = useState(false);
+  const [globalError, setGlobalError] = useState("");
+  const [globalReceivedAt, setGlobalReceivedAt] = useState(0);
+  const [globalCached, setGlobalCached] = useState(false);
   const [cursor, setCursor] = useState("1");
   const [loading, setLoading] = useState(false);
   const [degraded, setDegraded] = useState("");
@@ -119,8 +134,9 @@ export function MarketBrowser({ anchorRef, markets, selectedMarketKey, selectedD
     return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
   }, [anchorRef]);
 
+  const showGlobal = tab === "Global";
   const showDex = tab === "DizyDEX" || (tab === "Favorites" && (subtab === "All" || subtab === "DEX"));
-  const showMexc = tab !== "DizyDEX" && !(tab === "Favorites" && subtab === "DEX");
+  const showMexc = tab !== "DizyDEX" && tab !== "Global" && !(tab === "Favorites" && subtab === "DEX");
   const chain = subtab === "BNB" ? "bsc" : subtab === "Solana" ? "solana" : "";
   const loadDex = useCallback(async (append = false) => {
     setLoading(true);
@@ -145,6 +161,38 @@ export function MarketBrowser({ anchorRef, markets, selectedMarketKey, selectedD
     const timer = setTimeout(() => void loadDex(false), 220);
     return () => clearTimeout(timer);
   }, [showDex, query, chain, retry, loadDex]);
+
+  useEffect(() => {
+    if (!showGlobal) return;
+    const text = query.trim();
+    if (text.length < 2) {
+      setGlobalItems([]);
+      setGlobalError("");
+      setGlobalCached(false);
+      setGlobalReceivedAt(0);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setGlobalLoading(true);
+      void fetch(`/api/global-markets/search?query=${encodeURIComponent(text)}`, { signal: controller.signal })
+        .then(async response => {
+          const payload = await response.json() as { markets?: GlobalMarketDescriptor[]; receivedAt?: number; cached?: boolean; error?: string };
+          if (!response.ok) throw new Error(payload.error || "Global market search is unavailable");
+          setGlobalItems(Array.isArray(payload.markets) ? payload.markets : []);
+          setGlobalReceivedAt(payload.receivedAt || 0);
+          setGlobalCached(Boolean(payload.cached));
+          setGlobalError("");
+        })
+        .catch(error => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          setGlobalItems([]);
+          setGlobalError(error instanceof Error ? error.message : "Global market search is unavailable");
+        })
+        .finally(() => { if (!controller.signal.aborted) setGlobalLoading(false); });
+    }, 300);
+    return () => { controller.abort(); window.clearTimeout(timer); };
+  }, [showGlobal, query, retry]);
 
   const dexFavouriteKeys = useMemo(() => favourites.map(parseDexFavourite).filter((item): item is DexFavorite => item !== null), [favourites]);
   useEffect(() => {
@@ -227,28 +275,36 @@ export function MarketBrowser({ anchorRef, markets, selectedMarketKey, selectedD
     const value=(market:DexMarket)=>sort==="market"?market.symbol:sort==="price"?market.priceUsd||0:sort==="change"?market.changes.h24||0:market.volume24h||0;
     return [...list].sort((a,b)=>{const av=value(a),bv=value(b);const result=typeof av==="string"?av.localeCompare(String(bv)):Number(av)-Number(bv);return direction==="asc"?result:-result;});
   },[dexItems, subtab, tab, favourites, query, filters, openedAt, sort, direction]);
+  const filteredGlobal = useMemo(() => {
+    const desired = subtab === "Stocks" ? "stock" : subtab === "ETFs" ? "etf" : subtab === "Forex" ? "forex" : subtab === "Crypto" ? "crypto" : null;
+    return desired ? globalItems.filter(item => item.assetClass === desired) : globalItems;
+  }, [globalItems, subtab]);
 
-  const providerLabel = showDex ? degraded ? "⚠ Degraded" : cached ? "● Cached" : receivedAt ? "● DEX live" : "● Connecting" : "● MEXC live";
+  const providerLabel = showGlobal
+    ? globalError ? "⚠ Global unavailable" : globalCached ? "● Global cached" : globalReceivedAt ? "● Twelve Data" : "● Global Search"
+    : showDex ? degraded ? "⚠ Degraded" : cached ? "● Cached" : receivedAt ? "● DEX live" : "● Connecting" : "● MEXC live";
   const mixedFavorites = tab === "Favorites" && subtab === "All";
-  const hasResults = (showMexc && visible.length > 0) || (showDex && filteredDex.length > 0);
+  const hasResults = (showMexc && visible.length > 0) || (showDex && filteredDex.length > 0) || (showGlobal && filteredGlobal.length > 0);
   const moreItems = tab === "DizyDEX" ? dexVenues : mexcMore;
+  const busy = loading || globalLoading;
 
   if (typeof document === "undefined") return null;
   return createPortal(<>
     <button aria-label="Close market browser" className={styles.backdrop} onClick={onClose}/>
     <section aria-label="Market Browser" aria-modal="true" className={styles.marketBrowser} ref={panelRef} role="dialog" style={{ top: position.top, left: position.left }}>
-      <header className={styles.header}><strong>Market Browser</strong><button aria-expanded={statusOpen} className={`${styles.status} ${degraded ? styles.degraded : cached ? styles.cached : ""}`} onClick={() => showDex && setStatusOpen(value=>!value)} type="button">{providerLabel}</button><button aria-label="Close market browser" className={styles.closeButton} onClick={onClose} type="button">×</button>{statusOpen && showDex ? <aside className={styles.statusPopover}><b>{degraded ? "Provider degraded" : cached ? "Cached market data" : "Provider connected"}</b><p>{degraded || "DEX Screener / GeckoTerminal market data."}</p><button onClick={()=>setRetry(value=>value+1)} type="button">Retry</button></aside>:null}</header>
-      <div className={styles.search}><span aria-hidden="true">⌕</span><input autoFocus aria-label="Search markets" onChange={event=>{setQuery(event.target.value);setCursor("1");}} placeholder={showDex && !showMexc ? "Search token, mint, pool or DEX…" : mixedFavorites ? "Search all favourites…" : "Search symbol, asset or contract…"} value={query}/>{query ? <button aria-label="Clear search" onClick={()=>setQuery("")} type="button">×</button>:null}</div>
+      <header className={styles.header}><strong>Market Browser</strong><button aria-expanded={statusOpen} className={`${styles.status} ${(showGlobal ? globalError : degraded) ? styles.degraded : (showGlobal ? globalCached : cached) ? styles.cached : ""}`} onClick={() => (showDex || showGlobal) && setStatusOpen(value=>!value)} type="button">{providerLabel}</button><button aria-label="Close market browser" className={styles.closeButton} onClick={onClose} type="button">×</button>{statusOpen && (showDex || showGlobal) ? <aside className={styles.statusPopover}><b>{showGlobal ? globalError ? "Global provider unavailable" : globalCached ? "Cached global search" : "Twelve Data search" : degraded ? "Provider degraded" : cached ? "Cached market data" : "Provider connected"}</b><p>{showGlobal ? globalError || "Global instrument discovery and chart candles are served through Twelve Data." : degraded || "DEX Screener / GeckoTerminal market data."}</p><button onClick={()=>setRetry(value=>value+1)} type="button">Retry</button></aside>:null}</header>
+      <div className={styles.search}><span aria-hidden="true">⌕</span><input autoFocus aria-label="Search markets" onChange={event=>{setQuery(event.target.value);setCursor("1");}} placeholder={showGlobal ? "Search global symbol or company…" : showDex && !showMexc ? "Search token, mint, pool or DEX…" : mixedFavorites ? "Search all favourites…" : "Search symbol, asset or contract…"} value={query}/>{query ? <button aria-label="Clear search" onClick={()=>setQuery("")} type="button">×</button>:null}</div>
       <Tabs className={styles.primaryTabs} items={primary} label="Market type" value={tab} onChange={chooseTab}/>
       <div className={styles.secondaryFilters}><Tabs className={styles.secondaryTabs} items={secondary[tab]} label={`${tab} filters`} value={subtab} onChange={(value, anchor)=>{if(value==="More"){if(anchor)setMorePosition({top:anchor.bottom+4,left:Math.max(8,Math.min(anchor.left,window.innerWidth-170))});setMoreOpen(current=>!current);}else{setSubtab(value);setMoreOpen(false);}}}/>{tab==="DizyDEX"?<button aria-expanded={filtersOpen} aria-label="DEX filters" className={styles.filterButton} onClick={()=>setFiltersOpen(value=>!value)} type="button">⚙</button>:null}
         {filtersOpen?<div className={styles.filterPopover}><label>Minimum liquidity<input min="0" type="number" value={filters.liquidity} onChange={event=>setFilters(current=>({...current,liquidity:event.target.value}))}/></label><label>Minimum 24h volume<input min="0" type="number" value={filters.volume} onChange={event=>setFilters(current=>({...current,volume:event.target.value}))}/></label><label>Maximum pair age (hours)<input min="0" type="number" value={filters.age} onChange={event=>setFilters(current=>({...current,age:event.target.value}))}/></label><button onClick={()=>setFilters({liquidity:"",volume:"",age:""})} type="button">Reset</button></div>:null}
       </div>
-      <div className={styles.resultsHeader}><button onClick={()=>setSortKey("market")} type="button">{showDex && !showMexc?"Token / Pool":"Trading Pair"}{indicator("market")}</button><button onClick={()=>setSortKey("price")} type="button">Last{indicator("price")}</button><button onClick={()=>setSortKey("change")} type="button">24h{indicator("change")}</button><button className={styles.volumeColumn} onClick={()=>setSortKey("volume")} type="button">24h Vol{indicator("volume")}</button></div>
-      <div aria-busy={loading} aria-label={`${mixedFavorites?"Favourite":showDex&&!showMexc?"DEX":"MEXC"} market results`} className={styles.results} ref={results} role="listbox">
+      {showGlobal ? <div className={styles.resultsHeader}><button disabled type="button">Instrument</button><button disabled type="button">Venue</button><button disabled type="button">Type</button><button className={styles.volumeColumn} disabled type="button">CCY</button></div> : <div className={styles.resultsHeader}><button onClick={()=>setSortKey("market")} type="button">{showDex && !showMexc?"Token / Pool":"Trading Pair"}{indicator("market")}</button><button onClick={()=>setSortKey("price")} type="button">Last{indicator("price")}</button><button onClick={()=>setSortKey("change")} type="button">24h{indicator("change")}</button><button className={styles.volumeColumn} onClick={()=>setSortKey("volume")} type="button">24h Vol{indicator("volume")}</button></div>}
+      <div aria-busy={busy} aria-label={`${showGlobal ? "Global" : mixedFavorites?"Favourite":showDex&&!showMexc?"DEX":"MEXC"} market results`} className={styles.results} ref={results} role="listbox">
         {showMexc ? visible.map(market=><MexcRow key={market.key} market={market} selected={market.key===selectedMarketKey} favourite={favourites.includes(market.key)} onFavourite={()=>onFavourite(market.key)} onSelect={()=>onSelect(market)}/>) : null}
         {showDex ? filteredDex.map(market=><DexRow key={market.key} market={market} selected={market.key===(selectedDexMarketKey??dexSelected)} favourite={favourites.includes(market.key)} now={openedAt} onFavourite={()=>onFavourite(market.key)} onSelect={()=>{setDexSelected(market.key);onSelectDex(market)}}/>) : null}
-        {!hasResults && loading ? <div aria-label="Loading markets" className={styles.skeleton}>{Array.from({length:8},(_,index)=><i key={index}/>)}</div> : null}
-        {!hasResults && !loading ? <div className={styles.empty}><b>{tab === "Favorites" ? "No favourites found" : showDex ? "No DEX markets found" : "No markets found"}</b><span>{degraded?"Cached results unavailable. Retry the provider.":tab === "Favorites" ? "Star a market to keep it here." : "Try another search or filter."}</span></div> : null}
+        {showGlobal ? filteredGlobal.map(market=><GlobalRow key={market.key} market={market} selected={market.key===selectedGlobalMarketKey} onSelect={()=>onSelectGlobal(market)}/>) : null}
+        {!hasResults && busy ? <div aria-label="Loading markets" className={styles.skeleton}>{Array.from({length:8},(_,index)=><i key={index}/>)}</div> : null}
+        {!hasResults && !busy ? <div className={styles.empty}><b>{showGlobal ? query.trim().length < 2 ? "Search global markets" : "No global instruments found" : tab === "Favorites" ? "No favourites found" : showDex ? "No DEX markets found" : "No markets found"}</b><span>{showGlobal ? globalError || (query.trim().length < 2 ? "Enter at least two characters." : "Try another symbol or company name.") : degraded?"Cached results unavailable. Retry the provider.":tab === "Favorites" ? "Star a market to keep it here." : "Try another search or filter."}</span></div> : null}
         {showDex && filteredDex.length && !query && tab !== "Favorites"?<button className={styles.loadMore} disabled={loading} onClick={()=>{setCursor(String(Number(cursor)+1));void loadDex(true);}} type="button">{loading?"Loading…":"Load more markets"}</button>:null}
         {showMexc&&visible.length===limit?<button className={styles.loadMore} onClick={()=>setLimit(value=>value+80)} type="button">Load more markets</button>:null}
       </div>
