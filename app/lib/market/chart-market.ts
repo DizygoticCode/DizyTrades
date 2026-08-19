@@ -1,5 +1,6 @@
 import type { DexMarket } from "../dex/types";
-import { supportsDexChartTimeframe } from "../dex/dizy";
+import { splitDexOhlcv, supportsDexChartTimeframe } from "../dex/dizy";
+import type { Candle } from "../strategy";
 import {
   CANDLE_TIMEFRAMES,
   type CandleTimeframe,
@@ -141,4 +142,14 @@ export function chartMarketCandleEndpoint(
     limit: String(Math.min(limit, 1000)),
   });
   return `/api/dex/ohlcv?${params.toString()}`;
+}
+
+export function chartMarketTimeline(
+  market: ChartMarketInstrument,
+  candles: Candle[],
+  timeframe: CandleTimeframe,
+) {
+  return market.provider.id === "dizydex"
+    ? splitDexOhlcv(candles, timeframe)
+    : { closed: candles, live: null as Candle | null };
 }
