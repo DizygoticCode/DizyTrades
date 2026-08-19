@@ -56,6 +56,7 @@ import { DizyQuantSnapshotPublisher } from "./dizyquant-snapshot-publisher";
 import { createDizyBrainSnapshot } from "./lib/dizybrain-snapshot";
 import { toDizyFlowEvidenceReference } from "./lib/order-flow/intelligence";
 import type { MarketDescriptor } from "./lib/market/types";
+import type { GlobalMarketDescriptor } from "./lib/market/global";
 import type { DexMarket } from "./lib/dex/types";
 import { DIZY_USDT_POOL } from "./lib/dex/dizy";
 import { marketBadge } from "./lib/market/catalogue";
@@ -66,6 +67,7 @@ import {
   chartMarketSupportsTimeframe,
   chartMarketTimeline,
   createDexChartMarket,
+  createGlobalChartMarket,
   createMexcChartMarket,
 } from "./lib/market/chart-market";
 import {
@@ -191,7 +193,8 @@ function RangeField({
           aria-label={label}
           max={max}
           min={min}
-          onChange={(event) => onChange(Number(event.target.value))}
+          onChange={(event) => onChange(Number(event.target.value))
+          }
           step={step}
           type="number"
           value={value}
@@ -1251,6 +1254,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [symbol, setSymbol] = useState("BTC_USDT");
   const [selectedMarketKey, setSelectedMarketKey] = useState("mexc:futures:BTC_USDT");
   const [selectedDexMarket, setSelectedDexMarket] = useState<DexMarket | null>(null);
+  const [selectedGlobalMarket, setSelectedGlobalMarket] = useState<GlobalMarketDescriptor | null>(null);
   const replayLaunchLifecycle=useRef(new JournalReplayLaunchLifecycle());
   const historicalFlowRequest=useRef(0);
   const marketKey = `${selectedMarketKey}:${timeframe}`;
@@ -1294,11 +1298,14 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   const [flowHistoryOpen,setFlowHistoryOpen]=useState(false);
   const selectedMarket=markets.find((market)=>market.key===selectedMarketKey);
   const dexSelected=selectedDexMarket!==null;
+  const globalSelected=selectedGlobalMarket!==null;
   const chartMarket=useMemo(
-    () => selectedDexMarket
-      ? createDexChartMarket(selectedDexMarket)
-      : createMexcChartMarket(selectedMarket, symbol),
-    [selectedDexMarket, selectedMarket, symbol],
+    () => selectedGlobalMarket
+      ? createGlobalChartMarket(selectedGlobalMarket)
+      : selectedDexMarket
+        ? createDexChartMarket(selectedDexMarket)
+        : createMexcChartMarket(selectedMarket, symbol),
+    [selectedGlobalMarket, selectedDexMarket, selectedMarket, symbol],
   );
   const futuresSelected=chartMarket.kind==="futures";
   const orderFlow=useOrderFlow({settings:orderFlowSettings,paused:!futuresSelected,symbol,contractSize:selectedMarket?.contractSize??1,priceUnit:selectedMarket?.priceUnit,priceScale:selectedMarket?.priceScale,marketKey:selectedMarket?.key,marketType:selectedMarket?.marketType,reference:liveCandle?.close?{price:liveCandle.close,source:"last"}:undefined});
@@ -1453,6 +1460,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
       if (blocking) setFeedError("");
       try {
         const dexRequest = chartMarket.provider.id === "dizydex";
+        const globalRequest = chartMarket.provider.id === "twelvedata";
         const endpoint = chartMarketCandleEndpoint(
           chartMarket,
           timeframe as CandleTimeframe,
@@ -1488,7 +1496,11 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
         }
         if (resetView && view.autoFitOnMarketChange)
           setViewportReset((value) => value + 1);
-        setDataSource(dexRequest ? `${payload.source.toUpperCase()} · ${chartMarket.provider.venue.toUpperCase()}` : payload.source.toUpperCase());
+        setDataSource(
+          dexRequest || globalRequest
+            ? `${payload.source.toUpperCase()} · ${chartMarket.provider.venue.toUpperCase()}`
+            : payload.source.toUpperCase(),
+        );
         setFeedError("");
         setResultMarketKey(requestKey);
       } catch (error) {
@@ -1496,18 +1508,36 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
           return;
         if (requestId !== marketRequest.current) return;
         const dexFailure = chartMarket.provider.id === "dizydex";
-        if (dexFailure && !blocking) {
+        const globalFailure = chartMarket.provider.id === "twelvedata";
+        if ((dexFailure || globalFailure) && !blocking) {
           setRealtimeStatus("delayed");
           return;
         }
         setFeedError(
           error instanceof Error && error.message === "Unsupported chart timeframe"
-            ? "That timeframe is not available for on-chain pool candles."
+            ? globalFailure
+              ? "That timeframe is not available for this global market."
+              : "That timeframe is not available for on-chain pool candles."
             : error instanceof Error && error.message === "Insufficient candle history"
-              ? dexFailure ? "DIZY pool candles are still building." : "Insufficient confirmed candle history."
-              : dexFailure ? "Raydium / GeckoTerminal candle data is currently unavailable." : "MEXC candle data is currently unavailable.",
+              ? dexFailure
+                ? "DIZY pool candles are still building."
+                : globalFailure
+                  ? "Insufficient confirmed global candle history."
+                  : "Insufficient confirmed candle history."
+              : dexFailure
+                ? "Raydium / GeckoTerminal candle data is currently unavailable."
+                : globalFailure
+                  ? "Twelve Data candle data is currently unavailable."
+                  : "MEXC candle data is currently unavailable.",
         );
-        if (blocking) setDataSource(dexFailure ? "DEX DATA UNAVAILABLE" : "MEXC UNAVAILABLE");
+        if (blocking)
+          setDataSource(
+            dexFailure
+              ? "DEX DATA UNAVAILABLE"
+              : globalFailure
+                ? "GLOBAL DATA UNAVAILABLE"
+                : "MEXC UNAVAILABLE",
+          );
       } finally {
         if (requestId === marketRequest.current) {
           setInitialLoading(false);
@@ -1539,7 +1569,6 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
         timeframe: timeframe as CandleTimeframe,
       });},
   });
-
 
   useEffect(() => {
     if (!timeline.rolloverSequence || timeline.marketKey !== marketKey) return;
@@ -1635,12 +1664,12 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
   }, []);
 
   useEffect(() => {
-    if (user.role === "viewer")
+    if (user.role === "viewer" && !globalSelected)
       sessionStorage.setItem(
         "dizy-viewer-market",
         JSON.stringify({ symbol, marketKey: selectedMarketKey, timeframe, favourites }),
       );
-  }, [favourites, symbol, selectedMarketKey, timeframe, user.role]);
+  }, [favourites, symbol, selectedMarketKey, timeframe, user.role, globalSelected]);
 
   const applyPaperSettings = async () => {
     setSaveState("saving");
@@ -1721,8 +1750,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
 
   return (
     <main className="terminal-shell">
-      <DizyBrainSnapshotPublisher data={{ snapshot: dizyBrainSnapshot, liveFlow: replayActive?null:orderFlow.intelligence?.symbol === symbol ? orderFlow.intelligence : null, historicalFlowReplay, historicalFlowState:historicalFlow, replaySession:activeReplaySession, symbol, market: selectedMarket?.displayName ?? selectedMarketKey, timeframe, feedState: demo ? "Demo" : realtimeStatus, replay: replayActive, flowEnabled: orderFlowSettings.enabled, viewer: user.role === "viewer" }} />
-      <DizyQuantSnapshotPublisher data={{ snapshot: dizyBrainSnapshot, liveFlow: replayActive?null:orderFlow.intelligence?.symbol === symbol ? orderFlow.intelligence : null, historicalFlowReplay, historicalFlowState:historicalFlow, replaySession:activeReplaySession, symbol, market: selectedMarket?.displayName ?? selectedMarketKey, timeframe, feedState: demo ? "Demo" : realtimeStatus, replay: replayActive, flowEnabled: orderFlowSettings.enabled, viewer: user.role === "viewer" }} />
+      <DizyBrainSnapshotPublisher data={{ snapshot: dizyBrainSnapshot, liveFlow: replayActive?null:orderFlow.intelligence?.symbol === symbol ? orderFlow.intelligence : null, historicalFlowReplay, historicalFlowState:historicalFlow, replaySession:activeReplaySession, symbol, market: selectedGlobalMarket?.displayName ?? selectedMarket?.displayName ?? selectedMarketKey, timeframe, feedState: demo ? "Demo" : realtimeStatus, replay: replayActive, flowEnabled: orderFlowSettings.enabled, viewer: user.role === "viewer" }} />
+      <DizyQuantSnapshotPublisher data={{ snapshot: dizyBrainSnapshot, liveFlow: replayActive?null:orderFlow.intelligence?.symbol === symbol ? orderFlow.intelligence : null, historicalFlowReplay, historicalFlowState:historicalFlow, replaySession:activeReplaySession, symbol, market: selectedGlobalMarket?.displayName ?? selectedMarket?.displayName ?? selectedMarketKey, timeframe, feedState: demo ? "Demo" : realtimeStatus, replay: replayActive, flowEnabled: orderFlowSettings.enabled, viewer: user.role === "viewer" }} />
       <header className="topbar">
         <div className="brand-lockup">
           <div className="brand-mark" aria-hidden="true">
@@ -1837,7 +1866,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               countdownSeconds={countdownSeconds}
               liveCandle={liveCandle}
               readOnly={user.role === "viewer"}
-              exchange={dexSelected ? "raydium" : "mexc"}
+              exchange={globalSelected ? "twelvedata" : dexSelected ? "raydium" : "mexc"}
               resetKey={viewportReset}
               symbol={symbol}
               timeframe={timeframe}
@@ -1855,16 +1884,16 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
             <div className="symbol-block">
               <button
                 aria-expanded={selectorOpen}
-                aria-label="Search MEXC and DizyDEX markets"
+                aria-label="Search MEXC, Global and DizyDEX markets"
                 className="symbol-selector"
                 ref={marketTrigger}
                 onClick={() => setSelectorOpen((value) => !value)}
                 type="button"
               >
-                <span className="coin">{(selectedDexMarket?.symbol ?? selectedMarket?.baseAsset ?? symbol.split("_")[0]).slice(0, 1)}</span>
+                <span className="coin">{(selectedGlobalMarket?.symbol ?? selectedDexMarket?.symbol ?? selectedMarket?.baseAsset ?? symbol.split("_")[0]).slice(0, 1)}</span>
                 <span>
-                  <strong>{selectedDexMarket ? `${selectedDexMarket.symbol} / ${selectedDexMarket.quoteSymbol}` : selectedMarket?.displayName ?? symbol.replace("_", " / ")}</strong>
-                  <small>{selectedDexMarket ? `${selectedDexMarket.dex.toUpperCase()} · ${selectedDexMarket.chain.toUpperCase()} DEX` : `MEXC · ${selectedMarket ? marketBadge(selectedMarket) : "PERP"}`} ▾</small>
+                  <strong>{selectedGlobalMarket?.displayName ?? (selectedDexMarket ? `${selectedDexMarket.symbol} / ${selectedDexMarket.quoteSymbol}` : selectedMarket?.displayName ?? symbol.replace("_", " / "))}</strong>
+                  <small>{selectedGlobalMarket ? `TWELVE DATA · ${selectedGlobalMarket.exchange.toUpperCase()}` : selectedDexMarket ? `${selectedDexMarket.dex.toUpperCase()} · ${selectedDexMarket.chain.toUpperCase()} DEX` : `MEXC · ${selectedMarket ? marketBadge(selectedMarket) : "PERP"}`} ▾</small>
                 </span>
               </button>
               {selectorOpen ? (
@@ -1873,10 +1902,12 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                   markets={markets}
                   selectedMarketKey={selectedMarketKey}
                   selectedDexMarketKey={selectedDexMarket?.key}
+                  selectedGlobalMarketKey={selectedGlobalMarket?.key}
                   favourites={favourites}
                   onFavourite={(key)=>setFavourites(items=>items.includes(key)?items.filter(item=>item!==key):[...items,key])}
                   onClose={()=>{setSelectorOpen(false);requestAnimationFrame(()=>marketTrigger.current?.focus())}}
                   onSelect={(market)=>{
+                    setSelectedGlobalMarket(null);
                     setSelectedDexMarket(null);
                     setSymbol(market.sourceSymbol);
                     setSelectedMarketKey(market.key);
@@ -1885,11 +1916,23 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                     requestAnimationFrame(()=>marketTrigger.current?.focus());
                   }}
                   onSelectDex={(market)=>{
+                    setSelectedGlobalMarket(null);
                     setSelectedDexMarket(market);
                     setRealtimeStatus("delayed");
                     setSymbol(`${market.symbol}_${market.quoteSymbol}`);
                     setSelectedMarketKey(`dex:${market.key}`);
                     if (market.poolAddress===DIZY_USDT_POOL || !chartMarketSupportsTimeframe(createDexChartMarket(market), timeframe)) setTimeframe("1m");
+                    setExecutionMode("Off");
+                    setSettingsOpen(false);
+                    setSelectorOpen(false);
+                    requestAnimationFrame(()=>marketTrigger.current?.focus());
+                  }}
+                  onSelectGlobal={(market)=>{
+                    setSelectedGlobalMarket(market);
+                    setSelectedDexMarket(null);
+                    setRealtimeStatus("delayed");
+                    setSymbol(market.symbol);
+                    setSelectedMarketKey(market.key);
                     setExecutionMode("Off");
                     setSettingsOpen(false);
                     setSelectorOpen(false);
@@ -1989,8 +2032,8 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               {backgroundSyncing ? "Syncing…" : "Refresh data"}
             </button>
             <div className="toolbar-spacer" />
-            {!replayActive && !dexSelected ? <OrderFlowToolbar settings={orderFlowSettings} onChange={setOrderFlowSettings} summary={orderFlow.summary} intelligence={orderFlow.intelligence} renderStore={orderFlow.renderStore} onRetry={orderFlow.retry} onHistory={()=>setFlowHistoryOpen(true)} /> : null}
-            {!replayActive && !dexSelected ? <DizyFlowToastRail alerts={orderFlow.summary.alerts} settings={orderFlowSettings} onHistory={()=>setFlowHistoryOpen(true)} /> : null}
+            {!replayActive && futuresSelected ? <OrderFlowToolbar settings={orderFlowSettings} onChange={setOrderFlowSettings} summary={orderFlow.summary} intelligence={orderFlow.intelligence} renderStore={orderFlow.renderStore} onRetry={orderFlow.retry} onHistory={()=>setFlowHistoryOpen(true)} /> : null}
+            {!replayActive && futuresSelected ? <DizyFlowToastRail alerts={orderFlow.summary.alerts} settings={orderFlowSettings} onHistory={()=>setFlowHistoryOpen(true)} /> : null}
             <div className="mode-control" aria-label="Execution mode">
               {(["Off", "Paper"] as const).map((mode) => (
                 <button
@@ -2018,7 +2061,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
               enabled={executionMode === "Paper"}
               readOnly={user.role === "viewer"}
               completionIdentity={paperCompletionIdentity}
-              journalContext={{symbol,market:selectedMarket?.displayName??symbol,marketKey:selectedMarketKey,timeframe:timeframe as CandleTimeframe,replay:{marketKey:selectedMarketKey,symbol,timeframe:timeframe as CandleTimeframe,candles:closedCandles}}}
+              journalContext={{symbol,market:selectedGlobalMarket?.displayName??selectedMarket?.displayName??symbol,marketKey:selectedMarketKey,timeframe:timeframe as CandleTimeframe,replay:{marketKey:selectedMarketKey,symbol,timeframe:timeframe as CandleTimeframe,candles:closedCandles}}}
               error={resultMarketKey !== marketKey ? feedError : null}
               onRetry={() => {
                 if (resultMarketKey !== marketKey) void loadMarketData({ reason: "reconnect", resetView: false });
@@ -2083,7 +2126,7 @@ export default function TradingTerminal({ user }: { user: AuthUser }) {
                     countdownSeconds={countdownSeconds}
                     liveCandle={liveCandle}
                     readOnly={user.role === "viewer"}
-                    exchange={dexSelected ? "raydium" : "mexc"}
+                    exchange={globalSelected ? "twelvedata" : dexSelected ? "raydium" : "mexc"}
                     ref={chartControls}
                     resetKey={viewportReset}
                     symbol={symbol}
