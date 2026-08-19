@@ -1,80 +1,32 @@
-import {appendFile,mkdir,readdir,rm,stat,writeFile} from "node:fs/promises";
-import {createReadStream} from "node:fs";
-import {createInterface} from "node:readline";
-import path from "node:path";
-import {EventEmitter} from "node:events";
-import type {DepthSnapshot} from "./types.ts";
-import type {LiquidityTileCell,LiquidityTileResponse} from "./types.ts";
+export type {
+  CompactLiquidityChange,
+  LiquidityCoverage,
+  HistoryPage,
+} from "./liquidity-tape-impl.ts";
 
-const int=(name:string,fallback:number,min:number,max:number)=>Math.min(max,Math.max(min,Math.floor(Number(process.env[name])||fallback)));
-export const HEATMAP_RETENTION_MINUTES=int("DIZYFLOW_HEATMAP_RETENTION_MINUTES",360,5,24*60);
-export const HEATMAP_SAMPLE_MS=int("DIZYFLOW_HEATMAP_SAMPLE_MS",5_000,1_000,60_000);
-export const HEATMAP_MAX_MEMORY_RECORDS=int("DIZYFLOW_HEATMAP_MAX_MEMORY_RECORDS",10_000,500,100_000);
-export const HEATMAP_MAX_DISK_MB=int("DIZYFLOW_HEATMAP_MAX_DISK_MB",64,4,512);
-export const HEATMAP_TOTAL_DISK_MB=int("DIZYFLOW_HEATMAP_TOTAL_DISK_MB",512,16,4096);
-export const MAX_TAPES=int("DIZYFLOW_MAX_TAPES",2,1,20);
-const CHECKPOINT_MS=int("DIZYFLOW_HEATMAP_CHECKPOINT_MINUTES",15,1,60)*60_000;
-const ROTATE_BYTES=int("DIZYFLOW_HEATMAP_ROTATE_MB",4,1,16)*1_048_576;
-const FLUSH_MS=int("DIZYFLOW_HEATMAP_FLUSH_MS",5_000,100,30_000),MAX_BATCH=1_000,MAX_PENDING=int("DIZYFLOW_HEATMAP_MAX_PENDING",5_000,100,50_000);
-export const HISTORY_MAX_BYTES=int("DIZYFLOW_HISTORY_MAX_BYTES",512*1024,32*1024,2*1024*1024);
-export type CompactLiquidityChange={timestampMs:number;priceTick:number;bidContracts:number;askContracts:number};
-type DiskBatch={kind:"changes"|"checkpoint";symbol:string;priceStep:number;at:number;records:CompactLiquidityChange[];gap?:boolean};
-type ManifestEntry={name:string;startMs:number;size:number};
-export type LiquidityCoverage={captureStartMs:number|null;captureEndMs:number|null;archiveStartMs:number|null;archiveEndMs:number|null;hasGaps:boolean;historyGapCount:number};
-export type HistoryPage={symbol:string;priceStep:number;coverage:LiquidityCoverage;seed:CompactLiquidityChange[];changes:CompactLiquidityChange[];nextCursor:string|null};
-const safeSymbol=(value:string)=>value.replace(/[^A-Z0-9_]/g,"_");
-const dataRoot=()=>path.join(process.env.DATA_DIR||path.join(process.cwd(),"data"),"dizyflow","heatmap");
-const cursorEncode=(offset:number)=>Buffer.from(JSON.stringify({v:1,offset}),"utf8").toString("base64url");
-const cursorDecode=(value:string|null)=>{if(!value)return 0;try{const parsed=JSON.parse(Buffer.from(value,"base64url").toString("utf8"));return parsed.v===1&&Number.isSafeInteger(parsed.offset)&&parsed.offset>=0?parsed.offset:null}catch{return null}};
+type LiquidityModule = typeof import("./liquidity-tape-impl.ts");
+type LiquidityRuntimeHolder = { modulePromise: Promise<LiquidityModule> };
 
-/** Fixed-capacity transition tape; disk reads are always line streamed. */
-export class LiquidityTape{
- private ring=new Array<CompactLiquidityChange|undefined>(HEATMAP_MAX_MEMORY_RECORDS);private head=0;private count=0;private state=new Map<number,{bid:number;ask:number}>();private emitter=new EventEmitter();private pending:CompactLiquidityChange[]=[];private overflow=new Map<number,CompactLiquidityChange>();
- private timer:ReturnType<typeof setTimeout>|null=null;private initialized=false;private initializing:Promise<void>|null=null;private flushing:Promise<void>|null=null;private lastCheckpoint=0;private checkpointAfterGap=false;private closed=false;private sequence=0;
- private priceStep=0;private captureStart:number|null=null;private captureEnd:number|null=null;private archiveStart:number|null=null;private archiveEnd:number|null=null;private gaps=0;private dropped=0;private checkpoints=0;private bytes=0;private file="";private fileBytes=0;private manifest:ManifestEntry[]=[];
- readonly symbol:string;private root:string;
- constructor(symbol:string,root=dataRoot()){this.symbol=symbol;this.root=root;this.emitter.setMaxListeners(100)}
- private push(record:CompactLiquidityChange){const at=(this.head+this.count)%this.ring.length;if(this.count<this.ring.length){this.ring[at]=record;this.count++}else{this.ring[this.head]=record;this.head=(this.head+1)%this.ring.length;this.dropped++}}
- records(fromMs=-Infinity){const out:CompactLiquidityChange[]=[];for(let i=0;i<this.count;i++){const v=this.ring[(this.head+i)%this.ring.length];if(v&&v.timestampMs>=fromMs)out.push(v)}return out}
- getPriceStep(){return this.priceStep||Number(process.env.DIZYFLOW_DEFAULT_PRICE_STEP)||.1}
- private inferStep(snapshot:DepthSnapshot){const prices=[...snapshot.bids,...snapshot.asks].map(v=>v.price).sort((a,b)=>a-b);let step=Infinity;for(let i=1;i<prices.length;i++){const d=prices[i]-prices[i-1];if(d>1e-12)step=Math.min(step,d)}return Math.max(1e-8,Number((Number.isFinite(step)?step:Number(process.env.DIZYFLOW_DEFAULT_PRICE_STEP)||.1).toPrecision(10)))}
- async initialize(){if(this.initialized)return;if(this.initializing)return this.initializing;this.initializing=this.loadRecent().finally(()=>{this.initialized=true;this.initializing=null});return this.initializing}
- capture(snapshot:DepthSnapshot,timestampMs:number){if(this.closed||!Number.isFinite(timestampMs)||timestampMs<=0||this.captureEnd!==null&&timestampMs-this.captureEnd<HEATMAP_SAMPLE_MS)return[];this.priceStep||=this.inferStep(snapshot);const next=new Map<number,{bid:number;ask:number}>();for(const [side,levels] of [["bid",snapshot.bids],["ask",snapshot.asks]] as const)for(const level of levels){const tick=Math.round(level.price/this.priceStep),v=next.get(tick)??{bid:0,ask:0};v[side]+=level.contractQuantity;next.set(tick,v)}
-  const changed:CompactLiquidityChange[]=[];for(const tick of new Set([...this.state.keys(),...next.keys()])){const old=this.state.get(tick)??{bid:0,ask:0},value=next.get(tick)??{bid:0,ask:0};if(old.bid!==value.bid||old.ask!==value.ask)changed.push({timestampMs,priceTick:tick,bidContracts:value.bid,askContracts:value.ask})}changed.sort((a,b)=>a.priceTick-b.priceTick);for(const record of changed)this.push(record);this.state=next;this.captureStart??=timestampMs;if(this.captureEnd&&timestampMs-this.captureEnd>HEATMAP_SAMPLE_MS*3)this.gaps++;this.captureEnd=timestampMs;this.archiveStart??=timestampMs;this.archiveEnd=timestampMs;
-  if(this.pending.length+changed.length<=MAX_PENDING)this.pending.push(...changed);else{for(const record of [...this.pending,...changed])this.overflow.set(record.priceTick,record);this.pending=[];this.gaps++;this.dropped++;this.checkpointAfterGap=true}this.prune(timestampMs);if(changed.length){this.sequence++;this.emitter.emit("changes",changed,this.sequence);this.scheduleFlush()}return changed}
- private prune(now:number){const cutoff=now-HEATMAP_RETENTION_MINUTES*60_000;while(this.count&&(this.ring[this.head]?.timestampMs??Infinity)<cutoff){this.ring[this.head]=undefined;this.head=(this.head+1)%this.ring.length;this.count--;this.dropped++}}
- private scheduleFlush(){if(!this.timer)this.timer=setTimeout(()=>{this.timer=null;void this.flush()},this.pending.length>=MAX_BATCH||this.overflow.size?0:FLUSH_MS)}
- async flush(){if(this.flushing)return this.flushing;this.flushing=this.flushBatch();try{await this.flushing}finally{this.flushing=null}}
- private async flushBatch(){if(this.timer){clearTimeout(this.timer);this.timer=null}if(!this.pending.length&&this.overflow.size){this.pending=[...this.overflow.values()].sort((a,b)=>a.priceTick-b.priceTick);this.overflow.clear()}if(!this.pending.length)return;await this.initialize();const records=this.pending.splice(0,MAX_BATCH),at=records.at(-1)!.timestampMs;await this.append({kind:"changes",symbol:this.symbol,priceStep:this.priceStep,at,records,gap:this.checkpointAfterGap});if(this.checkpointAfterGap||!this.lastCheckpoint||at-this.lastCheckpoint>=CHECKPOINT_MS){await this.append({kind:"checkpoint",symbol:this.symbol,priceStep:this.priceStep,at,records:[...this.state].map(([priceTick,v])=>({timestampMs:at,priceTick,bidContracts:v.bid,askContracts:v.ask}))});this.lastCheckpoint=at;this.checkpoints++;this.checkpointAfterGap=false}if(this.pending.length||this.overflow.size)this.scheduleFlush()}
- private async append(batch:DiskBatch){const dir=path.join(this.root,safeSymbol(this.symbol));await mkdir(dir,{recursive:true});if(!this.file||this.fileBytes>=ROTATE_BYTES){this.file=path.join(dir,`${String(batch.at).padStart(13,"0")}.ndjson`);this.fileBytes=0}const line=JSON.stringify(batch)+"\n";await appendFile(this.file,line);this.fileBytes+=Buffer.byteLength(line);await this.refreshManifest();await this.enforceDisk(dir,batch.at)}
- private async refreshManifest(){const dir=path.join(this.root,safeSymbol(this.symbol)),names=(await readdir(dir).catch(()=>[])).filter(v=>v.endsWith(".ndjson")).sort();this.manifest=await Promise.all(names.map(async name=>({name,startMs:Number.parseInt(name,10)||0,size:(await stat(path.join(dir,name))).size})));this.bytes=this.manifest.reduce((n,v)=>n+v.size,0);await writeFile(path.join(dir,"manifest.json"),JSON.stringify({version:1,files:this.manifest}),"utf8").catch(()=>{})}
- private async enforceDisk(dir:string,now:number){const cutoff=now-HEATMAP_RETENTION_MINUTES*60_000,per=HEATMAP_MAX_DISK_MB*1048576;for(const entry of [...this.manifest]){if(this.manifest.length<=1||entry.startMs>=cutoff&&this.bytes<=per)break;await rm(path.join(dir,entry.name),{force:true});this.bytes-=entry.size;this.manifest.shift()}await enforceGlobalQuota(this.root)}
- private async *batches(toMs=Infinity){const dir=path.join(this.root,safeSymbol(this.symbol));for(const entry of this.manifest){if(entry.startMs>toMs)break;const input=createReadStream(path.join(dir,entry.name),{encoding:"utf8"});const lines=createInterface({input,crlfDelay:Infinity});try{for await(const line of lines){if(!line.trim())continue;try{const batch=JSON.parse(line) as DiskBatch;if(batch.symbol===this.symbol&&Array.isArray(batch.records))yield batch}catch{this.gaps++}}}finally{lines.close();input.destroy()}}}
- private async loadRecent(){await this.refreshManifest();const cutoff=Date.now()-HEATMAP_RETENTION_MINUTES*60_000;for await(const batch of this.batches()){this.priceStep=batch.priceStep||this.priceStep;if(batch.gap)this.gaps++;if(batch.kind==="checkpoint"){this.state.clear();this.checkpoints++}for(const record of batch.records){if(!validRecord(record))continue;this.state.set(record.priceTick,{bid:record.bidContracts,ask:record.askContracts});if(record.timestampMs>=cutoff)this.push(record);this.archiveStart=this.archiveStart===null?record.timestampMs:Math.min(this.archiveStart,record.timestampMs);this.archiveEnd=Math.max(this.archiveEnd??0,record.timestampMs)}}const last=this.manifest.at(-1);this.file=last?path.join(this.root,safeSymbol(this.symbol),last.name):"";this.fileBytes=last?.size??0}
- async history(fromMs:number,toMs:number,cursor:string|null,limit:number,maxBytes=HISTORY_MAX_BYTES):Promise<HistoryPage|null>{await this.initialize();const skip=cursorDecode(cursor);if(skip===null)return null;let seed:CompactLiquidityChange[]=[],seen=0,bytes=0,hasMore=false;const seedState=new Map<number,CompactLiquidityChange>(),changes:CompactLiquidityChange[]=[];for await(const batch of this.batches()){if(!cursor&&batch.kind==="checkpoint"&&batch.at<=fromMs){seed=batch.records.filter(validRecord);seedState.clear();for(const record of seed)seedState.set(record.priceTick,record)}if(batch.kind!=="changes")continue;for(const record of batch.records){if(!validRecord(record))continue;if(!cursor&&record.timestampMs<fromMs){seedState.set(record.priceTick,{...record,timestampMs:fromMs});seed=[...seedState.values()];continue}if(record.timestampMs<fromMs||record.timestampMs>toMs)continue;if(seen++<skip)continue;const cost=Buffer.byteLength(JSON.stringify(record))+1;if(changes.length>=limit||bytes+cost>maxBytes){hasMore=true;break}changes.push(record);bytes+=cost}if(hasMore)break}return{symbol:this.symbol,priceStep:this.getPriceStep(),coverage:this.coverage(),seed:cursor?[]:seed,changes,nextCursor:hasMore?cursorEncode(skip+changes.length):null}}
- async tiles(requestedFromMs:number,requestedToMs:number,minPrice:number,maxPrice:number,requestedBucketMs:number,requestedPriceStep:number):Promise<LiquidityTileResponse>{
-  await this.initialize();const allowed=[5_000,15_000,30_000,60_000,120_000,300_000,600_000],MAX_CELLS=20_000,exchangeStep=this.getPriceStep();let timeBucketMs=allowed.find(v=>v>=requestedBucketMs)??allowed.at(-1)!;let priceStep=Math.max(exchangeStep,Math.ceil(requestedPriceStep/exchangeStep)*exchangeStep);const span=requestedToMs-requestedFromMs,range=maxPrice-minPrice;
-  while(Math.ceil(span/timeBucketMs)*Math.ceil(range/priceStep)>MAX_CELLS){const next=allowed.find(v=>v>timeBucketMs);if(next)timeBucketMs=next;else priceStep*=2}
-  priceStep=Number(priceStep.toPrecision(12));const fromMs=Math.floor(requestedFromMs/timeBucketMs)*timeBucketMs,toMs=Math.ceil(requestedToMs/timeBucketMs)*timeBucketMs,overscan=priceStep*2,low=minPrice-overscan,high=maxPrice+overscan,state=new Map<number,{bid:number;ask:number}>(),cells:LiquidityTileCell[]=[],open=new Map<string,LiquidityTileCell>();let seeded=false,hasGaps=this.gaps>0,capturedFromMs:number|null=null,capturedToMs:number|null=null;
-  const emitSlice=(slice:number)=>{const aggregate=new Map<number,{bid:number;ask:number}>();for(const [tick,value] of state){const price=tick*exchangeStep;if(price<low||price>high)continue;const bin=Math.round(price/priceStep),sum=aggregate.get(bin)??{bid:0,ask:0};sum.bid+=value.bid;sum.ask+=value.ask;aggregate.set(bin,sum)}const present=new Set<string>();for(const [bin,value] of aggregate){if(value.bid<=0&&value.ask<=0)continue;const key=`${bin}:${value.bid}:${value.ask}`;present.add(key);const prior=open.get(key);if(prior?.toMs===slice)prior.toMs=slice+timeBucketMs;else{const cell={fromMs:slice,toMs:slice+timeBucketMs,price:bin*priceStep,bidQuantity:value.bid,askQuantity:value.ask};cells.push(cell);open.set(key,cell)}}for(const key of open.keys())if(!present.has(key))open.delete(key)};
-  let slice=fromMs;for await(const batch of this.batches(toMs)){if(batch.gap)hasGaps=true;if(batch.kind==="checkpoint"&&batch.at<=fromMs){state.clear();for(const record of batch.records)if(validRecord(record))state.set(record.priceTick,{bid:record.bidContracts,ask:record.askContracts});seeded=true;continue}if(batch.kind!=="changes")continue;for(const record of batch.records){if(!validRecord(record)||record.timestampMs>toMs)continue;if(record.timestampMs<fromMs){state.set(record.priceTick,{bid:record.bidContracts,ask:record.askContracts});continue}while(slice+timeBucketMs<=record.timestampMs&&slice<toMs){emitSlice(slice);slice+=timeBucketMs}state.set(record.priceTick,{bid:record.bidContracts,ask:record.askContracts});capturedFromMs=capturedFromMs===null?record.timestampMs:Math.min(capturedFromMs,record.timestampMs);capturedToMs=Math.max(capturedToMs??0,record.timestampMs)}}while(slice<toMs){emitSlice(slice);slice+=timeBucketMs}
-  if(cells.length>MAX_CELLS)throw Error("Tile cell bound exceeded");return{symbol:this.symbol,requestedFromMs,requestedToMs,capturedFromMs:this.archiveStart===null?capturedFromMs:Math.max(fromMs,this.archiveStart),capturedToMs:this.archiveEnd===null?capturedToMs:Math.min(toMs,this.archiveEnd),timeBucketMs,priceStep,cells,endState:[...state].filter(([tick])=>{const price=tick*exchangeStep;return price>=low&&price<=high}).map(([priceTick,v])=>({timestampMs:toMs,priceTick,bidContracts:v.bid,askContracts:v.ask})),hasGaps:hasGaps||!seeded};
- }
- subscribe(listener:(changes:CompactLiquidityChange[],sequence:number)=>void){this.emitter.on("changes",listener);return()=>this.emitter.off("changes",listener)}
- coverage():LiquidityCoverage{return{captureStartMs:this.captureStart,captureEndMs:this.captureEnd,archiveStartMs:this.archiveStart,archiveEndMs:this.archiveEnd,hasGaps:this.gaps>0,historyGapCount:this.gaps}}
- diagnostic(){return{archiveFirstTimestamp:this.archiveStart,archiveLastTimestamp:this.archiveEnd,coverageDurationMs:this.archiveStart&&this.archiveEnd?this.archiveEnd-this.archiveStart:0,compactRecordsInMemory:this.count,archiveBytesOnDisk:this.bytes,checkpointCount:this.checkpoints,droppedPrunedRecordCount:this.dropped,historyGapCount:this.gaps,pendingWrites:this.pending.length+this.overflow.size,listeners:this.emitter.listenerCount("changes"),sequence:this.sequence}}
- async close(){if(this.closed)return;this.closed=true;if(this.timer){clearTimeout(this.timer);this.timer=null}if(this.flushing)await this.flushing;while(this.pending.length||this.overflow.size)await this.flush();this.emitter.removeAllListeners();this.ring.fill(undefined);this.state.clear()}
+const TAPE_RUNTIME = Symbol.for("dizyflow.liquidity-tape.runtime.v1");
+const host = globalThis as typeof globalThis & { [key: symbol]: unknown };
+let runtime = host[TAPE_RUNTIME] as LiquidityRuntimeHolder | undefined;
+if (!runtime) {
+  runtime = { modulePromise: import("./liquidity-tape-impl.ts") };
+  host[TAPE_RUNTIME] = runtime;
 }
-const validRecord=(v:CompactLiquidityChange)=>v&&Number.isFinite(v.timestampMs)&&Number.isInteger(v.priceTick)&&Number.isFinite(v.bidContracts)&&Number.isFinite(v.askContracts);
-async function enforceGlobalQuota(root:string){const symbols=await readdir(root,{withFileTypes:true}).catch(()=>[]),files:{file:string;at:number;size:number}[]=[];for(const symbol of symbols)if(symbol.isDirectory())for(const name of await readdir(path.join(root,symbol.name)).catch(()=>[]))if(name.endsWith(".ndjson")){const file=path.join(root,symbol.name,name),info=await stat(file);files.push({file,at:Number.parseInt(name,10)||0,size:info.size})}let total=files.reduce((n,v)=>n+v.size,0);const max=HEATMAP_TOTAL_DISK_MB*1048576;for(const entry of files.sort((a,b)=>a.at-b.at)){if(total<=max)break;await rm(entry.file,{force:true});total-=entry.size}}
+const implementation = await runtime.modulePromise;
 
-type RegistryEntry={tape:LiquidityTape;references:number;lastUsed:number;pinned:boolean;timer:ReturnType<typeof setTimeout>|null};
-const tapes=new Map<string,RegistryEntry>(),idleMs=int("DIZYFLOW_COLLECTOR_IDLE_MS",30_000,0,3_600_000);
-const archiveSymbols=()=>new Set((process.env.DIZYFLOW_ARCHIVE_SYMBOLS??"BTC_USDT").split(",").map(v=>v.trim().toUpperCase()));
-const evict=(symbol:string,entry:RegistryEntry)=>{if(entry.references||entry.pinned)return false;if(entry.timer)clearTimeout(entry.timer);tapes.delete(symbol);void entry.tape.close();return true};
-export function pruneIdleTapes(){for(const [symbol,entry] of [...tapes].sort((a,b)=>a[1].lastUsed-b[1].lastUsed))if(!entry.references&&!entry.pinned)evict(symbol,entry)}
-function entryFor(symbol:string){let entry=tapes.get(symbol);if(!entry){pruneIdleTapes();if(tapes.size>=MAX_TAPES)throw Error("DizyFlow tape capacity reached");const tape=new LiquidityTape(symbol);entry={tape,references:0,lastUsed:Date.now(),pinned:archiveSymbols().has(symbol),timer:null};tapes.set(symbol,entry);void tape.initialize()}return entry}
-export function getLiquidityTape(symbol:string){return entryFor(symbol).tape}
-export function acquireLiquidityTape(symbol:string){const entry=entryFor(symbol);if(entry.timer)clearTimeout(entry.timer);entry.timer=null;entry.references++;entry.lastUsed=Date.now();return entry.tape}
-export function releaseLiquidityTape(symbol:string){const entry=tapes.get(symbol);if(!entry)return;entry.references=Math.max(0,entry.references-1);entry.lastUsed=Date.now();if(!entry.references&&!entry.pinned&&!entry.timer)entry.timer=setTimeout(()=>evict(symbol,entry),idleMs)}
-export const liquidityTapeDiagnostics=()=>[...tapes.values()].map(v=>({symbol:v.tape.symbol,references:v.references,pinned:v.pinned,...v.tape.diagnostic()}));
+export const HEATMAP_RETENTION_MINUTES = implementation.HEATMAP_RETENTION_MINUTES;
+export const HEATMAP_SAMPLE_MS = implementation.HEATMAP_SAMPLE_MS;
+export const HEATMAP_MAX_MEMORY_RECORDS = implementation.HEATMAP_MAX_MEMORY_RECORDS;
+export const HEATMAP_MAX_DISK_MB = implementation.HEATMAP_MAX_DISK_MB;
+export const HEATMAP_TOTAL_DISK_MB = implementation.HEATMAP_TOTAL_DISK_MB;
+export const MAX_TAPES = implementation.MAX_TAPES;
+export const HISTORY_MAX_BYTES = implementation.HISTORY_MAX_BYTES;
+export type LiquidityTape = InstanceType<LiquidityModule["LiquidityTape"]>;
+export const LiquidityTape = implementation.LiquidityTape;
+export const pruneIdleTapes = implementation.pruneIdleTapes;
+export const getLiquidityTape = implementation.getLiquidityTape;
+export const acquireLiquidityTape = implementation.acquireLiquidityTape;
+export const releaseLiquidityTape = implementation.releaseLiquidityTape;
+export const liquidityTapeDiagnostics = implementation.liquidityTapeDiagnostics;
