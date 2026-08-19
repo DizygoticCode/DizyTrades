@@ -51,7 +51,21 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
   }
   const current = await readUserRecord(user.id);
-  const record = await saveSettings(user.id, payload);
+  const settingsPayload = payload && typeof payload === "object"
+    ? payload as Record<string, unknown>
+    : {};
+  const marketPayload = settingsPayload.market && typeof settingsPayload.market === "object"
+    ? settingsPayload.market as Record<string, unknown>
+    : null;
+  const globalMarketSelected = marketPayload !== null
+    && typeof marketPayload.marketKey === "string"
+    && marketPayload.marketKey.startsWith("twelvedata:");
+  const record = await saveSettings(
+    user.id,
+    globalMarketSelected
+      ? { ...settingsPayload, market: current.settings.market }
+      : payload,
+  );
   await retainRecentMarket(user.id, current.settings.market, record.settings.market);
   await appendAudit(user.id, "settings.saved");
   return NextResponse.json({

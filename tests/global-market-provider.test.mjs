@@ -20,6 +20,10 @@ const candleRoute = await readFile(
   new URL("../app/api/global-markets/candles/route.ts", import.meta.url),
   "utf8",
 );
+const profileRoute = await readFile(
+  new URL("../app/api/profile/route.ts", import.meta.url),
+  "utf8",
+);
 const browser = await readFile(
   new URL("../app/market-browser.tsx", import.meta.url),
   "utf8",
@@ -71,6 +75,11 @@ test("global search and candles require an authenticated DizyTrades user", () =>
   assert.match(candleRoute, /status: 401/);
   assert.match(candleRoute, /CANDLE_TIMEFRAMES\.includes/);
   assert.match(candleRoute, /limit > 2000/);
+});
+
+test("global selections cannot overwrite persisted MEXC market identity", () => {
+  assert.match(profileRoute, /marketPayload\.marketKey\.startsWith\("twelvedata:"\)/);
+  assert.match(profileRoute, /\{ \.\.\.settingsPayload, market: current\.settings\.market \}/);
 });
 
 test("Market Browser owns debounced Global Search without calling Twelve Data directly", () => {
