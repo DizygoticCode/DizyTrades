@@ -10,8 +10,8 @@ const envValue = (source, key) => {
 test("production DizyFlow budget leaves two live-symbol slots beside the archive", async () => {
   const render = await readFile("render.yaml", "utf8");
   const example = await readFile(".env.example", "utf8");
-  const registry = await readFile("app/lib/order-flow/depth-collector.ts", "utf8");
-  const tapes = await readFile("app/lib/order-flow/liquidity-tape.ts", "utf8");
+  const registry = await readFile("app/lib/order-flow/depth-collector-impl.ts", "utf8");
+  const tapes = await readFile("app/lib/order-flow/liquidity-tape-impl.ts", "utf8");
 
   const maxCollectors = Number(envValue(render, "DIZYFLOW_MAX_COLLECTORS"));
   const maxTapes = Number(envValue(render, "DIZYFLOW_MAX_TAPES"));

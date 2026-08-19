@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("campaign collector lease remains lower priority than normal terminal depth acquisition", async () => {
-  const registry = await readFile("app/lib/order-flow/depth-collector.ts", "utf8");
+  const registry = await readFile("app/lib/order-flow/depth-collector-impl.ts", "utf8");
   const service = await readFile("app/lib/dizyquant/campaign-recorder-service.ts", "utf8");
   const compactRegistry = registry.replace(/\s+/g, "");
 
