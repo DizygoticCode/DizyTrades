@@ -36,6 +36,9 @@ export type OperationalDiagnostics = Readonly<{
     uptimeSeconds: number;
     residentMemoryBytes: number;
     heapUsedBytes: number;
+    heapTotalBytes: number;
+    externalBytes: number;
+    arrayBuffersBytes: number;
   }>;
   configuration: Readonly<{
     dataDirectoryConfigured: boolean;
@@ -322,6 +325,9 @@ export async function collectOperationalDiagnostics(
       uptimeSeconds: Math.floor(process.uptime()),
       residentMemoryBytes: finiteNonNegative(memory.rss),
       heapUsedBytes: finiteNonNegative(memory.heapUsed),
+      heapTotalBytes: finiteNonNegative(memory.heapTotal),
+      externalBytes: finiteNonNegative(memory.external),
+      arrayBuffersBytes: finiteNonNegative(memory.arrayBuffers),
     }),
     configuration: Object.freeze({
       dataDirectoryConfigured: Boolean(environment.DATA_DIR),
