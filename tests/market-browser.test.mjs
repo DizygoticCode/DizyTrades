@@ -16,7 +16,7 @@ test("market browser exposes unified navigation and source-aware searches", () =
   assert.match(browser, /"Favorites", "Spot", "Futures", "DizyDEX", "Movers"/);
   assert.doesNotMatch(browser, /market-browser-source-tabs/);
   assert.match(browser, /Search symbol, asset or contract…/);
-  assert.match(browser, /Search token, mint, contract or pool…/);
+  assert.match(browser, /Search token, mint, pool or DEX…/);
 });
 
 test("market browser reserves its flexible region for aligned results", () => {
