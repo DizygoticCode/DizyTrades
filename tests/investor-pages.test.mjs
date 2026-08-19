@@ -39,8 +39,9 @@ test("investor-facing infrastructure terminology stays professional", () => {
 });
 
 test("DIZY and fundraising language stay non-promissory", () => {
+  assert.match(investors, /does not represent (?:ownership, equity|equity, ownership)/);
+  assert.match(businessPlan, /does not represent ownership of DizyTrades/);
   for (const source of [investors, businessPlan]) {
-    assert.match(source, /does not represent (?:ownership, equity|equity, ownership)/);
     assert.match(source, /not an offer to sell/);
   }
   assert.match(businessPlan, /does not provide equity, revenue share, yield, governance rights or a promise of price appreciation/);
