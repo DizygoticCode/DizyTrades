@@ -12,6 +12,10 @@ const terminal = await readFile(
   new URL("../app/trading-terminal.tsx", import.meta.url),
   "utf8",
 );
+const realtimeAdapter = await readFile(
+  new URL("../app/lib/market/use-chart-market-realtime.ts", import.meta.url),
+  "utf8",
+);
 
 test("chart market model keeps MEXC provider identity and transport capability behind one instrument", () => {
   const futures = createMexcChartMarket(
@@ -84,6 +88,13 @@ test("DizyDEX pools use the same chart market model with explicit bounded capabi
     chartMarketCandleEndpoint(market, "1m", 5000),
     "/api/dex/ohlcv?chain=solana&pool=pool&interval=1m&limit=1000",
   );
+});
+
+test("provider-specific realtime transport is owned by the neutral adapter, not the terminal", () => {
+  assert.match(realtimeAdapter, /useMexcRealtime/);
+  assert.match(realtimeAdapter, /options\.market\.provider\.id === "mexc"/);
+  assert.match(realtimeAdapter, /options\.market\.capabilities\.realtime !== "refresh"/);
+  assert.doesNotMatch(terminal, /useMexcRealtime/);
 });
 
 test("trading terminal consumes the provider-neutral chart boundary instead of provider request details", () => {
