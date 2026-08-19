@@ -7,7 +7,7 @@ test("toolbar has direct timeframe and separate imperative chart controls", asyn
   assert.doesNotMatch(source, /aria-label="More timeframes"/);
   assert.match(
     source,
-    /ALL_TIMEFRAMES\.filter\(\(item\) => !dexSelected \|\| supportsDexChartTimeframe\(item\)\)\.map/,
+    /ALL_TIMEFRAMES\.filter\(\(item\) => chartMarketSupportsTimeframe\(chartMarket, item\)\)\.map/,
   );
   assert.match(source, /aria-pressed=\{timeframe === item\}/);
   assert.match(source, /chartControls\.current\?\.resetView\(\)/);
