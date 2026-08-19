@@ -13,7 +13,7 @@ test("GeckoTerminal URLs preserve the documented API v2 path", () => {
 });
 
 test("market browser exposes unified navigation and source-aware searches", () => {
-  assert.match(browser, /"Favorites", "Spot", "Futures", "DizyDEX", "Movers"/);
+  assert.match(browser, /"Favorites", "Spot", "Futures", "Global", "DizyDEX", "Movers"/);
   assert.doesNotMatch(browser, /market-browser-source-tabs/);
   assert.match(browser, /Search symbol, asset or contract…/);
   assert.match(browser, /Search token, mint, pool or DEX…/);

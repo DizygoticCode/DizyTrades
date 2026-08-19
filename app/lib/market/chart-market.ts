@@ -1,6 +1,7 @@
 import type { DexMarket } from "../dex/types";
 import { splitDexOhlcv, supportsDexChartTimeframe } from "../dex/dizy";
 import type { Candle } from "../strategy";
+import type { GlobalAssetClass, GlobalMarketDescriptor } from "./global";
 import {
   CANDLE_TIMEFRAMES,
   type CandleTimeframe,
@@ -8,8 +9,8 @@ import {
   type MarketType,
 } from "./types";
 
-export type ChartMarketProviderId = "mexc" | "dizydex";
-export type ChartMarketKind = MarketType | "pool";
+export type ChartMarketProviderId = "mexc" | "dizydex" | "twelvedata";
+export type ChartMarketKind = MarketType | "pool" | "global";
 export type ChartMarketRealtimeMode = "stream" | "refresh";
 
 export type ChartMarketProviderMetadata = Readonly<{
@@ -41,6 +42,9 @@ export type ChartMarketInstrument = Readonly<{
   poolAddress?: string;
   tokenAddress?: string;
   chain?: string;
+  exchange?: string;
+  micCode?: string;
+  assetClass?: GlobalAssetClass;
   capabilities: ChartMarketCapabilities;
 }>;
 
@@ -48,6 +52,7 @@ const MEXC_TIMEFRAMES = Object.freeze([...CANDLE_TIMEFRAMES]);
 const DEX_TIMEFRAMES = Object.freeze(
   CANDLE_TIMEFRAMES.filter((timeframe) => supportsDexChartTimeframe(timeframe)),
 );
+const GLOBAL_TIMEFRAMES = Object.freeze([...CANDLE_TIMEFRAMES]);
 
 export function createMexcChartMarket(
   market: MarketDescriptor | undefined,
@@ -109,6 +114,34 @@ export function createDexChartMarket(market: DexMarket): ChartMarketInstrument {
   });
 }
 
+export function createGlobalChartMarket(market: GlobalMarketDescriptor): ChartMarketInstrument {
+  return Object.freeze({
+    key: market.key,
+    provider: Object.freeze({
+      id: "twelvedata" as const,
+      label: "Twelve Data",
+      venue: market.exchange,
+    }),
+    providerSymbol: market.symbol,
+    kind: "global" as const,
+    displayName: market.displayName,
+    baseAsset: market.symbol,
+    quoteAsset: market.currency,
+    contractSize: 1,
+    exchange: market.exchange,
+    micCode: market.micCode,
+    assetClass: market.assetClass,
+    capabilities: Object.freeze({
+      timeframes: GLOBAL_TIMEFRAMES,
+      realtime: "refresh" as const,
+      refreshMs: 30_000,
+      executedTrades: false,
+      orderBook: false,
+      minimumHistory: 20,
+    }),
+  });
+}
+
 export function chartMarketSupportsTimeframe(
   market: ChartMarketInstrument,
   timeframe: string,
@@ -132,6 +165,16 @@ export function chartMarketCandleEndpoint(
       limit: String(limit),
     });
     return `/api/market?${params.toString()}`;
+  }
+  if (market.provider.id === "twelvedata") {
+    const params = new URLSearchParams({
+      symbol: market.providerSymbol,
+      exchange: market.exchange ?? market.provider.venue,
+      timeframe,
+      limit: String(Math.min(limit, 2000)),
+    });
+    if (market.micCode) params.set("mic", market.micCode);
+    return `/api/global-markets/candles?${params.toString()}`;
   }
   if (!market.poolAddress || !market.chain)
     throw new Error("Incomplete DEX chart market identity");
