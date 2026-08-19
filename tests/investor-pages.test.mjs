@@ -14,8 +14,8 @@ const INVESTOR_EMAIL = "dizytrades+investor@gmail.com";
 test("investor page leads with the project pitch and the requested actions", () => {
   assert.match(investors, /A trading platform built around/);
   assert.match(investors, /process you can inspect/);
-  assert.match(investors, /href="\/business-plan"/);
-  assert.match(investors, /href="\/contact"/);
+  assert.ok(investors.includes('href="/business-plan"'));
+  assert.ok(investors.includes('href="/contact"'));
   assert.ok(investors.includes(INVESTOR_EMAIL));
   assert.match(investors, /DizyTrades investor enquiry/);
 });
@@ -50,7 +50,7 @@ test("investor pages use public marketing chrome and are discoverable in the pub
   assert.equal(showSharedProductNavigation("/investors"), false);
   assert.equal(showSharedProductNavigation("/business-plan"), false);
   assert.equal(showSharedProductNavigation("/business-plan/appendix"), false);
-  assert.match(header, /href="\/investors"/);
-  assert.match(header, />Investors<\/Link>/);
+  assert.ok(header.includes('href="/investors"'));
+  assert.ok(header.includes('>Investors</Link>'));
   assert.match(investorStyles, /@media \(max-width: 640px\)/);
 });
