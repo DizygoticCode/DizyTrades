@@ -2,9 +2,9 @@
 
 # DizyTrades
 
-Future MEXC execution credential custody is encrypted, server-only, disabled by default, and fully disconnected from execution. Operators must not configure custody keys unless deliberately testing the isolated custody service; see `SECURITY.md`. The existing MEXC Account Companion remains separate and read-only.
+The guarded MEXC execution software boundary is built but production exchange-write activation remains deliberately off. The repository contains the reviewed server-side reduce-only writer path, encrypted dedicated write-credential custody, exact-account/write-generation authority, provider-neutral exact-host `/32` egress proof, owner-only provisioning/activation ceremonies and a durable microscopic one-shot canary gate. `LIVE_TRADING_ENABLED=false` and `MEXC_WRITE_PROVIDER_ENABLED=false` remain the committed/default posture, and no real MEXC order has been submitted by the guarded-execution programme.
 
-An owner-only provisioning ceremony can hand synthetic/future credentials directly into custody when both custody and provisioning are deliberately enabled. It requires fresh password and TOTP proof, has no secret readback or MEXC verification, and remains disabled in production. It adds no paid service and no live-write capability.
+The next execution milestone is operational rather than another product feature build: migrate the durable application state to the intended Server Club host, rehearse integrity/restart/rollback, establish fresh static-host `/32` evidence, reprovision and re-attest the dedicated write generation there, then perform one independently approved reduce-only LIMIT canary at exactly 1x and no more than 25 USDT notional before any separate broader activation decision. The existing MEXC Account Companion remains independent and GET-only.
 
 ### Everything Dizy™
 
@@ -26,28 +26,30 @@ An owner-only provisioning ceremony can hand synthetic/future credentials direct
 >
 > DizyTrades exposes evidence, assumptions, unavailable states and limitations. Live exchange execution remains disabled.
 
-## Current state — 11 August 2026
+## Current state — 19 August 2026
 
-DizyTrades has moved well beyond its original chart-and-strategy simulator into a connected research and review platform. Current `main` includes the charting terminal, deterministic signal engine, market-microstructure tooling, realistic paper execution, read-only account reconciliation, replay, journal, analytics, education, backup/recovery, personal profiles and verified public-account recovery.
+DizyTrades has moved well beyond its original chart-and-strategy simulator into a connected research and review platform. The planned product-generation scope is complete on current `main`: the charting terminal, deterministic signal engine, public market-microstructure tooling, realistic paper execution, read-only account reconciliation, replay, journal, analytics, education, backup/recovery, verified public accounts and personal profiles are all present.
 
-The repository baseline has also been cleaned up:
+Market discovery now spans MEXC Spot/Futures, DizyDEX and authenticated Global Search. The Global Search provider boundary is deliberately chart/search-only: server-side Twelve Data symbol/candle transport feeds a provider-neutral chart identity without granting executed-trade, order-book or execution capability to global instruments.
 
-- GitHub Actions is operational again.
-- The normal merge gate is lint → complete deterministic suite → production build → Chromium/Playwright smoke.
-- The CI baseline repair is merged.
+The repository baseline and production account lifecycle are also settled:
+
+- GitHub Actions is operational and the normal merge gate is lint → complete deterministic suite → production build → Chromium/Playwright smoke.
 - Next.js and `eslint-config-next` are on the focused 16.2.12 security/patch release.
-- the persistent MEXC contract-metadata recovery path used by Manual Paper has been repaired and regression-tested.
+- the persistent MEXC contract-metadata recovery path used by Manual Paper is regression-tested.
 - DIZY is live on Solana with an official public DizyTrades token page.
-- public signup now requires email verification before session creation.
+- public signup requires email verification before session creation.
 - verified database accounts have enumeration-safe self-service password recovery with session revocation after reset.
 - authenticated owner/admin/user identities have a personal profile surface for display name, bounded bio and avatar.
+- production owner/admin passwords are database-authoritative after migration/reset, and privileged plaintext password environment inputs have been removed from the live Render service.
+- provider-neutral static execution-host authority is already built; actual Server Club configuration, migration, fresh static-IP attestation and canary execution remain separate operations.
 
-The first bounded DizyQuant representative campaign is no longer treated as the active build programme. DizyQuant remains isolated from DizySignals unless a future separate promotion review explicitly changes that boundary. The near-term engineering queue is evidence-led polish where justified, supported-stack maintenance and then an explicit decision about guarded live-execution readiness.
+The first bounded DizyQuant representative campaign is closed for the current roadmap and remains isolated from DizySignals unless a future separate promotion review explicitly changes that boundary. There is no standing new product-feature programme behind the current release. While Server Club hardware is prepared, the remaining work is evidence-led polish or supported-stack maintenance only when justified; the next major execution step is the controlled Server Club migration and canary ceremony.
 
 ## What DizyTrades is
 
 ```text
-DizyScanner
+DizyScanner / Global Search / DizyDEX
     ↓
 DizyStructure
     ↓
@@ -77,7 +79,7 @@ The system is deliberately evidence-first. A setup score is not a profit probabi
 
 ### DizyCharts
 
-The main multi-timeframe terminal: MEXC spot/perpetual discovery, closed-candle history, public real-time updates, support/resistance, VWAP, moving averages, Volume Profile, Fibonacci, Elliott-lite, Wyckoff-lite, triangles, regression channels, manual drawing and saved layouts.
+The main multi-timeframe terminal: MEXC spot/perpetual discovery plus authenticated provider-neutral Global Search charting, closed-candle history, public real-time updates, support/resistance, VWAP, moving averages, Volume Profile, Fibonacci, Elliott-lite, Wyckoff-lite, triangles, regression channels, manual drawing and saved layouts. Global instruments remain chart/search-only and do not inherit MEXC order-flow or execution capabilities.
 
 ### DizySignals
 
@@ -101,7 +103,7 @@ It includes snapshot-grade spread/depth/imbalance measurements, public aggressor
 
 DizyAccount is the owner-only, server-side, GET-only MEXC Futures account companion. It can ingest balances, positions and provider risk state, then perform deterministic shadow reconciliation against DizyPaper without changing either account. It has no order route and no browser-held exchange credentials.
 
-Separately, authenticated non-viewer identities have a personal DizyTrades profile for display name, bounded bio and avatar. Profile mutation cannot change role or sign-in email. Legacy owner/admin credentials remain managed in the Render environment boundary.
+Separately, authenticated non-viewer identities have a personal DizyTrades profile for display name, bounded bio and avatar. Profile mutation cannot change role or sign-in email. Production owner/admin identities are database-authoritative after the verified reset/migration path, and privileged plaintext password environment inputs are absent from the live Render service. Explicitly gated legacy fallback remains available only as local/test compatibility and is not the production identity authority.
 
 ### DizyScanner
 
@@ -162,7 +164,7 @@ Public signup requires an explicit `PUBLIC_SIGNUP_ENABLED=true` deployment flag 
 
 Verification and password-reset tokens are random, hashed at rest, expiring and single-use. Recovery responses are enumeration-safe. A successful password reset revokes existing database sessions.
 
-Production account mail is server-side only. Gmail SMTP credentials never enter browser state, and the Gmail App Password must remain only in the protected Render environment boundary.
+Production account mail is server-side only. Gmail SMTP credentials never enter browser state, and the Gmail App Password must remain only in the protected Render environment boundary. The live service no longer carries privileged plaintext owner/admin login-password inputs; those identities use database-authoritative password hashes after the verified reset path.
 
 See [SECURITY.md](SECURITY.md) and [docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md](docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md).
 
@@ -171,20 +173,19 @@ See [SECURITY.md](SECURITY.md) and [docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md](doc
 The repository currently contains:
 
 - no browser exchange API-key form or browser-held exchange credentials
-- an owner-only server-side GET-only private MEXC Account Companion
-- no write-capable private exchange trading endpoint
-- no live order-placement route
-- no enabled execution capability
+- an owner-only server-side GET-only private MEXC Account Companion that remains independent of the execution writer
+- no browser/public general execution route
+- a guarded server-side MEXC reduce-only LIMIT write path behind durable exact-account, write-generation, credential-custody, rollout, risk, reconciliation, exact-host `/32`, activation and one-shot canary-permit authorities
+- provider-neutral execution-host authority, so moving away from Render cannot silently inherit another host/provider's egress proof
+- committed/default `LIVE_TRADING_ENABLED=false` and `MEXC_WRITE_PROVIDER_ENABLED=false` deployment posture
+- no real MEXC order submitted by the guarded-execution programme
+- GET-only ambiguous-delivery reconciliation that cannot authorize a second POST
 - no automatic DizyQuant influence on DizySignals
 - verified public-account signup and recovery isolated from exchange execution
 
-`LIVE_TRADING_ENABLED=false` remains a required deployment boundary. The read-only MEXC connection proves only the Account Companion observation boundary. Any future write-capable execution path requires separate credential custody, risk validation, idempotency, reconciliation, account limits, kill switches, recovery rehearsal and independent security approval.
+The guarded execution software boundary is therefore built, but production exchange-write authority is not active. Actual activation is intentionally deferred until durable state is migrated to the intended Server Club host, integrity/restart/rollback is rehearsed, that host's static public IPv4 is independently observed and bound to an exact `/32`, a fresh dedicated write generation is provisioned and attested against that host, and an independently approved microscopic reduce-only LIMIT canary at exactly 1x and no more than 25 USDT is reconciled and reviewed. Broader write activation requires a separate explicit decision after that canary.
 
-The guarded execution boundary includes non-executing provider-mechanics
-scaffolding only. It deterministically models synthetic provider lifecycle
-outcomes, always reports `executed:false`, and is disconnected from MEXC write
-transport, signing, custody and provisioning. It does not place, cancel or amend
-orders and does not complete submission, acknowledgement or reconciliation.
+The read-only DizyAccount connection proves only its independent observation boundary and must never be treated as write authority. Global Search likewise remains chart/search-only and cannot acquire exchange-write capability through the provider-neutral chart boundary.
 
 See [SECURITY.md](SECURITY.md), [docs/AUTH_STORAGE_THREAT_REVIEW.md](docs/AUTH_STORAGE_THREAT_REVIEW.md), [docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md](docs/MEXC_READONLY_ACCOUNT_COMPANION_INDEPENDENT_REVIEW.md) and [docs/SIMULATOR_ACCOUNTING_AUDIT.md](docs/SIMULATOR_ACCOUNTING_AUDIT.md).
 
@@ -223,13 +224,13 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-Place generated `salt:hash` values in the matching password-hash environment variables and set `SESSION_SECRET` to at least 32 random characters. Public signup and legacy emergency access must each be explicitly enabled. Temporary plaintext test passwords require `ALLOW_TEST_PLAINTEXT_PASSWORDS=true` and are blocked whenever live trading is enabled.
+Place generated `salt:hash` values in the matching password-hash environment variables and set `SESSION_SECRET` to at least 32 random characters. Public signup and legacy emergency access must each be explicitly enabled. The repository retains a local/test compatibility path for temporary plaintext passwords only when `ALLOW_TEST_PLAINTEXT_PASSWORDS=true`; that path is blocked whenever live trading is enabled and is not part of the live Render identity configuration.
 
 If local public signup is enabled, configure the account-mail variables from `.env.example` with a safe local/test mail boundary. Do not place the production Gmail App Password in committed files or test fixtures.
 
 ## Deployment and recovery
 
-The beta is deployed on Render as a Node service with persistent application storage, automatic deploys from `main` and `/api/health` monitoring.
+The beta is currently deployed on Render as a Node service with persistent application storage, automatic deploys from `main` and `/api/health` monitoring. Render remains the application host while Server Club hardware is prepared; it should not be granted temporary MEXC exchange-write egress solely to bridge that wait.
 
 The intended production account-email environment is declared in `render.yaml`, but an existing Render service must be checked explicitly when new variables are introduced. The live service requires:
 
@@ -245,11 +246,11 @@ MAIL_FROM=DizyTrades <dizytrades@gmail.com>
 
 After adding or changing those values, save them and restart/redeploy the reviewed commit so the running process receives the new environment. A repository declaration alone is not treated as production proof. Full details and the smoke-test contract live in [docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md](docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md).
 
-The deployment-observation contract is read-only: it resolves the configured DizyTrades service, waits for the expected commit and verifies the public simulation-only health boundary without changing Render.
+The deployment-observation contract is read-only: it resolves the configured DizyTrades service, waits for the expected commit and verifies the public execution-disabled health boundary without changing Render.
 
 The isolated recovery rehearsal uses the real backup engine to export, validate, dry-run and restore representative user data into fresh temporary data roots. A persistent disk is not itself a backup; dated DizyBackup exports should be kept outside the provider.
 
-Provider snapshot rollback remains deliberately deferred until guarded-execution security work justifies a destructive infrastructure rehearsal.
+The next guarded-execution infrastructure milestone is the controlled Server Club state migration, followed by integrity/restart/rollback rehearsal and fresh host/credential attestation before any canary. Provider snapshot rollback or other destructive infrastructure rehearsal must remain isolated and explicitly approved.
 
 ## Important limitations
 
@@ -259,9 +260,11 @@ Visible DOM depth can be cancelled, changed or hidden. Queue-ahead is an educati
 
 DizyAccount reflects the owner's read-only MEXC provider state when fresh. DizyPaper reconciliation is observational rather than corrective.
 
+Global Search provides provider-neutral search/chart data where the configured provider supports it. It does not imply MEXC contract semantics, DizyFlow/order-book evidence, executed trades or exchange execution capability for those instruments.
+
 DizyQuant uses aggregated public price-level data. It does not know individual order identity, trader identity, true queue position, hidden liquidity or institutional intent. Experimental research rules are not diagnoses or trading calls.
 
-Public database accounts have verification, self-service recovery and optional TOTP MFA with one-time recovery codes. MFA secrets are encrypted under a dedicated deployment key. Legacy owner/admin compatibility remains available for the ordinary application but does not satisfy future guarded-execution MFA.
+Public database accounts have verification, self-service recovery and optional TOTP MFA with one-time recovery codes. MFA secrets are encrypted under a dedicated deployment key. Explicitly gated legacy owner/admin compatibility remains available for local/test use in the ordinary application but is not the live production password authority and does not satisfy guarded-execution MFA.
 
 ## Key documents
 

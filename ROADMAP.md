@@ -2,19 +2,32 @@
 
 DizyTrades is a transparent, deterministic crypto research, simulation and review platform. The enduring mission lives in [VISION.md](VISION.md); technical boundaries live in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-This roadmap reflects merged `main` as of **18 August 2026**. Items are not promises of dates. Work moves only after focused implementation, deterministic validation and review.
+This roadmap reflects merged `main` as of **19 August 2026**. Items are not promises of dates. Work moves only after focused implementation, deterministic validation and review.
 
 ## Current roadmap order
 
-The broad platform-building phase is largely complete. The active sequence is deliberately narrower:
+The broad platform-building phase is complete for the current planned scope. There is no standing feature programme waiting behind the current release. The active sequence is deliberately narrower:
 
-1. **Apply optional evidence-led polish** only where production use exposes a real reason.
-2. **Maintain the supported stack** with focused dependency, documentation and operational updates.
-3. **Consider guarded execution readiness** only after every execution-security boundary is independently satisfied.
+1. **Keep the current Render-hosted product stable** while Server Club hardware is completed; do not create temporary exchange-write authority merely to bridge the wait.
+2. **Complete the guarded-execution operational migration** only on the intended Server Club host: controlled state migration, restart/rollback rehearsal, fresh exact-host `/32` evidence, fresh write-generation attestation and an independently approved microscopic canary.
+3. **Apply optional evidence-led polish and supported-stack maintenance** only where production use or a focused dependency/security reason justifies it.
 
 The first bounded DizyQuant representative campaign is closed for the current roadmap. DizyQuant remains research-only unless a separate versioned follow-up or promotion PR is justified by evidence.
 
 No large feature programme is inserted between these stages merely because the platform can support one.
+
+## 19 August 2026 checkpoint — planned product build complete
+
+The current product-generation programme is complete and live on Render.
+
+- [x] provider-neutral static execution-host authority merged in #344 without activating exchange writes
+- [x] provider-neutral chart-market boundary and authenticated Global Search merged through #347/#348
+- [x] Global Search remains chart/search-only and cannot acquire order-book, executed-trade or execution capability
+- [x] privileged plaintext production account-password environment inputs removed after Rob and Nick completed the database-authoritative reset path
+- [x] stale `ALLOW_TEST_PLAINTEXT_PASSWORDS=false` production Render configuration removed; explicitly gated local/test compatibility remains a repository-only development boundary
+- [x] production guarded-execution activation remains off and no real order has been submitted
+
+The remaining guarded-execution work is operational Server Club migration, fresh host/credential evidence and the microscopic canary ceremony described below—not another product feature build.
 
 ## 11 August 2026 checkpoint — baseline reset complete
 
@@ -47,7 +60,8 @@ GitHub Actions is no longer treated as silent or unavailable. The repository's o
 - [x] DizyCharts multi-timeframe terminal
 - [x] manual drawing and saved chart workspaces
 - [x] shared route-aware product navigation across the Dizy family
-- [x] unified MEXC Spot/Futures and DizyDEX discovery
+- [x] unified MEXC Spot/Futures, authenticated Global Search charting and DizyDEX discovery
+- [x] provider-neutral global chart/search boundary with no executed-trade, order-book or execution capability
 - [x] DizySignals confirmed-candle confluence engine
 - [x] DizyBrain typed explanation/review workspace
 - [x] DizyFlow Market Depth, DOM, retained liquidity, heatmap and public trades
@@ -254,7 +268,7 @@ The public account lifecycle now fails closed around email ownership without wea
 - [x] persist personal display name, bounded bio and bounded avatar storage
 - [x] keep role and sign-in email immutable from the personal profile API
 - [x] migrate legacy owner/admin credentials once into verified database accounts with stable IDs, normal reset/MFA/session lifecycle and database-authoritative passwords
-- [ ] manually remove privileged plaintext environment inputs after production identity and Nick reset verification
+- [x] manually remove privileged plaintext environment inputs after production identity and Nick reset verification
 - [x] isolate Playwright from external SMTP without weakening the production contract
 - [x] production-smoke signup → Gmail verification → verified login → terminal
 - [x] production-smoke forgot password → Gmail reset → password change → session revocation
@@ -309,7 +323,7 @@ No dependency bundle is merged merely because Dependabot opened it.
 
 ## Final major programme — guarded execution readiness
 
-### 12. 18 August 2026 checkpoint — guarded execution software boundary complete, activation still off
+### 12. 19 August 2026 checkpoint — guarded execution software boundary complete, activation still off
 
 The guarded-execution programme has moved beyond the historical #320/#322 dormant-writer checkpoint. The production code now contains the reviewed write path, but deployment activation remains deliberately false and no real order has been sent.
 
@@ -325,6 +339,7 @@ Completed security slices:
 - [x] #340 separate owner-only activation ceremony promoting only the exact sealed/attested generation to `active`
 - [x] #341 production composition connection to the existing `ModernMexcReduceOnlyWriter`, with credential lease and final mutable-authority re-read immediately before transport
 - [x] #342 durable microscopic canary permit: exact-intent-bound, short-lived, single-use, reduce-only LIMIT, exactly 1x and at most 25 USDT notional before a production lifecycle can enter `submitting`
+- [x] #344 provider-neutral static execution-host egress authority preserving exact approved `{provider, hostId, /32}` matching without inheriting another provider's durable egress proof
 
 Current production posture:
 
@@ -337,9 +352,9 @@ Current production posture:
 
 Current operational blocker and migration boundary:
 
-- [ ] restore trusted private MEXC account state; the current Render-side read-only call is failing closed on MEXC code 406 because the server IP whitelist no longer matches
-- [ ] replace the Render-specific execution-host identity assumption with an equivalently strict provider-neutral approved-host + exact static `/32` authority before moving execution to Server Club
+- [x] replace the Render-specific execution-host identity assumption with an equivalently strict provider-neutral approved-host + exact static `/32` authority before moving execution to Server Club
 - [ ] complete a controlled persistent-state migration, integrity and rollback/restart rehearsal before changing the production execution host
+- [ ] restore trusted private MEXC account state on the migrated Server Club host; do not re-authorize temporary Render egress solely to bridge the wait
 - [ ] verify the Server Club host's static public IPv4 from independent observers and bind fresh egress evidence to that exact `/32`
 - [ ] reprovision/re-attest the dedicated write generation against the migrated host rather than silently inheriting stale Render egress authority
 - [ ] perform an independently approved microscopic reduce-only canary only after trusted account state, reconciliation, risk, rollout, egress, custody and every kill-switch/activation gate are fresh on the migrated host
@@ -363,11 +378,11 @@ They must not imply access to private matching-engine information, Level-4 order
 
 ### Active Beta — achieved
 
-Useful for public charting, market study, deterministic signals, public order-flow observation, bounded microstructure research, realistic simulation, replay, review, analytics, education and recovery while execution remains disabled.
+Useful for public MEXC and provider-neutral global charting, market study, deterministic signals, public order-flow observation, bounded microstructure research, realistic simulation, replay, review, analytics, education and recovery while execution remains disabled.
 
 ### Operational Research Platform — achieved
 
-DizyPaper Fidelity V2, shared workflow/navigation, DizyQuant's research foundation/current bounded campaign, DizyFlow heatmap presentation, deployment/recovery contracts, verified account lifecycle, CI baseline and focused independent reviews are complete for the current roadmap.
+DizyPaper Fidelity V2, shared workflow/navigation, provider-neutral Global Search, DizyQuant's research foundation/current bounded campaign, DizyFlow heatmap presentation, deployment/recovery contracts, verified account lifecycle, CI baseline and focused independent reviews are complete for the current roadmap.
 
 ### Read-only Account Companion — achieved
 
@@ -375,7 +390,7 @@ The owner-only companion can ingest and label private account state, add provide
 
 ### Verified Account Lifecycle — achieved
 
-Public accounts require verified email before session creation and support self-service recovery with session revocation. Personal profile editing remains role/email-safe and separate from exchange connectivity.
+Public accounts require verified email before session creation and support self-service recovery with session revocation. Personal profile editing remains role/email-safe and separate from exchange connectivity. Production owner/admin passwords are database-authoritative and privileged plaintext password environment inputs have been removed from the live Render service.
 
 ### DIZY public launch surface — achieved
 
@@ -385,9 +400,9 @@ The live Solana token identity, fixed supply, revoked authorities, official Dizy
 
 A metric may be considered only after representative evidence and a separate promotion review. This milestone may validly remain unstarted indefinitely.
 
-### Guarded Trading Platform — conditional future
+### Guarded Trading Platform — operational activation pending
 
-The software security boundary now includes the production writer connection and microscopic one-shot canary gate, but the milestone remains incomplete until host migration/egress, trusted account state, controlled canary reconciliation and explicit activation review are complete.
+The software security boundary includes the production writer connection, encrypted credential custody, exact-account/generation authority, provider-neutral exact-host `/32` proof and microscopic one-shot canary gate. Production exchange-write activation remains off. The milestone becomes operational only after the intended Server Club host is migrated and rehearsed, fresh host and credential evidence is established, the bounded canary is reconciled and reviewed, and a separate explicit activation decision is made.
 
 ## Delivery and cost rules
 
@@ -400,5 +415,6 @@ The software security boundary now includes the production writer connection and
 - Prefer deterministic, explainable behaviour over black-box output.
 - Research observations remain informational or experimental until separately validated and promoted.
 - Live trading remains disabled until the final security milestone is complete.
-- Prefer the existing Render service, GitHub workflows and free tooling.
+- Keep the existing Render service as the current application host while Server Club is prepared; do not grant temporary Render exchange-write egress solely to bridge that wait.
+- Prefer existing infrastructure, GitHub workflows and free tooling where they preserve the reviewed security boundary.
 - Do not create paid services, disks, databases, APIs or subscriptions without explicit owner approval.
