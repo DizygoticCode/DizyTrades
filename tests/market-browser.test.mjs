@@ -23,7 +23,7 @@ test("market browser reserves its flexible region for aligned results", () => {
   assert.match(browser, /styles.resultsHeader/);
   assert.match(browser, /styles.resultRow/);
   assert.match(styles, /width:420px;height:520px/);
-  assert.match(styles, /grid-template-rows:38px 38px 30px 28px 24px minmax\(0,1fr\)/);
+  assert.match(styles, /grid-template-rows:38px 44px 34px 28px 24px minmax\(0,1fr\)/);
   assert.match(styles, /\.results\{[\s\S]*?overflow-x:hidden;overflow-y:auto/);
   assert.match(styles, /\.resultRow\{[\s\S]*?min-height:46px;max-height:48px/);
   assert.match(styles, /grid-template-columns:minmax\(0,1fr\) 78px 56px 58px/);
