@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 const productCards = [
   ["One workspace", "Research to review", "Charts, signals, scanning, structure, order flow, simulation, journal, performance, education and account reconciliation are designed as one workflow rather than disconnected tools."],
   ["Evidence first", "Inspectable decisions", "Signals, simulations, research assumptions, risk boundaries, audit trails and software changes are built to be reviewable instead of asking users to trust screenshots or opaque claims."],
-  ["Owned stack", "Product + infrastructure", "DizyTrades owns its application code and is moving toward self-hosted Server Club infrastructure for greater operational control, measurable capacity and reduced dependence on a single hosted runtime."],
+  ["Owned stack", "Product + infrastructure", "DizyTrades owns its application code and is moving toward dedicated self-hosted production infrastructure for greater operational control, measurable capacity and reduced dependence on a single hosted runtime."],
   ["Guarded execution", "Safety before activation", "The live-execution architecture exists, but production exchange-write activation remains disabled until the intended host migration, fresh host evidence, credential attestation and a separately approved microscopic canary."],
   ["Provider neutral", "Beyond one exchange", "The charting boundary now supports provider-neutral global search alongside MEXC and on-chain market research, reducing dependence on a single market-data path."],
   ["DIZY", "Project token, not equity", "DIZY is a fixed-supply Solana token associated with the project. It does not represent ownership, equity, revenue share, yield, governance rights or a promise of appreciation."],
@@ -46,8 +46,8 @@ export default function InvestorsPage() {
           <p className={styles.email}>Investor correspondence: <a href={INVESTOR_MAILTO}>{INVESTOR_EMAIL}</a></p>
           <div className={styles.metrics} aria-label="DizyTrades project status">
             <div><strong>Product built</strong><span>The broad product-generation programme is substantially complete and live.</span></div>
-            <div><strong>Execution guarded</strong><span>Exchange-write activation remains off until the Server Club migration and fresh host controls are proven.</span></div>
-            <div><strong>Infrastructure next</strong><span>Current Render hosting is being complemented by measured self-hosted Server Club capacity.</span></div>
+            <div><strong>Execution guarded</strong><span>Exchange-write activation remains off until migration to the dedicated production host and fresh host controls are proven.</span></div>
+            <div><strong>Infrastructure next</strong><span>Current Render hosting is being complemented by measured dedicated self-hosted production capacity.</span></div>
             <div><strong>Open evidence</strong><span>Public repository, deterministic tests, explicit safety boundaries and an inspectable roadmap.</span></div>
           </div>
         </section>
@@ -90,10 +90,10 @@ export default function InvestorsPage() {
         <section className={styles.section} aria-labelledby="roadmap-title">
           <div className={styles.heading}>
             <div><div className={styles.kicker}>NEXT OPERATING MILESTONE</div><h2 id="roadmap-title">Move the critical path onto intended infrastructure.</h2></div>
-            <p>Server Club is not presented as magic unlimited capacity. It is the planned long-term production and execution host, with capacity measured through staged synthetic workloads and guarded execution requiring fresh exact-host evidence after migration.</p>
+            <p>The planned dedicated self-hosted production host is intended to improve operational control and provide measurable capacity, not to imply unlimited scale. Capacity is measured through staged workloads, while guarded execution requires fresh exact-host evidence after migration.</p>
           </div>
           <div className={styles.status}>
-            <article><b>Infrastructure migration</b><p>Controlled state migration, restart and rollback rehearsal, host burn-in, capacity measurement and operational proof before the machine becomes a trusted production boundary.</p></article>
+            <article><b>Infrastructure migration</b><p>Controlled state migration, restart and rollback rehearsal, host burn-in, capacity measurement and operational proof before the dedicated host becomes a trusted production boundary.</p></article>
             <article><b>Execution authority</b><p>Fresh exact static /32 evidence, fresh write-generation attestation and a separately approved microscopic reduce-only LIMIT canary before production exchange writing can be considered active.</p></article>
           </div>
         </section>
@@ -109,7 +109,7 @@ export default function InvestorsPage() {
           </div>
         </section>
       </main>
-      <footer className="site-footer"><div className="footer-top"><Brand /><div><b>PROJECT</b><Link href="/investors">Investors</Link><Link href="/business-plan">Business Plan</Link><Link href="/about">About</Link><Link href="/dizy">DIZY</Link></div><div><b>CONTACT</b><a href={INVESTOR_MAILTO}>Investor enquiries</a><Link href="/contact">General contact</Link><Link href="/login">Sign In</Link></div><div><b>DEVELOPERS</b><a href="https://github.com/DizygoticCode/DizyTrades" target="_blank" rel="noopener noreferrer"><GitHubIcon /> GitHub</a><a href="https://github.com/DizygoticCode/DizyTrades#readme" target="_blank" rel="noopener noreferrer">Documentation</a></div></div><div className="risk"><p><b>Project notice:</b> DIZY is associated with DizyTrades but does not represent equity, ownership, revenue share, yield, governance rights or a promise of returns. Cryptocurrency markets are volatile.</p><span>© {new Date().getFullYear()} DizyTrades · Everything Dizy™</span></div></footer>
+      <footer className="site-footer"><div className="footer-top"><Brand /><div><b>PROJECT</b><Link href="/investors">Investors</Link><Link href="/business-plan">Business Plan</Link><Link href="/about">About</Link><Link href="/dizy">DIZY</Link></div><div><b>CONTACT</b><a href={INVESTOR_MAILTO}>Investor enquiries</a><Link href="/contact">General contact</Link><Link href="/login">Sign In</Link></div><div><b>DEVELOPERS</b><a href="https://github.com/DizygoticCode/DizyTrades" target="_blank" rel="noopener noreferrer"><GitHubIcon /> GitHub</a><a href="https://github.com/DizygoticCode/DizyTrades#readme" target="_blank" rel="noopener noreferrer">Documentation</a></div></div><div className="risk"><p><b>Project notice:</b> DIZY is associated with DizyTrades but does not represent equity, ownership, revenue share, yield, governance rights or a promise of returns. This page is project information, not an offer to sell DIZY or securities.</p><span>© {new Date().getFullYear()} DizyTrades · Everything Dizy™</span></div></footer>
     </div>
   );
 }
