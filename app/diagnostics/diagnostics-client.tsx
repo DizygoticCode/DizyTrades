@@ -131,6 +131,9 @@ export default function DiagnosticsClient({ userName }: { userName: string }) {
               <dl>
                 <div><dt>Resident memory</dt><dd>{bytes(report.runtime.residentMemoryBytes)}</dd></div>
                 <div><dt>Heap used</dt><dd>{bytes(report.runtime.heapUsedBytes)}</dd></div>
+                <div><dt>Heap total</dt><dd>{bytes(report.runtime.heapTotalBytes)}</dd></div>
+                <div><dt>External memory</dt><dd>{bytes(report.runtime.externalBytes)}</dd></div>
+                <div><dt>Array buffers</dt><dd>{bytes(report.runtime.arrayBuffersBytes)}</dd></div>
                 <div><dt>Instance</dt><dd>{report.deployment.instance ?? "Unavailable"}</dd></div>
                 <div><dt>Deploy ID</dt><dd>{report.deployment.deployId ?? "Unavailable"}</dd></div>
                 <div><dt>Live execution</dt><dd>{report.configuration.liveTradingEnabled ? "Enabled" : "Disabled"}</dd></div>
