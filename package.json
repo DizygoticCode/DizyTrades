@@ -14,6 +14,7 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "check:engineering": "node --import tsx --test tests/engineering-contract.test.mjs",
+    "dizyflow:capacity": "node --expose-gc scripts/dizyflow-capacity-harness.mjs",
     "dizyquant:close": "node --import tsx scripts/dizyquant-campaign-close.ts",
     "hash-password": "node scripts/hash-password.mjs"
   },
