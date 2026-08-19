@@ -1,0 +1,138 @@
+name: Global Search Terminal Patch
+
+on:
+  push:
+    branches:
+      - market/global-search
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'chore: apply global terminal integration'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: market/global-search
+          fetch-depth: 0
+      - name: Apply exact terminal integration
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/trading-terminal.tsx')
+          text = path.read_text()
+
+          def replace_once(old: str, new: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one match, found {count}: {old[:100]!r}')
+              text = text.replace(old, new, 1)
+
+          def replace_exact(old: str, new: str, expected: int) -> None:
+              global text
+              count = text.count(old)
+              if count != expected:
+                  raise SystemExit(f'expected {expected} matches, found {count}: {old[:100]!r}')
+              text = text.replace(old, new)
+
+          replace_once(
+              'import type { MarketDescriptor } from "./lib/market/types";\nimport type { DexMarket } from "./lib/dex/types";',
+              'import type { MarketDescriptor } from "./lib/market/types";\nimport type { GlobalMarketDescriptor } from "./lib/market/global";\nimport type { DexMarket } from "./lib/dex/types";',
+          )
+          replace_once(
+              '  createDexChartMarket,\n  createMexcChartMarket,',
+              '  createDexChartMarket,\n  createGlobalChartMarket,\n  createMexcChartMarket,',
+          )
+          replace_once(
+              '  const [selectedDexMarket, setSelectedDexMarket] = useState<DexMarket | null>(null);',
+              '  const [selectedDexMarket, setSelectedDexMarket] = useState<DexMarket | null>(null);\n  const [selectedGlobalMarket, setSelectedGlobalMarket] = useState<GlobalMarketDescriptor | null>(null);',
+          )
+          replace_once(
+              '''  const selectedMarket=markets.find((market)=>market.key===selectedMarketKey);\n  const dexSelected=selectedDexMarket!==null;\n  const chartMarket=useMemo(\n    () => selectedDexMarket\n      ? createDexChartMarket(selectedDexMarket)\n      : createMexcChartMarket(selectedMarket, symbol),\n    [selectedDexMarket, selectedMarket, symbol],\n  );''',
+              '''  const selectedMarket=markets.find((market)=>market.key===selectedMarketKey);\n  const dexSelected=selectedDexMarket!==null;\n  const globalSelected=selectedGlobalMarket!==null;\n  const chartMarket=useMemo(\n    () => selectedGlobalMarket\n      ? createGlobalChartMarket(selectedGlobalMarket)\n      : selectedDexMarket\n        ? createDexChartMarket(selectedDexMarket)\n        : createMexcChartMarket(selectedMarket, symbol),\n    [selectedGlobalMarket, selectedDexMarket, selectedMarket, symbol],\n  );''',
+          )
+          replace_once(
+              '        const dexRequest = chartMarket.provider.id === "dizydex";\n        const endpoint = chartMarketCandleEndpoint(',
+              '        const dexRequest = chartMarket.provider.id === "dizydex";\n        const globalRequest = chartMarket.provider.id === "twelvedata";\n        const endpoint = chartMarketCandleEndpoint(',
+          )
+          replace_once(
+              '        setDataSource(dexRequest ? `${payload.source.toUpperCase()} · ${chartMarket.provider.venue.toUpperCase()}` : payload.source.toUpperCase());',
+              '''        setDataSource(\n          dexRequest || globalRequest\n            ? `${payload.source.toUpperCase()} · ${chartMarket.provider.venue.toUpperCase()}`\n            : payload.source.toUpperCase(),\n        );''',
+          )
+          replace_once(
+              '''        const dexFailure = chartMarket.provider.id === "dizydex";\n        if (dexFailure && !blocking) {\n          setRealtimeStatus("delayed");\n          return;\n        }\n        setFeedError(\n          error instanceof Error && error.message === "Unsupported chart timeframe"\n            ? "That timeframe is not available for on-chain pool candles."\n            : error instanceof Error && error.message === "Insufficient candle history"\n              ? dexFailure ? "DIZY pool candles are still building." : "Insufficient confirmed candle history."\n              : dexFailure ? "Raydium / GeckoTerminal candle data is currently unavailable." : "MEXC candle data is currently unavailable.",\n        );\n        if (blocking) setDataSource(dexFailure ? "DEX DATA UNAVAILABLE" : "MEXC UNAVAILABLE");''',
+              '''        const dexFailure = chartMarket.provider.id === "dizydex";\n        const globalFailure = chartMarket.provider.id === "twelvedata";\n        if ((dexFailure || globalFailure) && !blocking) {\n          setRealtimeStatus("delayed");\n          return;\n        }\n        setFeedError(\n          error instanceof Error && error.message === "Unsupported chart timeframe"\n            ? globalFailure\n              ? "That timeframe is not available for this global market."\n              : "That timeframe is not available for on-chain pool candles."\n            : error instanceof Error && error.message === "Insufficient candle history"\n              ? dexFailure\n                ? "DIZY pool candles are still building."\n                : globalFailure\n                  ? "Insufficient confirmed global candle history."\n                  : "Insufficient confirmed candle history."\n              : dexFailure\n                ? "Raydium / GeckoTerminal candle data is currently unavailable."\n                : globalFailure\n                  ? "Twelve Data candle data is currently unavailable."\n                  : "MEXC candle data is currently unavailable.",\n        );\n        if (blocking)\n          setDataSource(\n            dexFailure\n              ? "DEX DATA UNAVAILABLE"\n              : globalFailure\n                ? "GLOBAL DATA UNAVAILABLE"\n                : "MEXC UNAVAILABLE",\n          );''',
+          )
+          replace_once(
+              '''  useEffect(() => {\n    if (user.role === "viewer")\n      sessionStorage.setItem(\n        "dizy-viewer-market",\n        JSON.stringify({ symbol, marketKey: selectedMarketKey, timeframe, favourites }),\n      );\n  }, [favourites, symbol, selectedMarketKey, timeframe, user.role]);''',
+              '''  useEffect(() => {\n    if (user.role === "viewer" && !globalSelected)\n      sessionStorage.setItem(\n        "dizy-viewer-market",\n        JSON.stringify({ symbol, marketKey: selectedMarketKey, timeframe, favourites }),\n      );\n  }, [favourites, symbol, selectedMarketKey, timeframe, user.role, globalSelected]);''',
+          )
+          replace_exact(
+              'market: selectedMarket?.displayName ?? selectedMarketKey',
+              'market: selectedGlobalMarket?.displayName ?? selectedMarket?.displayName ?? selectedMarketKey',
+              2,
+          )
+          replace_exact(
+              'exchange={dexSelected ? "raydium" : "mexc"}',
+              'exchange={globalSelected ? "twelvedata" : dexSelected ? "raydium" : "mexc"}',
+              2,
+          )
+          replace_once(
+              'aria-label="Search MEXC and DizyDEX markets"',
+              'aria-label="Search MEXC, Global and DizyDEX markets"',
+          )
+          replace_once(
+              '<span className="coin">{(selectedDexMarket?.symbol ?? selectedMarket?.baseAsset ?? symbol.split("_")[0]).slice(0, 1)}</span>',
+              '<span className="coin">{(selectedGlobalMarket?.symbol ?? selectedDexMarket?.symbol ?? selectedMarket?.baseAsset ?? symbol.split("_")[0]).slice(0, 1)}</span>',
+          )
+          replace_once(
+              '<strong>{selectedDexMarket ? `${selectedDexMarket.symbol} / ${selectedDexMarket.quoteSymbol}` : selectedMarket?.displayName ?? symbol.replace("_", " / ")}</strong>',
+              '<strong>{selectedGlobalMarket?.displayName ?? (selectedDexMarket ? `${selectedDexMarket.symbol} / ${selectedDexMarket.quoteSymbol}` : selectedMarket?.displayName ?? symbol.replace("_", " / "))}</strong>',
+          )
+          replace_once(
+              '<small>{selectedDexMarket ? `${selectedDexMarket.dex.toUpperCase()} · ${selectedDexMarket.chain.toUpperCase()} DEX` : `MEXC · ${selectedMarket ? marketBadge(selectedMarket) : "PERP"}`} ▾</small>',
+              '<small>{selectedGlobalMarket ? `TWELVE DATA · ${selectedGlobalMarket.exchange.toUpperCase()}` : selectedDexMarket ? `${selectedDexMarket.dex.toUpperCase()} · ${selectedDexMarket.chain.toUpperCase()} DEX` : `MEXC · ${selectedMarket ? marketBadge(selectedMarket) : "PERP"}`} ▾</small>',
+          )
+          replace_once(
+              '                  selectedDexMarketKey={selectedDexMarket?.key}\n                  favourites={favourites}',
+              '                  selectedDexMarketKey={selectedDexMarket?.key}\n                  selectedGlobalMarketKey={selectedGlobalMarket?.key}\n                  favourites={favourites}',
+          )
+          replace_once(
+              '''                  onSelect={(market)=>{\n                    setSelectedDexMarket(null);\n                    setSymbol(market.sourceSymbol);''',
+              '''                  onSelect={(market)=>{\n                    setSelectedGlobalMarket(null);\n                    setSelectedDexMarket(null);\n                    setSymbol(market.sourceSymbol);''',
+          )
+          replace_once(
+              '''                  onSelectDex={(market)=>{\n                    setSelectedDexMarket(market);''',
+              '''                  onSelectDex={(market)=>{\n                    setSelectedGlobalMarket(null);\n                    setSelectedDexMarket(market);''',
+          )
+          replace_once(
+              '''                  onSelectDex={(market)=>{\n                    setSelectedGlobalMarket(null);\n                    setSelectedDexMarket(market);\n                    setRealtimeStatus("delayed");\n                    setSymbol(`${market.symbol}_${market.quoteSymbol}`);\n                    setSelectedMarketKey(`dex:${market.key}`);\n                    if (market.poolAddress===DIZY_USDT_POOL || !chartMarketSupportsTimeframe(createDexChartMarket(market), timeframe)) setTimeframe("1m");\n                    setExecutionMode("Off");\n                    setSettingsOpen(false);\n                    setSelectorOpen(false);\n                    requestAnimationFrame(()=>marketTrigger.current?.focus());\n                  }}''',
+              '''                  onSelectDex={(market)=>{\n                    setSelectedGlobalMarket(null);\n                    setSelectedDexMarket(market);\n                    setRealtimeStatus("delayed");\n                    setSymbol(`${market.symbol}_${market.quoteSymbol}`);\n                    setSelectedMarketKey(`dex:${market.key}`);\n                    if (market.poolAddress===DIZY_USDT_POOL || !chartMarketSupportsTimeframe(createDexChartMarket(market), timeframe)) setTimeframe("1m");\n                    setExecutionMode("Off");\n                    setSettingsOpen(false);\n                    setSelectorOpen(false);\n                    requestAnimationFrame(()=>marketTrigger.current?.focus());\n                  }}\n                  onSelectGlobal={(market)=>{\n                    setSelectedGlobalMarket(market);\n                    setSelectedDexMarket(null);\n                    setRealtimeStatus("delayed");\n                    setSymbol(market.symbol);\n                    setSelectedMarketKey(market.key);\n                    setExecutionMode("Off");\n                    setSettingsOpen(false);\n                    setSelectorOpen(false);\n                    requestAnimationFrame(()=>marketTrigger.current?.focus());\n                  }}''',
+          )
+          replace_exact(
+              '!replayActive && !dexSelected ?',
+              '!replayActive && futuresSelected ?',
+              2,
+          )
+          replace_once(
+              'journalContext={{symbol,market:selectedMarket?.displayName??symbol,marketKey:selectedMarketKey',
+              'journalContext={{symbol,market:selectedGlobalMarket?.displayName??selectedMarket?.displayName??symbol,marketKey:selectedMarketKey',
+          )
+
+          path.write_text(text)
+          PY
+          git diff --check
+          git diff -- app/trading-terminal.tsx
+      - name: Commit terminal integration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/trading-terminal.tsx
+          git commit -m "feat: wire global markets into trading terminal"
+          git push origin HEAD:market/global-search
