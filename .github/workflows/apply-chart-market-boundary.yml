@@ -1,0 +1,40 @@
+name: Apply chart market boundary
+
+on:
+  push:
+    branches:
+      - market/provider-neutral-chart-boundary
+
+permissions:
+  contents: write
+
+jobs:
+  rewrite:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply exact source rewrite
+        run: node scripts/apply-chart-market-boundary.mjs
+      - name: Verify rewrite scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only)"
+          test "$changed" = "app/trading-terminal.tsx"
+          git diff --check
+      - name: Commit rewritten terminal and remove one-shot tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm scripts/apply-chart-market-boundary.mjs .github/workflows/apply-chart-market-boundary.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/trading-terminal.tsx scripts/apply-chart-market-boundary.mjs .github/workflows/apply-chart-market-boundary.yml
+          git commit -m "refactor: consume provider-neutral chart market boundary"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
