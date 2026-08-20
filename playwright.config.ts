@@ -78,13 +78,14 @@ export default defineConfig({
           // Browser signup tests need the mail boundary configured so the real
           // route creates a pending-verification account. Port 1 is intentionally
           // closed: delivery fails fast and is recorded as undelivered without
-          // contacting an external mail service.
+          // contacting an external mail service. APP_BASE_URL remains HTTPS as
+          // required by the real production mail contract; .invalid cannot route.
           SMTP_HOST: "127.0.0.1",
           SMTP_PORT: "1",
           SMTP_USER: "e2e-mailer@dizytrades.local",
           SMTP_APP_PASSWORD: "e2e-only-not-a-real-secret",
           MAIL_FROM: "DizyTrades E2E <e2e-mailer@dizytrades.local>",
-          APP_BASE_URL: baseURL,
+          APP_BASE_URL: "https://e2e.dizytrades.invalid",
         },
       },
 });
