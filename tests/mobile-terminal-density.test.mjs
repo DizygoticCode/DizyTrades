@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 
-const [layout, controller, css] = await Promise.all([
+const [layout, controller, terminalShell, css] = await Promise.all([
   readFile("app/layout.tsx", "utf8"),
   readFile("app/mobile-terminal-density.tsx", "utf8"),
+  readFile("app/terminal-client-shell.tsx", "utf8"),
   readFile("app/mobile-terminal-density.css", "utf8"),
 ]);
 
@@ -16,6 +17,16 @@ test("mobile density controller is mounted without replacing the terminal compon
     layout.indexOf('import "./mobile-terminal-density.css";') <
       layout.indexOf('import "./terminal-responsive-mobile.css";'),
   );
+});
+
+test("mobile density waits for the terminal hydration contract before mutating terminal DOM", () => {
+  assert.match(terminalShell, /const TERMINAL_HYDRATED_EVENT = "dizy-terminal-hydrated";/);
+  assert.match(terminalShell, /document\.body\.dataset\.dizyTerminalHydrated = "true";/);
+  assert.match(terminalShell, /window\.dispatchEvent\(new Event\(TERMINAL_HYDRATED_EVENT\)\)/);
+  assert.match(controller, /const TERMINAL_HYDRATED_EVENT = "dizy-terminal-hydrated";/);
+  assert.match(controller, /document\.body\.dataset\.dizyTerminalHydrated === "true"/);
+  assert.match(controller, /window\.addEventListener\(TERMINAL_HYDRATED_EVENT, refresh\)/);
+  assert.match(controller, /window\.removeEventListener\(TERMINAL_HYDRATED_EVENT, refresh\)/);
 });
 
 test("phone density uses progressive disclosure over the real terminal controls", () => {
