@@ -21,6 +21,14 @@ test("CI browser smoke runs against production standalone Next while local Playw
   assert.match(config, /PORT: "3100",/);
 });
 
+test("internal Playwright server shares the repository data root with browser fixtures", () => {
+  assert.match(
+    config,
+    /const dataDir = process\.env\.DATA_DIR \?\? join\(process\.cwd\(\), "\.data"\);/,
+  );
+  assert.match(config, /DATA_DIR: dataDir,/);
+});
+
 test("production Playwright bootstrap supplies a distinct valid MFA encryption key", () => {
   const mfaMatch = config.match(
     /MFA_ENCRYPTION_KEY:\s*process\.env\.MFA_ENCRYPTION_KEY \?\?\s*"([A-Za-z0-9_-]+)"/,
