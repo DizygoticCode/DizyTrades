@@ -10,7 +10,7 @@ test("DizyFlow heatmap tile cache retains the exact serialized payload it budget
   assert.match(source, /const cache=new Map<string,\{payload:string;bytes:number\}>\(\)/);
   assert.match(source, /const remember=\(key:string,payload:string\)=>\{const bytes=Buffer\.byteLength\(payload\)/);
   assert.equal(source.match(/JSON\.stringify\(value\)/g)?.length, 1, "tile value must be serialized exactly once");
-  assert.match(source, /const payload=JSON\.stringify\(value\);remember\(key,payload\);return tileResponse\(payload,"miss"\)/);
+  assert.match(source, /const payload=JSON\.stringify\(value\);throwIfHeatmapTileBuildAborted\(request\.signal\);remember\(key,payload\);return tileResponse\(payload,"miss"\)/);
   assert.match(source, /return tileResponse\(hit\.payload,"hit"\)/);
   assert.doesNotMatch(source, /Buffer\.byteLength\(JSON\.stringify\(value\)\)/);
   assert.doesNotMatch(source, /value:LiquidityTileResponse/);
