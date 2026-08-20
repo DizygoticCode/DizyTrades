@@ -10,6 +10,10 @@ const [config, fixturePage] = await Promise.all([
 test("CI browser smoke runs against production standalone Next while local Playwright retains dev mode", () => {
   assert.match(
     config,
+    /const baseURL = process\.env\.PLAYWRIGHT_BASE_URL \?\? "http:\/\/localhost:3100";/,
+  );
+  assert.match(
+    config,
     /const localWebServerCommand = "npm run dev -- --hostname 127\.0\.0\.1 --port 3100";/,
   );
   assert.match(
