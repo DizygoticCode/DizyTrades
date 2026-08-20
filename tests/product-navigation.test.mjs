@@ -57,7 +57,14 @@ test("terminal uses the shared strip without obsolete duplicate product shortcut
   assert.doesNotMatch(terminalSource, /DizyBrainTopbarLink/);
   assert.match(navigationSource, /opensTerminalBrain/);
   assert.match(navigationSource, /\.dizybrain-launch/);
-  assert.match(navigationStyles, /height: calc\(100dvh - 42px\)/);
+  assert.match(
+    navigationStyles,
+    /height: calc\(100dvh - var\(--dizy-product-nav-height\)\)/,
+  );
+  assert.match(
+    navigationStyles,
+    /@media \(max-width: 760px\)[\s\S]*--dizy-product-nav-height: 76px;/,
+  );
   assert.match(navigationStyles, /\.school-terminal-link\)[\s\S]*display: none !important/);
 });
 
