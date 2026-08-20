@@ -25,7 +25,8 @@ async function openFreshScanner(page: Page) {
     }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "Skip to main content" })).toBeAttached();
-  await expect(page.getByRole("button", { name: /Commands/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Commands/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Recent" })).toHaveCount(0);
   await expect
     .poll(() => page.evaluate(() => document.activeElement === document.body))
     .toBe(true);
@@ -63,7 +64,8 @@ test("protected workspace supports skip navigation and trapped modal focus", asy
   await expect(main).toHaveAttribute("id", "main-content");
   await expect(main).toBeFocused();
 
-  const commandsTrigger = page.getByRole("button", { name: /Commands/ });
+  // The command palette remains globally keyboard-accessible even where its
+  // visual terminal-only trigger is intentionally absent.
   await page.keyboard.press("Control+K");
   const dialog = page.getByRole("dialog", {
     name: "DizyTrades command palette",
@@ -82,9 +84,14 @@ test("protected workspace supports skip navigation and trapped modal focus", asy
 
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
-  await expect(commandsTrigger).toBeFocused();
+  await expect(main).toBeFocused();
 
+  // Recent has no global keyboard shortcut, so its modal remains covered from
+  // the terminal where the visible quick action belongs.
+  await page.goto("/terminal");
   const recentTrigger = page.getByRole("button", { name: "Recent" });
+  await expect(page.getByRole("button", { name: /Commands/ })).toBeVisible();
+  await expect(recentTrigger).toBeVisible();
   await recentTrigger.click();
   const recentDialog = page.getByRole("dialog", {
     name: "DizyTrades recent shortcuts",
@@ -102,9 +109,7 @@ test("protected workspaces expose visible focus and reduced-motion behaviour", a
   await openFreshScanner(page);
 
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("link", { name: "Skip to main content" })).toBeFocused();
-  await page.keyboard.press("Tab");
-  const trigger = page.getByRole("button", { name: /Commands/ });
+  const trigger = page.getByRole("link", { name: "Skip to main content" });
   await expect(trigger).toBeFocused();
   const focusStyle = await trigger.evaluate((element) => {
     const style = getComputedStyle(element);

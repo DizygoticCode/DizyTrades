@@ -226,7 +226,8 @@ test("modal background is inert and cannot receive programmatic focus", async ({
   page,
 }) => {
   await loginViewer(page);
-  await page.goto("/scanner");
+  // The visual trigger is terminal-only; exercise modal isolation from the
+  // workspace where that visible opener is part of the UI contract.
   await expect(page.getByRole("button", { name: /Commands/ })).toBeVisible();
   await page.keyboard.press("Control+K");
 

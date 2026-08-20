@@ -106,6 +106,23 @@ function focusMainContent() {
   main.scrollIntoView({ block: "start", behavior: "auto" });
 }
 
+function restoreOpenerFocus(element: HTMLElement) {
+  // Skip-link targets deliberately drop their temporary tabindex on blur. If
+  // such a target opened a modal through a global shortcut, make it
+  // programmatically focusable for restoration without adding it to tab order.
+  const temporaryTabIndex =
+    !element.hasAttribute("tabindex") && element.tabIndex < 0;
+  if (temporaryTabIndex) {
+    element.tabIndex = -1;
+    element.addEventListener(
+      "blur",
+      () => element.removeAttribute("tabindex"),
+      { once: true },
+    );
+  }
+  element.focus({ preventScroll: true });
+}
+
 export function AccessibilityFoundation() {
   const pathname = usePathname();
   const active = protectedPrefixes.some(
@@ -141,7 +158,7 @@ export function AccessibilityFoundation() {
         const restore = opener;
         opener = null;
         if (restore?.isConnected) {
-          window.requestAnimationFrame(() => restore.focus());
+          window.requestAnimationFrame(() => restoreOpenerFocus(restore));
         }
       }
     };

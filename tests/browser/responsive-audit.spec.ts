@@ -33,15 +33,26 @@ async function loginOwner(page: Page) {
 async function expectViewportContained(page: Page, route: string) {
   await page.goto(route);
   await expect(page).toHaveURL(new RegExp(`${route.replaceAll("/", "\\/")}$`));
-  await expect(page.getByRole("button", { name: /Commands/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Recent" })).toBeVisible();
+  const terminal = route === "/terminal";
+  const commands = page.getByRole("button", { name: /Commands/ });
+  const recent = page.getByRole("button", { name: "Recent" });
+  if (terminal) {
+    await expect(commands).toBeVisible();
+    await expect(recent).toBeVisible();
+  } else {
+    await expect(commands).toHaveCount(0);
+    await expect(recent).toHaveCount(0);
+  }
 
   const geometry = await page.evaluate(() => {
     const controls = [
       document.querySelector<HTMLElement>(".command-palette-floating"),
       document.querySelector<HTMLElement>(".recent-shortcuts-trigger"),
     ]
-      .filter((item): item is HTMLElement => Boolean(item))
+      .filter(
+        (item): item is HTMLElement =>
+          Boolean(item && item.getClientRects().length > 0),
+      )
       .map((item) => {
         const box = item.getBoundingClientRect();
         return {
@@ -72,7 +83,9 @@ async function expectViewportContained(page: Page, route: string) {
   expect(geometry.bodyWidth, `${route} body overflow`).toBeLessThanOrEqual(
     geometry.viewportWidth + 1,
   );
-  expect(geometry.controls).toHaveLength(2);
+  expect(geometry.controls).toHaveLength(terminal ? 2 : 0);
+  if (!terminal) return;
+
   for (const control of geometry.controls) {
     expect(control.left).toBeGreaterThanOrEqual(0);
     expect(control.right).toBeLessThanOrEqual(geometry.viewportWidth + 1);
@@ -134,13 +147,14 @@ test("viewer workspaces remain contained and reachable on a phone", async ({ pag
   }
 
   await page.goto("/scanner");
-  await expect(page.getByRole("button", { name: /Commands/ })).toBeVisible();
-  // Ctrl+K is the product shortcut and avoids Next's development overlay
-  // occasionally intercepting a physical click in the test environment.
+  await expect(page.getByRole("button", { name: /Commands/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Recent" })).toHaveCount(0);
+  // Ctrl+K remains global even where terminal-only visual quick actions are hidden.
   await page.keyboard.press("Control+K");
   await expectDialogContained(page, "DizyTrades command palette");
   await page.keyboard.press("Escape");
 
+  await page.goto("/terminal");
   await expect(page.getByRole("button", { name: "Recent" })).toBeVisible();
   await page.locator(".recent-shortcuts-trigger").evaluate((button) => {
     (button as HTMLButtonElement).click();
