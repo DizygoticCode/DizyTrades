@@ -460,7 +460,7 @@
 
   .terminal-shell .dizybrain-launch {
     right: max(8px, env(safe-area-inset-right));
-    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 42px);
+    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 76px);
     min-height: 42px;
   }
 }
