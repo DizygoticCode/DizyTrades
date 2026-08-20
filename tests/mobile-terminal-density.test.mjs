@@ -27,9 +27,9 @@ test("phone density uses progressive disclosure over the real terminal controls"
   assert.match(controller, /button\[aria-label="Minimise Manual Paper"\]/);
   assert.match(controller, /\.replay-controls:not\(\.active\) button/);
   assert.match(controller, /aria-label="Compact terminal controls"/);
-  assert.match(controller, />Tools</);
-  assert.match(controller, />Paper</);
-  assert.match(controller, />Replay</);
+  assert.match(controller, /aria-controls="mobile-terminal-tools"[\s\S]*?Tools[\s\S]*?<\/button>/);
+  assert.match(controller, /aria-pressed=\{snapshot\.paperExpanded\}[\s\S]*?Paper[\s\S]*?<\/button>/);
+  assert.match(controller, /aria-pressed=\{snapshot\.replayActive\}[\s\S]*?Replay[\s\S]*?<\/button>/);
 });
 
 test("default phone chrome hides dense surfaces while keeping explicit reveal states", () => {
