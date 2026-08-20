@@ -195,7 +195,11 @@ test("public routes expose named controls and coherent document structure", asyn
 }) => {
   for (const path of ["/", "/login", "/signup", "/school", "/explore"]) {
     await page.goto(path);
-    await expect(page).toHaveURL(new RegExp(`${path === "/" ? "/$" : `${path}$`}`));
+    const expectedUrl =
+      path === "/school"
+        ? /\/school(?:\?lesson=[a-z0-9-]+)?$/
+        : new RegExp(`${path === "/" ? "/$" : `${path}$`}`);
+    await expect(page).toHaveURL(expectedUrl);
     await auditCurrentPage(page, path);
   }
 });
