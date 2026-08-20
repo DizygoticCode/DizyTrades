@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 
-const config = await readFile("playwright.config.ts", "utf8");
+const [config, fixturePage] = await Promise.all([
+  readFile("playwright.config.ts", "utf8"),
+  readFile("app/dizyflow-fixture/page.tsx", "utf8"),
+]);
 
 test("CI browser smoke runs against production standalone Next while local Playwright retains dev mode", () => {
   assert.match(
@@ -27,6 +30,15 @@ test("internal Playwright server shares the repository data root with browser fi
     /const dataDir = process\.env\.DATA_DIR \?\? join\(process\.cwd\(\), "\.data"\);/,
   );
   assert.match(config, /DATA_DIR: dataDir,/);
+});
+
+test("production browser gate explicitly enables the otherwise hidden DizyFlow visual fixture", () => {
+  assert.match(config, /DIZYFLOW_VISUAL_FIXTURE_ENABLED: "true",/);
+  assert.match(
+    fixturePage,
+    /process\.env\.NODE_ENV === "development" \|\|\s*process\.env\.DIZYFLOW_VISUAL_FIXTURE_ENABLED === "true"/,
+  );
+  assert.match(fixturePage, /if \(!visualFixtureEnabled\) notFound\(\);/);
 });
 
 test("production Playwright bootstrap supplies a distinct valid MFA encryption key", () => {
