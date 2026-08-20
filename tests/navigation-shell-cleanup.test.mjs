@@ -7,10 +7,8 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 test("quick actions stay global and portal into the native terminal system strip when available", async () => {
   const source = await read("app/command-palette-mounted.tsx");
   assert.match(source, /\.terminal-shell \.topbar \.system-strip/);
-  assert.match(
-    source,
-    /terminalToolbar \? createPortal\(<QuickActions \/>, terminalToolbar\) : <QuickActions \/>/,
-  );
+  assert.match(source, /createPortal\(<QuickActions \/>, terminalToolbar\)/);
+  assert.match(source, /<QuickActions hidden \/>/);
   assert.equal((source.match(/<CommandPalette \/>/g) ?? []).length, 1);
   assert.equal((source.match(/<RecentShortcuts \/>/g) ?? []).length, 1);
 });
