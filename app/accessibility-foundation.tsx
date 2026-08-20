@@ -109,12 +109,18 @@ function focusMainContent() {
 function restoreOpenerFocus(element: HTMLElement) {
   // Skip-link targets deliberately drop their temporary tabindex on blur. If
   // such a target opened a modal through a global shortcut, make it
-  // programmatically focusable just for restoration without changing tab order.
+  // programmatically focusable for restoration without adding it to tab order.
   const temporaryTabIndex =
     !element.hasAttribute("tabindex") && element.tabIndex < 0;
-  if (temporaryTabIndex) element.tabIndex = -1;
+  if (temporaryTabIndex) {
+    element.tabIndex = -1;
+    element.addEventListener(
+      "blur",
+      () => element.removeAttribute("tabindex"),
+      { once: true },
+    );
+  }
   element.focus({ preventScroll: true });
-  if (temporaryTabIndex) element.removeAttribute("tabindex");
 }
 
 export function AccessibilityFoundation() {
