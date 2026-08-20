@@ -52,3 +52,14 @@ test("default phone chrome hides dense surfaces while keeping explicit reveal st
   assert.match(css, /--dizy-product-nav-height: 44px !important;/);
   assert.match(css, /#manual-paper-panel:not\(:has\(aside\)\)/);
 });
+
+test("fixed DizyBrain launcher clears both compact terminal rows", () => {
+  assert.match(
+    css,
+    /\.terminal-shell \.dizybrain-launch \{\s*bottom: calc\(76px \+ env\(safe-area-inset-bottom\)\) !important;/s,
+  );
+  assert.match(
+    css,
+    /#manual-paper-panel:has\(aside\)\) \.terminal-shell \.dizybrain-launch \{\s*bottom: calc\(168px \+ env\(safe-area-inset-bottom\)\) !important;/s,
+  );
+});
