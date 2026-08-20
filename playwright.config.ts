@@ -2,8 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
 const localWebServerCommand = "npm run dev -- --hostname 127.0.0.1 --port 3100";
-const ciWebServerCommand =
-  "npm run build && npm run start -- --hostname 127.0.0.1 --port 3100";
+const ciWebServerCommand = "npm run build && npm run start";
 
 export default defineConfig({
   testDir: "./tests/browser",
@@ -41,6 +40,11 @@ export default defineConfig({
         timeout: 120_000,
         env: {
           ...process.env,
+          // The production script runs Next's standalone server directly, so
+          // it reads its bind address from environment variables rather than
+          // accepting `next start` CLI flags.
+          HOSTNAME: "127.0.0.1",
+          PORT: "3100",
           SESSION_SECRET:
             process.env.SESSION_SECRET ??
             "dizytrades-e2e-session-secret-2026-at-least-32-characters",
