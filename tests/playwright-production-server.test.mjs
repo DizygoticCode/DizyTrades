@@ -45,6 +45,12 @@ test("production browser gate explicitly enables the otherwise hidden DizyFlow v
   assert.match(fixturePage, /if \(!visualFixtureEnabled\) notFound\(\);/);
 });
 
+test("production signup fixture keeps the real HTTPS mail-link requirement", () => {
+  assert.match(config, /APP_BASE_URL: "https:\/\/e2e\.dizytrades\.invalid",/);
+  assert.match(config, /SMTP_HOST: "127\.0\.0\.1",/);
+  assert.match(config, /SMTP_PORT: "1",/);
+});
+
 test("production Playwright bootstrap supplies a distinct valid MFA encryption key", () => {
   const mfaMatch = config.match(
     /MFA_ENCRYPTION_KEY:\s*process\.env\.MFA_ENCRYPTION_KEY \?\?\s*"([A-Za-z0-9_-]+)"/,
