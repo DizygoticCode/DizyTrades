@@ -117,6 +117,17 @@
     max-height: 34px !important;
   }
 
+  /* The global DizyBrain launcher is fixed to the viewport. Keep it above the
+     compact rail + collapsed Paper row instead of letting it intercept their
+     pointer targets. When Paper is open, lift it above that bounded 160px slot. */
+  body:has(.terminal-shell) .terminal-shell .dizybrain-launch {
+    bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+  }
+
+  body:has(.terminal-shell #manual-paper-panel:has(aside)) .terminal-shell .dizybrain-launch {
+    bottom: calc(168px + env(safe-area-inset-bottom)) !important;
+  }
+
   body:has(.terminal-shell) .terminal-shell:not([data-mobile-density-tools="open"]) .drawing-toolbar {
     display: none !important;
   }
