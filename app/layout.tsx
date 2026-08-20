@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { CommandPaletteMounted } from "./command-palette-mounted";
 import { HeatmapSettingsPortal } from "./heatmap-settings-portal";
+import { MobileTerminalDensity } from "./mobile-terminal-density";
 import { ProductNavigation } from "./product-navigation";
 import "./globals.css";
 import "./responsive-audit.css";
@@ -13,6 +14,7 @@ import "./terminal-scrollbar-polish.css";
 import "./terminal-topbar-polish.css";
 import "./heatmap-settings.css";
 import "./navigation-shell-cleanup.css";
+import "./mobile-terminal-density.css";
 import "./terminal-responsive-mobile.css";
 
 export const metadata: Metadata = {
@@ -43,6 +45,7 @@ export default function RootLayout({
       <body>
         <CommandPaletteMounted />
         <HeatmapSettingsPortal />
+        <MobileTerminalDensity />
         <ProductNavigation />
         {children}
       </body>
