@@ -123,6 +123,7 @@ body:has([data-testid="dizy-product-navigation"]) main > nav a:is(
 
 @media (max-width: 760px) {
   body:has(.terminal-shell) .system-strip {
+    display: flex !important;
     min-width: 0;
     height: 56px !important;
     padding: 0 !important;
