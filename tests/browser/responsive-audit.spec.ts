@@ -131,6 +131,37 @@ async function expectDialogContained(page: Page, name: string) {
   }
 }
 
+async function terminalMobileGeometry(page: Page) {
+  return page.evaluate(() => {
+    const bounds = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`Missing ${selector}`);
+      const box = element.getBoundingClientRect();
+      return {
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom,
+        width: box.width,
+        height: box.height,
+      };
+    };
+    const systemStrip = document.querySelector<HTMLElement>(".system-strip");
+    return {
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      documentWidth: document.documentElement.scrollWidth,
+      productNav: bounds('[data-testid="dizy-product-navigation"]'),
+      terminal: bounds(".terminal-shell"),
+      topbar: bounds(".topbar"),
+      marketToolbar: bounds(".market-toolbar"),
+      chart: bounds(".chart-wrap"),
+      systemClientWidth: systemStrip?.clientWidth ?? 0,
+      systemScrollWidth: systemStrip?.scrollWidth ?? 0,
+    };
+  });
+}
+
 test("viewer workspaces remain contained and reachable on a phone", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await loginViewer(page);
@@ -164,6 +195,57 @@ test("viewer workspaces remain contained and reachable on a phone", async ({ pag
     .locator(".recent-shortcuts-grid")
     .evaluate((element) => getComputedStyle(element).gridTemplateColumns);
   expect(columns.trim().split(/\s+/)).toHaveLength(1);
+});
+
+test("terminal preserves usable chart geometry in phone portrait and landscape", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await loginViewer(page);
+
+  const viewport = await page.locator('meta[name="viewport"]').getAttribute("content");
+  expect(viewport).toContain("width=device-width");
+  expect(viewport).toContain("viewport-fit=cover");
+
+  const portrait = await terminalMobileGeometry(page);
+  expect(portrait.documentWidth).toBeLessThanOrEqual(portrait.viewportWidth + 1);
+  expect(portrait.terminal.top).toBeGreaterThanOrEqual(portrait.productNav.bottom - 1);
+  expect(portrait.terminal.bottom).toBeLessThanOrEqual(portrait.viewportHeight + 1);
+  expect(portrait.topbar.height).toBeLessThanOrEqual(50);
+  expect(portrait.marketToolbar.height).toBeLessThanOrEqual(144);
+  expect(portrait.chart.width).toBeGreaterThanOrEqual(300);
+  expect(portrait.chart.height).toBeGreaterThanOrEqual(120);
+  expect(portrait.systemClientWidth).toBeGreaterThan(120);
+  expect(portrait.systemScrollWidth).toBeGreaterThanOrEqual(portrait.systemClientWidth);
+
+  await page.setViewportSize({ width: 844, height: 390 });
+  const landscape = await terminalMobileGeometry(page);
+  expect(landscape.documentWidth).toBeLessThanOrEqual(landscape.viewportWidth + 1);
+  expect(landscape.terminal.top).toBeGreaterThanOrEqual(landscape.productNav.bottom - 1);
+  expect(landscape.terminal.bottom).toBeLessThanOrEqual(landscape.viewportHeight + 1);
+  expect(landscape.topbar.height).toBeLessThanOrEqual(50);
+  expect(landscape.marketToolbar.height).toBeLessThanOrEqual(96);
+  expect(landscape.chart.width).toBeGreaterThanOrEqual(600);
+  expect(landscape.chart.height).toBeGreaterThanOrEqual(60);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator(".dizybrain-launch").click();
+  const brain = page.locator("#dizybrain-workspace");
+  await expect(brain).toBeVisible();
+  const drawer = await page.evaluate(() => {
+    const nav = document
+      .querySelector<HTMLElement>('[data-testid="dizy-product-navigation"]')!
+      .getBoundingClientRect();
+    const panel = document
+      .querySelector<HTMLElement>("#dizybrain-workspace")!
+      .getBoundingClientRect();
+    return {
+      navBottom: nav.bottom,
+      panelTop: panel.top,
+      panelBottom: panel.bottom,
+      viewportHeight: window.innerHeight,
+    };
+  });
+  expect(drawer.panelTop).toBeGreaterThanOrEqual(drawer.navBottom - 1);
+  expect(drawer.panelBottom).toBeLessThanOrEqual(drawer.viewportHeight + 1);
 });
 
 test("owner operations remain usable on phone and small-tablet widths", async ({ page }) => {

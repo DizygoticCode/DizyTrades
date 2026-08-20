@@ -1,28 +1,566 @@
-/* Narrow-screen completion for the reserved terminal action row. */
-@media (max-width: 760px) {
-  body:has(.terminal-shell) .terminal-body-layout {
-    padding-top: 98px;
+/*
+ * Final phone-sized terminal layout contract.
+ *
+ * This stylesheet is intentionally imported last. Earlier responsive layers
+ * keep their desktop/tablet responsibilities; this file owns the final phone
+ * and phone-landscape geometry so terminal controls do not fight each other.
+ */
+
+@media (max-width: 760px), (max-width: 900px) and (max-height: 500px) {
+  body:has(.terminal-shell) {
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
-  body:has(.terminal-shell) .global-quick-actions {
-    top: 68px;
-    right: max(8px, env(safe-area-inset-right));
-    bottom: auto;
-    left: auto;
-    flex-direction: column-reverse;
-    flex-wrap: nowrap;
-    align-items: flex-end;
-    justify-content: flex-start;
-    gap: 6px;
-    width: max-content;
-    max-width: calc(100vw - 16px);
+  body:has(.terminal-shell) .terminal-shell {
+    width: 100%;
+    min-width: 0;
+    height: calc(100dvh - var(--dizy-product-nav-height, 76px)) !important;
+    max-height: calc(100dvh - var(--dizy-product-nav-height, 76px));
+    overflow: hidden;
+  }
+
+  /* Shared product navigation already owns the brand on phones. Keep the
+     terminal row for live state, workflow actions and the compact profile. */
+  body:has(.terminal-shell) .topbar {
+    min-width: 0;
+    min-height: 48px !important;
+    height: 48px !important;
+    flex: 0 0 48px;
+    display: flex;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    gap: 6px !important;
+    padding: 4px max(6px, env(safe-area-inset-right)) 4px max(6px, env(safe-area-inset-left)) !important;
+    overflow: hidden !important;
+  }
+
+  body:has(.terminal-shell) .brand-lockup {
+    display: none !important;
+  }
+
+  body:has(.terminal-shell) .profile {
+    flex: 0 0 auto;
+    gap: 4px;
+  }
+
+  body:has(.terminal-shell) .account-switch {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    grid-template-columns: 28px;
+    grid-template-rows: 28px;
+    padding: 4px;
+  }
+
+  body:has(.terminal-shell) .account-switch > span {
+    grid-row: 1;
+  }
+
+  body:has(.terminal-shell) .account-switch b,
+  body:has(.terminal-shell) .account-switch em {
+    display: none;
+  }
+
+  body:has(.terminal-shell) .icon-button {
+    width: 36px;
+    height: 36px;
+  }
+
+  body:has(.terminal-shell) .system-strip {
+    min-width: 0;
+    height: 40px !important;
+    padding: 0 !important;
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    align-content: center !important;
+    gap: 4px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body:has(.terminal-shell) .system-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  body:has(.terminal-shell) .system-strip::after,
+  body:has(.terminal-shell) .system-strip > .nav-tab,
+  body:has(.terminal-shell) .system-strip > .confirmed,
+  body:has(.terminal-shell) .system-strip > .test-mode,
+  body:has(.terminal-shell) .system-strip > .lock-status {
+    display: none !important;
+  }
+
+  body:has(.terminal-shell) .system-strip > .connection,
+  body:has(.terminal-shell) .system-strip > .viewer-badge {
+    order: 2 !important;
+    display: inline-flex !important;
+    flex: 0 0 auto;
+    align-items: center;
+    min-height: 32px;
+    padding: 5px 7px;
+    border-radius: 6px;
+    font-size: 9px;
+    white-space: nowrap;
+  }
+
+  body:has(.terminal-shell) .system-strip > .global-quick-actions {
+    position: static !important;
+    inset: auto !important;
+    z-index: auto !important;
+    order: 1 !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-flow: row nowrap !important;
+    align-items: center !important;
+    gap: 4px !important;
   }
 
   body:has(.terminal-shell) .global-quick-actions .command-palette-floating,
   body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger {
+    position: static !important;
+    inset: auto !important;
     width: auto !important;
-    min-width: max-content !important;
-    max-width: calc(100vw - 16px);
+    min-width: 34px !important;
+    max-width: none !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    margin: 0 !important;
+    padding-inline: 7px !important;
+    overflow: visible !important;
+    font-size: 9px !important;
+    white-space: nowrap;
+    transform: none !important;
+  }
+
+  body:has(.terminal-shell) .global-quick-actions .command-palette-floating kbd {
+    display: none;
+  }
+
+  body:has(.terminal-shell) .terminal-body-layout {
+    min-width: 0;
+    min-height: 0;
+    padding-top: 0 !important;
+    overflow: hidden;
+  }
+
+  .terminal-shell .terminal-primary-column,
+  .terminal-shell .terminal-primary-column:has(.settings-panel) {
+    width: 100%;
+    min-width: 0 !important;
+    min-height: 0;
+    padding-right: 0 !important;
+  }
+
+  /* The market bar is dense by design. On a phone it owns a bounded internal
+     scroll surface rather than growing until the chart disappears. */
+  .terminal-shell .market-toolbar {
+    min-width: 0;
+    min-height: 0;
+    max-width: 100%;
+    max-height: 142px;
     flex: 0 0 auto;
+    flex-wrap: wrap !important;
+    align-items: center;
+    align-content: flex-start;
+    gap: 6px 8px;
+    padding: 6px 8px;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .terminal-shell .market-toolbar > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .terminal-shell .symbol-block {
+    min-width: 0;
+    flex: 1 1 132px;
+    gap: 7px;
+  }
+
+  .terminal-shell .coin {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    font-size: 16px;
+  }
+
+  .terminal-shell .symbol-block strong {
+    font-size: 12px;
+  }
+
+  .terminal-shell .symbol-block small {
+    font-size: 9px;
+  }
+
+  .terminal-shell .quote-block {
+    min-width: 88px;
+    flex: 0 0 auto;
+  }
+
+  .terminal-shell .toolbar-divider {
+    display: none;
+  }
+
+  .terminal-shell .timeframes {
+    order: 20;
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 190px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .terminal-shell .timeframes button,
+  .terminal-shell .mode-control button {
+    height: 32px;
+    min-height: 32px;
+  }
+
+  .terminal-shell .timeframes button {
+    width: 34px;
+    min-width: 34px;
+  }
+
+  .terminal-shell .chart-view-actions {
+    order: 21;
+    min-width: 0;
+    max-width: 100%;
+    flex: 0 1 auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .terminal-shell .chart-view-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .terminal-shell .chart-view-actions button,
+  .terminal-shell .preset-button,
+  .terminal-shell .refresh-button {
+    height: 34px;
+    min-height: 34px;
+  }
+
+  .terminal-shell .dizyflow-controls {
+    order: 30;
+    width: 100%;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    overflow: hidden !important;
+  }
+
+  .terminal-shell .flow-component-toggles {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .terminal-shell .flow-component-toggles::-webkit-scrollbar {
+    display: none;
+  }
+
+  .terminal-shell .flow-component-toggles > button {
+    flex: 0 0 auto !important;
+    min-height: 32px;
+  }
+
+  .terminal-shell .flow-toast-rail {
+    order: 31;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  .terminal-shell .replay-controls {
+    min-width: 0;
+    max-width: 100%;
+    min-height: 0;
+    max-height: 92px;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 5px 8px;
+    overflow: auto;
+  }
+
+  .terminal-shell .replay-flow-note {
+    margin-left: 0;
+  }
+
+  /* The chart is the primary phone surface. Signal cards become a horizontal
+     rail and an open DOM stacks below the chart instead of crushing its width. */
+  .terminal-shell .workspace,
+  .terminal-shell .workspace.panel-closed {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+    grid-template-areas: "chart" !important;
+    overflow: hidden;
+  }
+
+  .terminal-shell .workspace:has(.dizyflow-dom),
+  .terminal-shell .workspace.panel-closed:has(.dizyflow-dom) {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: minmax(0, 1fr) minmax(150px, 32dvh) !important;
+    grid-template-areas:
+      "chart"
+      "dom" !important;
+  }
+
+  .terminal-shell .chart-section {
+    grid-area: chart;
+    min-width: 0;
+    min-height: 0;
+    grid-template-rows: 34px minmax(0, 1fr) auto;
+    overflow: hidden;
+  }
+
+  /* Manual Paper is a flex sibling of the workspace. Its persisted desktop
+     height must be bounded before the workspace receives its phone share. */
+  .terminal-shell .terminal-primary-column > #manual-paper-panel {
+    flex: 0 0 160px !important;
+    min-height: 160px !important;
+    height: 160px !important;
+    max-height: 160px !important;
+  }
+
+  .terminal-shell .terminal-primary-column > #manual-paper-panel > div:last-child {
+    min-height: 0 !important;
+    height: calc(100% - 38px) !important;
+    display: block !important;
+    overflow: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .terminal-shell .chart-status-row {
+    min-width: 0;
+    min-height: 34px;
+    padding: 0 8px;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  .terminal-shell .chart-status-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .terminal-shell .chart-status-row > div {
+    flex: 0 0 auto;
+    gap: 8px;
+  }
+
+  .terminal-shell .chart-wrap,
+  .terminal-shell .chart-tools-grid {
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .terminal-shell .signal-dock,
+  .terminal-shell .terminal-primary-column:has(.settings-panel) .signal-dock {
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    display: flex !important;
+    grid-template-columns: none !important;
+    flex-flow: row nowrap;
+    gap: 6px;
+    padding: 6px;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .terminal-shell .signal-dock::-webkit-scrollbar {
+    display: none;
+  }
+
+  .terminal-shell .signal-dock article {
+    min-width: 132px;
+    max-width: 160px;
+    flex: 0 0 min(44vw, 160px);
+  }
+
+  .terminal-shell .dizyflow-dom {
+    grid-area: dom;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 0;
+    border-left: 0 !important;
+    border-top: 1px solid #342b4b;
+    overflow: hidden !important;
+  }
+
+  .terminal-shell .dom-book {
+    min-height: 0;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Fixed inspectors are anchored below the shared product bar, not to a
+     stale desktop-era 62px offset. */
+  .terminal-shell .settings-panel {
+    position: fixed !important;
+    z-index: 82;
+    top: var(--dizy-product-nav-height, 76px) !important;
+    right: 0;
+    bottom: 0;
+    width: min(100vw, 380px) !important;
+    min-width: min(100vw, 380px) !important;
+    max-width: min(100vw, 380px) !important;
+    height: calc(100dvh - var(--dizy-product-nav-height, 76px)) !important;
+    max-height: calc(100dvh - var(--dizy-product-nav-height, 76px));
+    box-shadow: -20px 0 55px #000c;
+  }
+
+  .terminal-shell .brain-mobile-backdrop.visible {
+    top: var(--dizy-product-nav-height, 76px) !important;
+  }
+
+  .terminal-shell .dizybrain-workspace.drawer {
+    top: var(--dizy-product-nav-height, 76px) !important;
+    right: 0;
+    width: min(100vw, 420px) !important;
+    max-width: min(100vw, 420px) !important;
+    height: calc(100dvh - var(--dizy-product-nav-height, 76px)) !important;
+    max-height: calc(100dvh - var(--dizy-product-nav-height, 76px));
+  }
+
+  .terminal-shell .dizybrain-launch {
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    min-height: 42px;
+  }
+}
+
+@media (max-width: 420px) {
+  body:has(.terminal-shell) .topbar {
+    gap: 4px !important;
+    padding-inline: max(4px, env(safe-area-inset-left)) max(4px, env(safe-area-inset-right)) !important;
+  }
+
+  body:has(.terminal-shell) .profile {
+    gap: 3px;
+  }
+
+  body:has(.terminal-shell) .global-quick-actions .command-palette-floating,
+  body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger {
+    padding-inline: 6px !important;
+  }
+
+  .terminal-shell .market-toolbar {
+    max-height: 132px;
+    padding-inline: 6px;
+  }
+
+  .terminal-shell .symbol-block small {
+    display: none;
+  }
+
+  .terminal-shell .signal-dock article {
+    flex-basis: min(48vw, 150px);
+  }
+}
+
+@media (max-width: 900px) and (max-height: 500px) {
+  /* Short landscape trades vertical wrapping for bounded horizontal rails so
+     the candle canvas remains a usable primary surface. */
+  .terminal-shell .market-toolbar {
+    max-height: 64px;
+    flex-wrap: nowrap !important;
+    align-content: center;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding-block: 4px;
+    scrollbar-width: thin;
+  }
+
+  .terminal-shell .market-toolbar > * {
+    flex-shrink: 0;
+  }
+
+  .terminal-shell .replay-controls {
+    max-height: 70px;
+  }
+
+  .terminal-shell .workspace:has(.dizyflow-dom),
+  .terminal-shell .workspace.panel-closed:has(.dizyflow-dom) {
+    grid-template-rows: minmax(0, 1fr) minmax(110px, 38dvh) !important;
+  }
+
+  .terminal-shell .chart-section {
+    grid-template-rows: 34px minmax(60px, 1fr) 36px;
+  }
+
+  .terminal-shell .terminal-primary-column > #manual-paper-panel {
+    flex: 0 0 38px !important;
+    min-height: 38px !important;
+    height: 38px !important;
+    max-height: 38px !important;
+  }
+
+  .terminal-shell .terminal-primary-column > #manual-paper-panel > div:first-child,
+  .terminal-shell .terminal-primary-column > #manual-paper-panel > div:last-child {
+    display: none !important;
+  }
+
+  .terminal-shell .signal-dock,
+  .terminal-shell .terminal-primary-column:has(.settings-panel) .signal-dock {
+    height: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    padding: 2px 4px;
+    align-items: stretch;
+  }
+
+  .terminal-shell .signal-dock article {
+    min-height: 32px;
+    max-height: 32px;
+    padding: 3px 8px;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .terminal-shell .signal-dock strong {
+    margin-top: 0;
+    font-size: 12px;
+  }
+
+  .terminal-shell .signal-dock small,
+  .terminal-shell .signal-dock .score-track {
+    display: none;
   }
 }

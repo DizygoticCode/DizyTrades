@@ -24,21 +24,30 @@ const [
   readFile("app/order-flow-toolbar.tsx", "utf8"),
 ]);
 
-test("terminal scrollbar polish is the final global stylesheet", () => {
+test("terminal mobile polish is the final global stylesheet", () => {
   const terminalStyles = layout.indexOf('import "./terminal-visual-fixes.css";');
   const responsiveStyles = layout.indexOf(
     'import "./terminal-responsive-polish.css";',
   );
-  const mobileStyles = layout.indexOf(
-    'import "./terminal-responsive-mobile.css";',
-  );
   const scrollbarStyles = layout.indexOf(
     'import "./terminal-scrollbar-polish.css";',
   );
+  const navigationStyles = layout.indexOf(
+    'import "./navigation-shell-cleanup.css";',
+  );
+  const mobileStyles = layout.indexOf(
+    'import "./terminal-responsive-mobile.css";',
+  );
+  const cssImports = [...layout.matchAll(/^import ".*\.css";$/gm)];
   assert.ok(terminalStyles >= 0);
   assert.ok(responsiveStyles > terminalStyles);
-  assert.ok(mobileStyles > responsiveStyles);
-  assert.ok(scrollbarStyles > mobileStyles);
+  assert.ok(scrollbarStyles > responsiveStyles);
+  assert.ok(navigationStyles > scrollbarStyles);
+  assert.ok(mobileStyles > navigationStyles);
+  assert.equal(
+    cssImports.at(-1)?.[0],
+    'import "./terminal-responsive-mobile.css";',
+  );
 });
 
 test("Commands and Recent stay global and portal into the native terminal strip without a reserved row", () => {
