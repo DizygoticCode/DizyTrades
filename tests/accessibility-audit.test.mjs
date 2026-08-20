@@ -25,7 +25,9 @@ test("protected workspaces mount one shared accessibility foundation", async () 
 
   assert.match(foundation, /\[role="dialog"\]\[aria-modal="true"\]/);
   assert.match(foundation, /event\.key !== "Tab"/);
-  assert.match(foundation, /restore\.focus\(\)/);
+  assert.match(foundation, /function restoreOpenerFocus\(element: HTMLElement\)/);
+  assert.match(foundation, /element\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(foundation, /restoreOpenerFocus\(restore\)/);
   assert.match(layout, /import "\.\/accessibility-audit\.css"/);
 });
 

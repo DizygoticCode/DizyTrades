@@ -134,7 +134,8 @@ body:has([data-testid="dizy-product-navigation"]) main > nav a:is(
     scrollbar-width: thin;
   }
 
-  body:has(.terminal-shell) .system-strip::after {
+  body:has(.terminal-shell) .system-strip::after,
+  body:has(.terminal-shell) .system-strip > .nav-tab {
     display: none !important;
   }
 
