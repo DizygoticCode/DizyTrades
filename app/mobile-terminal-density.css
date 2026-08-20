@@ -110,7 +110,8 @@
     display: none !important;
   }
 
-  body:has(.terminal-shell) #manual-paper-panel:not(:has(aside)) {
+  body:has(.terminal-shell) .terminal-primary-column > #manual-paper-panel:not(:has(aside)) {
+    flex: 0 0 34px !important;
     height: 34px !important;
     min-height: 34px !important;
     max-height: 34px !important;
@@ -284,8 +285,14 @@
     font-size: 8px;
   }
 
-  body:has(.terminal-shell) #manual-paper-panel > header,
-  body:has(.terminal-shell) #manual-paper-panel:not(:has(aside)) {
+  body:has(.terminal-shell) #manual-paper-panel > header {
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+  }
+
+  body:has(.terminal-shell) .terminal-primary-column > #manual-paper-panel:not(:has(aside)) {
+    flex: 0 0 30px !important;
     height: 30px !important;
     min-height: 30px !important;
     max-height: 30px !important;
