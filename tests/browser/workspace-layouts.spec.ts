@@ -7,6 +7,11 @@ const owner = {
 
 test("owner can save update and delete a named terminal workspace", async ({ page }) => {
   const name = `E2E workspace ${Date.now().toString(36)}`;
+  // This layout test runs late in the serial Chromium suite, after the real
+  // loopback login limiter has already been exercised by auth-focused tests.
+  // Give this independent browser fixture its own proxy IP rather than
+  // weakening or bypassing the production limiter.
+  await page.context().setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.59" });
   await page.goto("/login");
   await page.getByLabel("Username or email").fill(owner.email);
   await page.getByLabel("Password").fill(owner.password);

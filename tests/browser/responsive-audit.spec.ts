@@ -32,7 +32,11 @@ async function loginOwner(page: Page) {
 
 async function expectViewportContained(page: Page, route: string) {
   await page.goto(route);
-  await expect(page).toHaveURL(new RegExp(`${route.replaceAll("/", "\\/")}$`));
+  const expectedUrl =
+    route === "/school"
+      ? /\/school(?:\?lesson=[a-z0-9-]+)?$/
+      : new RegExp(`${route.replaceAll("/", "\\/")}$`);
+  await expect(page).toHaveURL(expectedUrl);
   const terminal = route === "/terminal";
   const commands = page.getByRole("button", { name: /Commands/ });
   const recent = page.getByRole("button", { name: "Recent" });

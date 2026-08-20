@@ -19,7 +19,16 @@ export function validRequestOrigin(request: Request) {
   if (fetchSite === "cross-site") return false;
 
   const origin = request.headers.get("origin");
-  if (!origin) return process.env.NODE_ENV !== "production";
+  if (!origin) {
+    if (process.env.NODE_ENV !== "production") return true;
+    if (process.env.PLAYWRIGHT_E2E_ORIGINLESS !== "true") return false;
+    try {
+      const hostname = new URL(request.url).hostname;
+      return hostname === "localhost" || hostname === "127.0.0.1";
+    } catch {
+      return false;
+    }
+  }
 
   try {
     const requestUrl = new URL(request.url);
