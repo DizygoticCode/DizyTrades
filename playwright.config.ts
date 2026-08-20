@@ -1,6 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
+const localWebServerCommand = "npm run dev -- --hostname 127.0.0.1 --port 3100";
+const ciWebServerCommand =
+  "npm run build && npm run start -- --hostname 127.0.0.1 --port 3100";
 
 export default defineConfig({
   testDir: "./tests/browser",
@@ -32,7 +35,7 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: "npm run dev -- --hostname 127.0.0.1 --port 3100",
+        command: process.env.CI ? ciWebServerCommand : localWebServerCommand,
         url: `${baseURL}/login`,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
