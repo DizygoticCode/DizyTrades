@@ -46,6 +46,10 @@ export default defineConfig({
           // same explicit absolute data root used by browser fixtures so auth,
           // audit and research storage never fork into two different databases.
           DATA_DIR: dataDir,
+          // The visual fixture remains unavailable in ordinary production. CI
+          // explicitly enables it so the production browser gate still paints
+          // and inspects the real DizyFlow primitive rather than dropping coverage.
+          DIZYFLOW_VISUAL_FIXTURE_ENABLED: "true",
           // The production script runs Next's standalone server directly, so
           // it reads its bind address from environment variables rather than
           // accepting `next start` CLI flags.
