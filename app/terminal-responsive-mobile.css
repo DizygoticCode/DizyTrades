@@ -341,19 +341,16 @@
     overflow: hidden;
   }
 
-  /* Manual Paper is a fourth chart-section row when futures are selected.
-     Its persisted 390px desktop height must not starve the phone chart. */
-  .terminal-shell .chart-section:has(> section[aria-labelledby="manual-paper-heading"]) {
-    grid-template-rows: 34px minmax(120px, 1fr) auto minmax(160px, min(24dvh, 210px));
+  /* Manual Paper is a flex sibling of the workspace. Its persisted desktop
+     height must be bounded before the workspace receives its phone share. */
+  .terminal-shell .terminal-primary-column > #manual-paper-panel {
+    flex: 0 0 160px !important;
+    min-height: 160px !important;
+    height: 160px !important;
+    max-height: 160px !important;
   }
 
-  .terminal-shell .chart-section > section[aria-labelledby="manual-paper-heading"] {
-    min-height: 0 !important;
-    height: 100% !important;
-    max-height: none !important;
-  }
-
-  .terminal-shell .chart-section > section[aria-labelledby="manual-paper-heading"] > div:last-child {
+  .terminal-shell .terminal-primary-column > #manual-paper-panel > div:last-child {
     min-height: 0 !important;
     height: calc(100% - 38px) !important;
     display: block !important;
@@ -512,18 +509,15 @@
     grid-template-rows: minmax(0, 1fr) minmax(110px, 38dvh) !important;
   }
 
-  .terminal-shell .chart-section:has(> section[aria-labelledby="manual-paper-heading"]) {
-    grid-template-rows: 34px minmax(60px, 1fr) auto 38px;
-  }
-
-  .terminal-shell .chart-section > section[aria-labelledby="manual-paper-heading"] {
+  .terminal-shell .terminal-primary-column > #manual-paper-panel {
+    flex: 0 0 38px !important;
     min-height: 38px !important;
     height: 38px !important;
     max-height: 38px !important;
   }
 
-  .terminal-shell .chart-section > section[aria-labelledby="manual-paper-heading"] > div:first-child,
-  .terminal-shell .chart-section > section[aria-labelledby="manual-paper-heading"] > div:last-child {
+  .terminal-shell .terminal-primary-column > #manual-paper-panel > div:first-child,
+  .terminal-shell .terminal-primary-column > #manual-paper-panel > div:last-child {
     display: none !important;
   }
 
