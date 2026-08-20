@@ -1,7 +1,0 @@
-/* Final phone overlay clearance: fixed launchers must sit above the compact
-   density rail plus the collapsed Manual Paper row. */
-@media (max-width: 760px), (max-width: 900px) and (max-height: 500px) {
-  body:has(.terminal-shell) .terminal-shell .dizybrain-launch {
-    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 76px) !important;
-  }
-}
