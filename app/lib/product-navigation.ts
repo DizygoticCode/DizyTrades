@@ -148,7 +148,7 @@ export const DIZY_PRODUCT_LINKS: readonly DizyProductLink[] = [
   },
 ] as const;
 
-const PUBLIC_MARKETING_ROUTE_PREFIXES = ["/", "/about", "/contact", "/dizy", "/dex"] as const;
+const PUBLIC_MARKETING_ROUTE_PREFIXES = ["/", "/about", "/contact", "/dizy", "/dex", "/investors", "/business-plan"] as const;
 const AUTH_ROUTE_PREFIXES = [
   "/login",
   "/signup",
