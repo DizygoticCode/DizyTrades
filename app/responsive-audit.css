@@ -31,9 +31,26 @@
     max-width: 100%;
   }
 
+  body:has([data-testid="dizy-product-navigation"]) main {
+    width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+  }
+
   /* Workspace headers may contain more destinations than fit on a phone.
      Keep every destination reachable without making the whole page wider. */
   body:has(.command-palette-floating) main > header:first-child {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+  }
+
+  body:has(.command-palette-floating) main > header:first-child > * {
+    min-width: 0;
     max-width: 100%;
   }
 
@@ -45,6 +62,7 @@
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
     scrollbar-width: thin;
     -webkit-overflow-scrolling: touch;
     padding-bottom: 3px;
@@ -52,6 +70,23 @@
 
   body:has(.command-palette-floating) main > header:first-child nav > * {
     flex: 0 0 auto;
+    scroll-snap-align: start;
+    touch-action: manipulation;
+  }
+
+  body:has(.command-palette-floating):not(:has(.terminal-shell)) form,
+  body:has(.command-palette-floating):not(:has(.terminal-shell)) fieldset {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Avoid iOS focus zoom on ordinary protected forms without inflating the
+     deliberately dense trading terminal controls. */
+  body:has(.command-palette-floating):not(:has(.terminal-shell)) input,
+  body:has(.command-palette-floating):not(:has(.terminal-shell)) select,
+  body:has(.command-palette-floating):not(:has(.terminal-shell)) textarea {
+    max-width: 100%;
+    font-size: max(16px, 1em);
   }
 
   /* Dense tables and ladders are intentionally wider than a phone. Their
@@ -63,6 +98,7 @@
   body:has(.command-palette-floating) .brain-table,
   body:has(.command-palette-floating) .dom-book {
     max-width: 100%;
+    overflow-x: auto;
     overscroll-behavior-inline: contain;
     -webkit-overflow-scrolling: touch;
   }
