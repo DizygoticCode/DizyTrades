@@ -495,9 +495,20 @@
 }
 
 @media (max-width: 900px) and (max-height: 500px) {
+  /* Short landscape trades vertical wrapping for bounded horizontal rails so
+     the candle canvas remains a usable primary surface. */
   .terminal-shell .market-toolbar {
-    max-height: 94px;
+    max-height: 64px;
+    flex-wrap: nowrap !important;
+    align-content: center;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
     padding-block: 4px;
+    scrollbar-width: thin;
+  }
+
+  .terminal-shell .market-toolbar > * {
+    flex-shrink: 0;
   }
 
   .terminal-shell .replay-controls {
@@ -507,6 +518,10 @@
   .terminal-shell .workspace:has(.dizyflow-dom),
   .terminal-shell .workspace.panel-closed:has(.dizyflow-dom) {
     grid-template-rows: minmax(0, 1fr) minmax(110px, 38dvh) !important;
+  }
+
+  .terminal-shell .chart-section {
+    grid-template-rows: 34px minmax(60px, 1fr) 36px;
   }
 
   .terminal-shell .terminal-primary-column > #manual-paper-panel {
@@ -523,6 +538,29 @@
 
   .terminal-shell .signal-dock,
   .terminal-shell .terminal-primary-column:has(.settings-panel) .signal-dock {
-    padding-block: 4px;
+    height: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    padding: 2px 4px;
+    align-items: stretch;
+  }
+
+  .terminal-shell .signal-dock article {
+    min-height: 32px;
+    max-height: 32px;
+    padding: 3px 8px;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .terminal-shell .signal-dock strong {
+    margin-top: 0;
+    font-size: 12px;
+  }
+
+  .terminal-shell .signal-dock small,
+  .terminal-shell .signal-dock .score-track {
+    display: none;
   }
 }
