@@ -80,10 +80,8 @@ test("root layout mounts hydration-safe global quick actions and portals them on
   assert.match(mounted, /className="global-quick-actions"/);
   assert.match(mounted, /<CommandPalette \/>/);
   assert.match(mounted, /<RecentShortcuts \/>/);
-  assert.match(
-    mounted,
-    /terminalToolbar \? createPortal\(<QuickActions \/>, terminalToolbar\) : <QuickActions \/>/,
-  );
+  assert.match(mounted, /createPortal\(<QuickActions \/>, terminalToolbar\)/);
+  assert.match(mounted, /<QuickActions hidden \/>/);
   assert.match(palette, /Control\+K Meta\+K/);
   assert.match(palette, /first-run-onboarding-trigger/);
   assert.match(palette, /workspace-layout-trigger/);
