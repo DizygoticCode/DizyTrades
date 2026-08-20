@@ -17,6 +17,7 @@ const EMPTY_SNAPSHOT: Snapshot = {
   paperExpanded: false,
   replayActive: false,
 };
+const TERMINAL_HYDRATED_EVENT = "dizy-terminal-hydrated";
 
 function terminalSnapshot(terminal: HTMLElement): Snapshot {
   const articles = terminal.querySelectorAll<HTMLElement>(".signal-dock article");
@@ -60,7 +61,8 @@ export function MobileTerminalDensity() {
     const refresh = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const next = media.matches
+        const hydrated = document.body.dataset.dizyTerminalHydrated === "true";
+        const next = hydrated && media.matches
           ? document.querySelector<HTMLElement>(".terminal-shell .terminal-primary-column")
           : null;
         setHost((current) => (current === next ? current : next));
@@ -71,11 +73,13 @@ export function MobileTerminalDensity() {
     observer.observe(document.body, { childList: true, subtree: true });
     media.addEventListener("change", refresh);
     window.addEventListener("resize", refresh);
+    window.addEventListener(TERMINAL_HYDRATED_EVENT, refresh);
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
       media.removeEventListener("change", refresh);
       window.removeEventListener("resize", refresh);
+      window.removeEventListener(TERMINAL_HYDRATED_EVENT, refresh);
     };
   }, []);
 
