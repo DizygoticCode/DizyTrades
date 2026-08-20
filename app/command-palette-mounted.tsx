@@ -21,9 +21,13 @@ function findVisibleTerminalToolbar() {
   return toolbar && toolbar.getClientRects().length > 0 ? toolbar : null;
 }
 
-function QuickActions() {
+function QuickActions({ hidden = false }: { hidden?: boolean }) {
   return (
-    <div className="global-quick-actions" aria-label="Terminal quick actions">
+    <div
+      className="global-quick-actions"
+      aria-label="Terminal quick actions"
+      hidden={hidden}
+    >
       <CommandPalette />
       <RecentShortcuts />
     </div>
@@ -69,7 +73,11 @@ export function CommandPaletteMounted() {
     <>
       <AccessibilityFoundation />
       <DizyBrainGlobalToolOffset />
-      {terminalToolbar ? createPortal(<QuickActions />, terminalToolbar) : <QuickActions />}
+      {terminalToolbar ? (
+        createPortal(<QuickActions />, terminalToolbar)
+      ) : (
+        <QuickActions hidden />
+      )}
     </>
   );
 }
