@@ -50,6 +50,11 @@ export default defineConfig({
           // explicitly enables it so the production browser gate still paints
           // and inspects the real DizyFlow primitive rather than dropping coverage.
           DIZYFLOW_VISUAL_FIXTURE_ENABLED: "true",
+          // Playwright's browser-associated APIRequestContext does not emit an
+          // Origin header for direct test requests. Permit that omission only
+          // for this explicitly marked loopback E2E server; real production
+          // continues to reject originless mutation requests.
+          PLAYWRIGHT_E2E_ORIGINLESS: "true",
           // The production script runs Next's standalone server directly, so
           // it reads its bind address from environment variables rather than
           // accepting `next start` CLI flags. The browser uses localhost so
