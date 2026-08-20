@@ -44,6 +44,12 @@ export default defineConfig({
           SESSION_SECRET:
             process.env.SESSION_SECRET ??
             "dizytrades-e2e-session-secret-2026-at-least-32-characters",
+          // Production startup intentionally requires a distinct 32-byte
+          // base64url MFA key before the auth database can be opened. This is a
+          // deterministic E2E-only key, never a deployment credential.
+          MFA_ENCRYPTION_KEY:
+            process.env.MFA_ENCRYPTION_KEY ??
+            "8_VbRBquJOEu-h7_RMch5XWkx2FRsi1n1t7qzPV1NJk",
           PUBLIC_SIGNUP_ENABLED: "true",
           ALLOW_TEST_PLAINTEXT_PASSWORDS: "true",
           LEGACY_AUTH_FALLBACK_ENABLED: "true",
