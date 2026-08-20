@@ -1,6 +1,8 @@
+import { join } from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
+const dataDir = process.env.DATA_DIR ?? join(process.cwd(), ".data");
 const localWebServerCommand = "npm run dev -- --hostname 127.0.0.1 --port 3100";
 const ciWebServerCommand = "npm run build && npm run start";
 
@@ -40,6 +42,10 @@ export default defineConfig({
         timeout: 120_000,
         env: {
           ...process.env,
+          // Production standalone changes cwd to .next/standalone. Give it the
+          // same explicit absolute data root used by browser fixtures so auth,
+          // audit and research storage never fork into two different databases.
+          DATA_DIR: dataDir,
           // The production script runs Next's standalone server directly, so
           // it reads its bind address from environment variables rather than
           // accepting `next start` CLI flags.
