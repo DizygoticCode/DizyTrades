@@ -1,0 +1,293 @@
+.mobile-density-rail {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  html:has(.terminal-shell) {
+    --dizy-product-nav-height: 44px !important;
+  }
+
+  body:has(.terminal-shell) [data-testid="dizy-product-navigation"] {
+    height: var(--dizy-product-nav-height) !important;
+    min-height: var(--dizy-product-nav-height) !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    padding: 4px max(6px, env(safe-area-inset-right)) 4px max(6px, env(safe-area-inset-left)) !important;
+  }
+
+  body:has(.terminal-shell) [data-testid="dizy-product-navigation"] > a:first-child {
+    flex: 0 0 auto !important;
+  }
+
+  body:has(.terminal-shell) [data-testid="dizy-product-navigation"] > nav {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    display: flex !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+
+  body:has(.terminal-shell) [data-testid="dizy-product-navigation"] > :last-child {
+    display: none !important;
+  }
+
+  body:has(.terminal-shell) .terminal-primary-column {
+    position: relative;
+  }
+
+  body:has(.terminal-shell) .mobile-density-rail {
+    order: 90;
+    flex: 0 0 34px;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 0.72fr 1.38fr 0.82fr 0.82fr;
+    align-items: stretch;
+    gap: 1px;
+    padding: 1px;
+    border-top: 1px solid var(--border);
+    background: var(--border);
+    z-index: 12;
+  }
+
+  body:has(.terminal-shell) .mobile-density-rail button {
+    min-width: 0;
+    min-height: 31px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 0;
+    background: #0d111b;
+    color: #aeb8ca;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  body:has(.terminal-shell) .mobile-density-rail button[aria-expanded="true"],
+  body:has(.terminal-shell) .mobile-density-rail button[aria-pressed="true"] {
+    color: #fff;
+    background: #151d2d;
+  }
+
+  body:has(.terminal-shell) .mobile-density-rail button:focus-visible {
+    outline: 2px solid #60a5fa;
+    outline-offset: -2px;
+  }
+
+  body:has(.terminal-shell) .mobile-density-rail button:disabled {
+    opacity: 0.7;
+  }
+
+  body:has(.terminal-shell) .mobile-density-signal-dot {
+    width: 6px;
+    height: 6px;
+    flex: 0 0 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 7px color-mix(in srgb, var(--green) 60%, transparent);
+  }
+
+  body:has(.terminal-shell) #manual-paper-panel {
+    order: 100;
+  }
+
+  body:has(.terminal-shell) #manual-paper-panel > header {
+    height: 34px !important;
+    min-height: 34px !important;
+    gap: 6px !important;
+    padding-inline: 7px !important;
+  }
+
+  body:has(.terminal-shell) #manual-paper-panel > header > span,
+  body:has(.terminal-shell) #manual-paper-panel > header > [aria-live="polite"] {
+    display: none !important;
+  }
+
+  body:has(.terminal-shell) #manual-paper-panel:not(:has(aside)) {
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+  }
+
+  body:has(.terminal-shell) .terminal-shell:not([data-mobile-density-tools="open"]) .drawing-toolbar {
+    display: none !important;
+  }
+
+  body:has(.terminal-shell) .terminal-shell:not([data-mobile-density-tools="open"]) .chart-tools-grid {
+    grid-template-rows: minmax(0, 1fr) !important;
+  }
+
+  body:has(.terminal-shell) .terminal-shell:not([data-mobile-density-tools="open"]) .chart-tools-grid .chart-wrap {
+    grid-row: 1 !important;
+  }
+
+  body:has(.terminal-shell) .terminal-shell:not([data-mobile-density-tools="open"]) .drawing-layer {
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  body:has(.terminal-shell) .terminal-shell[data-mobile-density-tools="open"] .drawing-toolbar {
+    grid-row: 1 !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    padding: 2px !important;
+    gap: 2px !important;
+  }
+
+  body:has(.terminal-shell) .terminal-shell[data-mobile-density-tools="open"] .drawing-toolbar button,
+  body:has(.terminal-shell) .terminal-shell[data-mobile-density-tools="open"] .drawing-toolbar select {
+    width: 30px !important;
+    min-width: 30px !important;
+    min-height: 30px !important;
+    height: 30px !important;
+  }
+
+  body:has(.terminal-shell) .terminal-shell[data-mobile-density-tools="open"] .chart-tools-grid {
+    grid-template-rows: 36px minmax(0, 1fr) !important;
+  }
+
+  body:has(.terminal-shell) .terminal-shell[data-mobile-density-tools="open"] .drawing-layer {
+    inset: 36px 0 0 !important;
+    width: 100% !important;
+    height: calc(100% - 36px) !important;
+  }
+
+  body:has(.terminal-shell) .terminal-shell:not([data-mobile-density-signal="open"]) .signal-dock {
+    display: none !important;
+  }
+
+  body:has(.terminal-shell) .terminal-shell[data-mobile-density-signal="open"] .signal-dock {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    min-height: 42px !important;
+    max-height: 42px !important;
+  }
+
+  body:has(.terminal-shell) .terminal-shell[data-mobile-density-signal="open"] .signal-dock article {
+    min-height: 42px !important;
+    padding: 4px 7px !important;
+  }
+
+  body:has(.terminal-shell) .terminal-shell[data-mobile-density-signal="open"] .signal-dock article:nth-child(n + 4),
+  body:has(.terminal-shell) .terminal-shell[data-mobile-density-signal="open"] .signal-dock small {
+    display: none !important;
+  }
+
+  body:has(.terminal-shell) .terminal-shell[data-mobile-density-signal="open"] .signal-dock span {
+    font-size: 7px !important;
+  }
+
+  body:has(.terminal-shell) .terminal-shell[data-mobile-density-signal="open"] .signal-dock strong {
+    margin-top: 2px !important;
+    font-size: 11px !important;
+  }
+
+  body:has(.terminal-shell) .replay-controls:not(.active) {
+    display: none !important;
+  }
+
+  body:has(.terminal-shell) .system-strip > .confirmed,
+  body:has(.terminal-shell) .system-strip > .test-mode,
+  body:has(.terminal-shell) .system-strip > .lock-status {
+    display: none !important;
+  }
+
+  body:has(.terminal-shell) .system-strip .viewer-badge {
+    min-height: 28px !important;
+    padding: 0 6px !important;
+    font-size: 0 !important;
+  }
+
+  body:has(.terminal-shell) .system-strip .viewer-badge::after {
+    content: "VIEW";
+    font-size: 8px;
+    letter-spacing: 0.05em;
+  }
+
+  body:has(.terminal-shell) .system-strip .connection {
+    min-height: 28px !important;
+    padding-inline: 6px !important;
+    font-size: 8px !important;
+  }
+
+  body:has(.terminal-shell) .command-palette-floating,
+  body:has(.terminal-shell) .recent-shortcuts-trigger {
+    width: 31px !important;
+    min-width: 31px !important;
+    max-width: 31px !important;
+    min-height: 31px !important;
+    padding: 0 !important;
+    font-size: 0 !important;
+    overflow: hidden !important;
+  }
+
+  body:has(.terminal-shell) .command-palette-floating::after {
+    content: "⌘";
+    font-size: 12px;
+  }
+
+  body:has(.terminal-shell) .recent-shortcuts-trigger::after {
+    content: "↻";
+    font-size: 12px;
+  }
+
+  body:has(.terminal-shell) .chart-view-actions button {
+    width: 31px !important;
+    min-width: 31px !important;
+    padding: 0 !important;
+    font-size: 0 !important;
+  }
+
+  body:has(.terminal-shell) .chart-view-actions button:first-child::after {
+    content: "↺";
+    font-size: 12px;
+  }
+
+  body:has(.terminal-shell) .chart-view-actions button:last-child::after {
+    content: "●";
+    font-size: 9px;
+  }
+
+  body:has(.terminal-shell) .timeframes {
+    flex-wrap: nowrap !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+  }
+
+  body:has(.terminal-shell) .timeframes::-webkit-scrollbar {
+    display: none;
+  }
+
+  body:has(.terminal-shell) .timeframes button {
+    flex: 0 0 31px !important;
+    min-width: 31px !important;
+  }
+}
+
+@media (max-width: 900px) and (max-height: 500px) {
+  body:has(.terminal-shell) .mobile-density-rail {
+    flex-basis: 30px;
+  }
+
+  body:has(.terminal-shell) .mobile-density-rail button {
+    min-height: 27px;
+    font-size: 8px;
+  }
+
+  body:has(.terminal-shell) #manual-paper-panel > header,
+  body:has(.terminal-shell) #manual-paper-panel:not(:has(aside)) {
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+  }
+}
