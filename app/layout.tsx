@@ -16,7 +16,6 @@ import "./heatmap-settings.css";
 import "./navigation-shell-cleanup.css";
 import "./mobile-terminal-density.css";
 import "./terminal-responsive-mobile.css";
-import "./terminal-mobile-overlay-safety.css";
 
 export const metadata: Metadata = {
   title: "DizyTrades — DizyCharts & DizySignals",
