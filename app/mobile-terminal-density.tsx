@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -87,6 +88,9 @@ export function MobileTerminalDensity() {
     }
     const terminal = host.closest<HTMLElement>(".terminal-shell");
     if (!terminal) return;
+
+    terminal.querySelector<HTMLElement>(".drawing-toolbar")?.setAttribute("id", "mobile-terminal-tools");
+    terminal.querySelector<HTMLElement>(".signal-dock")?.setAttribute("id", "mobile-terminal-signal");
 
     const refresh = () => {
       const paper = terminal.querySelector<HTMLElement>("#manual-paper-panel");
