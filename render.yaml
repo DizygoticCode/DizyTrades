@@ -61,6 +61,10 @@ services:
         value: "DizyTrades <dizytrades@gmail.com>"
       - key: DIZYFLOW_LOW_MEMORY_MODE
         value: "true"
+      - key: DIZYFLOW_ARCHIVE_ENABLED
+        value: "false"
+      - key: DIZYQUANT_CAMPAIGN_RECORDER_ENABLED
+        value: "false"
       - key: DIZYFLOW_DEPTH_TRANSPORT
         value: ws
       - key: MEXC_FUTURES_WS_URL
@@ -76,31 +80,31 @@ services:
       - key: DIZYFLOW_MAX_LEVELS_PER_SIDE
         value: "100"
       - key: DIZYFLOW_MAX_COLLECTORS
-        value: "3"
+        value: "2"
       - key: DIZYFLOW_COLLECTOR_IDLE_MS
         value: "30000"
       - key: DIZYFLOW_MAX_HEATMAP_RECORDS
-        value: "20000"
+        value: "5000"
       - key: DIZYFLOW_HEATMAP_RETENTION_MINUTES
         value: "360"
       - key: DIZYFLOW_HEATMAP_SAMPLE_MS
         value: "5000"
       - key: DIZYFLOW_HEATMAP_MAX_MEMORY_RECORDS
-        value: "10000"
+        value: "5000"
       - key: DIZYFLOW_HEATMAP_MAX_DISK_MB
         value: "64"
       - key: DIZYFLOW_ARCHIVE_SYMBOLS
         value: BTC_USDT
       - key: DIZYFLOW_MAX_TAPES
-        value: "3"
+        value: "2"
       - key: DIZYFLOW_HEATMAP_TOTAL_DISK_MB
         value: "512"
       - key: DIZYFLOW_MEMORY_WARN_MB
-        value: "300"
+        value: "260"
       - key: DIZYFLOW_MEMORY_SHED_MB
-        value: "340"
+        value: "300"
       - key: DIZYFLOW_MEMORY_HARD_MB
-        value: "380"
+        value: "340"
       - key: NODE_OPTIONS
         value: --max-old-space-size=300
       - key: ALLOW_TEST_PLAINTEXT_PASSWORDS
