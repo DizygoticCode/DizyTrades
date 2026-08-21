@@ -1,12 +1,27 @@
-export async function register(){
- if(process.env.NEXT_RUNTIME==="nodejs"){
-  const [{startArchiveCollectors},{startDizyQuantCampaignRecorderService}]=await Promise.all([
-   import("./app/lib/order-flow/depth-collector.ts"),
-   import("./app/lib/dizyquant/campaign-recorder-service.ts"),
-  ]);
-  const {migratePrivilegedAccounts}=await import("./app/lib/auth-db.ts");
+const enabled = (value: string | undefined, fallback = true) =>
+  value == null ? fallback : value.toLowerCase() === "true";
+
+export async function register() {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  const { migratePrivilegedAccounts } = await import("./app/lib/auth-db.ts");
   await migratePrivilegedAccounts();
-  startArchiveCollectors();
-  startDizyQuantCampaignRecorderService();
- }
+
+  // Background market capture is useful on a roomy dedicated host, but it must
+  // not consume permanent collector/runtime memory on the 512 MB Render bridge.
+  // Both switches default on so self-hosted/normal deployments retain the full
+  // behaviour unless they explicitly opt into the constrained profile.
+  if (enabled(process.env.DIZYFLOW_ARCHIVE_ENABLED)) {
+    const { startArchiveCollectors } = await import(
+      "./app/lib/order-flow/depth-collector.ts"
+    );
+    startArchiveCollectors();
+  }
+
+  if (enabled(process.env.DIZYQUANT_CAMPAIGN_RECORDER_ENABLED)) {
+    const { startDizyQuantCampaignRecorderService } = await import(
+      "./app/lib/dizyquant/campaign-recorder-service.ts"
+    );
+    startDizyQuantCampaignRecorderService();
+  }
 }
