@@ -59,6 +59,8 @@ services:
         sync: false
       - key: MAIL_FROM
         value: "DizyTrades <dizytrades@gmail.com>"
+      - key: DIZYFLOW_RENDER_LOW_MEMORY_PROFILE
+        value: "true"
       - key: DIZYFLOW_LOW_MEMORY_MODE
         value: "true"
       - key: DIZYFLOW_ARCHIVE_ENABLED
@@ -91,12 +93,16 @@ services:
         value: "5000"
       - key: DIZYFLOW_HEATMAP_MAX_MEMORY_RECORDS
         value: "5000"
+      - key: DIZYFLOW_HEATMAP_MAX_PENDING
+        value: "2000"
       - key: DIZYFLOW_HEATMAP_MAX_DISK_MB
         value: "64"
       - key: DIZYFLOW_ARCHIVE_SYMBOLS
-        value: BTC_USDT
+        value: ""
       - key: DIZYFLOW_MAX_TAPES
         value: "2"
+      - key: DIZYFLOW_TILE_CACHE_MB
+        value: "4"
       - key: DIZYFLOW_HEATMAP_TOTAL_DISK_MB
         value: "512"
       - key: DIZYFLOW_MEMORY_WARN_MB
