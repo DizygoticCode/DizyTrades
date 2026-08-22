@@ -132,14 +132,20 @@ function assertNoExecutionCoupling(source,{allowSameOriginFetchCredentials=false
 }
 
 test("DizyQuant has only bounded approved consumers and no DizySignals influence",async()=>{
- const researchPage=path.join("app","research","page.tsx"),aboutPage=path.join("app","about","page.tsx"),businessPlanPage=path.join("app","business-plan","page.tsx"),investorPage=path.join("app","investors","page.tsx"),marketingPage=path.join("app","marketing","marketing-page.tsx"),siteHeader=path.join("app","marketing","site-header.tsx"),productNavigationModel=path.join("app","lib","product-navigation.ts"),homePage=path.join("app","page.tsx"),statusRoute=path.join("app","api","dizyquant","evidence","status","route.ts"),streamRoute=path.join("app","api","dizyquant","evidence","stream","route.ts"),exportRoute=path.join("app","api","dizyquant","evidence","export","route.ts"),livePublisher=path.join("app","dizyquant-snapshot-publisher.tsx"),livePanel=path.join("app","research","dizyquant-live-panel.tsx"),campaignStatus=path.join("app","research","dizyquant-campaign-status.tsx"),tradingTerminal=path.join("app","trading-terminal.tsx");
- const allowed=new Set([researchPage,aboutPage,businessPlanPage,investorPage,marketingPage,siteHeader,productNavigationModel,homePage,statusRoute,streamRoute,exportRoute,livePublisher,livePanel,campaignStatus,tradingTerminal]),offenders=[];
+ const researchPage=path.join("app","research","page.tsx"),aboutPage=path.join("app","about","page.tsx"),businessPlanPage=path.join("app","business-plan","page.tsx"),investorPage=path.join("app","investors","page.tsx"),marketingPage=path.join("app","marketing","marketing-page.tsx"),siteHeader=path.join("app","marketing","site-header.tsx"),productNavigationModel=path.join("app","lib","product-navigation.ts"),homePage=path.join("app","page.tsx"),statusRoute=path.join("app","api","dizyquant","evidence","status","route.ts"),streamRoute=path.join("app","api","dizyquant","evidence","stream","route.ts"),exportRoute=path.join("app","api","dizyquant","evidence","export","route.ts"),livePublisher=path.join("app","dizyquant-snapshot-publisher.tsx"),livePanel=path.join("app","research","dizyquant-live-panel.tsx"),campaignStatus=path.join("app","research","dizyquant-campaign-status.tsx"),tradingTerminal=path.join("app","trading-terminal.tsx"),renderMemoryProfile=path.join("app","lib","render-memory-profile.ts");
+ const allowed=new Set([researchPage,aboutPage,businessPlanPage,investorPage,marketingPage,siteHeader,productNavigationModel,homePage,statusRoute,streamRoute,exportRoute,livePublisher,livePanel,campaignStatus,tradingTerminal]),configurationOnly=new Set([renderMemoryProfile]),offenders=[];
  for(const file of await files("app")){
   if(file.startsWith(path.join("app","lib","dizyquant")))continue;
   const source=await readFile(file,"utf8");
-  if(/dizyquant/i.test(source)&&!allowed.has(file))offenders.push(file);
+  if(/dizyquant/i.test(source)&&!allowed.has(file)&&!configurationOnly.has(file))offenders.push(file);
  }
  assert.deepEqual(offenders,[]);
+ const renderMemoryProfileSource=await readFile(renderMemoryProfile,"utf8"),renderMemoryProfileImports=renderMemoryProfileSource.split("\n").filter(line=>/^\s*import\b/.test(line)).join("\n");
+ assert.doesNotMatch(renderMemoryProfileImports,/dizyquant/i);
+ assert.doesNotMatch(renderMemoryProfileSource,/\bimport\s*\([^)]*dizyquant/i);
+ assert.match(renderMemoryProfileSource,/env\.DIZYQUANT_CAMPAIGN_RECORDER_ENABLED\s*=\s*"false"/);
+ assert.doesNotMatch(renderMemoryProfileSource,/env\.DIZYQUANT_CAMPAIGN_RECORDER_ENABLED\s*=\s*"true"/);
+ assertNoExecutionCoupling(renderMemoryProfileSource);
  const page=await readFile(researchPage,"utf8");
  assert.match(page,/buildDizyQuantResearchPresentation/);
  assert.match(page,/DizyQuantCampaignStatus/);
