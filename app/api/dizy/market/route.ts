@@ -36,6 +36,14 @@ function finiteNumber(value: unknown): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
+function positiveFiniteNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
 function parsePoint(value: unknown): MarketPoint | null {
   if (!Array.isArray(value) || value.length < 5) return null;
 
@@ -60,7 +68,7 @@ async function fetchPrice(): Promise<number | null> {
   }
 
   const payload = (await response.json()) as PricePayload;
-  return finiteNumber(payload.data?.attributes?.token_prices?.[DIZY_MINT]);
+  return positiveFiniteNumber(payload.data?.attributes?.token_prices?.[DIZY_MINT]);
 }
 
 async function fetchChart(): Promise<MarketPoint[]> {
