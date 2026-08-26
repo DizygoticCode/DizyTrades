@@ -24,7 +24,6 @@ function drainServerShutdownCleanups() {
 
   const cleanups = [...state.cleanups];
   state.cleanups.clear();
-  console.info("DizyTrades server shutdown drain", { cleanupCount: cleanups.length });
   for (const cleanup of cleanups) {
     try {
       cleanup();
