@@ -47,9 +47,45 @@ export class LiquidityTape{
  async flush(){if(this.flushing)return this.flushing;this.flushing=this.flushBatch();try{await this.flushing}finally{this.flushing=null}}
  private async flushBatch(){if(this.timer){clearTimeout(this.timer);this.timer=null}if(!this.pending.length&&this.overflow.size){this.pending=[...this.overflow.values()].sort((a,b)=>a.priceTick-b.priceTick);this.overflow.clear()}if(!this.pending.length)return;await this.initialize();const records=this.pending.splice(0,MAX_BATCH),at=records.at(-1)!.timestampMs;await this.append({kind:"changes",symbol:this.symbol,priceStep:this.priceStep,at,records,gap:this.checkpointAfterGap});if(this.checkpointAfterGap||!this.lastCheckpoint||at-this.lastCheckpoint>=CHECKPOINT_MS){await this.append({kind:"checkpoint",symbol:this.symbol,priceStep:this.priceStep,at,records:[...this.state].map(([priceTick,v])=>({timestampMs:at,priceTick,bidContracts:v.bid,askContracts:v.ask}))});this.lastCheckpoint=at;this.checkpoints++;this.checkpointAfterGap=false}if(this.pending.length||this.overflow.size)this.scheduleFlush()}
  private async append(batch:DiskBatch){const dir=path.join(this.root,safeSymbol(this.symbol));await mkdir(dir,{recursive:true});if(!this.file||this.fileBytes>=ROTATE_BYTES){this.file=path.join(dir,`${String(batch.at).padStart(13,"0")}.ndjson`);this.fileBytes=0}const line=JSON.stringify(batch)+"\n";await appendFile(this.file,line);this.fileBytes+=Buffer.byteLength(line);await this.refreshManifest();await this.enforceDisk(dir,batch.at)}
- private async refreshManifest(){const dir=path.join(this.root,safeSymbol(this.symbol)),names=(await readdir(dir).catch(()=>[])).filter(v=>v.endsWith(".ndjson")).sort();this.manifest=await Promise.all(names.map(async name=>({name,startMs:Number.parseInt(name,10)||0,size:(await stat(path.join(dir,name))).size})));this.bytes=this.manifest.reduce((n,v)=>n+v.size,0);await writeFile(path.join(dir,"manifest.json"),JSON.stringify({version:1,files:this.manifest}),"utf8").catch(()=>{})}
+ private async refreshManifest(){
+  const dir=path.join(this.root,safeSymbol(this.symbol)),names=(await readdir(dir).catch(()=>[])).filter(v=>v.endsWith(".ndjson")).sort();
+  const entries=await Promise.all(names.map(async name=>{
+   try{
+    const info=await stat(path.join(dir,name));
+    return {name,startMs:Number.parseInt(name,10)||0,size:info.size};
+   }catch(error){
+    if(!error||typeof error!=="object"||!("code" in error)||(error as {code?:string}).code!=="ENOENT")throw error;
+    return null;
+   }
+  }));
+  this.manifest=entries.filter((entry):entry is ManifestEntry=>entry!==null);
+  this.bytes=this.manifest.reduce((n,v)=>n+v.size,0);
+  await writeFile(path.join(dir,"manifest.json"),JSON.stringify({version:1,files:this.manifest}),"utf8").catch(()=>{});
+ }
  private async enforceDisk(dir:string,now:number){const cutoff=now-HEATMAP_RETENTION_MINUTES*60_000,per=HEATMAP_MAX_DISK_MB*1048576;for(const entry of [...this.manifest]){if(this.manifest.length<=1||entry.startMs>=cutoff&&this.bytes<=per)break;await rm(path.join(dir,entry.name),{force:true});this.bytes-=entry.size;this.manifest.shift()}await enforceGlobalQuota(this.root)}
- private async *batches(toMs=Infinity){const dir=path.join(this.root,safeSymbol(this.symbol));for(const entry of this.manifest){if(entry.startMs>toMs)break;const input=createReadStream(path.join(dir,entry.name),{encoding:"utf8"});const lines=createInterface({input,crlfDelay:Infinity});try{for await(const line of lines){if(!line.trim())continue;try{const batch=JSON.parse(line) as DiskBatch;if(batch.symbol===this.symbol&&Array.isArray(batch.records))yield batch}catch{this.gaps++}}}finally{lines.close();input.destroy()}}}
+ private async *batches(toMs=Infinity){
+  const dir=path.join(this.root,safeSymbol(this.symbol));
+  for(const entry of [...this.manifest]){
+   if(entry.startMs>toMs)break;
+   const input=createReadStream(path.join(dir,entry.name),{encoding:"utf8"});
+   const lines=createInterface({input,crlfDelay:Infinity});
+   try{
+    for await(const line of lines){
+     if(!line.trim())continue;
+     try{const batch=JSON.parse(line) as DiskBatch;if(batch.symbol===this.symbol&&Array.isArray(batch.records))yield batch}catch{this.gaps++}
+    }
+   }catch(error){
+    if(!error||typeof error!=="object"||!("code" in error)||(error as {code?:string}).code!=="ENOENT")throw error;
+    this.gaps++;
+    this.manifest=this.manifest.filter(v=>v.name!==entry.name);
+    this.bytes=this.manifest.reduce((n,v)=>n+v.size,0);
+    await writeFile(path.join(dir,"manifest.json"),JSON.stringify({version:1,files:this.manifest}),"utf8").catch(()=>{});
+   }finally{
+    lines.close();
+    input.destroy();
+   }
+  }
+ }
  private async loadRecent(){await this.refreshManifest();const cutoff=Date.now()-HEATMAP_RETENTION_MINUTES*60_000;for await(const batch of this.batches()){this.priceStep=batch.priceStep||this.priceStep;if(batch.gap)this.gaps++;if(batch.kind==="checkpoint"){this.state.clear();this.checkpoints++}for(const record of batch.records){if(!validRecord(record))continue;this.state.set(record.priceTick,{bid:record.bidContracts,ask:record.askContracts});if(record.timestampMs>=cutoff)this.push(record);this.archiveStart=this.archiveStart===null?record.timestampMs:Math.min(this.archiveStart,record.timestampMs);this.archiveEnd=Math.max(this.archiveEnd??0,record.timestampMs)}}const last=this.manifest.at(-1);this.file=last?path.join(this.root,safeSymbol(this.symbol),last.name):"";this.fileBytes=last?.size??0}
  async history(fromMs:number,toMs:number,cursor:string|null,limit:number,maxBytes=HISTORY_MAX_BYTES):Promise<HistoryPage|null>{await this.initialize();const skip=cursorDecode(cursor);if(skip===null)return null;let seed:CompactLiquidityChange[]=[],seen=0,bytes=0,hasMore=false;const seedState=new Map<number,CompactLiquidityChange>(),changes:CompactLiquidityChange[]=[];for await(const batch of this.batches()){if(!cursor&&batch.kind==="checkpoint"&&batch.at<=fromMs){seed=batch.records.filter(validRecord);seedState.clear();for(const record of seed)seedState.set(record.priceTick,record)}if(batch.kind!=="changes")continue;for(const record of batch.records){if(!validRecord(record))continue;if(!cursor&&record.timestampMs<fromMs){seedState.set(record.priceTick,{...record,timestampMs:fromMs});seed=[...seedState.values()];continue}if(record.timestampMs<fromMs||record.timestampMs>toMs)continue;if(seen++<skip)continue;const cost=Buffer.byteLength(JSON.stringify(record))+1;if(changes.length>=limit||bytes+cost>maxBytes){hasMore=true;break}changes.push(record);bytes+=cost}if(hasMore)break}return{symbol:this.symbol,priceStep:this.getPriceStep(),coverage:this.coverage(),seed:cursor?[]:seed,changes,nextCursor:hasMore?cursorEncode(skip+changes.length):null}}
  async tiles(requestedFromMs:number,requestedToMs:number,minPrice:number,maxPrice:number,requestedBucketMs:number,requestedPriceStep:number):Promise<LiquidityTileResponse>{
@@ -66,7 +102,25 @@ export class LiquidityTape{
  async close(){if(this.closed)return;this.closed=true;if(this.timer){clearTimeout(this.timer);this.timer=null}if(this.flushing)await this.flushing;while(this.pending.length||this.overflow.size)await this.flush();this.emitter.removeAllListeners();this.ring.fill(undefined);this.state.clear()}
 }
 const validRecord=(v:CompactLiquidityChange)=>v&&Number.isFinite(v.timestampMs)&&Number.isInteger(v.priceTick)&&Number.isFinite(v.bidContracts)&&Number.isFinite(v.askContracts);
-async function enforceGlobalQuota(root:string){const symbols=await readdir(root,{withFileTypes:true}).catch(()=>[]),files:{file:string;at:number;size:number}[]=[];for(const symbol of symbols)if(symbol.isDirectory())for(const name of await readdir(path.join(root,symbol.name)).catch(()=>[]))if(name.endsWith(".ndjson")){const file=path.join(root,symbol.name,name),info=await stat(file);files.push({file,at:Number.parseInt(name,10)||0,size:info.size})}let total=files.reduce((n,v)=>n+v.size,0);const max=HEATMAP_TOTAL_DISK_MB*1048576;for(const entry of files.sort((a,b)=>a.at-b.at)){if(total<=max)break;await rm(entry.file,{force:true});total-=entry.size}}
+async function enforceGlobalQuota(root:string){
+ const symbols=await readdir(root,{withFileTypes:true}).catch(()=>[]),files:{file:string;at:number;size:number}[]=[];
+ for(const symbol of symbols)if(symbol.isDirectory())for(const name of await readdir(path.join(root,symbol.name)).catch(()=>[]))if(name.endsWith(".ndjson")){
+  const file=path.join(root,symbol.name,name);
+  try{
+   const info=await stat(file);
+   files.push({file,at:Number.parseInt(name,10)||0,size:info.size});
+  }catch(error){
+   if(!error||typeof error!=="object"||!("code" in error)||(error as {code?:string}).code!=="ENOENT")throw error;
+  }
+ }
+ let total=files.reduce((n,v)=>n+v.size,0);
+ const max=HEATMAP_TOTAL_DISK_MB*1048576;
+ for(const entry of files.sort((a,b)=>a.at-b.at)){
+  if(total<=max)break;
+  await rm(entry.file,{force:true});
+  total-=entry.size;
+ }
+}
 
 type RegistryEntry={tape:LiquidityTape;references:number;lastUsed:number;pinned:boolean;timer:ReturnType<typeof setTimeout>|null};
 const tapes=new Map<string,RegistryEntry>(),idleMs=int("DIZYFLOW_COLLECTOR_IDLE_MS",30_000,0,3_600_000);

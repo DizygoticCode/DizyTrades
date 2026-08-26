@@ -7,3 +7,49 @@ test("history pages continue with an opaque cursor and seed the left edge",async
 test("history enforces its encoded byte budget",async()=>{const root=await mkdtemp(path.join(tmpdir(),"dizy-bytes-")),tape=new LiquidityTape("BTC_USDT",root),start=Date.now()-20_000;for(let i=0;i<5;i++)tape.capture(snapshot(i+1,3),start+i*5000);await tape.flush();const page=await tape.history(start,Date.now(),null,1000,100);assert.ok(page.changes.length<5);assert.ok(page.nextCursor);await tape.close();await rm(root,{recursive:true,force:true})});
 test("disk backlog remains firmly bounded under accelerated input",async()=>{const root=await mkdtemp(path.join(tmpdir(),"dizy-backlog-")),tape=new LiquidityTape("BTC_USDT",root),start=Date.now()-6*60*60_000;for(let i=0;i<30_000;i++)tape.capture(snapshot(i%31+1,3),start+i*5000);assert.ok(tape.diagnostic().pendingWrites<=5000);await tape.close();await rm(root,{recursive:true,force:true})});
 test("one-pass tiles bound a six-hour archive with more than 40,000 changes",async()=>{const root=await mkdtemp(path.join(tmpdir(),"dizy-tiles-")),dir=path.join(root,"BTC_USDT"),fs=await import("node:fs/promises"),start=Date.now()-6*60*60_000;await fs.mkdir(dir,{recursive:true});const file=path.join(dir,`${start}.ndjson`),lines=[JSON.stringify({kind:"checkpoint",symbol:"BTC_USDT",priceStep:.1,at:start,records:[{timestampMs:start,priceTick:649000,bidContracts:50,askContracts:0},{timestampMs:start,priceTick:641000,bidContracts:0,askContracts:60}]})];for(let batch=0;batch<500;batch++){const records=Array.from({length:100},(_,i)=>{const n=batch*100+i;return{timestampMs:start+Math.floor(n/50_000*6*60*60_000),priceTick:638000+n%200,bidContracts:n%9,askContracts:n%11}});lines.push(JSON.stringify({kind:"changes",symbol:"BTC_USDT",priceStep:.1,at:records.at(-1).timestampMs,records,gap:batch===250}))}await fs.writeFile(file,lines.join("\n")+"\n");const tape=new LiquidityTape("BTC_USDT",root);await tape.initialize();const before=process.memoryUsage().rss,result=await tape.tiles(start,start+6*60*60_000,63_000,65_000,95_000,18.2),rssGrowth=process.memoryUsage().rss-before;assert.ok(result.cells.length<=20_000);assert.ok(result.capturedToMs-result.capturedFromMs>5.9*60*60_000);assert.equal(result.hasGaps,true);assert.ok(result.cells.some(v=>v.toMs-v.fromMs>60_000),"persistent wall is run-length encoded");assert.ok(rssGrowth<300*1024*1024);await tape.close();await rm(root,{recursive:true,force:true})});
+
+test("history tolerates a segment pruned after its manifest snapshot",async()=>{
+  const root=await mkdtemp(path.join(tmpdir(),"dizy-prune-race-")),fs=await import("node:fs/promises"),dir=path.join(root,"BTC_USDT"),now=Date.now()-60_000;
+  await fs.mkdir(dir,{recursive:true});
+  const file=path.join(dir,`${now}.ndjson`),record={timestampMs:now,priceTick:1000,bidContracts:1,askContracts:0};
+  await fs.writeFile(file,JSON.stringify({kind:"changes",symbol:"BTC_USDT",priceStep:.1,at:now,records:[record]})+"\n");
+  const tape=new LiquidityTape("BTC_USDT",root);
+  try{
+    await tape.initialize();
+    await fs.rm(file,{force:true});
+    await assert.doesNotReject(()=>tape.history(now,Date.now(),null,100));
+    assert.equal(tape.coverage().hasGaps,true);
+  }finally{
+    await tape.close();
+    await rm(root,{recursive:true,force:true});
+  }
+});
+
+test("global quota tolerates an archive entry that vanishes between list and stat",async()=>{
+  const root=await mkdtemp(path.join(tmpdir(),"dizy-quota-race-")),fs=await import("node:fs/promises"),other=path.join(root,"ETH_USDT"),now=Date.now();
+  await fs.mkdir(other,{recursive:true});
+  await fs.symlink(path.join(other,"already-pruned"),path.join(other,`${now-120_000}.ndjson`));
+  const tape=new LiquidityTape("BTC_USDT",root);
+  try{
+    tape.capture(snapshot(),now);
+    await assert.doesNotReject(()=>tape.flush());
+  }finally{
+    await tape.close().catch(()=>{});
+    await rm(root,{recursive:true,force:true});
+  }
+});
+
+test("manifest refresh tolerates an archive entry that vanishes between list and stat",async()=>{
+  const root=await mkdtemp(path.join(tmpdir(),"dizy-manifest-race-")),fs=await import("node:fs/promises"),dir=path.join(root,"BTC_USDT"),now=Date.now();
+  await fs.mkdir(dir,{recursive:true});
+  const tape=new LiquidityTape("BTC_USDT",root);
+  try{
+    await tape.initialize();
+    await fs.symlink(path.join(dir,"already-pruned"),path.join(dir,`${now-120_000}.ndjson`));
+    tape.capture(snapshot(),now);
+    await assert.doesNotReject(()=>tape.flush());
+  }finally{
+    await tape.close().catch(()=>{});
+    await rm(root,{recursive:true,force:true});
+  }
+});
