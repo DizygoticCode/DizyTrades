@@ -147,4 +147,5 @@ test("#339 route stays owner-only, server-identity-bound, non-activating and non
   assert.match(page, /type="password"[^>]*name="accessKey"|name="accessKey"[^>]*type="password"/);
   assert.match(page, /type="password"[^>]*name="secretKey"|name="secretKey"[^>]*type="password"/);
   assert.match(page, /#339 contains no activation capability/);
+  assert.doesNotMatch(page, /Render \/32/);
 });
