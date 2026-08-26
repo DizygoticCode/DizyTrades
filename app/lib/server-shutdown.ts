@@ -40,6 +40,10 @@ function ensureSignalListeners() {
   process.on("SIGINT", drainServerShutdownCleanups);
 }
 
+export function isServerShuttingDown() {
+  return state.shuttingDown;
+}
+
 export function registerServerShutdownCleanup(cleanup: ShutdownCleanup) {
   ensureSignalListeners();
 
