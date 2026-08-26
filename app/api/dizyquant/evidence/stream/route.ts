@@ -1,4 +1,5 @@
 import { requireApiUser } from "../../../../lib/auth";
+import { registerServerShutdownCleanup } from "../../../../lib/server-shutdown";
 import {
   isDizyQuantRuntimeCampaignSymbol,
   readDizyQuantCampaignDepthPublication,
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
   const encoder = new TextEncoder();
   let cleanup = () => {};
   let flush = () => {};
+  let unregisterShutdownCleanup = () => {};
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       let closed = false;
@@ -68,6 +70,7 @@ export async function GET(request: Request) {
       cleanup = () => {
         if (closed) return;
         closed = true;
+        unregisterShutdownCleanup();
         pending = null;
         flush = () => {};
         clearInterval(keepalive);
@@ -77,7 +80,8 @@ export async function GET(request: Request) {
           controller.close();
         } catch {}
       };
-      request.signal.addEventListener("abort", cleanup, { once: true });
+      unregisterShutdownCleanup = registerServerShutdownCleanup(cleanup);
+      if (!closed) request.signal.addEventListener("abort", cleanup, { once: true });
     },
     pull() {
       flush();
