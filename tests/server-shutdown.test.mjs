@@ -47,6 +47,40 @@ test('all long-lived SSE routes register and unregister shutdown cleanup', async
   }
 });
 
+test('shutdown state is observable and every SSE route rejects late work before authentication or acquisition', async () => {
+  const helper = await optionalImport(helperPath);
+  assert.equal(typeof helper?.isServerShuttingDown, 'function');
+
+  const probe = `
+    import { isServerShuttingDown, registerServerShutdownCleanup } from ${JSON.stringify(pathToFileURL(helperPath).href)};
+    registerServerShutdownCleanup(() => {});
+    process.kill(process.pid, 'SIGTERM');
+    setTimeout(() => {
+      console.log('shutting:' + isServerShuttingDown());
+      process.exit(isServerShuttingDown() ? 0 : 2);
+    }, 25);
+  `;
+  const result = spawnSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e', probe], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /shutting:true/);
+
+  for (const relative of [
+    'app/api/dizyflow/dom/stream/route.ts',
+    'app/api/dizyflow/heatmap/stream/route.ts',
+    'app/api/dizyquant/evidence/stream/route.ts',
+  ]) {
+    const source = await readFile(path.join(root, relative), 'utf8');
+    const shutdownGuard = source.indexOf('isServerShuttingDown()');
+    const authentication = source.indexOf('requireApiUser()');
+    assert.notEqual(shutdownGuard, -1, `${relative} must reject requests after shutdown begins`);
+    assert.notEqual(authentication, -1, `${relative} must retain authentication`);
+    assert.ok(
+      shutdownGuard < authentication,
+      `${relative} must reject shutdown-time reconnects before authentication or resource acquisition`,
+    );
+  }
+});
+
 test('tracked launcher normalizes only expected signal-driven Next exit codes', async () => {
   const launcher = await optionalImport(launcherPath);
   assert.equal(typeof launcher?.normaliseChildExitCode, 'function');
