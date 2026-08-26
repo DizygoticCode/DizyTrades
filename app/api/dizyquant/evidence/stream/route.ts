@@ -1,5 +1,8 @@
 import { requireApiUser } from "../../../../lib/auth";
-import { registerServerShutdownCleanup } from "../../../../lib/server-shutdown";
+import {
+  isServerShuttingDown,
+  registerServerShutdownCleanup,
+} from "../../../../lib/server-shutdown";
 import {
   isDizyQuantRuntimeCampaignSymbol,
   readDizyQuantCampaignDepthPublication,
@@ -15,7 +18,13 @@ const encode = (event: string, value: unknown) =>
 const normalise = (value: string) => value.trim().toUpperCase().replace(/[-/]/g, "_");
 
 export async function GET(request: Request) {
+  if (isServerShuttingDown()) {
+    return new Response("Service shutting down", { status: 503 });
+  }
   if (!(await requireApiUser())) return new Response("Unauthorised", { status: 401 });
+  if (isServerShuttingDown()) {
+    return new Response("Service shutting down", { status: 503 });
+  }
   const symbol = normalise(new URL(request.url).searchParams.get("symbol") ?? "");
   if (!isDizyQuantRuntimeCampaignSymbol(symbol)) {
     return new Response("Symbol is outside the initial DizyQuant campaign", { status: 400 });
