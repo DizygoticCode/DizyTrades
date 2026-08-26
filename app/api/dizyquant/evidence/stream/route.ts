@@ -1,5 +1,9 @@
 import { requireApiUser } from "../../../../lib/auth";
 import {
+  isServerShuttingDown,
+  registerServerShutdownCleanup,
+} from "../../../../lib/server-shutdown";
+import {
   isDizyQuantRuntimeCampaignSymbol,
   readDizyQuantCampaignDepthPublication,
   subscribeDizyQuantCampaignDepthPublications,
@@ -14,7 +18,13 @@ const encode = (event: string, value: unknown) =>
 const normalise = (value: string) => value.trim().toUpperCase().replace(/[-/]/g, "_");
 
 export async function GET(request: Request) {
+  if (isServerShuttingDown()) {
+    return new Response("Service shutting down", { status: 503 });
+  }
   if (!(await requireApiUser())) return new Response("Unauthorised", { status: 401 });
+  if (isServerShuttingDown()) {
+    return new Response("Service shutting down", { status: 503 });
+  }
   const symbol = normalise(new URL(request.url).searchParams.get("symbol") ?? "");
   if (!isDizyQuantRuntimeCampaignSymbol(symbol)) {
     return new Response("Symbol is outside the initial DizyQuant campaign", { status: 400 });
@@ -23,6 +33,7 @@ export async function GET(request: Request) {
   const encoder = new TextEncoder();
   let cleanup = () => {};
   let flush = () => {};
+  let unregisterShutdownCleanup = () => {};
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       let closed = false;
@@ -68,6 +79,7 @@ export async function GET(request: Request) {
       cleanup = () => {
         if (closed) return;
         closed = true;
+        unregisterShutdownCleanup();
         pending = null;
         flush = () => {};
         clearInterval(keepalive);
@@ -77,7 +89,8 @@ export async function GET(request: Request) {
           controller.close();
         } catch {}
       };
-      request.signal.addEventListener("abort", cleanup, { once: true });
+      unregisterShutdownCleanup = registerServerShutdownCleanup(cleanup);
+      if (!closed) request.signal.addEventListener("abort", cleanup, { once: true });
     },
     pull() {
       flush();

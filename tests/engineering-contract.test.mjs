@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
-import {
-  existsSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-} from "node:fs";
-import { join, relative } from "node:path";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -119,31 +114,19 @@ test("dependency maintenance is bounded and low-noise", () => {
 });
 
 function trackedSourceFiles() {
-  const ignoredDirectories = new Set([
-    ".git",
-    ".next",
-    "artifacts",
-    "node_modules",
-    "test-results",
-  ]);
-  const files = [];
-  const visit = (directory) => {
-    for (const name of readdirSync(directory)) {
-      if (ignoredDirectories.has(name)) continue;
-      const path = join(directory, name);
-      const info = statSync(path);
-      if (info.isDirectory()) visit(path);
-      else files.push(relative(repositoryRootPath, path).replaceAll("\\", "/"));
-    }
-  };
-  visit(repositoryRootPath);
-  return files;
+  return execFileSync("git", ["ls-files", "-z"], {
+    cwd: repositoryRootPath,
+    encoding: "utf8",
+  })
+    .split("\0")
+    .filter(Boolean);
 }
 
 test("repository contains no committed environment, backup or database payload", () => {
-  assert.equal(existsSync(new URL(".env", repositoryRoot)), false);
-  assert.equal(existsSync(new URL(".env.example", repositoryRoot)), true);
-  const forbidden = trackedSourceFiles().filter((path) => {
+  const tracked = trackedSourceFiles();
+  assert.equal(tracked.includes(".env"), false);
+  assert.equal(tracked.includes(".env.example"), true);
+  const forbidden = tracked.filter((path) => {
     const name = path.split("/").at(-1) ?? "";
     const environmentPayload =
       name === ".env" ||
