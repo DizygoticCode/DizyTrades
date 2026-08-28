@@ -78,6 +78,34 @@ test("current static host match fails closed on host, IP and freshness changes",
   }
 });
 
+test("allowlist attestation revision stays stable across post-allowlist freshness observations", () => {
+  const store = new SqliteStaticHostEgressProofStore(":memory:");
+  try {
+    const id = identity("generation-1");
+    const allowlisted = allowlistedState(store);
+    assert.equal(allowlisted.allowlistRevision, allowlisted.revision);
+
+    const refreshedAt = new Date(Date.parse(allowlisted.lastObservedAt) + 2 * 60_000).toISOString();
+    const refreshed = store.observe(id, "server-club-01", "1.1.1.1", refreshedAt, allowlisted.revision);
+
+    assert.equal(refreshed.status, "allowlisted");
+    assert.equal(refreshed.revision, allowlisted.revision + 1);
+    assert.equal(refreshed.lastObservedAt, refreshedAt);
+    assert.equal(refreshed.allowlistRevision, allowlisted.allowlistRevision);
+    assert.equal(
+      currentStaticHostMatches(
+        refreshed,
+        { provider: "static", hostId: "server-club-01" },
+        "1.1.1.1",
+        new Date(Date.parse(refreshedAt) + 5 * 60_000),
+      ),
+      true,
+    );
+  } finally {
+    store.close();
+  }
+});
+
 test("static egress probe requires both fixed observers to agree", async () => {
   const calls = [];
   const same = async url => (calls.push(url), { ok: true, status: 200, text: async () => "1.1.1.1\n" });
