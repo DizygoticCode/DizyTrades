@@ -87,9 +87,10 @@ function secondObservationTiming(state: RenderEgressState, nowMs: number) {
   return { eligibleAt: new Date(eligibleMs).toISOString(), ready: nowMs >= eligibleMs };
 }
 
-function normalizeRenderEgressState(state: RenderEgressState): ExecutionHostEgressState {
+function normalizeRenderEgressState(state: RenderEgressState, allowlistRevision: number | null): ExecutionHostEgressState {
   return Object.freeze({
     revision: state.revision,
+    allowlistRevision,
     status: state.status,
     provider: "render" as const,
     hostId: state.renderServiceId,
@@ -105,6 +106,18 @@ function normalizeRenderEgressState(state: RenderEgressState): ExecutionHostEgre
     revokedAt: state.revokedAt,
     updatedAt: state.updatedAt,
   });
+}
+
+function renderAllowlistRevision(store: SqliteRenderEgressProofStore, identity: WriteProvisioningIdentity, state: RenderEgressState) {
+  const events = store.events(identity).filter((event) => event.kind === "allowlisted");
+  if (state.mexcAllowlistAttestation !== MEXC_WRITE_EGRESS_ATTESTATION || !state.allowlistedAt || events.length !== 1) return null;
+  const event = events[0];
+  return Number.isSafeInteger(event.revision)
+    && event.revision >= 1
+    && event.revision <= state.revision
+    && event.occurredAt === state.allowlistedAt
+    ? event.revision
+    : null;
 }
 
 /** Legacy Render-specific inspection retained for the existing Render egress page. */
@@ -254,7 +267,8 @@ export class MexcWriteProvisioningAuthority {
 
   private readEgress(identity: WriteProvisioningIdentity): ExecutionHostEgressState {
     if (this.executionHostAuthority) return this.executionHostAuthority.read(identity);
-    return normalizeRenderEgressState(this.legacyRenderEgressStore!.read(identity));
+    const state = this.legacyRenderEgressStore!.read(identity);
+    return normalizeRenderEgressState(state, renderAllowlistRevision(this.legacyRenderEgressStore!, identity, state));
   }
 
   private async attestEgressAllowlist(
@@ -343,6 +357,9 @@ export class MexcWriteProvisioningAuthority {
     if (
       state.status !== "allowlisted"
       || state.mexcAllowlistAttestation !== MEXC_WRITE_EGRESS_ATTESTATION
+      || !Number.isSafeInteger(state.allowlistRevision)
+      || state.allowlistRevision === null
+      || state.allowlistRevision < 1
       || !state.ipSetDigestSha256
       || !SHA256.test(state.ipSetDigestSha256)
       || !state.allowlistedAt
@@ -359,7 +376,7 @@ export class MexcWriteProvisioningAuthority {
       || nowMs - observedAt > RENDER_EGRESS_ALLOWLIST_OBSERVATION_MAX_AGE_MS
     ) return null;
     return Object.freeze({
-      revision: state.revision,
+      revision: state.allowlistRevision,
       ipSetDigestSha256: state.ipSetDigestSha256,
       allowlistedAt: state.allowlistedAt,
     });
@@ -405,10 +422,13 @@ export class MexcWriteProvisioningAuthority {
       || custody.credentialFingerprintSha256 !== authority.credentialFingerprintSha256
       || egress.status !== "allowlisted"
       || egress.mexcAllowlistAttestation !== MEXC_WRITE_EGRESS_ATTESTATION
+      || !Number.isSafeInteger(egress.allowlistRevision)
+      || egress.allowlistRevision === null
+      || egress.allowlistRevision < 1
       || !egress.ipSetDigestSha256
       || !SHA256.test(egress.ipSetDigestSha256)
       || !egress.allowlistedAt
-      || custody.egressProofRevision !== egress.revision
+      || custody.egressProofRevision !== egress.allowlistRevision
       || custody.egressIpSetDigestSha256 !== egress.ipSetDigestSha256
       || custody.egressAllowlistedAt !== egress.allowlistedAt
       || !this.currentHostMatches(identity, runtime, observerIpv4, now)

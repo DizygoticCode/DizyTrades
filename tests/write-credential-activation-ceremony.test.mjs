@@ -198,7 +198,7 @@ test("#340 route/page stay owner-only, server-identity-bound, secret-free and di
   assert.match(facade, /authority\.permissionAttestation !== MEXC_WRITE_PERMISSION_ATTESTATION/);
   assert.match(facade, /authority\.egressAttestation !== MEXC_WRITE_EGRESS_ATTESTATION/);
   assert.match(facade, /custody\.credentialFingerprintSha256 !== authority\.credentialFingerprintSha256/);
-  assert.match(facade, /custody\.egressProofRevision !== egress\.revision/);
+  assert.match(facade, /custody\.egressProofRevision !== egress\.allowlistRevision/);
   assert.match(facade, /custody\.egressIpSetDigestSha256 !== egress\.ipSetDigestSha256/);
   assert.match(facade, /custody\.egressAllowlistedAt !== egress\.allowlistedAt/);
   assert.match(facade, /ProductionExecutionHostEgressAuthority/);

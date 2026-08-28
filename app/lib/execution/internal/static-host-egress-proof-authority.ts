@@ -44,6 +44,7 @@ export type StaticHostEgressStatus = "unknown" | "declared" | "observed" | "allo
 
 export type StaticHostEgressState = Readonly<{
   revision: number;
+  allowlistRevision: number | null;
   status: StaticHostEgressStatus;
   hostId: string | null;
   dedicatedIpv4s: readonly string[];
@@ -255,19 +256,36 @@ export class SqliteStaticHostEgressProofStore {
       .get(identity.userId, identity.accountId, identity.writeCredentialGeneration) as { revision: number; status: string; payload_json: string; updated_at: string } | undefined;
   }
 
+  private allowlistRevision(identity: StaticHostEgressIdentity, stored: Stored, revision: number) {
+    const rows = this.db().prepare("SELECT revision,occurred_at FROM static_host_egress_proof_events WHERE user_id=? AND account_id=? AND write_generation=? AND kind='allowlisted' ORDER BY sequence")
+      .all(identity.userId, identity.accountId, identity.writeCredentialGeneration) as Array<{ revision: number | bigint; occurred_at: string }>;
+    if (!stored.mexcAllowlisted) {
+      if (rows.length !== 0) return fail("EXECUTION_STATIC_HOST_EGRESS_PROOF_INVALID");
+      return null;
+    }
+    if (rows.length !== 1 || !stored.allowlistedAt) return fail("EXECUTION_STATIC_HOST_EGRESS_PROOF_INVALID");
+    const eventRevision = Number(rows[0].revision);
+    if (!Number.isSafeInteger(eventRevision) || eventRevision < 1 || eventRevision > revision || !timestamp(rows[0].occurred_at) || rows[0].occurred_at !== stored.allowlistedAt) {
+      return fail("EXECUTION_STATIC_HOST_EGRESS_PROOF_INVALID");
+    }
+    return eventRevision;
+  }
+
   read(identity: StaticHostEgressIdentity): StaticHostEgressState {
     if (!validIdentity(identity)) return fail("EXECUTION_STATIC_HOST_EGRESS_PROOF_INVALID");
     try {
       const row = this.row(identity);
-      if (!row) return Object.freeze({ revision: 0, status: "unknown" as const, hostId: null, dedicatedIpv4s: Object.freeze([]), ipSetDigestSha256: null, observationCount: 0, firstObservedIp: null, firstObservedAt: null, lastObservedIp: null, lastObservedAt: null, mexcAllowlistAttestation: null, allowlistedAt: null, revokedAt: null, updatedAt: null });
+      if (!row) return Object.freeze({ revision: 0, allowlistRevision: null, status: "unknown" as const, hostId: null, dedicatedIpv4s: Object.freeze([]), ipSetDigestSha256: null, observationCount: 0, firstObservedIp: null, firstObservedAt: null, lastObservedIp: null, lastObservedAt: null, mexcAllowlistAttestation: null, allowlistedAt: null, revokedAt: null, updatedAt: null });
       if (!Number.isSafeInteger(Number(row.revision)) || Number(row.revision) < 1 || !["declared", "observed", "allowlisted", "revoked"].includes(row.status) || !timestamp(row.updated_at) || row.payload_json.length > 4096) return fail("EXECUTION_STATIC_HOST_EGRESS_PROOF_INVALID");
       let parsed: unknown;
       try { parsed = JSON.parse(row.payload_json); } catch { return fail("EXECUTION_STATIC_HOST_EGRESS_PROOF_INVALID"); }
       const stored = validateStored(parsed);
       const status: StaticHostEgressStatus = stored.revokedAt ? "revoked" : stored.mexcAllowlisted ? "allowlisted" : stored.count > 0 ? "observed" : "declared";
       if (status !== row.status) return fail("EXECUTION_STATIC_HOST_EGRESS_PROOF_INVALID");
+      const revision = Number(row.revision);
+      const allowlistRevision = this.allowlistRevision(identity, stored, revision);
       this.assertBacking();
-      return Object.freeze({ revision: Number(row.revision), status, hostId: stored.hostId, dedicatedIpv4s: Object.freeze([stored.ip]), ipSetDigestSha256: stored.digest, observationCount: stored.count, firstObservedIp: stored.firstIp, firstObservedAt: stored.firstAt, lastObservedIp: stored.lastIp, lastObservedAt: stored.lastAt, mexcAllowlistAttestation: stored.mexcAllowlisted ? MEXC_WRITE_EGRESS_ATTESTATION : null, allowlistedAt: stored.allowlistedAt, revokedAt: stored.revokedAt, updatedAt: row.updated_at });
+      return Object.freeze({ revision, allowlistRevision, status, hostId: stored.hostId, dedicatedIpv4s: Object.freeze([stored.ip]), ipSetDigestSha256: stored.digest, observationCount: stored.count, firstObservedIp: stored.firstIp, firstObservedAt: stored.firstAt, lastObservedIp: stored.lastIp, lastObservedAt: stored.lastAt, mexcAllowlistAttestation: stored.mexcAllowlisted ? MEXC_WRITE_EGRESS_ATTESTATION : null, allowlistedAt: stored.allowlistedAt, revokedAt: stored.revokedAt, updatedAt: row.updated_at });
     } catch (error) {
       if (error instanceof ExecutionStaticHostEgressProofError) throw error;
       return fail("EXECUTION_STATIC_HOST_EGRESS_PROOF_UNAVAILABLE");

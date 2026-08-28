@@ -92,7 +92,7 @@ test("credential lease is active-generation, sealed-custody and egress bound", (
   assert.match(leaseSource, /authority\.permissionAttestation !== MEXC_WRITE_PERMISSION_ATTESTATION/);
   assert.match(leaseSource, /authority\.egressAttestation !== MEXC_WRITE_EGRESS_ATTESTATION/);
   assert.match(leaseSource, /egress\.status !== "allowlisted"/);
-  assert.match(leaseSource, /receipt\.egressProofRevision !== egress\.revision/);
+  assert.match(leaseSource, /receipt\.egressProofRevision !== egress\.allowlistRevision/);
   assert.match(leaseSource, /RENDER_EGRESS_ALLOWLIST_OBSERVATION_MAX_AGE_MS/);
   assert.match(leaseSource, /mexcWriteCredentialFingerprintSha256\(secret\) !== fingerprint/);
 });
