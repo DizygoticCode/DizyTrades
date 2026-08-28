@@ -39,6 +39,7 @@ export type ExecutionHostRuntimeEvidence = Readonly<{
 }>;
 export type ExecutionHostEgressState = Readonly<{
   revision: number;
+  allowlistRevision: number | null;
   status: "unknown" | "declared" | "observed" | "allowlisted" | "revoked";
   provider: ExecutionHostProvider;
   hostId: string | null;
@@ -78,9 +79,13 @@ function timing(lastObservedAt: string | null, minimumDelayMs: number, nowMs: nu
   return { eligibleAt: new Date(eligibleMs).toISOString(), ready: nowMs >= eligibleMs };
 }
 
-function normalizeRenderState(state: ReturnType<SqliteRenderEgressProofStore["read"]>): ExecutionHostEgressState {
+function normalizeRenderState(
+  state: ReturnType<SqliteRenderEgressProofStore["read"]>,
+  allowlistRevision: number | null,
+): ExecutionHostEgressState {
   return Object.freeze({
     revision: state.revision,
+    allowlistRevision,
     status: state.status,
     provider: "render" as const,
     hostId: state.renderServiceId,
@@ -102,6 +107,23 @@ function normalizeStaticState(state: ReturnType<SqliteStaticHostEgressProofStore
   return Object.freeze({ ...state, provider: "static" as const });
 }
 
+function renderAllowlistRevision(
+  store: SqliteRenderEgressProofStore,
+  identity: RenderEgressIdentity,
+  state: ReturnType<SqliteRenderEgressProofStore["read"]>,
+) {
+  const events = store.events(identity).filter((event) => event.kind === "allowlisted");
+  if (state.mexcAllowlistAttestation !== MEXC_WRITE_EGRESS_ATTESTATION) return events.length === 0 ? null : null;
+  if (!state.allowlistedAt || events.length !== 1) return null;
+  const event = events[0];
+  return Number.isSafeInteger(event.revision)
+    && event.revision >= 1
+    && event.revision <= state.revision
+    && event.occurredAt === state.allowlistedAt
+    ? event.revision
+    : null;
+}
+
 export class ProductionExecutionHostEgressAuthority {
   private readonly renderStore: SqliteRenderEgressProofStore | null;
   private readonly staticStore: SqliteStaticHostEgressProofStore | null;
@@ -112,7 +134,11 @@ export class ProductionExecutionHostEgressAuthority {
   }
 
   read(identity: ExecutionHostIdentity): ExecutionHostEgressState {
-    if (this.provider === "render") return normalizeRenderState(this.renderStore!.read(identity as RenderEgressIdentity));
+    if (this.provider === "render") {
+      const renderIdentity = identity as RenderEgressIdentity;
+      const state = this.renderStore!.read(renderIdentity);
+      return normalizeRenderState(state, renderAllowlistRevision(this.renderStore!, renderIdentity, state));
+    }
     return normalizeStaticState(this.staticStore!.read(identity as StaticHostEgressIdentity));
   }
 
@@ -163,7 +189,14 @@ export class ProductionExecutionHostEgressAuthority {
     const runtime = this.runtime();
     if (!runtime) return null;
     const state = this.read(identity);
-    if ((state.status !== "declared" && state.status !== "observed") || state.revision < 1 || state.observationCount >= 2 || state.hostId !== runtime.hostId || state.dedicatedIpv4s.length !== 1) return null;
+    const renewableAllowlist = state.status === "allowlisted";
+    if (
+      (state.status !== "declared" && state.status !== "observed" && !renewableAllowlist)
+      || state.revision < 1
+      || (!renewableAllowlist && state.observationCount >= 2)
+      || state.hostId !== runtime.hostId
+      || state.dedicatedIpv4s.length !== 1
+    ) return null;
     const ipv4 = await this.probeIpv4();
     if (!ipv4 || state.dedicatedIpv4s[0] !== ipv4) return null;
     const minimumDelay = this.provider === "render" ? RENDER_EGRESS_SECOND_OBSERVATION_MIN_DELAY_MS : STATIC_HOST_EGRESS_SECOND_OBSERVATION_MIN_DELAY_MS;
@@ -190,13 +223,22 @@ export class ProductionExecutionHostEgressAuthority {
   currentEvidence(identity: ExecutionHostIdentity, now: Date) {
     if (!Number.isFinite(now.getTime())) return null;
     const state = this.read(identity);
-    if (state.status !== "allowlisted" || state.mexcAllowlistAttestation !== MEXC_WRITE_EGRESS_ATTESTATION || !state.ipSetDigestSha256 || !state.allowlistedAt || !state.lastObservedAt) return null;
+    if (
+      state.status !== "allowlisted"
+      || state.mexcAllowlistAttestation !== MEXC_WRITE_EGRESS_ATTESTATION
+      || !Number.isSafeInteger(state.allowlistRevision)
+      || state.allowlistRevision === null
+      || state.allowlistRevision < 1
+      || !state.ipSetDigestSha256
+      || !state.allowlistedAt
+      || !state.lastObservedAt
+    ) return null;
     const observedAt = Date.parse(state.lastObservedAt);
     const allowlistedAt = Date.parse(state.allowlistedAt);
     const maxAge = this.provider === "render" ? RENDER_EGRESS_ALLOWLIST_OBSERVATION_MAX_AGE_MS : STATIC_HOST_EGRESS_ALLOWLIST_OBSERVATION_MAX_AGE_MS;
     const nowMs = now.getTime();
     if (!Number.isFinite(observedAt) || !Number.isFinite(allowlistedAt) || observedAt > nowMs || allowlistedAt > nowMs || nowMs - observedAt > maxAge) return null;
-    return Object.freeze({ revision: state.revision, ipSetDigestSha256: state.ipSetDigestSha256, allowlistedAt: state.allowlistedAt });
+    return Object.freeze({ revision: state.allowlistRevision, ipSetDigestSha256: state.ipSetDigestSha256, allowlistedAt: state.allowlistedAt });
   }
 
   currentHostMatches(identity: ExecutionHostIdentity, runtime: ExecutionHostRuntimeEvidence, observedIpv4: string, now: Date) {
