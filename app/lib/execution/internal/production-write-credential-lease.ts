@@ -177,10 +177,13 @@ export function readProductionMexcWriteCredentialLease(
       || receipt.credentialFingerprintSha256 !== authority.credentialFingerprintSha256
       || egress.status !== "allowlisted"
       || egress.mexcAllowlistAttestation !== MEXC_WRITE_EGRESS_ATTESTATION
+      || !Number.isSafeInteger(egress.allowlistRevision)
+      || egress.allowlistRevision === null
+      || egress.allowlistRevision < 1
       || !egress.ipSetDigestSha256
       || !egress.allowlistedAt
       || !egress.lastObservedAt
-      || receipt.egressProofRevision !== egress.revision
+      || receipt.egressProofRevision !== egress.allowlistRevision
       || receipt.egressIpSetDigestSha256 !== egress.ipSetDigestSha256
       || receipt.egressAllowlistedAt !== egress.allowlistedAt
     ) return fail();
