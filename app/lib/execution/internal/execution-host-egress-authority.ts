@@ -113,7 +113,7 @@ function renderAllowlistRevision(
   state: ReturnType<SqliteRenderEgressProofStore["read"]>,
 ) {
   const events = store.events(identity).filter((event) => event.kind === "allowlisted");
-  if (state.mexcAllowlistAttestation !== MEXC_WRITE_EGRESS_ATTESTATION) return events.length === 0 ? null : null;
+  if (state.mexcAllowlistAttestation !== MEXC_WRITE_EGRESS_ATTESTATION) return null;
   if (!state.allowlistedAt || events.length !== 1) return null;
   const event = events[0];
   return Number.isSafeInteger(event.revision)
