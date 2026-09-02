@@ -14,20 +14,14 @@ const packageJson = JSON.parse(read("package.json"));
 
 const workflowPaths = [
   ".github/workflows/ci.yml",
-  ".github/workflows/render-rehearsal.yml",
   ".github/workflows/isolated-recovery-rehearsal.yml",
 ];
 
-test("one exact Node runtime is shared by package, Render and every workflow", () => {
+test("one exact Node runtime is shared by package and every workflow", () => {
   assert.match(runtimeVersion, /^22\.\d+\.\d+$/);
   assert.equal(packageJson.engines.node, runtimeVersion);
   assert.match(read(".npmrc"), /^engine-strict=true$/m);
 
-  const render = read("render.yaml");
-  assert.match(
-    render,
-    new RegExp(`key: NODE_VERSION\\n\\s+value: ${runtimeVersion.replaceAll(".", "\\.")}`),
-  );
   for (const path of workflowPaths) {
     const workflow = read(path);
     assert.match(
@@ -43,25 +37,18 @@ test("one exact Node runtime is shared by package, Render and every workflow", (
   }
 });
 
-test("production blueprint remains simulation-only with explicit emergency access", () => {
-  const render = read("render.yaml");
-  assert.match(
-    render,
-    /key: LIVE_TRADING_ENABLED\n\s+value: ["']false["']/,
-  );
-  assert.match(
-    render,
-    /key: LEGACY_AUTH_FALLBACK_ENABLED\n\s+value: ["']false["']/,
-  );
-  assert.match(
-    render,
-    /key: ALLOW_TEST_PLAINTEXT_PASSWORDS\n\s+value: ["']false["']/,
-  );
-  assert.match(render, /^\s*- key: ROB_PASSWORD\s*$/m);
-  assert.match(render, /^\s*- key: FRIEND_PASSWORD\s*$/m);
-  assert.match(render, /^\s*- key: ROB_PASSWORD_HASH\s*$/m);
-  assert.match(render, /^\s*- key: FRIEND_PASSWORD_HASH\s*$/m);
-  assert.doesNotMatch(render, /MEXC_(?:API_KEY|SECRET|PRIVATE_KEY)/);
+test("repository deployment defaults remain simulation-only and secret-free", () => {
+  const environment = read(".env.example");
+  assert.match(environment, /^LIVE_TRADING_ENABLED=false$/m);
+  assert.match(environment, /^MEXC_WRITE_PROVIDER_ENABLED=false$/m);
+  assert.match(environment, /^ALLOW_TEST_PLAINTEXT_PASSWORDS=false$/m);
+  assert.match(environment, /^ROB_PASSWORD=$/m);
+  assert.match(environment, /^FRIEND_PASSWORD=$/m);
+  assert.match(environment, /^ROB_PASSWORD_HASH=/m);
+  assert.match(environment, /^FRIEND_PASSWORD_HASH=/m);
+  assert.match(environment, /^MEXC_EXECUTION_ACCESS_KEY=$/m);
+  assert.match(environment, /^MEXC_EXECUTION_SECRET_KEY=$/m);
+  assert.doesNotMatch(environment, /^MEXC_EXECUTION_(?:ACCESS|SECRET)_KEY=.+$/m);
 });
 
 test("global response headers retain the browser security boundary", () => {
