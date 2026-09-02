@@ -42,16 +42,16 @@ test("recovery requests use generic enumeration-safe responses", () => {
   assert.match(resend, /createEmailVerificationTokenForEmail/);
 });
 
-test("Render declares the complete production account-mail boundary without committing the App Password", () => {
-  const render = source("render.yaml");
-  assert.match(render, /- key: PUBLIC_SIGNUP_ENABLED\s+value: ["']true["']/);
-  assert.match(render, /- key: APP_BASE_URL\s+value: https:\/\/dizytrades\.onrender\.com/);
-  assert.match(render, /- key: SMTP_HOST\s+value: smtp\.gmail\.com/);
-  assert.match(render, /- key: SMTP_PORT\s+value: ["']465["']/);
-  assert.match(render, /- key: SMTP_USER\s+value: dizytrades@gmail\.com/);
-  assert.match(render, /- key: SMTP_APP_PASSWORD\s+sync: false/);
-  assert.match(render, /- key: MAIL_FROM\s+value: ["']DizyTrades <dizytrades@gmail\.com>["']/);
-  assert.doesNotMatch(render, /SMTP_APP_PASSWORD\s+value:/);
+test("self-hosted defaults declare the complete production account-mail boundary without committing the App Password", () => {
+  const environment = source(".env.example");
+  assert.match(environment, /^PUBLIC_SIGNUP_ENABLED=true$/m);
+  assert.match(environment, /^APP_BASE_URL=https:\/\/dizytrades\.tech$/m);
+  assert.match(environment, /^SMTP_HOST=smtp\.gmail\.com$/m);
+  assert.match(environment, /^SMTP_PORT=465$/m);
+  assert.match(environment, /^SMTP_USER=dizytrades@gmail\.com$/m);
+  assert.match(environment, /^SMTP_APP_PASSWORD=$/m);
+  assert.match(environment, /^MAIL_FROM=DizyTrades <dizytrades@gmail\.com>$/m);
+  assert.doesNotMatch(environment, /^SMTP_APP_PASSWORD=.+$/m);
 });
 
 test("personal profile mutation has no role or email write path", () => {
