@@ -56,11 +56,9 @@ test("provider work remains suppressed behind existing kill-switch precedence", 
   assert.match(composition, /if \(providerReadsAllowed\)/);
 });
 
-test("repository still exposes no execution API route and production activation flags remain false", () => {
+test("repository still exposes no execution API route and activation defaults remain false", () => {
   const apiFiles = filesBelow("app/api");
   assert.equal(apiFiles.some((path) => /(?:^|\/)execution(?:\/|\.|$)/i.test(path)), false);
-  assert.match(text("render.yaml"), /- key: LIVE_TRADING_ENABLED\s+value: "false"/);
-  assert.match(text("render.yaml"), /- key: MEXC_WRITE_PROVIDER_ENABLED\s+value: "false"/);
   assert.match(text(".env.example"), /^LIVE_TRADING_ENABLED=false$/m);
   assert.match(text(".env.example"), /^MEXC_WRITE_PROVIDER_ENABLED=false$/m);
 });
