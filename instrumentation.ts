@@ -4,14 +4,6 @@ const enabled = (value: string | undefined, fallback = true) =>
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  // Apply the 512 MB Render bridge budget before any DizyFlow/DizyQuant module
-  // is evaluated. This makes the deployed contract independent of whether an
-  // existing Render service has synchronised every value from render.yaml.
-  const { applyConstrainedRenderMemoryProfile } = await import(
-    "./app/lib/render-memory-profile.ts"
-  );
-  applyConstrainedRenderMemoryProfile();
-
   const { migratePrivilegedAccounts } = await import("./app/lib/auth-db.ts");
   await migratePrivilegedAccounts();
 
