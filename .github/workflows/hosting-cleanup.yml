@@ -1,0 +1,215 @@
+name: Self-hosted repository cleanup
+
+on:
+  push:
+    branches:
+      - chore/remove-legacy-hosting
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout cleanup branch
+        uses: actions/checkout@v4
+        with:
+          ref: chore/remove-legacy-hosting
+          fetch-depth: 0
+
+      - name: Remove legacy hosting references
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import subprocess
+
+          root = Path('.')
+
+          # Remove obsolete provider-specific deployment declarations/rehearsals.
+          for rel in [
+              'render.yaml',
+              '.github/workflows/render-rehearsal.yml',
+              'docs/RENDER_REHEARSAL.md',
+              'docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md',
+          ]:
+              p = root / rel
+              if p.exists():
+                  p.unlink()
+
+          # Rename any provider-specific constrained-memory source/test filenames.
+          tracked_paths = [p for p in subprocess.check_output(['git', 'ls-files']).decode().splitlines() if p]
+          for rel in tracked_paths:
+              low = rel.lower()
+              if 'render-low-memory' not in low and 'render-memory' not in low:
+                  continue
+              new_rel = re.sub('render-low-memory', 'constrained-host-low-memory', rel, flags=re.I)
+              new_rel = re.sub('render-memory', 'constrained-host-memory', new_rel, flags=re.I)
+              if new_rel != rel and (root / rel).exists():
+                  (root / new_rel).parent.mkdir(parents=True, exist_ok=True)
+                  subprocess.run(['git', 'mv', rel, new_rel], check=True)
+
+          # Current production account-email runbook.
+          account_mail = root / 'docs/ACCOUNT_EMAIL_DEPLOYMENT.md'
+          account_mail.write_text('''# Account email deployment\n\nDizyTrades production is self-hosted at `https://dizytrades.tech`. Verification and password-recovery mail is sent by the server only; SMTP credentials never enter browser state or committed files.\n\n## Required runtime values\n\n```text\nPUBLIC_SIGNUP_ENABLED=true\nAPP_BASE_URL=https://dizytrades.tech\nSMTP_HOST=smtp.gmail.com\nSMTP_PORT=465\nSMTP_USER=dizytrades@gmail.com\nSMTP_APP_PASSWORD=<protected service secret>\nMAIL_FROM=DizyTrades <dizytrades@gmail.com>\n```\n\nKeep `SMTP_APP_PASSWORD`, `SESSION_SECRET`, `MFA_ENCRYPTION_KEY` and all exchange credentials in the protected service environment outside the repository. `APP_BASE_URL` must remain HTTPS so verification and recovery links point to the canonical public domain.\n\n## Apply a reviewed configuration change\n\n1. Update the protected service environment on the production host.\n2. Restart the reviewed DizyTrades service so the running process receives the new values.\n3. Confirm `/api/health` is healthy and live execution remains disabled.\n4. Exercise signup with a disposable test address, verify the link uses `https://dizytrades.tech`, and confirm password recovery is enumeration-safe.\n5. Confirm no SMTP credential, bearer token or reset material is written to application logs.\n\nRepository declarations and example files are documentation only; the running process is the production evidence boundary.\n''')
+
+          # Provider-neutral constrained-host profile naming.
+          identifier_replacements = {
+              'DIZYFLOW_RENDER_LOW_MEMORY_PROFILE': 'DIZYFLOW_CONSTRAINED_HOST_PROFILE',
+              'DIZYFLOW_RENDER_PROFILE': 'DIZYFLOW_CONSTRAINED_HOST_PROFILE',
+              'process.env.RENDER': 'process.env.DIZYFLOW_CONSTRAINED_HOST_PROFILE',
+              'renderLowMemoryProfile': 'constrainedHostLowMemoryProfile',
+              'renderLowMemory': 'constrainedHostLowMemory',
+              'renderProfile': 'constrainedHostProfile',
+              'renderDetected': 'constrainedHostDetected',
+              'isRender': 'isConstrainedHost',
+              'renderBridge': 'constrainedHostBridge',
+              'Render bridge': 'constrained-host',
+              'render bridge': 'constrained-host',
+          }
+
+          # Global current-tree substitutions for the old hosted deployment.
+          text_replacements = {
+              'https://dizytrades.onrender.com': 'https://dizytrades.tech',
+              'dizytrades.onrender.com': 'dizytrades.tech',
+              'docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md': 'docs/ACCOUNT_EMAIL_DEPLOYMENT.md',
+              'RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md': 'ACCOUNT_EMAIL_DEPLOYMENT.md',
+              'docs/RENDER_REHEARSAL.md': 'docs/ISOLATED_RECOVERY_REHEARSAL.md',
+              '.github/workflows/render-rehearsal.yml': '.github/workflows/isolated-recovery-rehearsal.yml',
+              'render.yaml': '.env.example',
+              'Render persistent disk': 'self-hosted persistent storage',
+              'Render persistent-disk': 'self-hosted persistent-storage',
+              'Render environment variables': 'protected service environment variables',
+              'Render environment': 'protected service environment',
+              'Render runtime': 'self-hosted runtime',
+              'Render service': 'self-hosted service',
+              'Render instance': 'self-hosted instance',
+              'Render deployment': 'self-hosted deployment',
+              'Render API': 'public health endpoint',
+              'Server Club': 'self-hosted production host',
+          }
+
+          tracked = [p for p in subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0') if p]
+          for rel in tracked:
+              p = root / rel
+              if not p.exists() or p == root / '.github/workflows/hosting-cleanup.yml':
+                  continue
+              try:
+                  s = p.read_text()
+              except UnicodeDecodeError:
+                  continue
+              old = s
+              for a, b in identifier_replacements.items():
+                  s = s.replace(a, b)
+              for a, b in text_replacements.items():
+                  s = s.replace(a, b)
+              s = s.replace('RENDER=true', 'DIZYFLOW_CONSTRAINED_HOST_PROFILE=true')
+              s = re.sub(r'https?://[^\s)\]>]*render\.com[^\s)\]>]*', 'https://dizytrades.tech', s, flags=re.I)
+              s = s.replace('render.com', 'dizytrades.tech')
+              s = re.sub(r'\bRENDER_[A-Z0-9_]+\b', 'LEGACY_HOST_VARIABLE_REMOVED', s)
+              # Capitalised standalone usage was the provider name; ordinary render/rendered UI terminology remains untouched.
+              s = re.sub(r'\bRender\b', 'self-hosted deployment', s)
+              if s != old:
+                  p.write_text(s)
+
+          # Bring the primary README up to the current self-hosted production reality.
+          readme = root / 'README.md'
+          s = readme.read_text()
+          s = s.replace('## Current state — 19 August 2026', '## Current state — 2 September 2026')
+          s = re.sub(
+              r'The next execution milestone is operational rather than another product feature build:.*?The existing MEXC Account Companion remains independent and GET-only\.',
+              'The production application now runs on the self-hosted host behind Caddy. The next guarded-execution milestone is operational rather than another product feature build: rehearse integrity/restart/rollback on this host, establish fresh static-host `/32` evidence, reprovision and re-attest the dedicated write generation there, then perform one independently approved reduce-only LIMIT canary at exactly 1x and no more than 25 USDT notional before any separate broader activation decision. The existing MEXC Account Companion remains independent and GET-only.',
+              s,
+              count=1,
+              flags=re.S,
+          )
+          s = s.replace('provider-neutral execution-host authority, so moving away from self-hosted deployment cannot silently inherit another host/provider\'s egress proof', 'provider-neutral execution-host authority, so changing execution hosts cannot silently inherit another host/provider\'s egress proof')
+          s = re.sub(
+              r'The guarded execution software boundary is therefore built, but production exchange-write authority is not active\. Actual activation is intentionally deferred until.*?Broader write activation requires a separate explicit decision after that canary\.',
+              'The guarded execution software boundary is therefore built, but production exchange-write authority is not active. Actual activation remains intentionally deferred until the self-hosted host\'s durable execution state, integrity/restart/rollback evidence, exact public `/32` proof and fresh dedicated write generation are independently re-verified, followed by a microscopic reduce-only LIMIT canary at exactly 1x and no more than 25 USDT. Broader write activation requires a separate explicit decision after that canary.',
+              s,
+              count=1,
+              flags=re.S,
+          )
+          deployment = '''## Deployment and recovery\n\nProduction is self-hosted at `https://dizytrades.tech` on an Ubuntu host. Caddy terminates public TLS and reverse-proxies to the Node application on a private loopback port. Only HTTP/HTTPS belong on the public edge; application, database and storage ports remain private. The reviewed application process is managed as a service and `/api/health` remains the external health boundary.\n\nRuntime configuration and secrets live outside the repository in the protected service environment. Production account mail requires:\n\n```text\nPUBLIC_SIGNUP_ENABLED=true\nAPP_BASE_URL=https://dizytrades.tech\nSMTP_HOST=smtp.gmail.com\nSMTP_PORT=465\nSMTP_USER=dizytrades@gmail.com\nSMTP_APP_PASSWORD=<protected service secret>\nMAIL_FROM=DizyTrades <dizytrades@gmail.com>\n```\n\nAfter changing runtime values, restart the reviewed service and verify the running commit, public health, signup/recovery mail and execution-disabled posture. Full details live in [docs/ACCOUNT_EMAIL_DEPLOYMENT.md](docs/ACCOUNT_EMAIL_DEPLOYMENT.md).\n\nThe isolated recovery rehearsal uses the real backup engine to export, validate, dry-run and restore representative user data into fresh temporary data roots. Persistent application storage is not itself a backup; dated DizyBackup exports should be kept separately from the live host.\n\nGuarded execution remains a separate security programme. Self-hosting does not activate exchange writes or inherit stale egress/credential authority: exact-host evidence, fresh credential attestation, activation approval and the one-shot canary gate remain mandatory.\n\n'''
+          s = re.sub(r'## Deployment and recovery\n.*?(?=## Important limitations)', deployment, s, count=1, flags=re.S)
+          readme.write_text(s)
+
+          # Architecture: current deployment boundaries, without provider-era configuration claims.
+          arch = root / 'ARCHITECTURE.md'
+          if arch.exists():
+              s = arch.read_text()
+              s = re.sub(
+                  r'Production verification/recovery mail is a server-only TLS SMTP boundary configured by .*?before restart/redeploy\.',
+                  'Production verification/recovery mail is a server-only TLS SMTP boundary configured in the protected service environment. `SMTP_APP_PASSWORD` remains secret-only, and the canonical `APP_BASE_URL` is `https://dizytrades.tech`. Runtime configuration changes require a reviewed service restart and production verification.',
+                  s,
+                  count=1,
+                  flags=re.S,
+              )
+              s = s.replace('Credentials are held in the self-hosted deployment environment, never the browser.', 'Credentials are held in the protected server environment, never the browser.')
+              s = re.sub(
+                  r'The supported production topology is one .*?before use\.',
+                  'The supported production topology is one self-hosted application instance with durable local storage and vertical scaling first. Horizontal multi-instance operation is not currently planned and would require shared managed storage plus separate shared authentication/rate-limit and execution-state design before use.',
+                  s,
+                  count=1,
+                  flags=re.S,
+              )
+              arch_deploy = '''## Deployment configuration boundary\n\nProduction runs as a single self-hosted application instance behind Caddy. The public canonical origin is `https://dizytrades.tech`; the Node application and durable stores remain on private/local interfaces. Runtime secrets and host-specific values are supplied through the protected service environment rather than committed deployment-provider configuration.\n\nVerified signup/recovery requires `PUBLIC_SIGNUP_ENABLED=true`, the canonical HTTPS `APP_BASE_URL`, Gmail SMTP host/port/user/from settings and secret-only `SMTP_APP_PASSWORD`. A repository example is documentation only: the running service, public health and exercised mail flow are the final evidence boundary.\n\n'''
+              s = re.sub(r'## Deployment configuration boundary\n.*?(?=## Live-execution boundary)', arch_deploy, s, count=1, flags=re.S)
+              arch.write_text(s)
+
+          # Security: current mail and recovery boundary.
+          security = root / 'SECURITY.md'
+          if security.exists():
+              s = security.read_text()
+              s = s.replace('Stable self-hosted deployment egress allowlisting, dedicated write-key provisioning, explicit production writer composition, independent activation approval and the first canary remain separate future gates.', 'Fresh self-hosted exact-host egress attestation, dedicated write-key provisioning, explicit production writer composition, independent activation approval and the first canary remain separate gates.')
+              mail_section = '''## Account email transport\n\nProduction verification and recovery mail is sent server-side through a bounded TLS SMTP client. The self-hosted runtime contract is:\n\n- `PUBLIC_SIGNUP_ENABLED=true`\n- `APP_BASE_URL=https://dizytrades.tech`\n- `SMTP_HOST=smtp.gmail.com`\n- `SMTP_PORT=465`\n- `SMTP_USER=dizytrades@gmail.com`\n- `SMTP_APP_PASSWORD` supplied only through the protected service environment\n- `MAIL_FROM=DizyTrades <dizytrades@gmail.com>`\n\n`SMTP_APP_PASSWORD` must be a dedicated Google App Password, never the Google account password and never committed to source control. Production requires an HTTPS `APP_BASE_URL` and TLS certificate validation for SMTP. Configuration is applied through the protected service environment and a reviewed service restart; the running process and exercised verification/recovery flow are the production evidence boundary. See [docs/ACCOUNT_EMAIL_DEPLOYMENT.md](docs/ACCOUNT_EMAIL_DEPLOYMENT.md).\n\n'''
+              s = re.sub(r'## Account email transport\n.*?(?=## Personal profile boundary)', mail_section, s, count=1, flags=re.S)
+              s = s.replace('Exported backups should be stored outside the self-hosted persistent storage and treated as sensitive user data.', 'Exported backups should be stored separately from the live application host and treated as sensitive user data.')
+              s = s.replace('Production deployment identity and health are observed read-only through the public health endpoint.', 'Production deployment identity and health are observed read-only through the public health and diagnostics boundaries.')
+              security.write_text(s)
+
+          # Environment example: canonical origin and provider-neutral constrained-host controls.
+          env = root / '.env.example'
+          if env.exists():
+              s = env.read_text()
+              s = s.replace('APP_BASE_URL=https://dizytrades.tech', 'APP_BASE_URL=https://dizytrades.tech')
+              s = re.sub(r'# self-hosted deployment exposes .*?profile before DizyFlow/DizyQuant modules load\.\n', '# Optional explicit constrained-host profile. Leave false on normal self-hosted production unless memory limits require it.\n', s)
+              s = s.replace('DIZYFLOW_CONSTRAINED_HOST_PROFILE=true', 'DIZYFLOW_CONSTRAINED_HOST_PROFILE=false')
+              s = s.replace('# Background capture defaults on for normal/self-hosted deployments. The self-hosted deployment\n# bridge profile disables both services without changing self-hosted defaults.', '# Background capture defaults on for normal self-hosted deployments. A deliberately enabled\n# constrained-host profile may reduce background services without changing normal defaults.')
+              env.write_text(s)
+
+          # Remove the one-shot bootstrap workflow before committing the real cleanup.
+          (root / '.github/workflows/hosting-cleanup.yml').unlink()
+
+          # Current-tree negative contract: no provider URLs/names/config identifiers survive.
+          banned_literal = ['onrender.com', 'api.render.com', 'render.yaml', 'RENDER_']
+          leftovers = []
+          tracked = [p for p in subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0') if p]
+          for rel in tracked:
+              p = root / rel
+              if not p.exists():
+                  continue
+              try:
+                  s = p.read_text()
+              except UnicodeDecodeError:
+                  continue
+              for token in banned_literal:
+                  if token in s:
+                      leftovers.append(f'{rel}: {token}')
+              if re.search(r'\bRender\b', s):
+                  leftovers.append(f'{rel}: standalone provider name')
+          if leftovers:
+              raise SystemExit('Legacy hosting references remain:\n' + '\n'.join(leftovers))
+          PY
+
+      - name: Commit cleanup
+        shell: bash
+        run: |
+          git config user.name "DizygoticCode"
+          git config user.email "rob.noyce@gmail.com"
+          git add -A
+          git commit -m "chore: remove legacy hosting integration"
+          git push origin HEAD:chore/remove-legacy-hosting
