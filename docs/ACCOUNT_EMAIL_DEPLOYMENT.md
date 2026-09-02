@@ -1,33 +1,28 @@
-# Render Account Email Deployment
+# Account Email Deployment
 
-This document records the production runtime contract for DizyTrades public signup, email verification and password recovery on the existing Render service.
+This document records the production runtime contract for DizyTrades public signup, email verification and password recovery on the self-hosted production service.
 
-## Purpose
+## Required production variables
 
-`render.yaml` declares the intended service environment, but an already-existing Render service does not prove that every variable added later to the repository has been applied to the live runtime. Account email is considered production-configured only after the live service has the required values, has restarted/redeployed with them and the real signup/recovery flows succeed.
-
-## Required live variables
-
-The DizyTrades Render service requires:
+The DizyTrades production service requires:
 
 ```text
 PUBLIC_SIGNUP_ENABLED=true
-APP_BASE_URL=https://dizytrades.onrender.com
+APP_BASE_URL=https://dizytrades.tech
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=465
 SMTP_USER=dizytrades@gmail.com
-SMTP_APP_PASSWORD=<Render secret only>
+SMTP_APP_PASSWORD=<server secret only>
 MAIL_FROM=DizyTrades <dizytrades@gmail.com>
 ```
 
-### Secret handling
+## Secret handling
 
 `SMTP_APP_PASSWORD` must be a dedicated Google App Password for the DizyTrades Gmail account.
 
 - Never use the normal Google account password.
 - Never commit the App Password to GitHub, `.env.example`, documentation, screenshots or test fixtures.
-- Keep the real value only in the protected Render environment boundary.
-- `render.yaml` must declare `SMTP_APP_PASSWORD` with `sync: false` and no `value` field.
+- Keep the real value only in the protected production service environment.
 
 ## Application preflight
 
@@ -38,22 +33,20 @@ The account-mail boundary fails closed unless its complete configuration is vali
 - SMTP user must be a valid email address.
 - SMTP port must be valid.
 - `SMTP_APP_PASSWORD` must be non-empty.
-- Sender/host values must be valid single-line headers.
+- Sender and host values must be valid single-line headers.
 
 The signup page and signup API use the same `publicSignupEnabled()` helper so the UI cannot present signup as enabled while the backend rejects it because the explicit flag is absent.
 
-## Applying changes to an existing Render service
+## Applying production environment changes
 
 When one of these variables is newly introduced or changed:
 
-1. open the DizyTrades Render service environment settings;
-2. add or update the exact variable name/value;
-3. save the environment change;
-4. restart/redeploy the current reviewed commit so the running process receives the new environment;
-5. wait for the service to become Live;
-6. verify `/api/health` and the intended account flow.
+1. update the protected DizyTrades production service environment on the self-hosted Ubuntu host;
+2. restart the DizyTrades service so the running process receives the new environment;
+3. verify `/api/health` through the production origin;
+4. verify the intended signup, verification and password-recovery flow.
 
-Do not assume a repository change to `render.yaml` retroactively populated an already-existing service.
+Repository defaults do not replace the protected production environment and must never contain real secrets.
 
 ## Production smoke evidence
 
@@ -73,7 +66,7 @@ A complete account-email smoke should prove the real runtime chain rather than o
 
 The first deployment after the privileged migration uses the existing trusted `ROB_EMAIL`/`ROB_PASSWORD` and `FRIEND_EMAIL`/`FRIEND_PASSWORD` values only to create the verified database-backed `rob` owner and `friend` admin identities. The migration is transactional, conflict-intolerant and durably recorded. Do not delete the plaintext variables before that first boot.
 
-After verifying both identities, exercise Nick's forgot-password flow, confirm his prior database sessions are revoked, confirm only the new password works, and confirm MFA enrollment is available. Then remove `ROB_PASSWORD` and `FRIEND_PASSWORD` manually in Render. Do not change the stable IDs or roles. Subsequent boots use the durable database credentials and do not reset them from environment input.
+After verifying both identities, exercise Nick's forgot-password flow, confirm his prior database sessions are revoked, confirm only the new password works, and confirm MFA enrollment is available. Then remove `ROB_PASSWORD` and `FRIEND_PASSWORD` from the protected production environment. Do not change the stable IDs or roles. Subsequent boots use the durable database credentials and do not reset them from environment input.
 
 Verification/reset bearer links are sensitive. Do not copy live token URLs into tickets, logs or public documentation. The tokens are single-use and expire, but they must still be handled as credentials while valid.
 

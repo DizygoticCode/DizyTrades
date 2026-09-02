@@ -8,7 +8,6 @@ import {
 } from "../scripts/dizyflow-depth-failure-diagnostic.mjs";
 
 const scriptPath = new URL("../scripts/dizyflow-depth-failure-diagnostic.mjs", import.meta.url);
-const workflowPath = new URL("../.github/workflows/render-rehearsal.yml", import.meta.url);
 
 test("depth failure categories are stable and do not retain upstream text", () => {
   assert.equal(classifyDepthError("MEXC depth HTTP 403"), "upstream-http-403");
@@ -52,9 +51,8 @@ test("depth diagnostic retains bounded state only", () => {
   assert.doesNotMatch(serialised, /unretained|MEXC|lastError/);
 });
 
-test("failure-only observer cannot alter the original acceptance result", async () => {
+test("failure diagnostic cannot alter the original acceptance result", async () => {
   const source = await readFile(scriptPath, "utf8");
-  const workflow = await readFile(workflowPath, "utf8");
   assert.match(source, /acceptance\.depthFailureDiagnostic = diagnostic/);
   assert.doesNotMatch(source, /acceptance\.passed\s*=/);
   assert.match(source, /\/api\/dizyflow\/depth\?symbol=BTC_USDT/);
@@ -63,11 +61,5 @@ test("failure-only observer cannot alter the original acceptance result", async 
   assert.doesNotMatch(
     source,
     /acceptance\.depthFailureDiagnostic\s*=\s*(?:result\.body|diagnostic\.lastError)|JSON\.stringify\([^)]*(?:result\.body|diagnostic\.lastError)|\b(?:envelope|snapshot)\s*:/,
-  );
-  assert.match(workflow, /Collect bounded depth failure diagnostic/);
-  assert.match(workflow, /failure\(\).*github\.event_name != 'pull_request'/);
-  assert.ok(
-    workflow.indexOf("Collect bounded depth failure diagnostic") <
-      workflow.indexOf("Upload sanitised rehearsal evidence"),
   );
 });

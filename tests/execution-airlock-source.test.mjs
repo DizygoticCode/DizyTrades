@@ -127,7 +127,8 @@ test("application code has one execution implementation import path plus one aud
 });
 
 test("production remains false, private MEXC is GET-only and paper routes remain simulation-only", () => {
-  assert.match(text("render.yaml"), /- key: LIVE_TRADING_ENABLED\s+value: "false"/); assert.match(text(".env.example"), /^LIVE_TRADING_ENABLED=false$/m);
+  assert.match(text(".env.example"), /^LIVE_TRADING_ENABLED=false$/m);
+  assert.match(text(".env.example"), /^MEXC_WRITE_PROVIDER_ENABLED=false$/m);
   const privateRead = text("app/lib/mexc-private-readonly.ts"); assert.match(privateRead, /method: "GET"/); assert.doesNotMatch(privateRead, /method:\s*"(?:POST|PUT|PATCH|DELETE)"/);
   const paperRoute = text("app/api/manual-paper/route.ts"); assert.match(paperRoute, /submitManualOrder/); assert.doesNotMatch(paperRoute, /lib\/execution|mexc-private-readonly|requestMexcPrivateRead/);
   for (const path of filesBelow("app/api").filter((path) => /paper.*route\.ts$|manual-paper\/route\.ts$/.test(path))) assert.doesNotMatch(text(path), /lib\/execution/, path);

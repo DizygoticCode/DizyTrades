@@ -56,11 +56,10 @@ test("DizyFlow opens the native futures websocket first with bounded publication
 
 test("owner private reads use current REST origin while websocket config remains separate", async () => {
   const manifest = mexcPrivateReadCapabilityManifest();
-  const [privateSource, realtimeSource, environment, render, nextConfig] = await Promise.all([
+  const [privateSource, realtimeSource, environment, nextConfig] = await Promise.all([
     readFile("app/lib/mexc-private-readonly.ts", "utf8"),
     readFile("app/lib/market/use-mexc-realtime.ts", "utf8"),
     readFile(".env.example", "utf8"),
-    readFile("render.yaml", "utf8"),
     readFile("next.config.ts", "utf8"),
   ]);
 
@@ -71,8 +70,6 @@ test("owner private reads use current REST origin while websocket config remains
   assert.match(environment, /^MEXC_FUTURES_REST_BASE_URL=https:\/\/api\.mexc\.com$/m);
   assert.match(environment, /^MEXC_FUTURES_WS_URL=wss:\/\/contract\.mexc\.com\/edge$/m);
   assert.match(environment, /^DIZYFLOW_DEPTH_TRANSPORT=ws$/m);
-  assert.match(render, /key:\s*MEXC_FUTURES_WS_URL\s*\n\s*value:\s*wss:\/\/contract\.mexc\.com\/edge/);
-  assert.match(render, /key:\s*DIZYFLOW_DEPTH_TRANSPORT\s*\n\s*value:\s*ws/);
   assert.match(nextConfig, /wss:\/\/contract\.mexc\.com/);
   assert.equal(realtimeSource.includes(wrongWs), false);
 });

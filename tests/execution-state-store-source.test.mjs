@@ -33,9 +33,9 @@ test("durable execution state remains secret-free and disconnected from exchange
   assert.doesNotMatch(store, /submitted|acknowledged|reconciled|orderId|fillId|tradeId/i);
 });
 
-test("durable state does not weaken production disabled flags", () => {
-  assert.match(text("render.yaml"), /- key: LIVE_TRADING_ENABLED\s+value: "false"/);
+test("durable state does not weaken disabled execution defaults", () => {
   assert.match(text(".env.example"), /^LIVE_TRADING_ENABLED=false$/m);
+  assert.match(text(".env.example"), /^MEXC_WRITE_PROVIDER_ENABLED=false$/m);
   const composition = text("app/lib/execution/internal/composition.ts");
   assert.match(composition, /const caller = verifyProductionExecutionCaller\(stableRequest\.callerAssertion\)/);
   assert.match(composition, /authenticateInternalCaller:\s*\(assertion\)\s*=>\s*caller/);

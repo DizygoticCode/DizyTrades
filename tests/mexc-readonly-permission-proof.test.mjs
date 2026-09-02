@@ -176,9 +176,8 @@ test("no browser or API route exposes the private-account foundation", () => {
   }
 });
 
-test("deployment configuration exposes only owner-scoped unsynchronised slots", () => {
+test("deployment defaults expose only owner-scoped unsynchronised slots", () => {
   const environment = text(".env.example");
-  const render = text("render.yaml");
 
   assert.match(environment, /^LIVE_TRADING_ENABLED=false$/m);
   assert.match(
@@ -192,21 +191,8 @@ test("deployment configuration exposes only owner-scoped unsynchronised slots", 
     /^OWNER_MEXC_READONLY_PERMISSION_ATTESTATION=$/m,
   );
 
-  assert.match(render, /key:\s*LIVE_TRADING_ENABLED\s*\n\s*value:\s*"false"/);
-  for (const key of [
-    "OWNER_MEXC_ACCOUNT_COMPANION_ENABLED",
-    "OWNER_MEXC_READONLY_API_KEY",
-    "OWNER_MEXC_READONLY_API_SECRET",
-    "OWNER_MEXC_READONLY_PERMISSION_ATTESTATION",
-  ]) {
-    assert.match(render, new RegExp(`key:\\s*${key}\\s*\\n\\s*sync:\\s*false`));
-    assert.doesNotMatch(render, new RegExp(`key:\\s*${key}\\s*\\n\\s*value:`));
-  }
-
   assert.doesNotMatch(environment, /^(?:MEXC|FRIEND_MEXC)_READONLY_API_/m);
-  assert.doesNotMatch(render, /key:\s*(?:MEXC|FRIEND_MEXC)_READONLY_API_/);
   assert.doesNotMatch(environment, /^NEXT_PUBLIC_.*MEXC.*(?:KEY|SECRET)/m);
-  assert.doesNotMatch(render, /key:\s*NEXT_PUBLIC_.*MEXC.*(?:KEY|SECRET)/);
 });
 
 test("proof report itself contains no credential or executable request", () => {

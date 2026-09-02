@@ -30,5 +30,5 @@ test("no route imports guarded execution or exposes order-write mechanics", () =
   const adapter = text("app/lib/execution/internal/adapter.ts");
   assert.doesNotMatch(adapter, /fetch\(|https?:|MEXC|sign|credential|place|cancel|amend/i);
   assert.match(adapter, /executed: false/);
-  assert.match(text("render.yaml"), /key: LIVE_TRADING_ENABLED\s+value: "false"/);
+  assert.match(text(".env.example"), /^LIVE_TRADING_ENABLED=false$/m);
 });
