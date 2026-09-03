@@ -3,7 +3,43 @@ import test from "node:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readDizyQuantCampaignRecorderState } from "../app/lib/dizyquant/campaign-recorder-store.ts";
+import {
+  DIZYQUANT_CAMPAIGN_RECORDER_STORE_DEFAULT_MAX_BYTES,
+  DIZYQUANT_CAMPAIGN_RECORDER_STORE_MAX_CONFIGURABLE_BYTES,
+  readDizyQuantCampaignRecorderState,
+  resolveDizyQuantCampaignRecorderStoreMaxBytes,
+} from "../app/lib/dizyquant/campaign-recorder-store.ts";
+
+const maxDiskEnv = "DIZYQUANT_CAMPAIGN_RECORDER_MAX_DISK_MB";
+
+test("campaign recorder store resolves a bounded configurable byte limit", () => {
+  const previous = process.env[maxDiskEnv];
+  try {
+    delete process.env[maxDiskEnv];
+    assert.equal(
+      resolveDizyQuantCampaignRecorderStoreMaxBytes(),
+      DIZYQUANT_CAMPAIGN_RECORDER_STORE_DEFAULT_MAX_BYTES,
+    );
+
+    process.env[maxDiskEnv] = "512";
+    assert.equal(resolveDizyQuantCampaignRecorderStoreMaxBytes(), 512 * 1024 * 1024);
+
+    process.env[maxDiskEnv] = "2048";
+    assert.equal(
+      resolveDizyQuantCampaignRecorderStoreMaxBytes(),
+      DIZYQUANT_CAMPAIGN_RECORDER_STORE_MAX_CONFIGURABLE_BYTES,
+    );
+
+    process.env[maxDiskEnv] = "not-a-number";
+    assert.equal(
+      resolveDizyQuantCampaignRecorderStoreMaxBytes(),
+      DIZYQUANT_CAMPAIGN_RECORDER_STORE_DEFAULT_MAX_BYTES,
+    );
+  } finally {
+    if (previous === undefined) delete process.env[maxDiskEnv];
+    else process.env[maxDiskEnv] = previous;
+  }
+});
 
 test("campaign recorder store requires an explicit durable DATA_DIR", async () => {
   const previous = process.env.DATA_DIR;
