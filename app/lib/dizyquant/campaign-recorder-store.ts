@@ -9,7 +9,26 @@ import {
 } from "./campaign-recorder-runner.ts";
 
 export const DIZYQUANT_CAMPAIGN_RECORDER_STORE_VERSION = 1 as const;
-export const DIZYQUANT_CAMPAIGN_RECORDER_STORE_MAX_BYTES = 128 * 1024 * 1024;
+const MIB = 1024 * 1024;
+export const DIZYQUANT_CAMPAIGN_RECORDER_STORE_DEFAULT_MAX_BYTES = 128 * MIB;
+export const DIZYQUANT_CAMPAIGN_RECORDER_STORE_MAX_CONFIGURABLE_BYTES = 1024 * MIB;
+export const DIZYQUANT_CAMPAIGN_RECORDER_STORE_MAX_BYTES =
+  DIZYQUANT_CAMPAIGN_RECORDER_STORE_DEFAULT_MAX_BYTES;
+
+export function resolveDizyQuantCampaignRecorderStoreMaxBytes() {
+  const raw = process.env.DIZYQUANT_CAMPAIGN_RECORDER_MAX_DISK_MB?.trim();
+  if (!raw) return DIZYQUANT_CAMPAIGN_RECORDER_STORE_DEFAULT_MAX_BYTES;
+
+  const configuredMb = Number(raw);
+  if (!Number.isSafeInteger(configuredMb) || configuredMb <= 0) {
+    return DIZYQUANT_CAMPAIGN_RECORDER_STORE_DEFAULT_MAX_BYTES;
+  }
+
+  return Math.min(
+    configuredMb * MIB,
+    DIZYQUANT_CAMPAIGN_RECORDER_STORE_MAX_CONFIGURABLE_BYTES,
+  );
+}
 
 function dataRoot() {
   const value = process.env.DATA_DIR?.trim();
@@ -34,7 +53,7 @@ function serial<T>(operation: () => Promise<T>) {
 export async function readDizyQuantCampaignRecorderState(): Promise<DizyQuantCampaignRecorderRunnerState> {
   try {
     const info = await stat(target());
-    if (info.size > DIZYQUANT_CAMPAIGN_RECORDER_STORE_MAX_BYTES) {
+    if (info.size > resolveDizyQuantCampaignRecorderStoreMaxBytes()) {
       throw new Error("Stored DizyQuant campaign recorder state exceeds its byte limit");
     }
     const raw = await readFile(target(), "utf8");
@@ -54,7 +73,7 @@ export async function writeDizyQuantCampaignRecorderState(
   return serial(async () => {
     await mkdir(directory(), { recursive: true });
     const encoded = `${JSON.stringify(validated, null, 2)}\n`;
-    if (Buffer.byteLength(encoded) > DIZYQUANT_CAMPAIGN_RECORDER_STORE_MAX_BYTES) {
+    if (Buffer.byteLength(encoded) > resolveDizyQuantCampaignRecorderStoreMaxBytes()) {
       throw new Error("DizyQuant campaign recorder state exceeds its byte limit");
     }
     const destination = target();
