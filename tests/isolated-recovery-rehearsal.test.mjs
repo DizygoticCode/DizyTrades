@@ -122,7 +122,7 @@ test("recovery workflow remains isolated from Render and production data", async
   ]);
   assert.match(workflow, /npm ci/);
   assert.match(workflow, /isolated-recovery-rehearsal\.mjs/);
-  assert.match(workflow, /upload-artifact@v4/);
+  assert.match(workflow, /upload-artifact@v7/);
   assert.doesNotMatch(workflow, /RENDER_API_KEY|RENDER_SERVICE_ID/);
   assert.match(script, /mkdtemp/);
   assert.match(script, /planUserBackupRestoreWithWorkspaces/);
