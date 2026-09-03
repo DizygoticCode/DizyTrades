@@ -20,9 +20,13 @@ paper-test engine. This repository is a private TEST deployment.
 
 Run `npm run lint`, `npm test` and `npm run build` before proposing a merge.
 
-## Render
+## Self-hosted deployment
 
-`render.yaml` defines one paid Starter web service in Frankfurt with a 1 GB
-encrypted persistent disk mounted at `/var/data`. JSON persistence is suitable
-for this two-user test only; migrate to managed Postgres before adding a worker,
-multiple instances or live execution.
+Production is self-hosted. GitHub CI is the validation gate, not the deployment
+target. Merge only after the exact PR head is green, then deploy that exact green SHA
+to the server deliberately rather than pulling an unverified moving branch.
+
+The application runs under `systemd` and is exposed through Caddy as the public
+reverse proxy. Keep runtime secrets and host-specific service configuration out
+of the repository, and preserve the disabled live/write trading defaults during
+deployment and restart work.
