@@ -23,8 +23,8 @@ Run `npm run lint`, `npm test` and `npm run build` before proposing a merge.
 ## Self-hosted deployment
 
 Production is self-hosted. GitHub CI is the validation gate, not the deployment
-target. Merge only after the exact PR head is green, then deploy that exact green
-SHA to the server deliberately rather than pulling an unverified moving branch.
+target. Merge only after the exact PR head is green, then deploy that exact green SHA
+to the server deliberately rather than pulling an unverified moving branch.
 
 The application runs under `systemd` and is exposed through Caddy as the public
 reverse proxy. Keep runtime secrets and host-specific service configuration out
