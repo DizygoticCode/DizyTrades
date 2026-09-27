@@ -1,0 +1,30 @@
+# Example for the public DizyTrades site ONLY. Do not replace the complete live
+# /etc/caddy/Caddyfile or change the DizyChat/LiveKit site blocks.
+dizytrades.tech, www.dizytrades.tech {
+    # Journald receives access events. The real host controls retention.
+    log {
+        output stderr
+        format filter {
+            request>headers delete
+            request>uri delete
+            wrap json
+        }
+    }
+    # Log path, method, response status and peer address; never query or headers.
+    log_append request_path {http.request.uri.path}
+
+    # Only reject obviously malformed Server Action POST identifiers (1-9 chars).
+    # No Next-Action header, and valid-looking IDs, pass through unchanged.
+    @short_action {
+        method POST
+        header_regexp Next-Action "^.{1,9}$"
+    }
+    route {
+        respond @short_action 400
+        reverse_proxy 127.0.0.1:10000 {
+            transport http {
+                keepalive off
+            }
+        }
+    }
+}

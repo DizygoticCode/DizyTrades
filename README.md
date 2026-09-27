@@ -10,10 +10,10 @@ The next execution milestone is operational rather than another product feature 
 
 **A transparent, simulation-first crypto research, charting, execution-practice and review platform.**
 
-[Open DizyTrades](https://dizytrades.onrender.com) · [View-only terminal](https://dizytrades.onrender.com/explore) · [DizyQuant Research](https://dizytrades.onrender.com/research) · [DizyAcademy](https://dizytrades.onrender.com/school) · [DIZY](https://dizytrades.onrender.com/dizy) · [Roadmap](ROADMAP.md)
+[Open DizyTrades](https://dizytrades.tech) · [View-only terminal](https://dizytrades.tech/explore) · [DizyQuant Research](https://dizytrades.tech/research) · [DizyAcademy](https://dizytrades.tech/school) · [DIZY](https://dizytrades.tech/dizy) · [Roadmap](ROADMAP.md)
 
-![Next.js](https://img.shields.io/badge/Next.js-16.2.12-black?logo=next.js)
-![React](https://img.shields.io/badge/React-19.2.6-149ECA?logo=react)
+![Next.js](https://img.shields.io/badge/Next.js-16.x-black?logo=next.js)
+![React](https://img.shields.io/badge/React-19.x-149ECA?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-3178C6?logo=typescript)
 ![Node.js](https://img.shields.io/badge/Node.js-22.23.1-339933?logo=node.js)
 ![Status](https://img.shields.io/badge/status-active%20beta-7c6cff)
@@ -26,7 +26,12 @@ The next execution milestone is operational rather than another product feature 
 >
 > DizyTrades exposes evidence, assumptions, unavailable states and limitations. Live exchange execution remains disabled.
 
-## Current state — 19 August 2026
+## Product baseline — 19 August 2026 (historical)
+
+The self-hosted runtime status and security patch level are tracked separately
+in [the current operations runbook](docs/SELF_HOSTED_OPERATIONS.md) and
+`package.json`/`package-lock.json`. Older deployment notes below are
+historical unless explicitly refreshed.
 
 DizyTrades has moved well beyond its original chart-and-strategy simulator into a connected research and review platform. The planned product-generation scope is complete on current `main`: the charting terminal, deterministic signal engine, public market-microstructure tooling, realistic paper execution, read-only account reconciliation, replay, journal, analytics, education, backup/recovery, verified public accounts and personal profiles are all present.
 
@@ -35,16 +40,16 @@ Market discovery now spans MEXC Spot/Futures, DizyDEX and authenticated Global S
 The repository baseline and production account lifecycle are also settled:
 
 - GitHub Actions is operational and the normal merge gate is lint → complete deterministic suite → production build → Chromium/Playwright smoke.
-- Next.js and `eslint-config-next` are on the focused 16.2.12 security/patch release.
+- Framework patch versions are pinned in `package.json` and the lockfile; review the current vendor security advisories before each rollout.
 - the persistent MEXC contract-metadata recovery path used by Manual Paper is regression-tested.
 - DIZY is live on Solana with an official public DizyTrades token page.
 - public signup requires email verification before session creation.
 - verified database accounts have enumeration-safe self-service password recovery with session revocation after reset.
 - authenticated owner/admin/user identities have a personal profile surface for display name, bounded bio and avatar.
 - production owner/admin passwords are database-authoritative after migration/reset, and privileged plaintext password environment inputs have been removed from the live Render service.
-- provider-neutral static execution-host authority is already built; actual Server Club configuration, migration, fresh static-IP attestation and canary execution remain separate operations.
+- provider-neutral static execution-host authority is already built; actual protected-state migration/verification, fresh static-IP attestation and canary execution remain separate operations.
 
-The first bounded DizyQuant representative campaign is closed for the current roadmap and remains isolated from DizySignals unless a future separate promotion review explicitly changes that boundary. There is no standing new product-feature programme behind the current release. While Server Club hardware is prepared, the remaining work is evidence-led polish or supported-stack maintenance only when justified; the next major execution step is the controlled Server Club migration and canary ceremony.
+The first bounded DizyQuant representative campaign is closed for the current roadmap and remains isolated from DizySignals unless a future separate promotion review explicitly changes that boundary. There is no standing new product-feature programme behind the current release. The web service is now self-hosted; the remaining guarded-execution state-integrity, exact-host attestation and any canary remain independently gated.
 
 ## What DizyTrades is
 
@@ -145,7 +150,7 @@ Owner/admin diagnostics expose deployed runtime identity, storage/evidence statu
 - **Fixed supply:** 1,000,000 DIZY
 - **Mint authority:** revoked
 - **Freeze authority:** revoked
-- **Official page:** https://dizytrades.onrender.com/dizy
+- **Official page:** https://dizytrades.tech/dizy
 - **Canonical Raydium DIZY/USDT CPMM pool:** `2mH8umwN2FfEx23bzTUuTXjQZ5G9rLNuJ2VWEkgynowA`
 
 The official DIZY page contains the canonical token identity, documentation, explorer and market references. External token-directory/listing reviews are operational/admin work and are not a prerequisite for continuing DizyTrades product development.
@@ -224,33 +229,31 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-Place generated `salt:hash` values in the matching password-hash environment variables and set `SESSION_SECRET` to at least 32 random characters. Public signup and legacy emergency access must each be explicitly enabled. The repository retains a local/test compatibility path for temporary plaintext passwords only when `ALLOW_TEST_PLAINTEXT_PASSWORDS=true`; that path is blocked whenever live trading is enabled and is not part of the live Render identity configuration.
+Place generated `salt:hash` values in the matching password-hash environment variables and set `SESSION_SECRET` to at least 32 random characters. Public signup and legacy emergency access must each be explicitly enabled. The repository retains a local/test compatibility path for temporary plaintext passwords only when `ALLOW_TEST_PLAINTEXT_PASSWORDS=true`; that path is blocked whenever live trading is enabled and is not part of the live self-hosted identity configuration.
 
 If local public signup is enabled, configure the account-mail variables from `.env.example` with a safe local/test mail boundary. Do not place the production Gmail App Password in committed files or test fixtures.
 
 ## Deployment and recovery
 
-The beta is currently deployed on Render as a Node service with persistent application storage, automatic deploys from `main` and `/api/health` monitoring. Render remains the application host while Server Club hardware is prepared; it should not be granted temporary MEXC exchange-write egress solely to bridge that wait.
+DizyTrades is self-hosted on dizyserver, behind Caddy, with the Node/Next.js
+application managed by systemd. GitHub CI validates changes but **does not**
+deploy them. Deploy only a reviewed exact green commit with an explicitly
+approved operator rollout; never infer the running SHA from the GitHub branch.
+Production secrets and persistent application state remain on the host, not
+in the repository. Check `/api/health` and authenticated workflows after an
+approved deployment.
 
-The intended production account-email environment is declared in `render.yaml`, but an existing Render service must be checked explicitly when new variables are introduced. The live service requires:
+The web service's move does **not** prove that all protected account state,
+backups, egress attestation or guarded-execution preconditions have been
+migrated and verified. Both exchange-write switches must remain disabled.
+Complete a separate state-integrity, restore/restart/rollback rehearsal and
+fresh exact-host `/32` evidence before even considering a guarded canary.
 
-```text
-PUBLIC_SIGNUP_ENABLED=true
-APP_BASE_URL=https://dizytrades.onrender.com
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=465
-SMTP_USER=dizytrades@gmail.com
-SMTP_APP_PASSWORD=<Render secret only>
-MAIL_FROM=DizyTrades <dizytrades@gmail.com>
-```
-
-After adding or changing those values, save them and restart/redeploy the reviewed commit so the running process receives the new environment. A repository declaration alone is not treated as production proof. Full details and the smoke-test contract live in [docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md](docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md).
-
-The deployment-observation contract is read-only: it resolves the configured DizyTrades service, waits for the expected commit and verifies the public execution-disabled health boundary without changing Render.
-
-The isolated recovery rehearsal uses the real backup engine to export, validate, dry-run and restore representative user data into fresh temporary data roots. A persistent disk is not itself a backup; dated DizyBackup exports should be kept outside the provider.
-
-The next guarded-execution infrastructure milestone is the controlled Server Club state migration, followed by integrity/restart/rollback rehearsal and fresh host/credential attestation before any canary. Provider snapshot rollback or other destructive infrastructure rehearsal must remain isolated and explicitly approved.
+For the current Caddy domains, safe request logging, Next-Action probe
+mitigation, backup/validate/reload sequence and read-only memory trend check,
+see [self-hosted operations](docs/SELF_HOSTED_OPERATIONS.md).
+Historical Render documents are retained as historical records only; do not
+apply their environment or host instructions to dizyserver.
 
 ## Important limitations
 

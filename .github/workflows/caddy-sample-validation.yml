@@ -1,0 +1,24 @@
+name: Validate self-hosted Caddy sample
+on:
+  push:
+    paths:
+      - 'deploy/caddy/**'
+      - '.github/workflows/caddy-sample-validation.yml'
+  pull_request:
+    paths:
+      - 'deploy/caddy/**'
+      - '.github/workflows/caddy-sample-validation.yml'
+permissions:
+  contents: read
+jobs:
+  caddyfile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7
+      - name: Adapt and provision the public-site example without serving traffic
+        run: |
+          docker run --rm \
+            -v "$PWD/deploy/caddy:/config:ro" \
+            caddy:2.11.4 \
+            caddy adapt --config /config/dizytrades-public.Caddyfile --adapter caddyfile --validate > /dev/null

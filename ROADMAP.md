@@ -2,14 +2,14 @@
 
 DizyTrades is a transparent, deterministic crypto research, simulation and review platform. The enduring mission lives in [VISION.md](VISION.md); technical boundaries live in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-This roadmap reflects merged `main` as of **19 August 2026**. Items are not promises of dates. Work moves only after focused implementation, deterministic validation and review.
+This roadmap records the original **19 August 2026** milestone plus the **27 September 2026** self-hosted operations checkpoint. Items are not promises of dates. Work moves only after focused implementation, deterministic validation and review.
 
 ## Current roadmap order
 
 The broad platform-building phase is complete for the current planned scope. There is no standing feature programme waiting behind the current release. The active sequence is deliberately narrower:
 
-1. **Keep the current Render-hosted product stable** while Server Club hardware is completed; do not create temporary exchange-write authority merely to bridge the wait.
-2. **Complete the guarded-execution operational migration** only on the intended Server Club host: controlled state migration, restart/rollback rehearsal, fresh exact-host `/32` evidence, fresh write-generation attestation and an independently approved microscopic canary.
+1. **Keep the currently self-hosted web service stable**. A working web host is not evidence that guarded-execution state migration, restoration and egress attestation are complete. Keep both exchange-write switches disabled.
+2. **Complete guarded-execution operational verification** on the intended self-hosted machine: account/state integrity, restore/restart/rollback rehearsal, fresh exact-host `/32` evidence, fresh write-generation attestation and an independently approved microscopic canary.
 3. **Apply optional evidence-led polish and supported-stack maintenance** only where production use or a focused dependency/security reason justifies it.
 
 The first bounded DizyQuant representative campaign is closed for the current roadmap. DizyQuant remains research-only unless a separate versioned follow-up or promotion PR is justified by evidence.
@@ -27,7 +27,7 @@ The current product-generation programme is complete and live on Render.
 - [x] stale `ALLOW_TEST_PLAINTEXT_PASSWORDS=false` production Render configuration removed; explicitly gated local/test compatibility remains a repository-only development boundary
 - [x] production guarded-execution activation remains off and no real order has been submitted
 
-The remaining guarded-execution work is operational Server Club migration, fresh host/credential evidence and the microscopic canary ceremony described below—not another product feature build.
+The remaining guarded-execution work is protected-state migration verification, recovery rehearsal, fresh host/credential evidence and a separately approved microscopic canary—not another product feature build.
 
 ## 11 August 2026 checkpoint — baseline reset complete
 
@@ -354,7 +354,7 @@ Current operational blocker and migration boundary:
 
 - [x] replace the Render-specific execution-host identity assumption with an equivalently strict provider-neutral approved-host + exact static `/32` authority before moving execution to Server Club
 - [ ] complete a controlled persistent-state migration, integrity and rollback/restart rehearsal before changing the production execution host
-- [ ] restore trusted private MEXC account state on the migrated Server Club host; do not re-authorize temporary Render egress solely to bridge the wait
+- [ ] restore trusted private MEXC account state on the self-hosted machine; do not reuse obsolete Render egress authority
 - [ ] verify the Server Club host's static public IPv4 from independent observers and bind fresh egress evidence to that exact `/32`
 - [ ] reprovision/re-attest the dedicated write generation against the migrated host rather than silently inheriting stale Render egress authority
 - [ ] perform an independently approved microscopic reduce-only canary only after trusted account state, reconciliation, risk, rollout, egress, custody and every kill-switch/activation gate are fresh on the migrated host
@@ -415,6 +415,6 @@ The software security boundary includes the production writer connection, encryp
 - Prefer deterministic, explainable behaviour over black-box output.
 - Research observations remain informational or experimental until separately validated and promoted.
 - Live trading remains disabled until the final security milestone is complete.
-- Keep the existing Render service as the current application host while Server Club is prepared; do not grant temporary Render exchange-write egress solely to bridge that wait.
+- Keep the self-hosted web service stable while exchange-write authority remains disabled; do not infer a successful protected-state migration or exact-host egress attestation from web availability.
 - Prefer existing infrastructure, GitHub workflows and free tooling where they preserve the reviewed security boundary.
 - Do not create paid services, disks, databases, APIs or subscriptions without explicit owner approval.

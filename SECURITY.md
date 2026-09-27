@@ -154,19 +154,19 @@ Authentication rate limits are stored in SQLite. If SQLite is unavailable, a bou
 
 ## Account email transport
 
-Production verification and recovery mail is sent server-side through a bounded TLS SMTP client. The intended Render runtime contract is:
+Production verification and recovery mail is sent server-side through a bounded TLS SMTP client. The intended self-hosted runtime contract is:
 
 - `PUBLIC_SIGNUP_ENABLED=true`
-- `APP_BASE_URL=https://dizytrades.onrender.com`
+- `APP_BASE_URL=https://dizytrades.tech`
 - `SMTP_HOST=smtp.gmail.com`
 - `SMTP_PORT=465`
 - `SMTP_USER=dizytrades@gmail.com`
-- `SMTP_APP_PASSWORD` supplied only as a Render secret/environment value
+- `SMTP_APP_PASSWORD` supplied only as a protected host environment value
 - `MAIL_FROM=DizyTrades <dizytrades@gmail.com>`
 
 `SMTP_APP_PASSWORD` must be a dedicated Google App Password, never the Google account password and never committed to source control. Production requires an HTTPS `APP_BASE_URL` and TLS certificate validation for SMTP.
 
-`render.yaml` declares the intended service contract, but an already-existing Render service may require newly introduced environment variables to be added to the live service explicitly and then applied by a restart/redeploy. Deployment documentation must keep that operational distinction visible.
+GitHub configuration is not the running systemd service environment. Verify required variables on the host without printing secrets, then apply approved changes via the reviewed service deployment/restart process. A source file or CI value never proves a production setting. Historical Render deployment documents are not instructions for the current self-hosted service.
 
 ## Personal profile boundary
 
@@ -234,9 +234,10 @@ Use unique throwaway passwords, never commit or reuse them, and retain salted sc
 
 - The SQLite-outage fallback limiter is process-local and resets on restart. It is acceptable only for the current single-instance service.
 - Emergency owner/admin legacy sessions are not individually managed by the public database-account recovery flow.
-- Current production is one Render instance with persistent SQLite authentication, rate-limit and guarded-execution idempotency state, scaled vertically first. Guarded-execution idempotency is durable across restart on this supported topology but is not a horizontally shared multi-instance solution. Horizontal multi-instance deployment is not planned for this slice and would require a separate shared-state design before use.
+- The self-hosted application is a single-instance service with local SQLite authentication, rate-limit and guarded-execution idempotency state. Durable restart guarantees and persistent-state migration must be validated on the actual host; this is not a multi-instance design. A future horizontal deployment requires separately reviewed shared state.
 - Local audit JSONL is operational evidence, not immutable externally anchored security logging.
-- Render host and persistent-disk security remain inside the provider trust boundary.
+- Host firewall, reverse proxy, access-log retention, backup custody and persistent-store security are operator responsibilities. The running server configuration has not been established by repository tests.
+- Live exchange-write authority stays disabled until a separate, explicitly approved production ceremony; running the web service is not proof of exchange-write readiness.
 - The application remains simulation-only; the read-only Account Companion does not approve or imply exchange write capability.
 
 ## Requirements before exchange write permission
