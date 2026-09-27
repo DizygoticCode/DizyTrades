@@ -154,19 +154,19 @@ Authentication rate limits are stored in SQLite. If SQLite is unavailable, a bou
 
 ## Account email transport
 
-Production verification and recovery mail is sent server-side through a bounded TLS SMTP client. The intended Render runtime contract is:
+Production verification and recovery mail is sent server-side through a bounded TLS SMTP client. The intended self-hosted runtime contract is:
 
 - `PUBLIC_SIGNUP_ENABLED=true`
-- `APP_BASE_URL=https://dizytrades.onrender.com`
+- `APP_BASE_URL=https://dizytrades.tech`
 - `SMTP_HOST=smtp.gmail.com`
 - `SMTP_PORT=465`
 - `SMTP_USER=dizytrades@gmail.com`
-- `SMTP_APP_PASSWORD` supplied only as a Render secret/environment value
+- `SMTP_APP_PASSWORD` supplied only as a protected host environment value
 - `MAIL_FROM=DizyTrades <dizytrades@gmail.com>`
 
 `SMTP_APP_PASSWORD` must be a dedicated Google App Password, never the Google account password and never committed to source control. Production requires an HTTPS `APP_BASE_URL` and TLS certificate validation for SMTP.
 
-`render.yaml` declares the intended service contract, but an already-existing Render service may require newly introduced environment variables to be added to the live service explicitly and then applied by a restart/redeploy. Deployment documentation must keep that operational distinction visible.
+GitHub configuration is not the running systemd service environment. Verify required variables on the host without printing secrets, then apply approved changes via the reviewed service deployment/restart process. A source file or CI value never proves a production setting. Historical Render deployment documents are not instructions for the current self-hosted service.
 
 ## Personal profile boundary
 

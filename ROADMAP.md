@@ -27,7 +27,7 @@ The current product-generation programme is complete and live on Render.
 - [x] stale `ALLOW_TEST_PLAINTEXT_PASSWORDS=false` production Render configuration removed; explicitly gated local/test compatibility remains a repository-only development boundary
 - [x] production guarded-execution activation remains off and no real order has been submitted
 
-The remaining guarded-execution work is operational Server Club migration, fresh host/credential evidence and the microscopic canary ceremony described below—not another product feature build.
+The remaining guarded-execution work is protected-state migration verification, recovery rehearsal, fresh host/credential evidence and a separately approved microscopic canary—not another product feature build.
 
 ## 11 August 2026 checkpoint — baseline reset complete
 
@@ -354,7 +354,7 @@ Current operational blocker and migration boundary:
 
 - [x] replace the Render-specific execution-host identity assumption with an equivalently strict provider-neutral approved-host + exact static `/32` authority before moving execution to Server Club
 - [ ] complete a controlled persistent-state migration, integrity and rollback/restart rehearsal before changing the production execution host
-- [ ] restore trusted private MEXC account state on the migrated Server Club host; do not re-authorize temporary Render egress solely to bridge the wait
+- [ ] restore trusted private MEXC account state on the self-hosted machine; do not reuse obsolete Render egress authority
 - [ ] verify the Server Club host's static public IPv4 from independent observers and bind fresh egress evidence to that exact `/32`
 - [ ] reprovision/re-attest the dedicated write generation against the migrated host rather than silently inheriting stale Render egress authority
 - [ ] perform an independently approved microscopic reduce-only canary only after trusted account state, reconciliation, risk, rollout, egress, custody and every kill-switch/activation gate are fresh on the migrated host
@@ -415,6 +415,6 @@ The software security boundary includes the production writer connection, encryp
 - Prefer deterministic, explainable behaviour over black-box output.
 - Research observations remain informational or experimental until separately validated and promoted.
 - Live trading remains disabled until the final security milestone is complete.
-- Keep the existing Render service as the current application host while Server Club is prepared; do not grant temporary Render exchange-write egress solely to bridge that wait.
+- Keep the self-hosted web service stable while exchange-write authority remains disabled; do not infer a successful protected-state migration or exact-host egress attestation from web availability.
 - Prefer existing infrastructure, GitHub workflows and free tooling where they preserve the reviewed security boundary.
 - Do not create paid services, disks, databases, APIs or subscriptions without explicit owner approval.
