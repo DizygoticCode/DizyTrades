@@ -205,6 +205,9 @@ export class DepthCollector {
   private lastHistoryAt: number | null = null;
   private lastWsUpdateAt: number | null = null;
   private history: Array<DepthEnvelope | undefined>;
+  // Effective ring capacity can shrink once under memory pressure; the
+  // configured maximum remains unchanged for newly created collectors.
+  private historyCapacity: number;
   private historyStart = 0;
   private historyCount = 0;
   private emitter = new EventEmitter();
@@ -248,7 +251,8 @@ export class DepthCollector {
       healthPollMs: options.healthPollMs ?? WS_HEALTH_POLL_MS,
       wsSilenceMs: options.wsSilenceMs ?? WS_SILENCE_MS,
     };
-    this.history = new Array(this.options.maxHistory);
+    this.historyCapacity = Math.max(1, this.options.maxHistory);
+    this.history = new Array(this.historyCapacity);
   }
 
   private sourceMode(): import("./types.ts").DepthSourceMode {
@@ -593,10 +597,10 @@ export class DepthCollector {
   private appendHistory(envelope: DepthEnvelope) {
     this.lastHistoryAt = envelope.receivedAt;
     getLiquidityTape(this.symbol).capture(envelope.snapshot, envelope.receivedAt);
-    const index = (this.historyStart + this.historyCount) % this.options.maxHistory;
+    const index = (this.historyStart + this.historyCount) % this.historyCapacity;
     this.history[index] = envelope;
-    if (this.historyCount < this.options.maxHistory) this.historyCount += 1;
-    else this.historyStart = (this.historyStart + 1) % this.options.maxHistory;
+    if (this.historyCount < this.historyCapacity) this.historyCount += 1;
+    else this.historyStart = (this.historyStart + 1) % this.historyCapacity;
   }
 
   private async pollScheduled() {
@@ -692,16 +696,22 @@ export class DepthCollector {
   getHistory() {
     const result: DepthEnvelope[] = [];
     for (let index = 0; index < this.historyCount; index += 1) {
-      const value = this.history[(this.historyStart + index) % this.options.maxHistory];
+      const value = this.history[(this.historyStart + index) % this.historyCapacity];
       if (value) result.push(value);
     }
     return result;
   }
 
   halveHistory() {
-    const keep = Math.floor(this.options.maxHistory / 2),
+    // Pressure diagnostics run periodically. Shrink the actual ring capacity
+    // once, rather than discarding half the contents every interval only to
+    // refill all the way back to the original maximum. Repeated warnings must
+    // not shrink an active collector down to a single unusable sample.
+    if (this.historyCapacity <= 1 || this.historyCapacity < this.options.maxHistory) return;
+    const keep = Math.max(1, Math.floor(this.historyCapacity / 2)),
       values = this.getHistory().slice(-keep);
-    this.history.fill(undefined);
+    this.historyCapacity = keep;
+    this.history = new Array(keep);
     this.historyStart = 0;
     this.historyCount = values.length;
     values.forEach((value, index) => (this.history[index] = value));
