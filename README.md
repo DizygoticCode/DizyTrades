@@ -224,33 +224,31 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-Place generated `salt:hash` values in the matching password-hash environment variables and set `SESSION_SECRET` to at least 32 random characters. Public signup and legacy emergency access must each be explicitly enabled. The repository retains a local/test compatibility path for temporary plaintext passwords only when `ALLOW_TEST_PLAINTEXT_PASSWORDS=true`; that path is blocked whenever live trading is enabled and is not part of the live Render identity configuration.
+Place generated `salt:hash` values in the matching password-hash environment variables and set `SESSION_SECRET` to at least 32 random characters. Public signup and legacy emergency access must each be explicitly enabled. The repository retains a local/test compatibility path for temporary plaintext passwords only when `ALLOW_TEST_PLAINTEXT_PASSWORDS=true`; that path is blocked whenever live trading is enabled and is not part of the live self-hosted identity configuration.
 
 If local public signup is enabled, configure the account-mail variables from `.env.example` with a safe local/test mail boundary. Do not place the production Gmail App Password in committed files or test fixtures.
 
 ## Deployment and recovery
 
-The beta is currently deployed on Render as a Node service with persistent application storage, automatic deploys from `main` and `/api/health` monitoring. Render remains the application host while Server Club hardware is prepared; it should not be granted temporary MEXC exchange-write egress solely to bridge that wait.
+DizyTrades is self-hosted on dizyserver, behind Caddy, with the Node/Next.js
+application managed by systemd. GitHub CI validates changes but **does not**
+deploy them. Deploy only a reviewed exact green commit with an explicitly
+approved operator rollout; never infer the running SHA from the GitHub branch.
+Production secrets and persistent application state remain on the host, not
+in the repository. Check `/api/health` and authenticated workflows after an
+approved deployment.
 
-The intended production account-email environment is declared in `render.yaml`, but an existing Render service must be checked explicitly when new variables are introduced. The live service requires:
+The web service's move does **not** prove that all protected account state,
+backups, egress attestation or guarded-execution preconditions have been
+migrated and verified. Both exchange-write switches must remain disabled.
+Complete a separate state-integrity, restore/restart/rollback rehearsal and
+fresh exact-host `/32` evidence before even considering a guarded canary.
 
-```text
-PUBLIC_SIGNUP_ENABLED=true
-APP_BASE_URL=https://dizytrades.onrender.com
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=465
-SMTP_USER=dizytrades@gmail.com
-SMTP_APP_PASSWORD=<Render secret only>
-MAIL_FROM=DizyTrades <dizytrades@gmail.com>
-```
-
-After adding or changing those values, save them and restart/redeploy the reviewed commit so the running process receives the new environment. A repository declaration alone is not treated as production proof. Full details and the smoke-test contract live in [docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md](docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md).
-
-The deployment-observation contract is read-only: it resolves the configured DizyTrades service, waits for the expected commit and verifies the public execution-disabled health boundary without changing Render.
-
-The isolated recovery rehearsal uses the real backup engine to export, validate, dry-run and restore representative user data into fresh temporary data roots. A persistent disk is not itself a backup; dated DizyBackup exports should be kept outside the provider.
-
-The next guarded-execution infrastructure milestone is the controlled Server Club state migration, followed by integrity/restart/rollback rehearsal and fresh host/credential attestation before any canary. Provider snapshot rollback or other destructive infrastructure rehearsal must remain isolated and explicitly approved.
+For the current Caddy domains, safe request logging, Next-Action probe
+mitigation, backup/validate/reload sequence and read-only memory trend check,
+see [self-hosted operations](docs/SELF_HOSTED_OPERATIONS.md).
+Historical Render documents are retained as historical records only; do not
+apply their environment or host instructions to dizyserver.
 
 ## Important limitations
 

@@ -234,9 +234,10 @@ Use unique throwaway passwords, never commit or reuse them, and retain salted sc
 
 - The SQLite-outage fallback limiter is process-local and resets on restart. It is acceptable only for the current single-instance service.
 - Emergency owner/admin legacy sessions are not individually managed by the public database-account recovery flow.
-- Current production is one Render instance with persistent SQLite authentication, rate-limit and guarded-execution idempotency state, scaled vertically first. Guarded-execution idempotency is durable across restart on this supported topology but is not a horizontally shared multi-instance solution. Horizontal multi-instance deployment is not planned for this slice and would require a separate shared-state design before use.
+- The self-hosted application is a single-instance service with local SQLite authentication, rate-limit and guarded-execution idempotency state. Durable restart guarantees and persistent-state migration must be validated on the actual host; this is not a multi-instance design. A future horizontal deployment requires separately reviewed shared state.
 - Local audit JSONL is operational evidence, not immutable externally anchored security logging.
-- Render host and persistent-disk security remain inside the provider trust boundary.
+- Host firewall, reverse proxy, access-log retention, backup custody and persistent-store security are operator responsibilities. The running server configuration has not been established by repository tests.
+- Live exchange-write authority stays disabled until a separate, explicitly approved production ceremony; running the web service is not proof of exchange-write readiness.
 - The application remains simulation-only; the read-only Account Companion does not approve or imply exchange write capability.
 
 ## Requirements before exchange write permission

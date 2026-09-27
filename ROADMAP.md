@@ -2,14 +2,14 @@
 
 DizyTrades is a transparent, deterministic crypto research, simulation and review platform. The enduring mission lives in [VISION.md](VISION.md); technical boundaries live in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-This roadmap reflects merged `main` as of **19 August 2026**. Items are not promises of dates. Work moves only after focused implementation, deterministic validation and review.
+This roadmap records the original **19 August 2026** milestone plus the **27 September 2026** self-hosted operations checkpoint. Items are not promises of dates. Work moves only after focused implementation, deterministic validation and review.
 
 ## Current roadmap order
 
 The broad platform-building phase is complete for the current planned scope. There is no standing feature programme waiting behind the current release. The active sequence is deliberately narrower:
 
-1. **Keep the current Render-hosted product stable** while Server Club hardware is completed; do not create temporary exchange-write authority merely to bridge the wait.
-2. **Complete the guarded-execution operational migration** only on the intended Server Club host: controlled state migration, restart/rollback rehearsal, fresh exact-host `/32` evidence, fresh write-generation attestation and an independently approved microscopic canary.
+1. **Keep the currently self-hosted web service stable**. A working web host is not evidence that guarded-execution state migration, restoration and egress attestation are complete. Keep both exchange-write switches disabled.
+2. **Complete guarded-execution operational verification** on the intended self-hosted machine: account/state integrity, restore/restart/rollback rehearsal, fresh exact-host `/32` evidence, fresh write-generation attestation and an independently approved microscopic canary.
 3. **Apply optional evidence-led polish and supported-stack maintenance** only where production use or a focused dependency/security reason justifies it.
 
 The first bounded DizyQuant representative campaign is closed for the current roadmap. DizyQuant remains research-only unless a separate versioned follow-up or promotion PR is justified by evidence.
