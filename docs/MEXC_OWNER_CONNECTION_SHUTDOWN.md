@@ -19,9 +19,9 @@ A missing control file means active. A malformed, unreadable or digest-invalid c
 
 The local seal deliberately has no browser reactivation action. Reactivation requires a separately reviewed operator change rather than a second emergency button.
 
-## 2. Physical Render credential removal
+## 2. Physical server credential removal (self-hosted)
 
-The local seal cannot delete Render environment variables. After sealing, remove the following server configuration from the Render service:
+The local seal cannot delete credentials in the protected self-hosted service environment or secret store. After sealing, an authorized operator must remove these settings from the **actual running host** using the approved protected-environment procedure. Do not print their values or treat previous Render settings as the current source of truth:
 
 - `OWNER_MEXC_READONLY_API_KEY`
 - `OWNER_MEXC_READONLY_API_SECRET`
@@ -34,13 +34,13 @@ OWNER_MEXC_ACCOUNT_COMPANION_ENABLED=false
 LIVE_TRADING_ENABLED=false
 ```
 
-Redeploy the service and revisit `/account/control`.
+Apply the approved controlled restart and revisit `/account/control`; verify non-secret enabled/present booleans against the running service. Keep exchange-write switches disabled independently.
 
 Credential removal is confirmed only when no private key, secret or permission attestation is present and Account Companion enablement is false or unset. The page reports presence as booleans and never returns the values.
 
 ## Provider-side revocation
 
-For suspected key disclosure, also revoke or delete the API key in the MEXC account interface. The DizyTrades local seal and Render-variable removal do not revoke a provider-side key by themselves.
+For suspected key disclosure, also revoke or delete the API key in the MEXC account interface. The DizyTrades local seal and removal of server-side variables do not revoke a provider-side key by themselves.
 
 ## Failure behaviour
 
