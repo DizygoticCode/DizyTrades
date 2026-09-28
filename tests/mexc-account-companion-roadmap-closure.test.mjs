@@ -43,7 +43,7 @@ test("review records an explicit read-only decision and residual limitations", (
 
 test("shutdown runbook distinguishes local seal, self-hosted removal and provider revocation", () => {
   assert.match(shutdownRunbook, /Local emergency seal/);
-  assert.match(shutdownRunbook, /Physical server credential removal \\(self-hosted\\)/);
+  assert.ok(shutdownRunbook.includes("Physical server credential removal (self-hosted)"));
   assert.match(shutdownRunbook, /Provider-side revocation/);
   assert.match(shutdownRunbook, /fails closed as sealed/);
   assert.match(shutdownRunbook, /does not contain API keys, secrets/);
