@@ -33,7 +33,7 @@ test("MFA recovery token remains available after URL-fragment removal and rerend
   await page.goto("/recover-mfa#token=" + synthetic);
   const recover = page.getByRole("button", { name: "Disable MFA and revoke sessions" });
   await expect(recover).toBeEnabled();
-  await expect(page).toHaveURL(/\\/recover-mfa$/);
+  await expect(page).toHaveURL(/\/recover-mfa$/);
   await recover.click();
   await expect(page.getByRole("heading", { name: "MFA disabled" })).toBeVisible();
   expect(postedToken).toBe(synthetic);
