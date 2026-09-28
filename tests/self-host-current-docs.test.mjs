@@ -59,7 +59,7 @@ test("dated historical documents are not current operator instructions", () => {
 test("marketing screenshot README describes the shipped UI", () => {
   const guide = read("public/marketing/README.md");
   assert.match(guide, /checked-in screenshots are part of the current repository marketing UI/);
-  assert.match(guide, /feature-dom\\.webp/);
-  assert.match(guide, /real-feature-visuals\\.css/);
+  assert.match(guide, /feature-dom\.webp/);
+  assert.match(guide, /real-feature-visuals\.css/);
   assert.doesNotMatch(guide, /current PR deliberately adds the presentation component/);
 });
