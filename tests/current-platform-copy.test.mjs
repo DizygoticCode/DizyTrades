@@ -42,9 +42,11 @@ test("public homepage describes the actual private-access boundary", () => {
   assert.match(homepage, /server-side owner credentials/);
   assert.match(homepage, /intended self-hosted execution host/);
   assert.match(homepage, /Production exchange-write activation remains locked/);
+  assert.equal((homepage.match(/independently approved microscopic canary/g) || []).length, 2);
   assert.doesNotMatch(homepage, /Server Club/i);
   assert.match(about, /intended self-hosted execution host/);
   assert.match(about, /production activation remains locked/);
+  assert.match(about, /independently approved microscopic canary/);
   assert.doesNotMatch(about, /Server Club/i);
   assert.match(homepage, /advanced futures\/spot pending orders/);
   assert.doesNotMatch(homepage, /CREDENTIALS[\s\S]*Never requested/);
