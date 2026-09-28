@@ -99,7 +99,7 @@ The dormant writer accepts immutable intent plus a synchronous server-owned pre-
 
 If authority disappears after claim but before transport, `releaseClaim()` can only roll the exact known-non-delivery `submitting`, `attempt=1`, `order_id IS NULL` row back to `reserved`, `attempt=0`; it cannot roll back submitted, indeterminate, reconciled or otherwise delivered evidence. Conversely, any lifecycle state that may already have been delivered is reconciled by the approved GET-by-`externalOid` path before any new-write authorization is considered. Recovery therefore remains possible after activation is disabled, a kill switch fires, the account is quarantined or credential generation rotates, while POST count remains unchanged.
 
-All repository/deployment activation, custody and provisioning defaults remain false. No real MEXC write credential has been provisioned by these milestones, no browser/public execution route exists and no real exchange order has been sent. Stable Render egress allowlisting, dedicated write-key provisioning, explicit production writer composition, independent activation approval and the first canary remain separate future gates.
+All repository/deployment activation, custody and provisioning defaults remain false. No real MEXC write credential has been provisioned by these milestones, no browser/public execution route exists and no real exchange order has been sent. Fresh exact-host self-hosted outbound `/32` evidence, dedicated write-generation provisioning and attestation, explicit production writer composition, independent activation approval and the first microscopic canary remain separate future gates. Old Render egress evidence does not transfer to the current host.
 
 Never commit passwords, session secrets, API keys, Gmail App Passwords, `.env` files or exported account backups.
 
@@ -206,9 +206,9 @@ Recovery requires:
 6. explicit `RESTORE` confirmation;
 7. conflict-aware additive writes.
 
-Existing records and open Manual Paper state must never be silently replaced. Journal CSV output neutralises spreadsheet-formula prefixes. Exported backups should be stored outside the Render persistent disk and treated as sensitive user data.
+Existing records and open Manual Paper state must never be silently replaced. Journal CSV output neutralises spreadsheet-formula prefixes. Exported backups should be stored outside the production service's persistent data root and treated as sensitive user data. An off-host protected copy and a separately verified restore are needed before claiming host-loss recovery readiness.
 
-The application-level recovery path is exercised destructively in isolated temporary data roots by GitHub Actions. Production deployment identity and health are observed read-only through the Render API. A destructive provider snapshot rollback is deferred until the guarded-execution security milestone, when it can be justified and rehearsed with isolated infrastructure.
+The application-level recovery path is exercised destructively in isolated temporary data roots by GitHub Actions. The former Render API observation was historical; current self-hosted deployment identity, health, protected-state backups and restart/rollback readiness require independent operator verification. CI's isolated test is not a rehearsal of production host-loss recovery or the pending guarded-execution migration.
 
 ## Persistent user-data boundary
 
