@@ -5,6 +5,9 @@ import { expect, test } from "@playwright/test";
 const publicRoutes = [
   "/", "/about", "/contact", "/dizy", "/dex", "/research",
   "/investors", "/business-plan", "/school", "/login", "/signup",
+  // Tokenless recovery entry/error states only: never submit account or MFA requests.
+  "/forgot-password", "/resend-verification", "/reset-password",
+  "/verify-email", "/recover-mfa",
 ] as const;
 
 const viewports = [
