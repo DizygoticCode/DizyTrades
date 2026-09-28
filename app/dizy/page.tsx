@@ -10,6 +10,7 @@ const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const TOKEN_METADATA_URL = "https://gateway.irys.xyz/91617Uu3fWVinM84nGSm65LXUub519AWfDZc3Uq457dh";
 const WHITEPAPER_URL = "https://gateway.irys.xyz/8mV7TWV5P7nqDim6YJJ2akP3HA8Fe6bUyTu1ivxu39QG";
 const OFFICIAL_X_URL = "https://x.com/DizyTradesApp";
+const DIZY_CHAT_URL = "https://dizychat.com/login?room=DIZY";
 const SOLSCAN_URL = `https://solscan.io/token/${DIZY_MINT}`;
 const SOLANA_EXPLORER_URL = `https://explorer.solana.com/address/${DIZY_MINT}`;
 const TOKEN_PROGRAM_URL = `https://explorer.solana.com/address/${TOKEN_PROGRAM}`;
@@ -186,6 +187,7 @@ export default function DizyPage() {
             <a href={SOLANA_EXPLORER_URL} target="_blank" rel="noopener noreferrer"><span>BLOCK EXPLORER</span><strong>Solana Explorer</strong><small>Canonical Solana account view ↗</small></a>
             <a href={WHITEPAPER_URL} target="_blank" rel="noopener noreferrer"><span>PERMANENT DOCUMENT</span><strong>DIZY Whitepaper v1.0</strong><small>Permanent Irys-hosted whitepaper ↗</small></a>
             <a href={OFFICIAL_X_URL} target="_blank" rel="noopener noreferrer"><span>OFFICIAL SOCIAL</span><strong>@DizyTradesApp</strong><small>Official DizyTrades account on X ↗</small></a>
+            <a href={DIZY_CHAT_URL} target="_blank" rel="noopener noreferrer"><span>COMMUNITY CHAT</span><strong>DIZY on DizyChat</strong><small>Open the DIZY discussion room ↗</small></a>
             <a href={TOKEN_METADATA_URL} target="_blank" rel="noopener noreferrer"><span>PERMANENT METADATA</span><strong>Irys metadata</strong><small>Public token metadata JSON ↗</small></a>
             <a href={TOKEN_PROGRAM_URL} target="_blank" rel="noopener noreferrer"><span>TOKEN PROGRAM</span><strong>Classic SPL Token</strong><small>Program {TOKEN_PROGRAM.slice(0, 8)}…{TOKEN_PROGRAM.slice(-6)} ↗</small></a>
           </div>
@@ -210,6 +212,7 @@ export default function DizyPage() {
           <a href={DEXSCREENER_URL} target="_blank" rel="noopener noreferrer">DEX Screener</a>
           <a href={WHITEPAPER_URL} target="_blank" rel="noopener noreferrer">Whitepaper</a>
           <a href={OFFICIAL_X_URL} target="_blank" rel="noopener noreferrer">X</a>
+          <a href={DIZY_CHAT_URL} target="_blank" rel="noopener noreferrer">DIZY chat</a>
           <a href={SOLSCAN_URL} target="_blank" rel="noopener noreferrer">Solscan</a>
           <Link href="/dex">DizyDEX</Link>
           <Link href="/contact">Contact</Link>
