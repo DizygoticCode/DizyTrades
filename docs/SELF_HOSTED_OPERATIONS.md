@@ -98,8 +98,8 @@ heap first/last/min/max plus collector/subscriber peaks. The 28 September report
 RSS first/last/min/max of **763 / 344 / 311 / 2,228 MB** and heap
 **383 / 215 / 184 / 2,092 MB**. Collector count ranged 2–3 and subscriber
 count 0–1. A separate, recent five-reading journal window showed RSS
-396–403 MB and heap 240–278 MB with two collectors holding 1,800 samples
-each for BTC_USDT and ETH_USDT. The summary tool does not attach timestamps
+396–403 MB and heap 240–278 MB with two collectors; the separate
+history diagnostic reported `BTC_USDT:1800` and `ETH_USDT:1800`. The summary tool does not attach timestamps
 or process identities, so do **not** treat the end values of the two
 observation windows as simultaneous. The large transient peak remains
 unexplained; neither these extrema nor the later fall establish a sustained
