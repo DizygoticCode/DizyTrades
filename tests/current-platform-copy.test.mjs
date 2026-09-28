@@ -6,10 +6,11 @@ async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const [readme, roadmap, homepage, metadata, research] = await Promise.all([
+const [readme, roadmap, homepage, about, metadata, research] = await Promise.all([
   source("README.md"),
   source("ROADMAP.md"),
   source("app/marketing/marketing-page.tsx"),
+  source("app/about/page.tsx"),
   source("app/page.tsx"),
   source("app/research/page.tsx"),
 ]);
@@ -42,6 +43,9 @@ test("public homepage describes the actual private-access boundary", () => {
   assert.match(homepage, /intended self-hosted execution host/);
   assert.match(homepage, /Production exchange-write activation remains locked/);
   assert.doesNotMatch(homepage, /Server Club/i);
+  assert.match(about, /intended self-hosted execution host/);
+  assert.match(about, /production activation remains locked/);
+  assert.doesNotMatch(about, /Server Club/i);
   assert.match(homepage, /advanced futures\/spot pending orders/);
   assert.doesNotMatch(homepage, /CREDENTIALS[\s\S]*Never requested/);
   assert.doesNotMatch(homepage, /Performance, operations and recovery/);
