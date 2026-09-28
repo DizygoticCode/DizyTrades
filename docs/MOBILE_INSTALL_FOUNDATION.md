@@ -16,6 +16,6 @@ The icon metadata and raster endpoint coverage are an **installability foundatio
 
 ## Validation
 
-Run `npm ci`, `npm run lint`, `npm test`, `npm run build` and `npm run test:e2e` on the pinned Node runtime. The manifest has focused deterministic and Chromium smoke tests. Phone installation remains an explicit acceptance requirement, not a CI assertion.
+Run `npm ci`, `npm run lint`, `npm test`, `npm run build` and `npm run test:e2e` on the pinned Node runtime. The manifest and raster routes have focused deterministic and Chromium smoke tests (PNG signature, declared dimensions and Apple icon). Phone installation remains an explicit acceptance requirement, not a CI assertion.
 
 Tracking: [mobile scope #378](https://github.com/DizygoticCode/DizyTrades/issues/378) and [UI/CSS audit #377](https://github.com/DizygoticCode/DizyTrades/issues/377).
