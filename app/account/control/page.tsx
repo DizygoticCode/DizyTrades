@@ -121,17 +121,17 @@ export default async function OwnerConnectionControlPage({
             API key or secret and without calling MEXC private endpoints. This seal
             is intentionally not reversible from the browser.
           </p>
-          <h3>Complete physical credential removal in Render</h3>
+          <h3>Complete physical credential removal on the self-hosted server</h3>
           <ol className={styles.steps}>
             <li>Remove <span className={styles.code}>OWNER_MEXC_READONLY_API_KEY</span>.</li>
             <li>Remove <span className={styles.code}>OWNER_MEXC_READONLY_API_SECRET</span>.</li>
             <li>Remove <span className={styles.code}>OWNER_MEXC_READONLY_PERMISSION_ATTESTATION</span>.</li>
             <li>Set <span className={styles.code}>OWNER_MEXC_ACCOUNT_COMPANION_ENABLED=false</span>.</li>
-            <li>Keep <span className={styles.code}>LIVE_TRADING_ENABLED=false</span>.</li>
-            <li>Redeploy, then return here until removal reads <strong className={styles.good}>Confirmed absent</strong>.</li>
+            <li>Keep <span className={styles.code}>LIVE_TRADING_ENABLED=false</span> and <span className={styles.code}>MEXC_WRITE_PROVIDER_ENABLED=false</span>.</li>
+            <li>Apply the approved protected-environment change and controlled service restart, then return here until removal reads <strong className={styles.good}>Confirmed absent</strong>.</li>
           </ol>
           <p>
-            DizyTrades cannot delete Render environment variables itself. It only
+            DizyTrades cannot delete protected server credentials itself. It only
             verifies their presence or absence without exposing their values.
           </p>
         </section>
@@ -140,7 +140,7 @@ export default async function OwnerConnectionControlPage({
           <h2 id="shutdown-title" className={styles.danger}>Emergency local shutdown</h2>
           <p>
             This immediately disables all Account Companion private reads. It does
-            not alter MEXC, close positions, revoke the key at MEXC or delete Render
+            not alter MEXC, close positions, revoke the key at MEXC or delete protected self-hosted
             configuration. Existing public charts and DizyPaper remain available.
           </p>
           <form className={styles.form} action="/account/control/shutdown" method="post">
