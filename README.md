@@ -33,6 +33,18 @@ in [the current operations runbook](docs/SELF_HOSTED_OPERATIONS.md) and
 `package.json`/`package-lock.json`. Older deployment notes below are
 historical unless explicitly refreshed.
 
+**Host maintenance checkpoint (28 September 2026):** the reviewed
+self-hosted DizyTrades checkout was
+`0ae0bd1ec5f75dec8164d19d0f7fab86366d6ae6` (Next.js `16.3.6`),
+behind Caddy `2.11.4` on Ubuntu 24.04 / kernel
+`6.8.0-142-generic`. Netplan, Linux firmware and standalone MongoDB
+`8.0.32` were updated separately; five core services were checked active.
+Node.js `22.23.1` remains deliberately APT-held because the application
+requires that exact engine version. The DizyFlow read-only memory report
+observed a transient 2,228 MB RSS / 2,092 MB heap peak and later lower
+readings; **a sustained leak has not been demonstrated and the peak is not
+explained**. See the [dated maintenance evidence and safety checks](docs/SELF_HOSTED_OPERATIONS.md) for scope and caveats.
+
 DizyTrades has moved well beyond its original chart-and-strategy simulator into a connected research and review platform. The planned product-generation scope is complete on current `main`: the charting terminal, deterministic signal engine, public market-microstructure tooling, realistic paper execution, read-only account reconciliation, replay, journal, analytics, education, backup/recovery, verified public accounts and personal profiles are all present.
 
 Market discovery now spans MEXC Spot/Futures, DizyDEX and authenticated Global Search. The Global Search provider boundary is deliberately chart/search-only: server-side Twelve Data symbol/candle transport feeds a provider-neutral chart identity without granting executed-trade, order-book or execution capability to global instruments.
