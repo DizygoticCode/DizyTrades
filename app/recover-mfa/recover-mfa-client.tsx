@@ -4,9 +4,17 @@ const subscribe = () => () => undefined;
 const clientToken = () => new URLSearchParams(location.hash.slice(1)).get("token") || "";
 const serverToken = () => "";
 export default function RecoverMfaClient() {
-  const token = useSyncExternalStore(subscribe, clientToken, serverToken);
+  const hashToken = useSyncExternalStore(subscribe, clientToken, serverToken);
+  // Retain the one-time fragment token in component state before stripping it
+  // from the address bar. A loading/error rerender must not lose the token.
+  const [retainedToken, setRetainedToken] = useState("");
+  const token = retainedToken || hashToken;
   const [state, setState] = useState<"ready" | "loading" | "done" | "error" | "unreachable">("ready");
-  useEffect(() => { if (token) history.replaceState(null, "", location.pathname); }, [token]);
+  useEffect(() => {
+    if (!hashToken) return;
+    setRetainedToken(hashToken);
+    history.replaceState(null, "", location.pathname);
+  }, [hashToken]);
   async function recover() {
     setState("loading");
     try {
