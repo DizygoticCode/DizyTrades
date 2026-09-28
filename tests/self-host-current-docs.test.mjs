@@ -24,4 +24,9 @@ test("active research and private-read shutdown runbooks use the actual self-hos
   assert.match(shutdown, /protected self-hosted service environment/);
   assert.match(shutdown, /exchange-write switches disabled independently/);
   assert.doesNotMatch(shutdown, /remove the following server configuration from the Render service/);
+  const controlPage = read("app/account/control/page.tsx");
+  assert.match(controlPage, /credential removal on the self-hosted server/);
+  assert.match(controlPage, /controlled service restart/);
+  assert.match(controlPage, /MEXC_WRITE_PROVIDER_ENABLED=false/);
+  assert.doesNotMatch(controlPage, /Render environment variables|delete Render|credential removal in Render/);
 });
