@@ -1,5 +1,7 @@
 # DizyQuant Representative Campaign Closure
 
+> **Historical first-campaign closure record.** The Render deployment named below was the collector at the time this evidence campaign was written. DizyTrades now runs self-hosted; the research/promotion firewall remains separate from the live execution boundary. See the [current research contract](DIZYQUANT_RESEARCH_CONTRACT.md) and [self-hosted operations](SELF_HOSTED_OPERATIONS.md).
+
 This document defines the final review path for the first bounded DizyQuant representative evidence campaign. It does not change the campaign matrix, lower any qualification threshold or enable DizyQuant in DizySignals.
 
 ## Boundary
