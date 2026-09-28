@@ -48,31 +48,3 @@ jobs:
           path: artifacts/playwright
           if-no-files-found: ignore
           retention-days: 7
-
-  one-time-lockfile-refresh:
-    if: ${{ github.event_name == 'pull_request' && github.head_ref == 'chore/lockfile-audit-20260928' && github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: chore/lockfile-audit-20260928
-          persist-credentials: true
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: ".node-version"
-          cache: npm
-      - name: Refresh the lockfile only, without running package scripts
-        run: npm audit fix --package-lock-only --ignore-scripts --no-fund
-      - name: Require zero known audit findings
-        run: npm audit --audit-level=low
-      - name: Commit the npm-generated lockfile to this isolated branch
-        run: |
-          git add package-lock.json
-          git diff --cached --quiet && { echo "No lockfile changes produced"; exit 1; }
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: refresh lockfile for npm audit advisories"
-          git push origin HEAD:refs/heads/chore/lockfile-audit-20260928
