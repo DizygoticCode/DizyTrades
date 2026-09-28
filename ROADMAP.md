@@ -273,7 +273,7 @@ The public account lifecycle now fails closed around email ownership without wea
 - [x] production-smoke signup → Gmail verification → verified login → terminal
 - [x] production-smoke forgot password → Gmail reset → password change → session revocation
 
-The live Render account-email environment contract is documented in [docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md](docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md).
+The current self-hosted account-email environment contract is documented in [docs/ACCOUNT_EMAIL_DEPLOYMENT.md](docs/ACCOUNT_EMAIL_DEPLOYMENT.md). The Render-era smoke tests above are historical evidence, not current deployment instructions.
 
 ## Optional evidence-led polish
 
@@ -352,10 +352,10 @@ Current production posture:
 
 Current operational blocker and migration boundary:
 
-- [x] replace the Render-specific execution-host identity assumption with an equivalently strict provider-neutral approved-host + exact static `/32` authority before moving execution to Server Club
+- [x] replace the Render-specific execution-host identity assumption with an equivalently strict provider-neutral approved-host + exact static `/32` authority before considering exchange execution on a self-hosted machine
 - [ ] complete a controlled persistent-state migration, integrity and rollback/restart rehearsal before changing the production execution host
 - [ ] restore trusted private MEXC account state on the self-hosted machine; do not reuse obsolete Render egress authority
-- [ ] verify the Server Club host's static public IPv4 from independent observers and bind fresh egress evidence to that exact `/32`
+- [ ] verify the intended self-hosted execution host's static public IPv4 from independent observers and bind fresh egress evidence to that exact `/32`
 - [ ] reprovision/re-attest the dedicated write generation against the migrated host rather than silently inheriting stale Render egress authority
 - [ ] perform an independently approved microscopic reduce-only canary only after trusted account state, reconciliation, risk, rollout, egress, custody and every kill-switch/activation gate are fresh on the migrated host
 - [ ] make a separate explicit decision about broader production exchange-write activation only after the canary is reconciled and reviewed
@@ -402,7 +402,7 @@ A metric may be considered only after representative evidence and a separate pro
 
 ### Guarded Trading Platform — operational activation pending
 
-The software security boundary includes the production writer connection, encrypted credential custody, exact-account/generation authority, provider-neutral exact-host `/32` proof and microscopic one-shot canary gate. Production exchange-write activation remains off. The milestone becomes operational only after the intended Server Club host is migrated and rehearsed, fresh host and credential evidence is established, the bounded canary is reconciled and reviewed, and a separate explicit activation decision is made.
+The software security boundary includes the production writer connection, encrypted credential custody, exact-account/generation authority, provider-neutral exact-host `/32` proof and microscopic one-shot canary gate. Production exchange-write activation remains off. The milestone becomes operational only after the intended self-hosted execution host is migrated and rehearsed, fresh host and credential evidence is established, the bounded canary is reconciled and reviewed, and a separate explicit activation decision is made.
 
 ## Delivery and cost rules
 
