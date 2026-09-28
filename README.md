@@ -183,7 +183,7 @@ Verification and password-reset tokens are random, hashed at rest, expiring and 
 
 Production account mail is server-side only. Gmail SMTP credentials must never enter browser state, and any Gmail App Password belongs only in the protected self-hosted service environment or secret store, not in Git. The previous Render deployment removed privileged plaintext owner/admin password inputs after the verified reset path; independently verify the equivalent self-hosted state before making that claim for the current host.
 
-See [SECURITY.md](SECURITY.md) and the [historical Render account-mail guide](docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md); do not apply the latter's hosting steps to the self-hosted service.
+See [SECURITY.md](SECURITY.md) and the [current self-hosted account-mail guide](docs/ACCOUNT_EMAIL_DEPLOYMENT.md); historical Render deployment steps do not apply to this service.
 
 ## Safety boundaries
 
@@ -290,7 +290,7 @@ Public database accounts have verification, self-service recovery and optional T
 - [PRINCIPLES.md](PRINCIPLES.md) — engineering/product principles
 - [RELEASE_NOTES.md](RELEASE_NOTES.md) — release history
 - [docs/DIZYQUANT_RESEARCH_CONTRACT.md](docs/DIZYQUANT_RESEARCH_CONTRACT.md) — DizyQuant evidence contract
-- [docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md](docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md) — production signup/recovery mail configuration
+- [docs/ACCOUNT_EMAIL_DEPLOYMENT.md](docs/ACCOUNT_EMAIL_DEPLOYMENT.md) — self-hosted signup/recovery mail configuration
 
 ## Contributing
 
