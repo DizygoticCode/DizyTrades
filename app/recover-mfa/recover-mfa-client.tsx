@@ -1,19 +1,14 @@
 "use client";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 const subscribe = () => () => undefined;
 const clientToken = () => new URLSearchParams(location.hash.slice(1)).get("token") || "";
 const serverToken = () => "";
 export default function RecoverMfaClient() {
-  // A stable per-component snapshot retains the one-time bearer token after
-  // we remove it from the browser URL. No token is placed in module globals.
-  const getTokenSnapshot = useMemo(() => {
-    let captured = "";
-    return () => {
-      if (!captured) captured = clientToken();
-      return captured;
-    };
-  }, []);
-  const token = useSyncExternalStore(subscribe, getTokenSnapshot, serverToken);
+  // Read the fragment once for this component on the client and keep it only in
+  // component state. The hydration gate preserves the server's tokenless HTML.
+  const hydrated = useSyncExternalStore(subscribe, () => true, () => false);
+  const [retainedToken] = useState(() => typeof window === "undefined" ? "" : clientToken());
+  const token = hydrated ? retainedToken : "";
   const [state, setState] = useState<"ready" | "loading" | "done" | "error" | "unreachable">("ready");
   useEffect(() => { if (token) history.replaceState(null, "", location.pathname); }, [token]);
   async function recover() {
