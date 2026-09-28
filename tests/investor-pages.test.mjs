@@ -34,8 +34,12 @@ test("business plan is substantive and does not invent achieved traction", () =>
 test("investor-facing infrastructure terminology stays professional", () => {
   assert.doesNotMatch(investors, /Server Club/i);
   assert.doesNotMatch(businessPlan, /Server Club/i);
-  assert.match(investors, /dedicated self-hosted production infrastructure/);
-  assert.match(businessPlan, /dedicated self-hosted production infrastructure/);
+  assert.match(investors, /web service on self-hosted infrastructure/);
+  assert.match(businessPlan, /DizyTrades web service is self-hosted/);
+  assert.doesNotMatch(investors, /Current Render hosting/);
+  assert.doesNotMatch(businessPlan, /Render remains the current hosted production environment/);
+  assert.match(investors, /independently approved microscopic canary/);
+  assert.match(businessPlan, /independently approved microscopic/);
 });
 
 test("DIZY and fundraising language stay non-promissory", () => {
