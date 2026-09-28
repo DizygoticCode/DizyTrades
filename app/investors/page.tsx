@@ -21,8 +21,8 @@ export const metadata: Metadata = {
 const productCards = [
   ["One workspace", "Research to review", "Charts, signals, scanning, structure, order flow, simulation, journal, performance, education and account reconciliation are designed as one workflow rather than disconnected tools."],
   ["Evidence first", "Inspectable decisions", "Signals, simulations, research assumptions, risk boundaries, audit trails and software changes are built to be reviewable instead of asking users to trust screenshots or opaque claims."],
-  ["Owned stack", "Product + infrastructure", "DizyTrades owns its application code and is moving toward dedicated self-hosted production infrastructure for greater operational control, measurable capacity and reduced dependence on a single hosted runtime."],
-  ["Guarded execution", "Safety before activation", "The live-execution architecture exists, but production exchange-write activation remains disabled until the intended host migration, fresh host evidence, credential attestation and a separately approved microscopic canary."],
+  ["Owned stack", "Product + infrastructure", "DizyTrades owns its application code and now runs its web service on self-hosted infrastructure while execution-host recovery and write-egress authority remain separately gated for greater operational control, measurable capacity and reduced dependence on a single hosted runtime."],
+  ["Guarded execution", "Safety before activation", "The live-execution architecture exists, but production exchange-write activation remains disabled until the intended host migration, fresh host evidence, credential attestation and an independently approved microscopic canary."],
   ["Provider neutral", "Beyond one exchange", "The charting boundary now supports provider-neutral global search alongside MEXC and on-chain market research, reducing dependence on a single market-data path."],
   ["DIZY", "Project token, not equity", "DIZY is a fixed-supply Solana token associated with the project. It does not represent ownership, equity, revenue share, yield, governance rights or a promise of appreciation."],
 ] as const;
@@ -46,8 +46,8 @@ export default function InvestorsPage() {
           <p className={styles.email}>Investor correspondence: <a href={INVESTOR_MAILTO}>{INVESTOR_EMAIL}</a></p>
           <div className={styles.metrics} aria-label="DizyTrades project status">
             <div><strong>Product built</strong><span>The broad product-generation programme is substantially complete and live.</span></div>
-            <div><strong>Execution guarded</strong><span>Exchange-write activation remains off until migration to the dedicated production host and fresh host controls are proven.</span></div>
-            <div><strong>Infrastructure next</strong><span>Current Render hosting is being complemented by measured dedicated self-hosted production capacity.</span></div>
+            <div><strong>Execution guarded</strong><span>Exchange-write activation remains off until protected-state migration, recovery rehearsal and fresh exact-host controls are proven.</span></div>
+            <div><strong>Infrastructure next</strong><span>The web service is self-hosted; production capacity, protected-state restore and exact-host execution authority need separate evidence.</span></div>
             <div><strong>Open evidence</strong><span>Public repository, deterministic tests, explicit safety boundaries and an inspectable roadmap.</span></div>
           </div>
         </section>
@@ -90,11 +90,11 @@ export default function InvestorsPage() {
         <section className={styles.section} aria-labelledby="roadmap-title">
           <div className={styles.heading}>
             <div><div className={styles.kicker}>NEXT OPERATING MILESTONE</div><h2 id="roadmap-title">Move the critical path onto intended infrastructure.</h2></div>
-            <p>The planned dedicated self-hosted production host is intended to improve operational control and provide measurable capacity, not to imply unlimited scale. Capacity is measured through staged workloads, while guarded execution requires fresh exact-host evidence after migration.</p>
+            <p>The self-hosted web service improves operational control but does not imply unlimited scale or complete exchange-write readiness. Capacity requires staged measurement, and guarded execution needs fresh exact-host evidence after protected-state recovery rehearsal.</p>
           </div>
           <div className={styles.status}>
-            <article><b>Infrastructure migration</b><p>Controlled state migration, restart and rollback rehearsal, host burn-in, capacity measurement and operational proof before the dedicated host becomes a trusted production boundary.</p></article>
-            <article><b>Execution authority</b><p>Fresh exact static /32 evidence, fresh write-generation attestation and a separately approved microscopic reduce-only LIMIT canary before production exchange writing can be considered active.</p></article>
+            <article><b>Infrastructure migration</b><p>Controlled protected-state migration, restart and rollback rehearsal, host burn-in, capacity measurement and exact-host authority before exchange-write execution is considered operationally ready.</p></article>
+            <article><b>Execution authority</b><p>Fresh exact static /32 evidence, fresh write-generation attestation and an independently approved microscopic reduce-only LIMIT canary before production exchange writing can be considered active.</p></article>
           </div>
         </section>
 
