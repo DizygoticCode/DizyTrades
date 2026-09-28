@@ -39,6 +39,9 @@ test("public homepage describes the actual private-access boundary", () => {
   assert.match(homepage, /PRIVATE MEXC ACCESS/);
   assert.match(homepage, /Owner-only \/ read only/);
   assert.match(homepage, /server-side owner credentials/);
+  assert.match(homepage, /intended self-hosted execution host/);
+  assert.match(homepage, /Production exchange-write activation remains locked/);
+  assert.doesNotMatch(homepage, /Server Club/i);
   assert.match(homepage, /advanced futures\/spot pending orders/);
   assert.doesNotMatch(homepage, /CREDENTIALS[\s\S]*Never requested/);
   assert.doesNotMatch(homepage, /Performance, operations and recovery/);
