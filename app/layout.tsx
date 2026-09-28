@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   other: {
     "dizytrades-mode": "test",
   },
-  icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+  icons: { icon: "/favicon.svg", shortcut: "/favicon.svg", apple: "/apple-icon-180.png" },
 };
 
 export const viewport: Viewport = {

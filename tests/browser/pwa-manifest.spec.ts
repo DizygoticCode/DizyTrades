@@ -14,4 +14,28 @@ test("public landing exposes the scoped DizyTrades home-screen manifest", async 
     src: "/brand/dizy-mark.svg", type: "image/svg+xml", sizes: "any", purpose: "any",
   });
   expect((await page.request.get("/brand/dizy-mark.svg")).ok()).toBe(true);
+
+  const icons = [
+    { src: "/icon-192.png", size: 192, purpose: "any" },
+    { src: "/icon-512.png", size: 512, purpose: "any" },
+    { src: "/icon-maskable-512.png", size: 512, purpose: "maskable" },
+  ] as const;
+  for (const { src, size, purpose } of icons) {
+    expect(manifest.icons).toContainEqual({
+      src, type: "image/png", sizes: size + "x" + size, purpose,
+    });
+    const image = await page.request.get(src);
+    expect(image.ok(), src + " is accessible").toBe(true);
+    expect(image.headers()["content-type"], src + " has PNG content type").toContain("image/png");
+    const png = await image.body();
+    expect(png.subarray(0, 8).toString("hex"), src + " PNG signature").toBe("89504e470d0a1a0a");
+    expect(png.readUInt32BE(16), src + " width").toBe(size);
+    expect(png.readUInt32BE(20), src + " height").toBe(size);
+  }
+  const appleIcon = await page.request.get("/apple-icon-180.png");
+  expect(appleIcon.ok()).toBe(true);
+  const appleBytes = await appleIcon.body();
+  expect(appleBytes.readUInt32BE(16)).toBe(180);
+  expect(appleBytes.readUInt32BE(20)).toBe(180);
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("href", "/apple-icon-180.png");
 });

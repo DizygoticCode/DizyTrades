@@ -2,9 +2,9 @@
 
 ## What this slice does
 
-The Next.js App Router serves a same-origin manifest at `/manifest.webmanifest` and advertises it from public pages. Launching the home-screen shortcut opens the existing HTTPS DizyTrades web app on the public landing page. A stable app identity (`id: /`) allows the launch URL to evolve independently. The manifest reuses the existing DizyTrades SVG mark.
+The Next.js App Router serves a same-origin manifest at `/manifest.webmanifest` and advertises it from public pages. Launching the home-screen shortcut opens the existing HTTPS DizyTrades web app on the public landing page. A stable app identity (`id: /`) allows the launch URL to evolve independently. The manifest reuses the existing DizyTrades SVG mark, and a generated-icon route renders 192px/512px PNG variants and a 512px maskable variant from the same vector geometry. An Apple touch icon is separately advertised from root metadata.
 
-This is **only the first PWA foundation slice**, not a claim of complete mobile installability: reviewed 192×192 and 512×512 raster icon fallbacks and a maskable icon, Android Chrome and iOS Home Screen installation, safe-area/keyboard/terminal-touch regressions, and cold-start/upgrade checks remain outstanding. Browser-specific installation affordances may vary until these are complete.
+The icon metadata and raster endpoint coverage are an **installability foundation**, not a claim that every phone offers an installation prompt. Actual Android Chrome and iOS Home Screen installation, mask-safe icon rendering, safe-area/keyboard/terminal-touch regressions and cold-start/upgrade checks remain outstanding. Browser-specific installation affordances may vary until these are complete.
 
 ## Security and offline scope
 
@@ -16,6 +16,6 @@ This is **only the first PWA foundation slice**, not a claim of complete mobile 
 
 ## Validation
 
-Run `npm ci`, `npm run lint`, `npm test`, `npm run build` and `npm run test:e2e` on the pinned Node runtime. The manifest has focused deterministic and Chromium smoke tests. Phone installation remains an explicit acceptance requirement, not a CI assertion.
+Run `npm ci`, `npm run lint`, `npm test`, `npm run build` and `npm run test:e2e` on the pinned Node runtime. The manifest and raster routes have focused deterministic and Chromium smoke tests (PNG signature, declared dimensions and Apple icon). Phone installation remains an explicit acceptance requirement, not a CI assertion.
 
 Tracking: [mobile scope #378](https://github.com/DizygoticCode/DizyTrades/issues/378) and [UI/CSS audit #377](https://github.com/DizygoticCode/DizyTrades/issues/377).
