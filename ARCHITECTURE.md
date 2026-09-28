@@ -251,7 +251,7 @@ Fair/Mark is the preferred risk source when available. A chart display selector 
 
 DizyAccount is the owner-only private read boundary between DizyTrades and the current MEXC Futures account.
 
-Its transport is server-side, typed and GET-only. Credentials are held in the Render environment, never the browser. Permission attestation and the software allowlist restrict the connection to read-only account/trade endpoints.
+Its transport is server-side, typed and GET-only. When configured, credentials are held in the protected self-hosted service environment, never the browser; the actual host configuration must be verified separately. Permission attestation and the software allowlist restrict the connection to read-only account/trade endpoints. Historical Render credentials are not evidence of credentials or authority on the self-hosted host.
 
 It may expose bounded balances, positions, account-health/risk context, DizyPaper shadow reconciliation, non-executable hypothetical order previews and persistent shadow-audit evidence. It has no live-order path and cannot silently broaden permissions in response to provider errors.
 
