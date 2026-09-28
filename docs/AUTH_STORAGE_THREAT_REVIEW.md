@@ -1,5 +1,7 @@
 # Authentication and Storage Threat Review
 
+> **Historical scope — August 2026 simulation-only beta.** Statements below about Render, emergency environment credentials, or exchange-writer code not yet existing describe that review's original stage, not today's self-hosted deployment. The guarded writer seam now exists in source, but exchange-write activation is still disabled. See [current architecture](../ARCHITECTURE.md), [security boundaries](../SECURITY.md) and [self-hosted operations](SELF_HOSTED_OPERATIONS.md) for current requirements.
+
 Status: completed for the active simulation-only beta in August 2026.
 
 This review covers the authentication, session, request-origin and per-user storage boundaries currently present in DizyTrades. It does not approve exchange credentials or live execution. Those systems do not exist in the current product and remain behind later security milestones.

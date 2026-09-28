@@ -18,7 +18,7 @@ No large feature programme is inserted between these stages merely because the p
 
 ## 19 August 2026 checkpoint — planned product build complete
 
-The current product-generation programme is complete and live on Render.
+At this 19 August checkpoint, the planned product-generation programme was complete and the web service was hosted on Render. The current service is self-hosted; this milestone is historical.
 
 - [x] provider-neutral static execution-host authority merged in #344 without activating exchange writes
 - [x] provider-neutral chart-market boundary and authenticated Global Search merged through #347/#348
@@ -298,13 +298,13 @@ Large institutional-style features remain parked unless evidence creates a concr
 
 The emergency CI-recovery item is complete. Maintenance is now continuous rather than a one-off roadmap blocker.
 
-Current base:
+Current repository base (28 September 2026; verify the running host separately):
 
 - Node.js 22.23.1
-- Next.js 16.2.12
-- React / React DOM 19.2.6
+- Next.js 16.3.6
+- React / React DOM 19.2.8
 - TypeScript 5.9.3
-- Lightweight Charts 5.0.x
+- Lightweight Charts 5.2.1
 
 Rules and remaining maintenance:
 
@@ -313,7 +313,7 @@ Rules and remaining maintenance:
 - [x] re-audit README and ROADMAP after the CI/security cleanup
 - [x] synchronize `SECURITY.md`, `ARCHITECTURE.md` and deployment documentation after the verified-account rollout
 - [x] align signup-page availability with the backend's explicit `PUBLIC_SIGNUP_ENABLED=true` contract
-- [x] document the existing-service Render environment/redeploy requirement for production account mail
+- [x] document the then-existing Render environment/redeploy requirement for production account mail (historical; current instructions are in [docs/ACCOUNT_EMAIL_DEPLOYMENT.md](docs/ACCOUNT_EMAIL_DEPLOYMENT.md))
 - [ ] test useful supported dependency updates independently rather than as broad bundles
 - [ ] review runtime/package engine alignment when Node support requirements change
 - [ ] run focused dependency/browser regressions before every accepted framework/runtime update
@@ -390,7 +390,7 @@ The owner-only companion can ingest and label private account state, add provide
 
 ### Verified Account Lifecycle — achieved
 
-Public accounts require verified email before session creation and support self-service recovery with session revocation. Personal profile editing remains role/email-safe and separate from exchange connectivity. Production owner/admin passwords are database-authoritative and privileged plaintext password environment inputs have been removed from the live Render service.
+Public accounts require verified email before session creation and support self-service recovery with session revocation. Personal profile editing remains role/email-safe and separate from exchange connectivity. Production owner/admin passwords are database-authoritative. Privileged plaintext password inputs were removed from the former Render service after the verified reset; independently verify their absence from the current self-hosted service environment before claiming equivalent removal there.
 
 ### DIZY public launch surface — achieved
 

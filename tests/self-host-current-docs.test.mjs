@@ -30,3 +30,36 @@ test("active research and private-read shutdown runbooks use the actual self-hos
   assert.match(controlPage, /MEXC_WRITE_PROVIDER_ENABLED=false/);
   assert.doesNotMatch(controlPage, /Render environment variables|delete Render|credential removal in Render/);
 });
+
+test("active roadmap and security guidance match the self-hosted repository posture", () => {
+  const roadmap = read("ROADMAP.md");
+  const architecture = read("ARCHITECTURE.md");
+  const security = read("SECURITY.md");
+  const pkg = JSON.parse(read("package.json"));
+  assert.match(roadmap, /Current repository base \(28 September 2026; verify the running host separately\)/);
+  assert.ok(roadmap.includes("Next.js " + pkg.dependencies.next));
+  assert.ok(roadmap.includes("React / React DOM " + pkg.dependencies.react));
+  assert.ok(roadmap.includes("Lightweight Charts " + pkg.dependencies["lightweight-charts"].replace(/^\^/, "")));
+  assert.match(roadmap, /current service is self-hosted; this milestone is historical/);
+  assert.match(roadmap, /former Render service after the verified reset/);
+  assert.doesNotMatch(roadmap, /current product-generation programme is complete and live on Render/);
+  assert.match(architecture, /credentials are held in the protected self-hosted service environment/i);
+  assert.doesNotMatch(architecture, /Credentials are held in the Render environment/);
+  assert.match(security, /Fresh exact-host self-hosted outbound/);
+  assert.match(security, /outside the production service's persistent data root/);
+  assert.match(security, /current self-hosted deployment identity, health, protected-state backups/);
+  assert.doesNotMatch(security, /Production deployment identity and health are observed read-only through the Render API/);
+});
+
+test("dated historical documents are not current operator instructions", () => {
+  assert.match(read("docs/AUTH_STORAGE_THREAT_REVIEW.md"), /Historical scope — August 2026 simulation-only beta/);
+  assert.match(read("docs/DIZYQUANT_CAMPAIGN_CLOSURE.md"), /Historical first-campaign closure record/);
+});
+
+test("marketing screenshot README describes the shipped UI", () => {
+  const guide = read("public/marketing/README.md");
+  assert.match(guide, /checked-in screenshots are part of the current repository marketing UI/);
+  assert.match(guide, /feature-dom\.webp/);
+  assert.match(guide, /real-feature-visuals\.css/);
+  assert.doesNotMatch(guide, /current PR deliberately adds the presentation component/);
+});
