@@ -210,7 +210,7 @@ DizyQuant may describe public displayed-depth movement, turnover, persistence, r
 
 ## Production resource boundary
 
-The current Render service remains a bounded collection and presentation service:
+The current self-hosted DizyTrades service remains a bounded collection and presentation service. Earlier Render-era evidence was collected on the previous host; it does not prove the current host's live configuration:
 
 - no additional paid service, database or worker;
 - no unbounded full-book archive;
