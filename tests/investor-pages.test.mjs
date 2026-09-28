@@ -6,6 +6,7 @@ import { showSharedProductNavigation } from "../app/lib/product-navigation.ts";
 
 const investors = await readFile(new URL("../app/investors/page.tsx", import.meta.url), "utf8");
 const businessPlan = await readFile(new URL("../app/business-plan/page.tsx", import.meta.url), "utf8");
+const login = await readFile(new URL("../app/login/page.tsx", import.meta.url), "utf8");
 const header = await readFile(new URL("../app/marketing/site-header.tsx", import.meta.url), "utf8");
 const investorStyles = await readFile(new URL("../app/investors/investors.module.css", import.meta.url), "utf8");
 
@@ -40,6 +41,8 @@ test("investor-facing infrastructure terminology stays professional", () => {
   assert.doesNotMatch(businessPlan, /Render remains the current hosted production environment/);
   assert.match(investors, /independently approved microscopic canary/);
   assert.match(businessPlan, /independently approved microscopic/);
+  assert.match(login, /protected service environment on this self-hosted server/);
+  assert.doesNotMatch(login, /on Render/i);
 });
 
 test("DIZY and fundraising language stay non-promissory", () => {
