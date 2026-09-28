@@ -90,7 +90,7 @@ export class SqliteExecutionWriteCredentialAuthorityStore implements ExecutionWr
   private harden() {
     if (this.path === ":memory:") return;
     for (const candidate of [this.path, `${this.path}-wal`, `${this.path}-shm`]) {
-      if (existsSync(candidate)) chmodSync(candidate, 0o600);
+      if (existsSync(/* turbopackIgnore: true */ candidate)) chmodSync(candidate, 0o600);
     }
   }
 
