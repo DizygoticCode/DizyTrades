@@ -1,5 +1,7 @@
 # DizyTrades Architecture
 
+> **Current-status note (28 September 2026):** The product runs on a self-hosted, single-instance service. The guarded reduce-only writer and server-only credential/authority gates exist in code, but production exchange writes remain disabled and the exact-host operational ceremony is outstanding. The chronological execution slices further below describe **historical implementation stages**, not the current production activation state. See [README.md](README.md), [ROADMAP.md](ROADMAP.md), [SECURITY.md](SECURITY.md) and [self-hosted operations](docs/SELF_HOSTED_OPERATIONS.md) for the current operator boundary.
+
 This document describes the current boundaries between public market data, deterministic analysis, microstructure research, simulation, replay, review, analytics, authentication, operations and future exchange connectivity.
 
 The enduring mission lives in [VISION.md](VISION.md). Delivery order lives in [ROADMAP.md](ROADMAP.md).
@@ -80,7 +82,7 @@ The account profile layer stores display name, bounded bio and optional PNG/JPEG
 
 Trusted legacy owner/admin environment credentials are one-time bootstrap inputs. Server initialization validates both identities as a unit and creates ordinary verified database rows with stable IDs `rob` and `friend`, roles `owner` and `admin`, and current versioned password hashes. A durable migration record prevents restart-time password replacement. Any ID/email/username/role collision aborts without elevation. Once present, these database identities are authoritative and suppress the legacy fallback, so password reset, MFA, opaque sessions and session revocation follow the normal database-account lifecycle. Operators remove the plaintext password variables manually only after production verification.
 
-Production verification/recovery mail is a server-only TLS SMTP boundary configured by Render environment variables. The intended runtime values are declared in `render.yaml`; `SMTP_APP_PASSWORD` remains secret-only. Existing Render services may require newly introduced variables to be added explicitly before restart/redeploy.
+Production verification/recovery mail is a server-only TLS SMTP boundary configured by the protected self-hosted service environment; `SMTP_APP_PASSWORD` remains secret-only. The required configuration and controlled restart/verification path are documented in [the current account-mail runbook](docs/ACCOUNT_EMAIL_DEPLOYMENT.md). Historic Render variables or a GitHub configuration file are not evidence of what the running self-hosted service actually has.
 
 ## External data boundary
 
@@ -338,22 +340,20 @@ Restore requirements:
 - bounded audit records
 - owner-scoped backups
 
-Writes are atomic where file-backed and serialised where concurrent mutation could corrupt state. The supported production topology is one Render instance with persistent SQLite authentication/session/rate-limit and guarded-execution idempotency state, with vertical scaling first. Horizontal multi-instance operation is not currently planned and would require shared managed storage plus a separate shared authentication/rate-limit and execution-state design before use.
+Writes are atomic where file-backed and serialised where concurrent mutation could corrupt state. The supported production topology is one self-hosted instance with durable local SQLite authentication/session/rate-limit and guarded-execution idempotency state, with vertical scaling first. Horizontal multi-instance operation is not currently planned and would require shared managed storage plus a separate shared authentication/rate-limit and execution-state design before use.
 
 ## Deployment configuration boundary
 
-`render.yaml` is the repository declaration of the intended Render service, but it is not treated as proof that every newly added variable already exists on an older live service.
+The actual self-hosted systemd service environment, release SHA and persistent storage must be verified independently of GitHub defaults or historical Render configuration. For verified signup and recovery, the service requires `PUBLIC_SIGNUP_ENABLED=true`, the canonical HTTPS `APP_BASE_URL`, SMTP host/port/user/from settings and the secret-only `SMTP_APP_PASSWORD`. Changes require approved protected-environment updates, controlled restart and a non-secret production smoke as specified in [the account-mail runbook](docs/ACCOUNT_EMAIL_DEPLOYMENT.md).
 
-For verified signup and recovery, the live service requires `PUBLIC_SIGNUP_ENABLED=true`, the canonical HTTPS `APP_BASE_URL`, Gmail SMTP host/port/user/from settings and the secret-only `SMTP_APP_PASSWORD`. When those variables are introduced to an existing service they must be verified in the live Render environment and applied by restart/redeploy before production mail is considered configured.
+Production behaviour, not a repository example or a historical hosting manifest, is the final evidence boundary.
 
-Production behaviour, not the YAML file alone, is the final evidence boundary.
+## Live-execution boundary — current gates and historical sequence
 
-## Live-execution boundary
-
-The current repository contains no enabled live-order path. `LIVE_TRADING_ENABLED=false` remains required.
+The guarded reduce-only writer seam and production authorization infrastructure exist in source, but production exchange-write activation remains disabled. `LIVE_TRADING_ENABLED=false` and `MEXC_WRITE_PROVIDER_ENABLED=false` remain required; no web deployment or stored key establishes write readiness. The *initial non-executing slices* below document how the boundary was built incrementally, not a claim that the later guarded writer code does not exist.
 
 The server-owned `ExecutionBoundary` also contains a narrow provider-mechanics
-contract. Its single production implementation is `NonExecutingProvider`: it has
+contract. Its initial non-executing implementation was `NonExecutingProvider`: it has
 no network, signer, credential or custody dependency and returns only typed,
 deterministic `would-accept`, `would-reject`, `would-timeout` or `would-unknown`
 outcomes with synthetic provenance and `executed:false`. Authentication, kill
@@ -413,8 +413,8 @@ therefore survives reconstruction through the existing `provider_json` record.
 It adds no provider readback, acknowledgement, identifiers, retry, signing,
 credential wiring or network transport.
 
-This is durable readiness state for the current supported **single Render
-instance**. It is not a horizontally shared multi-instance execution service,
+This is durable readiness state for the supported **single-instance
+service**. It is not a horizontally shared multi-instance execution service,
 not exchange order submission and not acknowledgement/reconciliation. Execution
 controls are stored separately at `DATA_DIR/execution-control.sqlite`. The
 strict versioned singleton is initialized `armed:false` and
