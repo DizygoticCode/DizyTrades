@@ -41,8 +41,8 @@ export default function BusinessPlanPage() {
           <div className={styles.kicker}>01 · EXECUTIVE SUMMARY</div>
           <h2 id="plan-summary">The proposition</h2>
           <p>DizyTrades combines market discovery, charting, transparent signal reasoning, order flow, bounded quantitative research, realistic simulation, risk controls, account reconciliation, scanning, market structure, journalling, replay, performance review, education, diagnostics, backup/recovery and on-chain research into a connected product family.</p>
-          <p>The broad product-generation programme is substantially complete and live. The next major operating step is not to add surface area for its own sake, but to harden infrastructure, measure capacity, migrate critical services to dedicated self-hosted production infrastructure and complete the remaining guarded-execution operational proof.</p>
-          <div className={styles.note}><b>Current execution boundary:</b> production exchange-write activation remains disabled. The guarded execution architecture exists, but activation requires fresh host evidence, fresh credential attestation and a separately approved microscopic canary after migration.</div>
+          <p>The broad product-generation programme is substantially complete and live. The next major operating step is not to add surface area for its own sake, but to harden infrastructure, measure capacity, verify protected-state recovery and host authority on the current self-hosted infrastructure and complete the remaining guarded-execution operational proof.</p>
+          <div className={styles.note}><b>Current execution boundary:</b> production exchange-write activation remains disabled. The guarded execution architecture exists, but activation requires fresh host evidence, fresh credential attestation and an independently approved microscopic canary after migration.</div>
         </section>
 
         <section className={styles.planSection} aria-labelledby="plan-problem">
@@ -75,7 +75,7 @@ export default function BusinessPlanPage() {
           <div className={styles.kicker}>04 · MARKET POSITION</div>
           <h2 id="plan-position">Compete on integration, transparency and control.</h2>
           <p>DizyTrades does not need to claim that every feature is unique in isolation. The differentiator is the way those components are integrated around a common workflow and evidence model: market discovery to analysis, analysis to simulation, simulation to execution controls, and execution back into reconciliation and review.</p>
-          <p>The project also owns its application code and is actively reducing infrastructure dependence by moving toward dedicated self-hosted production capacity. The intended moat is therefore a combination of integrated workflow, accumulated product engineering, inspectable safety boundaries, retained research context and operational control.</p>
+          <p>The project also owns its application code and is reducing infrastructure dependence through its self-hosted web service while separately verifying execution-host custody, recovery and capacity. The intended moat is therefore a combination of integrated workflow, accumulated product engineering, inspectable safety boundaries, retained research context and operational control.</p>
         </section>
 
         <section className={styles.planSection} aria-labelledby="plan-customers">
@@ -115,7 +115,7 @@ export default function BusinessPlanPage() {
             <li>Production exchange-write activation remains off.</li>
             <li>Write credentials and execution authority are separately controlled and attested.</li>
             <li>The intended dedicated execution host requires fresh exact-host network evidence after migration.</li>
-            <li>Execution activation requires a separately approved microscopic reduce-only LIMIT canary.</li>
+            <li>Execution activation requires an independently approved microscopic reduce-only LIMIT canary.</li>
             <li>Operational diagnostics and audit surfaces are designed to make system state inspectable.</li>
           </ul>
         </section>
@@ -123,8 +123,8 @@ export default function BusinessPlanPage() {
         <section className={styles.planSection} aria-labelledby="plan-infrastructure">
           <div className={styles.kicker}>09 · INFRASTRUCTURE ROADMAP</div>
           <h2 id="plan-infrastructure">Move from interim hosting to measured dedicated infrastructure.</h2>
-          <p>Render remains the current hosted production environment. The planned long-term direction is dedicated self-hosted production infrastructure, giving DizyTrades greater control over capacity, retained data, network identity, execution boundaries and operating cost.</p>
-          <p>The migration is being treated as an engineering and security milestone rather than a simple server move: hardware burn-in, controlled state migration, restart/rollback rehearsal, staged capacity measurement, fresh static public /32 evidence, fresh write-generation attestation and a separately approved canary all belong to the migration proof.</p>
+          <p>The DizyTrades web service is self-hosted. Protected execution state, recovery/rollback and exact-host write-egress authority remain separately gated; a working website does not establish exchange-write readiness.</p>
+          <p>The outstanding protected-state and execution-host verification is an engineering and security milestone rather than a simple server move: hardware burn-in, controlled state migration, restart/rollback rehearsal, staged capacity measurement, fresh static public /32 evidence, fresh write-generation attestation and an independently approved canary all belong to the migration proof.</p>
           <div className={styles.note}>Dedicated hardware is not described as unlimited capacity. DizyTrades has a staged synthetic capacity harness designed to measure CPU, heap, RSS, event-loop delay, throughput and retained memory at increasing symbol counts before operating limits are claimed.</div>
         </section>
 

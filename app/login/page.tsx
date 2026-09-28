@@ -25,7 +25,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <LoginForm returnTo={returnTo} />
       {process.env.PUBLIC_SIGNUP_ENABLED === "false" && !authIsConfigured() ? (
         <p className="config-warning">
-          Test users are not configured. Add the required secret environment variables on Render.
+          Legacy test users are not configured. Check the protected service environment on this self-hosted server.
         </p>
       ) : null}
     </main>
