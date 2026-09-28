@@ -4,7 +4,7 @@
 
 The guarded MEXC execution software boundary is built but production exchange-write activation remains deliberately off. The repository contains the reviewed server-side reduce-only writer path, encrypted dedicated write-credential custody, exact-account/write-generation authority, provider-neutral exact-host `/32` egress proof, owner-only provisioning/activation ceremonies and a durable microscopic one-shot canary gate. `LIVE_TRADING_ENABLED=false` and `MEXC_WRITE_PROVIDER_ENABLED=false` remain the committed/default posture, and no real MEXC order has been submitted by the guarded-execution programme.
 
-The next execution milestone is operational rather than another product feature build: migrate the durable application state to the intended Server Club host, rehearse integrity/restart/rollback, establish fresh static-host `/32` evidence, reprovision and re-attest the dedicated write generation there, then perform one independently approved reduce-only LIMIT canary at exactly 1x and no more than 25 USDT notional before any separate broader activation decision. The existing MEXC Account Companion remains independent and GET-only.
+The next execution milestone is operational rather than another product feature build: migrate the durable application state to the intended self-hosted execution host, rehearse integrity/restart/rollback, establish fresh static-host `/32` evidence, reprovision and re-attest the dedicated write generation there, then perform one independently approved reduce-only LIMIT canary at exactly 1x and no more than 25 USDT notional before any separate broader activation decision. The existing MEXC Account Companion remains independent and GET-only.
 
 ### Everything Dizy™
 
@@ -33,6 +33,18 @@ in [the current operations runbook](docs/SELF_HOSTED_OPERATIONS.md) and
 `package.json`/`package-lock.json`. Older deployment notes below are
 historical unless explicitly refreshed.
 
+**Host maintenance checkpoint (28 September 2026):** the reviewed
+self-hosted DizyTrades checkout was
+`0ae0bd1ec5f75dec8164d19d0f7fab86366d6ae6` (Next.js `16.3.6`),
+behind Caddy `2.11.4` on Ubuntu 24.04 / kernel
+`6.8.0-142-generic`. Netplan, Linux firmware and standalone MongoDB
+`8.0.32` were updated separately; five core services were checked active.
+Node.js `22.23.1` remains deliberately APT-held because the application
+requires that exact engine version. The DizyFlow read-only memory report
+observed a transient 2,228 MB RSS / 2,092 MB heap peak and later lower
+readings; **a sustained leak has not been demonstrated and the peak is not
+explained**. See the [dated maintenance evidence and safety checks](docs/SELF_HOSTED_OPERATIONS.md) for scope and caveats.
+
 DizyTrades has moved well beyond its original chart-and-strategy simulator into a connected research and review platform. The planned product-generation scope is complete on current `main`: the charting terminal, deterministic signal engine, public market-microstructure tooling, realistic paper execution, read-only account reconciliation, replay, journal, analytics, education, backup/recovery, verified public accounts and personal profiles are all present.
 
 Market discovery now spans MEXC Spot/Futures, DizyDEX and authenticated Global Search. The Global Search provider boundary is deliberately chart/search-only: server-side Twelve Data symbol/candle transport feeds a provider-neutral chart identity without granting executed-trade, order-book or execution capability to global instruments.
@@ -46,7 +58,7 @@ The repository baseline and production account lifecycle are also settled:
 - public signup requires email verification before session creation.
 - verified database accounts have enumeration-safe self-service password recovery with session revocation after reset.
 - authenticated owner/admin/user identities have a personal profile surface for display name, bounded bio and avatar.
-- production owner/admin passwords are database-authoritative after migration/reset, and privileged plaintext password environment inputs have been removed from the live Render service.
+- production owner/admin passwords are database-authoritative after migration/reset, and privileged plaintext password environment inputs were removed from the previous Render service; verify the current host separately.
 - provider-neutral static execution-host authority is already built; actual protected-state migration/verification, fresh static-IP attestation and canary execution remain separate operations.
 
 The first bounded DizyQuant representative campaign is closed for the current roadmap and remains isolated from DizySignals unless a future separate promotion review explicitly changes that boundary. There is no standing new product-feature programme behind the current release. The web service is now self-hosted; the remaining guarded-execution state-integrity, exact-host attestation and any canary remain independently gated.
@@ -108,7 +120,7 @@ It includes snapshot-grade spread/depth/imbalance measurements, public aggressor
 
 DizyAccount is the owner-only, server-side, GET-only MEXC Futures account companion. It can ingest balances, positions and provider risk state, then perform deterministic shadow reconciliation against DizyPaper without changing either account. It has no order route and no browser-held exchange credentials.
 
-Separately, authenticated non-viewer identities have a personal DizyTrades profile for display name, bounded bio and avatar. Profile mutation cannot change role or sign-in email. Production owner/admin identities are database-authoritative after the verified reset/migration path, and privileged plaintext password environment inputs are absent from the live Render service. Explicitly gated legacy fallback remains available only as local/test compatibility and is not the production identity authority.
+Separately, authenticated non-viewer identities have a personal DizyTrades profile for display name, bounded bio and avatar. Profile mutation cannot change role or sign-in email. Production owner/admin identities are database-authoritative after the verified reset/migration path, and privileged plaintext password environment inputs were removed from the previous Render deployment; verify the current host separately. Explicitly gated legacy fallback remains available only as local/test compatibility and is not the production identity authority.
 
 ### DizyScanner
 
@@ -169,9 +181,9 @@ Public signup requires an explicit `PUBLIC_SIGNUP_ENABLED=true` deployment flag 
 
 Verification and password-reset tokens are random, hashed at rest, expiring and single-use. Recovery responses are enumeration-safe. A successful password reset revokes existing database sessions.
 
-Production account mail is server-side only. Gmail SMTP credentials never enter browser state, and the Gmail App Password must remain only in the protected Render environment boundary. The live service no longer carries privileged plaintext owner/admin login-password inputs; those identities use database-authoritative password hashes after the verified reset path.
+Production account mail is server-side only. Gmail SMTP credentials must never enter browser state, and any Gmail App Password belongs only in the protected self-hosted service environment or secret store, not in Git. The previous Render deployment removed privileged plaintext owner/admin password inputs after the verified reset path; independently verify the equivalent self-hosted state before making that claim for the current host.
 
-See [SECURITY.md](SECURITY.md) and [docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md](docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md).
+See [SECURITY.md](SECURITY.md) and the [historical Render account-mail guide](docs/RENDER_ACCOUNT_EMAIL_DEPLOYMENT.md); do not apply the latter's hosting steps to the self-hosted service.
 
 ## Safety boundaries
 
@@ -181,14 +193,14 @@ The repository currently contains:
 - an owner-only server-side GET-only private MEXC Account Companion that remains independent of the execution writer
 - no browser/public general execution route
 - a guarded server-side MEXC reduce-only LIMIT write path behind durable exact-account, write-generation, credential-custody, rollout, risk, reconciliation, exact-host `/32`, activation and one-shot canary-permit authorities
-- provider-neutral execution-host authority, so moving away from Render cannot silently inherit another host/provider's egress proof
+- provider-neutral execution-host authority, so a change of host or provider cannot silently inherit another host's egress proof
 - committed/default `LIVE_TRADING_ENABLED=false` and `MEXC_WRITE_PROVIDER_ENABLED=false` deployment posture
 - no real MEXC order submitted by the guarded-execution programme
 - GET-only ambiguous-delivery reconciliation that cannot authorize a second POST
 - no automatic DizyQuant influence on DizySignals
 - verified public-account signup and recovery isolated from exchange execution
 
-The guarded execution software boundary is therefore built, but production exchange-write authority is not active. Actual activation is intentionally deferred until durable state is migrated to the intended Server Club host, integrity/restart/rollback is rehearsed, that host's static public IPv4 is independently observed and bound to an exact `/32`, a fresh dedicated write generation is provisioned and attested against that host, and an independently approved microscopic reduce-only LIMIT canary at exactly 1x and no more than 25 USDT is reconciled and reviewed. Broader write activation requires a separate explicit decision after that canary.
+The guarded execution software boundary is therefore built, but production exchange-write authority is not active. Actual activation is intentionally deferred until durable state is migrated to the intended self-hosted execution host, integrity/restart/rollback is rehearsed, that host's static public IPv4 is independently observed and bound to an exact `/32`, a fresh dedicated write generation is provisioned and attested against that host, and an independently approved microscopic reduce-only LIMIT canary at exactly 1x and no more than 25 USDT is reconciled and reviewed. Broader write activation requires a separate explicit decision after that canary.
 
 The read-only DizyAccount connection proves only its independent observation boundary and must never be treated as write authority. Global Search likewise remains chart/search-only and cannot acquire exchange-write capability through the provider-neutral chart boundary.
 

@@ -10,8 +10,8 @@ dizytrades.tech, www.dizytrades.tech {
             wrap json
         }
     }
-    # Log path, method, response status and peer address; never query or headers.
-    log_append request_path {http.request.uri.path}
+    # Log method, response status and connection metadata; do not log URL, query or headers.
+    # Keep source addresses out of public reports.
 
     # Only reject obviously malformed Server Action POST identifiers (1-9 chars).
     # No Next-Action header, and valid-looking IDs, pass through unchanged.
