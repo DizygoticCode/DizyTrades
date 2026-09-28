@@ -12,7 +12,7 @@ test("MFA recovery connection loss shows a retryable, non-committal error", asyn
   await page.goto("/recover-mfa#token=e2e-synthetic-invalid-token");
   const recover = page.getByRole("button", { name: "Disable MFA and revoke sessions" });
   await expect(recover).toBeEnabled();
-  await expect(page).toHaveURL(/\\/recover-mfa$/);
+  await expect(page).toHaveURL(/\/recover-mfa$/);
 
   await recover.click();
   await expect(page.getByRole("alert")).toContainText("MFA recovery could not be confirmed");
