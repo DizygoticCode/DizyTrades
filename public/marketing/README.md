@@ -1,13 +1,19 @@
 # DizyTrades marketing screenshots
 
-Approved screenshot slots for the landing-page visual refresh:
+The checked-in screenshots are part of the current repository marketing UI:
 
 - `hero-terminal.webp` — full DizyCharts terminal with DizyFlow and DOM live
 - `feature-signals.webp` — confirmed-candle confluence summary
 - `feature-paper.webp` — manual DizyPaper controls
 - `feature-flow.webp` — DizyFlow toolbar and large-order activity
+- `feature-dom.webp` — depth-of-market visual
 - `feature-learning.webp` — DizyAcademy lesson view
 
-Use these assets with `app/marketing/product-visual.tsx` so every product image receives the same browser frame, border, shadow and responsive behaviour.
+`app/marketing/terminal-preview.tsx` renders the hero screenshot using the shared
+`app/marketing/product-visual.tsx` frame. The marketing feature visuals use
+the other checked-in images through `app/marketing/real-feature-visuals.css`.
 
-The current PR deliberately adds the presentation component and asset contract only. The live marketing page remains unchanged until the approved screenshots are committed and the page swap can be reviewed independently.
+These source assets are not proof of what a separately deployed production
+service currently serves. Verify its exact release and browser rendering after
+an approved rollout. Do not replace images with private account balances,
+user information or credentials.
