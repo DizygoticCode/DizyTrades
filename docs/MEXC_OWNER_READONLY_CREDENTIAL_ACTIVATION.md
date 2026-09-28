@@ -1,5 +1,7 @@
 # Owner MEXC read-only credential activation
 
+> **Historical Render-era runbook.** The Render-specific environment and deployment steps below are retained for context, not instructions for the current self-hosted service. Refer to [self-hosted operations](SELF_HOSTED_OPERATIONS.md) and [the current README](../README.md) before any operator action. This document concerns the GET-only Account Companion; never reuse its credential as a dedicated exchange-write key.
+
 Status: implemented as a server-only activation boundary. No browser route, account UI or exchange order route is added by this slice.
 
 ## Purpose
