@@ -110,13 +110,13 @@ export default function ProfileForm({ initial }: { initial: AccountProfile }) {
 
       <form className="profile-details-card" onSubmit={save}>
         <label><span>Display name</span><input maxLength={64} onChange={(event) => setDisplayName(event.target.value)} required value={displayName} /></label>
-        <label><span>Sign-in email</span><input readOnly value={profile.email || "Legacy account email"} /><small>{profile.credentialSource === "database" ? profile.emailVerified ? "Verified email" : "Verification required" : "Legacy owner/admin credential managed in Render"}</small></label>
+        <label><span>Sign-in email</span><input readOnly value={profile.email || "Legacy account email"} /><small>{profile.credentialSource === "database" ? profile.emailVerified ? "Verified email" : "Verification required" : "Legacy owner/admin credential managed on this server"}</small></label>
         <label><span>Role</span><input readOnly value={profile.role} /><small>Roles cannot be changed from a personal profile.</small></label>
         <label><span>About / notes</span><textarea maxLength={500} onChange={(event) => setBio(event.target.value)} placeholder="Optional profile details" rows={6} value={bio} /><small>{bio.length}/500</small></label>
         {error ? <div className="login-error" role="alert">{error}</div> : null}
         {message ? <div className="profile-success" role="status">{message}</div> : null}
         <button disabled={saving} type="submit">{saving ? "Saving…" : "Save profile"}</button>
-        {profile.credentialSource === "database" ? <a className="profile-reset-link" href="/forgot-password">Reset my password by email</a> : <p className="profile-legacy-note">This owner/admin login still uses the protected Render credential boundary. Self-service password resets apply to verified SQLite signup accounts.</p>}
+        {profile.credentialSource === "database" ? <a className="profile-reset-link" href="/forgot-password">Reset my password by email</a> : <p className="profile-legacy-note">This legacy sign-in uses server-managed credentials. Email password recovery applies to verified database accounts.</p>}
       </form>
     </section>
   </div>;
