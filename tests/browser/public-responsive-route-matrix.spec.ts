@@ -9,6 +9,7 @@ const publicRoutes = [
 
 const viewports = [
   { name: "phone portrait", width: 360, height: 800 },
+  { name: "phone landscape", width: 667, height: 375 },
   { name: "small tablet", width: 768, height: 1024 },
   { name: "desktop", width: 1440, height: 900 },
 ] as const;
