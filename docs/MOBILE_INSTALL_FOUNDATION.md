@@ -2,7 +2,7 @@
 
 ## What this slice does
 
-The Next.js App Router serves a same-origin manifest at `/manifest.webmanifest` and advertises it from public pages. Launching the home-screen shortcut opens the existing HTTPS DizyTrades web app on the public landing page. A stable app identity (`id: /`) allows the launch URL to evolve independently. The manifest reuses the existing DizyTrades SVG mark.
+The Next.js App Router serves a same-origin manifest at `/manifest.webmanifest` and advertises it from public pages. Launching the home-screen shortcut opens the existing HTTPS DizyTrades web app on the public landing page. A stable app identity (`id: /`) allows the launch URL to evolve independently. The manifest reuses the existing DizyTrades SVG mark, and a generated-icon route renders 192px/512px PNG variants and a 512px maskable variant from the same vector geometry. An Apple touch icon is separately advertised from root metadata.
 
 This is **only the first PWA foundation slice**, not a claim of complete mobile installability: reviewed 192×192 and 512×512 raster icon fallbacks and a maskable icon, Android Chrome and iOS Home Screen installation, safe-area/keyboard/terminal-touch regressions, and cold-start/upgrade checks remain outstanding. Browser-specific installation affordances may vary until these are complete.
 
