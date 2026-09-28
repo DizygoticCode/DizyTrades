@@ -39,3 +39,30 @@ test("public landing exposes the scoped DizyTrades home-screen manifest", async 
   expect(appleBytes.readUInt32BE(20)).toBe(180);
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("href", "/apple-icon-180.png");
 });
+
+test("the installable PWA does not cache an authenticated offline shell", async ({ page }) => {
+  // This Next.js app intentionally has no service worker: an install icon
+  // must never imply offline availability of credentials or account data.
+  // Use an isolated Playwright browser context and never log in as an owner.
+  await page.goto("/login");
+  const registrations = await page.evaluate(async () =>
+    "serviceWorker" in navigator
+      ? (await navigator.serviceWorker.getRegistrations()).filter(
+          (registration) => new URL(registration.scope).origin === location.origin,
+        ).length
+      : 0,
+  );
+  expect(registrations).toBe(0);
+
+  // A fresh protected page must require the network. Testing a route never
+  // visited in this context avoids confusing the browser back/forward cache
+  // with genuine offline application functionality.
+  await page.context().setOffline(true);
+  try {
+    await expect(
+      page.goto("/account/egress", { waitUntil: "domcontentloaded" }),
+    ).rejects.toThrow(/ERR_INTERNET_DISCONNECTED/);
+  } finally {
+    await page.context().setOffline(false);
+  }
+});
