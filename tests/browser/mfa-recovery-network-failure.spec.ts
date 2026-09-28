@@ -15,8 +15,26 @@ test("MFA recovery connection loss shows a retryable, non-committal error", asyn
   await expect(page).toHaveURL(/\/recover-mfa$/);
 
   await recover.click();
-  await expect(page.getByRole("alert")).toContainText("MFA recovery could not be confirmed");
-  await expect(page.getByRole("alert")).toContainText("Check your account status before retrying");
+  const transportError = page.locator(".login-card .login-error").filter({ hasText: "Connection lost" });
+  await expect(transportError).toContainText("MFA recovery could not be confirmed");
+  await expect(transportError).toContainText("Check your account status before retrying");
   await expect(recover).toBeEnabled();
   expect(blockedRequests).toBe(1);
+});
+
+test("MFA recovery token remains available after URL-fragment removal and rerender", async ({ page }) => {
+  const synthetic = "e2e-synthetic-mfa-token";
+  let postedToken = "";
+  await page.route("**/api/auth/mfa/email-recovery/complete", async (route) => {
+    postedToken = String(route.request().postDataJSON()?.token || "");
+    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+
+  await page.goto("/recover-mfa#token=" + synthetic);
+  const recover = page.getByRole("button", { name: "Disable MFA and revoke sessions" });
+  await expect(recover).toBeEnabled();
+  await expect(page).toHaveURL(/\\/recover-mfa$/);
+  await recover.click();
+  await expect(page.getByRole("heading", { name: "MFA disabled" })).toBeVisible();
+  expect(postedToken).toBe(synthetic);
 });
