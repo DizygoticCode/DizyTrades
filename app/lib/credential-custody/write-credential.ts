@@ -99,7 +99,7 @@ function receipt(row: Row): MexcWriteCredentialCustodyReceipt {
 export class SqliteMexcWriteCredentialCustody {
   private database: DatabaseSync | null = null; private fileIdentity: FileIdentity | null = null; private poisoned = false;
   constructor(private readonly path = join(process.env.DATA_DIR || join(process.cwd(), ".data"), "mexc-write-credential-custody.sqlite")) {}
-  private harden() { if (this.path === ":memory:") return; for (const p of [this.path, `${this.path}-wal`, `${this.path}-shm`]) if (existsSync(p)) chmodSync(p, 0o600); }
+  private harden() { if (this.path === ":memory:") return; for (const p of [this.path, `${this.path}-wal`, `${this.path}-shm`]) if (existsSync(/* turbopackIgnore: true */ p)) chmodSync(p, 0o600); }
   private currentFileIdentity() { try { const s = statSync(this.path); return { dev: s.dev, ino: s.ino }; } catch { return fail(); } }
   private assertBacking() { if (this.poisoned) return fail(); if (this.path === ":memory:") return; const current = this.currentFileIdentity();
     if (!this.fileIdentity || current.dev !== this.fileIdentity.dev || current.ino !== this.fileIdentity.ino) { this.poisoned = true; this.close(); return fail(); } }

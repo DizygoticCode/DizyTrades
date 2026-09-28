@@ -91,7 +91,7 @@ type FileIdentity=Readonly<{dev:number;ino:number}>;
 export class SqliteRenderEgressProofStore{
   private database:DatabaseSync|null=null;private fileIdentity:FileIdentity|null=null;private poisoned=false;
   constructor(private readonly path=join(process.env.DATA_DIR||join(process.cwd(),".data"),"execution-render-egress-proof.sqlite")){}
-  private harden(){if(this.path===":memory:")return;for(const p of [this.path,`${this.path}-wal`,`${this.path}-shm`])if(existsSync(p))chmodSync(p,0o600);}
+  private harden(){if(this.path===":memory:")return;for(const p of [this.path,`${this.path}-wal`,`${this.path}-shm`])if(existsSync(/* turbopackIgnore: true */ p))chmodSync(p,0o600);}
   private currentFileIdentity(){try{const s=statSync(this.path);return {dev:s.dev,ino:s.ino};}catch{return fail("EXECUTION_RENDER_EGRESS_PROOF_UNAVAILABLE");}}
   private assertBacking(){if(this.poisoned)return fail("EXECUTION_RENDER_EGRESS_PROOF_UNAVAILABLE");if(this.path===":memory:")return;
     const n=this.currentFileIdentity();if(!this.fileIdentity||n.dev!==this.fileIdentity.dev||n.ino!==this.fileIdentity.ino){this.poisoned=true;this.close();return fail("EXECUTION_RENDER_EGRESS_PROOF_UNAVAILABLE");}}

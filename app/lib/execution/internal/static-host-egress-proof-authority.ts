@@ -195,7 +195,7 @@ export class SqliteStaticHostEgressProofStore {
 
   private harden() {
     if (this.path === ":memory:") return;
-    for (const path of [this.path, `${this.path}-wal`, `${this.path}-shm`]) if (existsSync(path)) chmodSync(path, 0o600);
+    for (const path of [this.path, `${this.path}-wal`, `${this.path}-shm`]) if (existsSync(/* turbopackIgnore: true */ path)) chmodSync(path, 0o600);
   }
 
   private currentFileIdentity() {
