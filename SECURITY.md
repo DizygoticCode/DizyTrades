@@ -1,5 +1,7 @@
 # Security
 
+> **Status note (28 September 2026):** This document retains historical engineering-milestone descriptions. Statements that a writer, custody or production composition did not yet exist describe those earlier slices, not necessarily current `main`. For the latest reviewed, still-disabled posture read [README.md](README.md), [ROADMAP.md](ROADMAP.md) and [self-hosted operations](docs/SELF_HOSTED_OPERATIONS.md). A passing build or a deployed web server is **not** proof of write-egress readiness.
+
 ## Current execution boundary
 
 DizyTrades is an active research, education and simulation platform. It is not a live exchange executor.
@@ -359,25 +361,15 @@ revisions, and device/inode checks around open-handle operations. Deletion,
 replacement, corruption, stale observations, ambiguity, and unavailable state all
 fail closed. There is no public clear/mutation route and **no exchange-write
 capability, credential migration, or write signing path**.
-# MEXC execution activation prerequisite
+## Current self-hosted MEXC write-egress prerequisites
 
-The execution credential is a separate server-only **Order Placing** key. It
-must never be copied from the read-only Account Companion key, entered in the
-browser, stored in Git, or included in logs/audit evidence. Configure
-`MEXC_EXECUTION_ACCESS_KEY`, `MEXC_EXECUTION_SECRET_KEY`, and an explicit
-`MEXC_EXECUTION_CREDENTIAL_GENERATION` directly in Render only during a
-separately approved activation ceremony. Missing, partial, or aliased
-configuration fails closed. Lifecycle storage contains digests, `externalOid`,
-order ID, bounded error class, state, attempt, and time—never a key, secret,
-signature, or raw provider response.
+This section supersedes **historical Render-specific activation guidance** in earlier milestones. It does not authorize live execution or state that a deployed key is usable. The web application is self-hosted, but a working site and a server-held credential do not prove the separate protected execution state, approved host identity, exact outbound IP, account authority or permission attestation are valid on that machine.
 
-IP restriction is a launch prerequisite, not an optional workaround. Before
-activation, obtain the service's current outbound ranges or dedicated outbound
-IP from Render's **Connect > Outbound** service settings and current Render
-networking documentation, then allowlist only that stable egress on the new MEXC
-key. If Render cannot provide suitably stable allowlistable egress, activation
-remains blocked; do not remove MEXC IP restrictions to make the canary work.
+- The owner-only MEXC Account Companion is independent and GET-only. Its read-only credentials must never be copied into, or treated as evidence for, the dedicated exchange-write credential generation. Keep browser requests, Git, test fixtures, reports and logs free of API keys and secrets.
+- Leave `LIVE_TRADING_ENABLED=false` and `MEXC_WRITE_PROVIDER_ENABLED=false`. A historical environment variable, stored ciphertext, previously attested credential or a passing CI job cannot override those disabled gates.
+- Before a write-egress ceremony, verify the intended **actual host** and deployed SHA, protected state/data roots, audit-chain and state integrity, backups, isolated restore, restart and rollback. A `mongorestore --dryRun` is not a full restore rehearsal; neither is the ordinary public health check.
+- Verify the machine's stable public outbound IPv4 through two independent observations and freshly bind that exact `/32` with `{provider, hostId, /32}` evidence. Old Render observations and credentials must **not** silently transfer to the self-hosted host. Do not relax exchange-side IP restrictions to make an egress check pass.
+- Re-check the owner account's database-backed password/TOTP assurance, exact MEXC account ownership, dedicated key permission, fresh write generation, encrypted custody, revocation, kill-switch, risk and day-start equity authority, authoritative GET-only reconciliation, and rollout/audit state. Review only sanitized, non-secret lifecycle metadata. Missing, stale, ambiguous or unreadable evidence is a blocker, never an invitation to bypass a gate.
+- The reviewed software includes an independently gated **microscopic canary design**: reduce-only LIMIT, exactly 1x and no more than 25 USDT notional. Even that test is a real exchange-write operation and requires a separate explicit owner decision **after** the preceding migration, attestation, rehearsal and fail-closed checks. It must not be submitted as part of documentation, UI, dependency, mobile or maintenance work. Broader production activation requires a later separate decision after canary reconciliation.
 
-Ordinary production and CI have `MEXC_WRITE_PROVIDER_ENABLED=false` and
-`LIVE_TRADING_ENABLED=false`. Tests inject an in-memory fake transport and must
-not receive real execution credentials.
+See the open [execution readiness issue #376](https://github.com/DizygoticCode/DizyTrades/issues/376), [ROADMAP.md](ROADMAP.md) and [docs/SELF_HOSTED_OPERATIONS.md](docs/SELF_HOSTED_OPERATIONS.md). Do not infer a live activation from any historical Render workflow or from the mere existence of a server-held key.
