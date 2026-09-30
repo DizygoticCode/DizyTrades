@@ -85,11 +85,10 @@ test("terminal interaction audit keeps overlays, drawings and mobile chrome cont
   await page.getByRole("button", { name: "Close settings" }).click();
   await expect(settings).toBeHidden();
 
-  // Manual Paper is intentionally open by default on desktop. At an 800px-tall
-  // CI viewport it can consume the chart's remaining row and leave the drawing
-  // canvas at 0px high. Minimise it before testing actual chart interaction.
-  const minimisePaper = page.getByRole("button", { name: "Minimise Manual Paper" });
-  if (await minimisePaper.isVisible().catch(() => false)) await minimisePaper.click();
+  // Manual Paper is intentionally open by default. A short desktop viewport
+  // must still leave a usable chart lane without requiring the operator to
+  // minimise the ticket first.
+  await expect(page.locator("#manual-paper-panel aside")).toBeVisible();
 
   const toolbar = page.getByRole("complementary", { name: "Drawing tools" });
   await expect(toolbar).toBeVisible();
