@@ -8,11 +8,9 @@ async function dismissOnboarding(page: Page) {
   }
 }
 
-async function loginOwner(page: Page) {
+async function loginViewer(page: Page) {
   await page.goto("/login");
-  await page.getByLabel("Username or email").fill("e2e-owner@dizytrades.local");
-  await page.getByLabel("Password").fill("DizyTrades-E2E-Owner-2026!");
-  await page.getByRole("button", { name: "Open DizyTrades" }).click();
+  await page.getByRole("button", { name: "Open View-Only Terminal" }).click();
   await expect(page).toHaveURL(/\/terminal$/);
   await dismissOnboarding(page);
 }
@@ -29,7 +27,7 @@ async function expectNoPageOverflow(page: Page) {
 
 test("terminal interaction audit keeps overlays, drawings and mobile chrome contained", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 800 });
-  await loginOwner(page);
+  await loginViewer(page);
 
   await expectNoPageOverflow(page);
 
