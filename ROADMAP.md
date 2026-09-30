@@ -301,7 +301,7 @@ The emergency CI-recovery item is complete. Maintenance is now continuous rather
 Current repository base (28 September 2026; verify the running host separately):
 
 - Node.js 22.23.1
-- Next.js 16.3.6
+- Next.js 16.3.7
 - React / React DOM 19.2.8
 - TypeScript 5.9.3
 - Lightweight Charts 5.2.1
