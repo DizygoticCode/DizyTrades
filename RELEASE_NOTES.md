@@ -2,6 +2,13 @@
 
 This is a living high-level history of user-facing milestones. Pull requests remain the detailed technical record.
 
+## Platform maintenance — 30 September 2026
+
+- Upgraded pinned `next` and `eslint-config-next` from `16.3.6` to `16.3.7` with a lockfile-only dependency refresh.
+- Passed the full GitHub merge gate and post-merge gate: install, lint, deterministic tests, production build and Chromium Playwright smoke.
+- Deployed the exact green commit `e2c083e9277aa7ff93d4dbac0652fb582c03dca7` to self-hosted dizyserver; the service returned active and `/api/health` remained in `mode: test` with `liveTradingEnabled: false`.
+- No exchange-write activation or guarded-execution egress ceremony was performed as part of this framework patch rollout.
+
 ## Current active beta — August 2026
 
 ### Connected professional workflow

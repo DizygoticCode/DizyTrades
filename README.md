@@ -12,7 +12,7 @@ The next execution milestone is operational rather than another product feature 
 
 [Open DizyTrades](https://dizytrades.tech) · [View-only terminal](https://dizytrades.tech/explore) · [DizyQuant Research](https://dizytrades.tech/research) · [DizyAcademy](https://dizytrades.tech/school) · [DIZY](https://dizytrades.tech/dizy) · [Roadmap](ROADMAP.md)
 
-![Next.js](https://img.shields.io/badge/Next.js-16.x-black?logo=next.js)
+![Next.js](https://img.shields.io/badge/Next.js-16.3.7-black?logo=next.js)
 ![React](https://img.shields.io/badge/React-19.x-149ECA?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-3178C6?logo=typescript)
 ![Node.js](https://img.shields.io/badge/Node.js-22.23.1-339933?logo=node.js)
@@ -32,6 +32,8 @@ The self-hosted runtime status and security patch level are tracked separately
 in [the current operations runbook](docs/SELF_HOSTED_OPERATIONS.md) and
 `package.json`/`package-lock.json`. Older deployment notes below are
 historical unless explicitly refreshed.
+
+**Current application deployment checkpoint (30 September 2026):** the self-hosted DizyTrades service is deployed from `e2c083e9277aa7ff93d4dbac0652fb582c03dca7` with Next.js `16.3.7` on Node.js `22.23.1`. The production build completed successfully on dizyserver, `dizytrades.service` was restarted and returned `active`, and `http://127.0.0.1:10000/api/health` returned `ok: true`, `mode: test` and `liveTradingEnabled: false`. This checkpoint verifies the application/runtime rollout only; it does not activate exchange-write authority or complete the separately gated execution-egress ceremony.
 
 **Host maintenance checkpoint (28 September 2026):** the reviewed
 self-hosted DizyTrades checkout was
