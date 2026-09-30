@@ -106,7 +106,7 @@ test("terminal interaction audit keeps overlays, drawings and mobile chrome cont
   expect(box).not.toBeNull();
   await page.mouse.click(box!.x + box!.width * 0.45, box!.y + box!.height * 0.45);
 
-  await expect(page.getByRole("complementary", { name: "Drawing properties" })).toBeVisible();
+  await expect(page.locator('.drawing-properties[aria-label="Drawing properties"]')).toBeVisible();
   const undo = toolbar.getByRole("button", { name: "Undo" });
   await expect(undo).toBeEnabled();
   await undo.click();
