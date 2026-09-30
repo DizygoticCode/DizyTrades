@@ -27,9 +27,6 @@ export default async function AccountCompanionLayout({ children }: { children: R
         <Link href="/account/audit" style={{ color: "#b8dce2", textDecoration: "none" }}>
           Immutable audit ledger
         </Link>
-        <Link href="/account/egress" style={{ color: "#8fe8c8", textDecoration: "none" }}>
-          Render egress proof
-        </Link>
         <Link href="/account/write-credential" style={{ color: "#ffb86b", textDecoration: "none" }}>
           Write credential ceremony
         </Link>
