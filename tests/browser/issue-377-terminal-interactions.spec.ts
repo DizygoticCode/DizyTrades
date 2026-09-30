@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createVerifiedBrowserUser } from "./account-fixture";
+
 async function dismissOnboarding(page: Page) {
   const backdrop = page.locator(".first-run-onboarding-backdrop");
   await backdrop.waitFor({ state: "visible", timeout: 3000 }).catch(() => {});
@@ -8,13 +10,14 @@ async function dismissOnboarding(page: Page) {
   }
 }
 
-async function loginOwner(page: Page) {
+async function loginAuditUser(page: Page, workerIndex: number, retry: number) {
   await page.context().setExtraHTTPHeaders({ "x-forwarded-for": "192.0.2.211" });
-  await page.goto("/login");
-  await page.getByLabel("Username or email").fill("e2e-owner@dizytrades.local");
-  await page.getByLabel("Password").fill("DizyTrades-E2E-Owner-2026!");
-  await page.getByRole("button", { name: "Open DizyTrades" }).click();
-  await expect(page).toHaveURL(/\/terminal$/);
+  const suffix = `w${workerIndex}r${retry}`;
+  await createVerifiedBrowserUser(page, {
+    username: `issue377${suffix}`,
+    email: `issue377-${suffix}@dizytrades.local`,
+    password: "DizyTrades-Issue377-Audit-2026!",
+  });
   await dismissOnboarding(page);
 }
 
@@ -28,9 +31,9 @@ async function expectNoPageOverflow(page: Page) {
   expect(geometry.bodyWidth).toBeLessThanOrEqual(geometry.viewport + 1);
 }
 
-test("terminal interaction audit keeps overlays, drawings and mobile chrome contained", async ({ page }) => {
+test("terminal interaction audit keeps overlays, drawings and mobile chrome contained", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1024, height: 800 });
-  await loginOwner(page);
+  await loginAuditUser(page, testInfo.workerIndex, testInfo.retry);
 
   await expectNoPageOverflow(page);
 
@@ -82,6 +85,12 @@ test("terminal interaction audit keeps overlays, drawings and mobile chrome cont
   await page.getByRole("button", { name: "Close settings" }).click();
   await expect(settings).toBeHidden();
 
+  // Manual Paper is intentionally open by default on desktop. At an 800px-tall
+  // CI viewport it can consume the chart's remaining row and leave the drawing
+  // canvas at 0px high. Minimise it before testing actual chart interaction.
+  const minimisePaper = page.getByRole("button", { name: "Minimise Manual Paper" });
+  if (await minimisePaper.isVisible().catch(() => false)) await minimisePaper.click();
+
   const toolbar = page.getByRole("complementary", { name: "Drawing tools" });
   await expect(toolbar).toBeVisible();
 
@@ -100,6 +109,7 @@ test("terminal interaction audit keeps overlays, drawings and mobile chrome cont
   await toolbar.getByRole("button", { name: "Horizontal line" }).click();
   const canvas = page.getByLabel("Manual drawing interaction layer");
   await expect(canvas).toBeVisible();
+  await expect.poll(async () => (await canvas.boundingBox())?.height ?? 0).toBeGreaterThan(80);
   const box = await canvas.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.click(box!.x + box!.width * 0.45, box!.y + box!.height * 0.45);
