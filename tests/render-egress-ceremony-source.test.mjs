@@ -8,15 +8,14 @@ const ceremony = read("app/lib/render-egress-ceremony.ts");
 const route = read("app/api/account/render-egress/route.ts");
 const page = read("app/account/egress/page.tsx");
 const layout = read("app/account/layout.tsx");
+const activation = read("app/account/write-credential/activate/page.tsx");
 
-test("Render egress ceremony stays behind the existing secret-free execution authority facade", () => {
+test("legacy Render egress implementation remains isolated compatibility evidence", () => {
   assert.match(executionFacade, /RENDER_EGRESS_CEREMONY_REGION = "frankfurt"/);
   assert.match(executionFacade, /probeProductionRenderEgressIpv4/);
   assert.match(executionFacade, /declareRenderDedicatedEgress/);
   assert.match(executionFacade, /observeRenderDedicatedEgress/);
   assert.match(executionFacade, /RENDER_EGRESS_SECOND_OBSERVATION_MIN_DELAY_MS/);
-  assert.match(executionFacade, /current\.dedicatedIpv4s\[0\] !== observerIpv4/);
-  assert.match(executionFacade, /current\.observationCount >= 2/);
   assert.doesNotMatch(ceremony, /attestMexcEgressAllowlisted/);
 
   assert.match(ceremony, /^import "server-only";/);
@@ -25,45 +24,22 @@ test("Render egress ceremony stays behind the existing secret-free execution aut
   assert.doesNotMatch(ceremony, /accessKey|secretKey|credentials\s*:/);
 });
 
-test("owner route accepts only declare/observe and supplies server-owned runtime evidence", () => {
+test("legacy Render mutation route is retired rather than relabelled as self-hosted", () => {
   assert.match(route, /user\?\.id === "rob" && user\.role === "owner"/);
   assert.match(route, /validRequestOrigin\(request\)/);
-  assert.match(route, /requestIp\(request\)/);
-  assert.match(route, /consumeRateLimit/);
-  assert.match(route, /2_048/);
-  assert.match(route, /SESSION_COOKIE/);
-  assert.match(route, /action !== "declare" && action !== "observe"/);
-  assert.match(route, /declareProductionRenderEgressCeremony/);
-  assert.match(route, /observeProductionRenderEgressCeremony/);
-  assert.doesNotMatch(route, /lib\/execution|execution\/internal/);
-  assert.doesNotMatch(route, /attestMexcEgressAllowlisted|accessKey|secretKey|credentials\s*:|MEXC_EXECUTION_(?:ACCESS_KEY|SECRET_KEY)/);
-  assert.doesNotMatch(route, /dedicatedIpv4s|renderServiceId|renderRegion|expectedRevision/);
+  assert.match(route, /status: 410/);
+  assert.match(route, /Legacy Render egress ceremony retired/);
+  assert.doesNotMatch(route, /declareProductionRenderEgressCeremony|observeProductionRenderEgressCeremony/);
+  assert.doesNotMatch(route, /accessKey|secretKey|MEXC_EXECUTION_(?:ACCESS_KEY|SECRET_KEY)/);
 });
 
-test("owner route redirects only through the configured public application origin", () => {
-  assert.match(route, /process\.env\.APP_BASE_URL/);
-  assert.match(route, /base\.origin/);
-  assert.match(route, /APP_BASE_URL must use HTTPS in production/);
-  assert.match(route, /new URL\("\/account\/egress", publicBaseUrl\)/);
-  assert.match(route, /Server redirect configuration unavailable/);
-  assert.doesNotMatch(route, /new URL\("\/account\/egress", request\.url\)/);
-  assert.doesNotMatch(route, /redirectResult\(request,/);
-});
-
-test("owner page exposes a two-observation Render rehearsal and no exchange-write ceremony", () => {
-  assert.match(page, /user\.id !== "rob" \|\| user\.role !== "owner"/);
-  assert.match(page, /Single-IP \/32 proof ceremony/);
-  assert.match(page, /api4\.ipify\.org \+ checkip\.amazonaws\.com/);
-  assert.match(page, /observationCount < 2/);
-  assert.match(page, /secondObservationReady/);
-  assert.match(page, /action="\/api\/account\/render-egress" method="post"/);
-  assert.match(page, /name="currentPassword"/);
-  assert.match(page, /name="totp"/);
-  assert.match(page, /name="action" value="declare"/);
-  assert.match(page, /name="action" value="observe"/);
-  assert.match(page, /provides no MEXC allowlist attestation or write-credential step/);
-  assert.doesNotMatch(page, /name="(?:accessKey|secretKey|ip|renderServiceId|renderRegion|expectedRevision)"/);
-  assert.doesNotMatch(page, /MEXC_EXECUTION_(?:ACCESS_KEY|SECRET_KEY)|ModernMexcReduceOnlyWriter|ProductionMexcWriteComposition/);
-  assert.match(layout, /href="\/account\/egress"/);
-  assert.match(layout, /Render egress proof/);
+test("current owner navigation uses only the provider-neutral write-credential ceremony", () => {
+  assert.match(page, /redirect\("\/account\/write-credential"\)/);
+  assert.doesNotMatch(page, /action="\/api\/account\/render-egress"/);
+  assert.doesNotMatch(layout, /href="\/account\/egress"/);
+  assert.doesNotMatch(layout, /Render egress proof/);
+  assert.match(layout, /href="\/account\/write-credential"/);
+  assert.match(activation, /exact execution-host \/32 evidence/);
+  assert.match(activation, /Execution-host \/32/);
+  assert.doesNotMatch(activation, /Render \/32/);
 });
