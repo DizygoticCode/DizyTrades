@@ -234,8 +234,8 @@ body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger > span
    surfaces continue to expose the full ticket. */
 @media (min-width: 761px) and (max-height: 850px) {
   .terminal-shell .terminal-primary-column > #manual-paper-panel[style*="height"] {
-    min-height: min(260px, 34dvh) !important;
-    max-height: min(300px, 34dvh) !important;
+    min-height: min(220px, 28dvh) !important;
+    max-height: min(260px, 28dvh) !important;
   }
 }
 
