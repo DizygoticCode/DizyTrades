@@ -1,5 +1,16 @@
 # Self-hosted DizyTrades operations (27 September 2026)
 
+## Operator-verified application deployment — 30 September 2026
+
+This is a dated application/runtime observation after the Next.js patch rollout; it does not replace the broader 28 September host-maintenance snapshot below.
+
+- DizyTrades was fast-forwarded to `e2c083e9277aa7ff93d4dbac0652fb582c03dca7`.
+- `npm ci` installed the committed lockfile and the production `next build` plus standalone preparation completed successfully with Next.js `16.3.7` on Node.js `22.23.1`.
+- `dizytrades.service` was restarted and returned `active`.
+- `http://127.0.0.1:10000/api/health` returned `ok: true`, `service: dizytrades`, `mode: test` and `liveTradingEnabled: false`.
+- GitHub post-merge CI for the same commit passed install, lint, the complete deterministic test suite, production build and Chromium Playwright smoke before the self-hosted rollout.
+- This deployment does **not** activate MEXC exchange writes, attest protected credential state, or complete the separately gated exact-host egress/write-credential ceremony.
+
 ## Operator-verified host snapshot — 28 September 2026
 
 These are dated **host observations**, not a guarantee that a later checkout,
