@@ -6,13 +6,15 @@ async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const [readme, roadmap, homepage, about, metadata, research] = await Promise.all([
+const [readme, roadmap, homepage, about, metadata, research, accountLayout, activationPage] = await Promise.all([
   source("README.md"),
   source("ROADMAP.md"),
   source("app/marketing/marketing-page.tsx"),
   source("app/about/page.tsx"),
   source("app/page.tsx"),
   source("app/research/page.tsx"),
+  source("app/account/layout.tsx"),
+  source("app/account/write-credential/activate/page.tsx"),
 ]);
 
 test("README reflects the completed account, heatmap and pending-order programmes", () => {
@@ -61,4 +63,12 @@ test("DizyQuant homepage exposes campaign scope without claiming validation", ()
   assert.match(research, /450/);
   assert.match(research, /Coverage-ready is not validation/);
   assert.match(research, /promotion-ineligible/);
+});
+
+test("active owner execution UI does not present historical Render egress as current", () => {
+  assert.doesNotMatch(accountLayout, /Render egress proof/);
+  assert.doesNotMatch(accountLayout, /href="\/account\/egress"/);
+  assert.match(accountLayout, /Write credential ceremony/);
+  assert.doesNotMatch(activationPage, /Render \/32/);
+  assert.match(activationPage, /Execution-host \/32/);
 });
