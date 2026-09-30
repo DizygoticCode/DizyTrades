@@ -228,6 +228,17 @@ body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger > span
   text-align: center;
 }
 
+/* Keep an expanded Manual Paper ticket from consuming the entire chart lane on
+   short desktop/laptop viewports. The panel keeps its persisted height on roomy
+   screens; here only its used max/min height is bounded, and its own scroll
+   surfaces continue to expose the full ticket. */
+@media (min-width: 761px) and (max-height: 850px) {
+  .terminal-shell .terminal-primary-column > #manual-paper-panel[style*="height"] {
+    min-height: min(220px, 28dvh) !important;
+    max-height: min(260px, 28dvh) !important;
+  }
+}
+
 @media (max-width: 1150px) and (min-width: 761px) {
   body:has(.terminal-shell) .global-quick-actions .command-palette-floating,
   body:has(.terminal-shell) .global-quick-actions .recent-shortcuts-trigger {
