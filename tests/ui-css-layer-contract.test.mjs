@@ -43,6 +43,6 @@ test("short desktop viewports preserve chart room beside expanded Manual Paper",
   assert.match(polish, /@media\s*\(min-width:\s*761px\)\s*and\s*\(max-height:\s*850px\)/);
   assert.match(
     polish,
-    /#manual-paper-panel\[style\*="height"\]\s*\{[\s\S]*?min-height:\s*min\(260px,\s*34dvh\)\s*!important;[\s\S]*?max-height:\s*min\(300px,\s*34dvh\)\s*!important;/,
+    /#manual-paper-panel\[style\*="height"\]\s*\{[\s\S]*?min-height:\s*min\(220px,\s*28dvh\)\s*!important;[\s\S]*?max-height:\s*min\(260px,\s*28dvh\)\s*!important;/,
   );
 });
