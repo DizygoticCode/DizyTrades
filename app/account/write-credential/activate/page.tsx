@@ -44,7 +44,7 @@ export default async function OwnerWriteCredentialActivationPage({ searchParams 
           <p className={accountStyles.eyebrow}>OWNER-ONLY · WRITE CREDENTIAL ACTIVATION</p>
           <h1>Activate one exact attested MEXC write generation</h1>
           <p className={accountStyles.intro}>
-            Promote the single server-owned generation from <strong>attested</strong> to <strong>active</strong> only after rechecking its sealed fingerprint, exact Render /32 evidence and current production observer address. Activation authorizes the generation in #329; it does not connect a writer or submit an exchange order.
+            Promote the single server-owned generation from <strong>attested</strong> to <strong>active</strong> only after rechecking its sealed fingerprint, exact execution-host /32 evidence and current production observer address. Activation authorizes the generation in #329; it does not connect a writer or submit an exchange order.
           </p>
         </div>
         <nav className={accountStyles.actions} aria-label="Write credential activation actions">
@@ -70,7 +70,7 @@ export default async function OwnerWriteCredentialActivationPage({ searchParams 
             <article className={accountStyles.statusCard}><span>Write generation</span><strong>{identity.writeCredentialGeneration}</strong><small>Browser override: impossible</small></article>
             <article className={accountStyles.statusCard}><span>#329 authority</span><strong data-status={active ? "fresh" : authority?.status === "attested" ? "fresh" : undefined}>{authority?.status ?? "Unavailable"}</strong><small>Revision {authority?.revision ?? "—"}</small></article>
             <article className={accountStyles.statusCard}><span>#331 custody</span><strong data-status={custody?.status === "sealed" ? "fresh" : undefined}>{custody?.status ?? "Unavailable"}</strong><small>Fingerprint {shortDigest(custody?.credentialFingerprintSha256)}</small></article>
-            <article className={accountStyles.statusCard}><span>Render /32</span><strong data-status={state?.status === "allowlisted" ? "fresh" : undefined}>{state?.dedicatedIpv4s[0] ? `${state.dedicatedIpv4s[0]}/32` : "Unavailable"}</strong><small>{state?.status ?? "No durable egress state"}</small></article>
+            <article className={accountStyles.statusCard}><span>Execution-host /32</span><strong data-status={state?.status === "allowlisted" ? "fresh" : undefined}>{state?.dedicatedIpv4s[0] ? `${state.dedicatedIpv4s[0]}/32` : "Unavailable"}</strong><small>{state?.status ?? "No durable egress state"}</small></article>
             <article className={accountStyles.statusCard}><span>Writer / transport</span><strong>DISCONNECTED</strong><small>#341 remains a separate future boundary</small></article>
           </section>
 
