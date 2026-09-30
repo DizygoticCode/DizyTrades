@@ -1,0 +1,30 @@
+name: Refresh Next 16.3.7 lockfile
+
+on:
+  push:
+    branches:
+      - chore/next-16.3.7
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: chore/next-16.3.7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ".node-version"
+          cache: npm
+      - run: npm install --package-lock-only --ignore-scripts --save-exact next@16.3.7
+      - run: npm install --package-lock-only --ignore-scripts --save-dev --save-exact eslint-config-next@16.3.7
+      - name: Commit refreshed dependency lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git diff --cached --quiet || git commit -m "chore: refresh lockfile for Next.js 16.3.7"
+          git push
