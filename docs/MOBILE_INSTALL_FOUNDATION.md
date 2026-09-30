@@ -6,6 +6,12 @@ The Next.js App Router serves a same-origin manifest at `/manifest.webmanifest` 
 
 The icon metadata and raster endpoint coverage are an **installability foundation**, not a claim that every phone offers an installation prompt. Actual Android Chrome and iOS Home Screen installation, mask-safe icon rendering, safe-area/keyboard/terminal-touch regressions and cold-start/upgrade checks remain outstanding. Browser-specific installation affordances may vary until these are complete.
 
+## Repository acceptance checkpoint — 30 September 2026
+
+The repository-side PWA prerequisites are now covered: the scoped same-origin manifest, 192×192 and 512×512 PNG icons, a 512×512 maskable icon, Apple touch icon metadata, standalone display mode, device-width/cover viewport metadata, and the deliberate no-service-worker protected-offline boundary all have deterministic and/or Chromium regression coverage. The responsive terminal audit has also been extended under #377 to exercise real layer toggles and drawing controls before the remaining physical-device pass.
+
+What CI still cannot certify is the browser/OS install affordance and physical-device behavior. Use [PWA_DEVICE_ACCEPTANCE.md](PWA_DEVICE_ACCEPTANCE.md) for that final acceptance. A successful device PWA check does **not** approve a TWA, Capacitor shell, APK, exchange-write activation or native bridge.
+
 ## Security and offline scope
 
 - No service worker or offline application cache is registered by this change. Do **not** cache authenticated pages, market/account responses, sessions, execution controls or order-related requests for offline use.
