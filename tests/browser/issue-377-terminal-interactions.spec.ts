@@ -1,12 +1,4 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createVerifiedBrowserUser } from "./account-fixture";
-
-const testUser = {
-  username: `issue-377-${Date.now()}`,
-  email: `issue-377-${Date.now()}@example.test`,
-  password: "DizyTrades-Issue-377-2026!",
-};
-
 async function dismissOnboarding(page: Page) {
   const backdrop = page.locator(".first-run-onboarding-backdrop");
   await backdrop.waitFor({ state: "visible", timeout: 3000 }).catch(() => {});
@@ -16,8 +8,12 @@ async function dismissOnboarding(page: Page) {
   }
 }
 
-async function createStandardUser(page: Page) {
-  await createVerifiedBrowserUser(page, testUser);
+async function loginOwner(page: Page) {
+  await page.goto("/login");
+  await page.getByLabel("Username or email").fill("e2e-owner@dizytrades.local");
+  await page.getByLabel("Password").fill("DizyTrades-E2E-Owner-2026!");
+  await page.getByRole("button", { name: "Open DizyTrades" }).click();
+  await expect(page).toHaveURL(/\/terminal$/);
   await dismissOnboarding(page);
 }
 
@@ -33,7 +29,7 @@ async function expectNoPageOverflow(page: Page) {
 
 test("terminal interaction audit keeps overlays, drawings and mobile chrome contained", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 800 });
-  await createStandardUser(page);
+  await loginOwner(page);
 
   await expectNoPageOverflow(page);
 
@@ -55,11 +51,12 @@ test("terminal interaction audit keeps overlays, drawings and mobile chrome cont
 
   for (const label of layerLabels) {
     const toggle = page.getByLabel(label);
-    await expect(toggle).toBeVisible();
+    const visibleControl = page.locator("label.indicator-toggle").filter({ has: toggle });
+    await expect(visibleControl).toBeVisible();
     const original = await toggle.isChecked();
-    await toggle.click();
+    await visibleControl.click();
     await expect(toggle).toBeChecked({ checked: !original });
-    await toggle.click();
+    await visibleControl.click();
     await expect(toggle).toBeChecked({ checked: original });
   }
 
