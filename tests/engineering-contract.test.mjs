@@ -17,9 +17,9 @@ const workflowPaths = [
   ".github/workflows/isolated-recovery-rehearsal.yml",
 ];
 
-test("one exact Node runtime is shared by package and every workflow", () => {
+test("CI pins one Node 22 runtime while the engine accepts later security patches", () => {
   assert.match(runtimeVersion, /^22\.\d+\.\d+$/);
-  assert.equal(packageJson.engines.node, runtimeVersion);
+  assert.equal(packageJson.engines.node, `>=${runtimeVersion} <23`);
   assert.match(read(".npmrc"), /^engine-strict=true$/m);
 
   for (const path of workflowPaths) {
