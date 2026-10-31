@@ -19,6 +19,8 @@ jobs:
           node-version-file: ".node-version"
           cache: npm
       - run: npm ci
+      - name: Audit production dependencies (high and critical)
+        run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm test
       - run: npm run build
