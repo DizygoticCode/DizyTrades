@@ -12,10 +12,10 @@ The next execution milestone is operational rather than another product feature 
 
 [Open DizyTrades](https://dizytrades.tech) · [View-only terminal](https://dizytrades.tech/explore) · [DizyQuant Research](https://dizytrades.tech/research) · [DizyAcademy](https://dizytrades.tech/school) · [DIZY](https://dizytrades.tech/dizy) · [Roadmap](ROADMAP.md)
 
-![Next.js](https://img.shields.io/badge/Next.js-16.3.7-black?logo=next.js)
+![Next.js](https://img.shields.io/badge/Next.js-16.4.1-black?logo=next.js)
 ![React](https://img.shields.io/badge/React-19.x-149ECA?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-3178C6?logo=typescript)
-![Node.js](https://img.shields.io/badge/Node.js-22.23.1-339933?logo=node.js)
+![Node.js](https://img.shields.io/badge/Node.js-22.23.4-339933?logo=node.js)
 ![Status](https://img.shields.io/badge/status-active%20beta-7c6cff)
 ![CI](https://img.shields.io/badge/CI-lint%20%7C%20tests%20%7C%20build%20%7C%20Chromium-passing-2ea44f)
 ![Live trading](https://img.shields.io/badge/live%20trading-disabled-ff5c70)
@@ -229,7 +229,7 @@ Dependency upgrades are intentionally focused. The project does not merge broad 
 
 ### Requirements
 
-- Node.js 22.23.1 (repository engine)
+- Node.js 22.23.4 for reproducible CI; later 22.x security patches also satisfy the engine range.
 - npm
 
 ### Setup
