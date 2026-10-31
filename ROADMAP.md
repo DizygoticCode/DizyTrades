@@ -298,6 +298,13 @@ Large institutional-style features remain parked unless evidence creates a concr
 
 The emergency CI-recovery item is complete. Maintenance is now continuous rather than a one-off roadmap blocker.
 
+Security patch staged 31 October 2026 (source branch; NOT YET deployed to DizyServer):
+
+- Next.js 16.4.1 (patched against October advisories)
+- Node.js CI 22.23.4 (server also patched)
+- `source-map-js` 1.2.2 and `sharp` 0.35.5 locked
+- Keep `LIVE_TRADING_ENABLED=false`, complete CI and a controlled exact-SHA deployment before claiming rollout.
+
 Current repository base (28 September 2026; verify the running host separately):
 
 - Node.js 22.23.1
