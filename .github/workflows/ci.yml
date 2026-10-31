@@ -2,7 +2,7 @@ name: DizyTrades checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, security/node-22-23-4-audit]
   pull_request:
 
 permissions:
@@ -69,7 +69,10 @@ jobs:
           retention-days: 7
 
   security-lockfile-refresh:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/security/node-22-23-4-audit' && github.event.head_commit.message != 'security(lock): persist patched Next dependencies'
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/security/node-22-23-4-audit' &&
+      github.event.head_commit.message != 'security(lock): persist patched Next dependencies'
     permissions:
       contents: write
     runs-on: ubuntu-24.04
