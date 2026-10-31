@@ -298,12 +298,20 @@ Large institutional-style features remain parked unless evidence creates a concr
 
 The emergency CI-recovery item is complete. Maintenance is now continuous rather than a one-off roadmap blocker.
 
-Security patch staged 31 October 2026 (source branch; NOT YET deployed to DizyServer):
+Operator-confirmed deployed security patch — 31 October 2026:
 
-- Next.js 16.4.1 (patched against October advisories)
-- Node.js CI 22.23.4 (server also patched)
-- `source-map-js` 1.2.2 and `sharp` 0.35.5 locked
-- Keep `LIVE_TRADING_ENABLED=false`, complete CI and a controlled exact-SHA deployment before claiming rollout.
+- DizyServer checkout at `ca04402`, installed Next.js **16.4.1**, `dizytrades.service` active and `dizytrades.tech` responding.
+- `/api/health` returned `ok:true`, `mode:test` and `liveTradingEnabled:false` at 20:06 UTC. This verifies application health, **not** exchange-write readiness.
+- Node.js CI targets 22.23.4. The operator did not recheck the production Node version during this verification; do not infer it has been upgraded.
+- Keep `LIVE_TRADING_ENABLED=false` and `MEXC_WRITE_PROVIDER_ENABLED=false`; do not infer readiness for live execution.
+
+Proposed dependency-maintenance candidate — PR #410, **not merged or deployed**:
+
+- Next.js 16.4.3 and `eslint-config-next` 16.4.3.
+- React / React DOM 19.3.1, plus matching React types, newer Playwright and tsx.
+- Require full lint, deterministic tests, production build and browser smoke on this branch before any merge; production stays at the verified 16.4.1 baseline.
+
+The 28 September repository snapshot below is historical; it is not the current deployed or proposed package baseline.
 
 Current repository base (28 September 2026; verify the running host separately):
 
